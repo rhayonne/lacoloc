@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:lacoloc_front/home_page.dart';
+import 'package:lacoloc_front/presentation/home_page.dart';
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
