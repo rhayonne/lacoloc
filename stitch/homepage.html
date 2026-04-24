@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+
+<html lang="fr">
+
+<head>
+  <meta charset="utf-8" />
+  <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&amp;display=swap"
+    rel="stylesheet" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+    rel="stylesheet" />
+  <script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+            "tertiary-container": "#53a7f0",
+            "surface-container": "#ebeef0",
+            "on-surface-variant": "#3d4948",
+            "outline": "#6d7a78",
+            "secondary": "#944b00",
+            "on-primary": "#ffffff",
+            "on-secondary-fixed-variant": "#703700",
+            "tertiary-fixed-dim": "#99cbff",
+            "on-secondary-container": "#6b3500",
+            "surface-bright": "#f7fafc",
+            "primary-fixed-dim": "#66d8d2",
+            "tertiary-fixed": "#cfe5ff",
+            "secondary-fixed": "#ffdcc5",
+            "inverse-surface": "#2d3133",
+            "on-tertiary-fixed": "#001d34",
+            "inverse-on-surface": "#eef1f3",
+            "on-surface": "#181c1e",
+            "primary-fixed": "#84f5ee",
+            "on-error": "#ffffff",
+            "surface-container-highest": "#e0e3e5",
+            "surface-variant": "#e0e3e5",
+            "surface-tint": "#006a66",
+            "error": "#ba1a1a",
+            "inverse-primary": "#66d8d2",
+            "primary-container": "#38b2ac",
+            "primary": "#006a66",
+            "surface-container-high": "#e5e9eb",
+            "tertiary": "#00629d",
+            "surface-container-low": "#f1f4f6",
+            "error-container": "#ffdad6",
+            "secondary-fixed-dim": "#ffb783",
+            "on-primary-fixed": "#00201e",
+            "surface-container-lowest": "#ffffff",
+            "on-primary-container": "#003f3d",
+            "surface": "#f7fafc",
+            "secondary-container": "#fe9743",
+            "on-secondary-fixed": "#301400",
+            "on-tertiary-fixed-variant": "#004a78",
+            "on-tertiary-container": "#003b61",
+            "surface-dim": "#d7dadc",
+            "on-primary-fixed-variant": "#00504d",
+            "outline-variant": "#bcc9c7",
+            "on-error-container": "#93000a",
+            "background": "#f7fafc",
+            "on-secondary": "#ffffff",
+            "on-tertiary": "#ffffff",
+            "on-background": "#181c1e"
+          },
+          "borderRadius": {
+            "DEFAULT": "0.25rem",
+            "lg": "0.5rem",
+            "xl": "0.75rem",
+            "full": "9999px"
+          },
+          "spacing": {
+            "base": "8px",
+            "xl": "80px",
+            "sm": "12px",
+            "md": "24px",
+            "container-max": "1200px",
+            "gutter": "24px",
+            "xs": "4px",
+            "lg": "48px"
+          },
+          "fontFamily": {
+            "h1": ["Be Vietnam Pro"],
+            "h2": ["Be Vietnam Pro"],
+            "h3": ["Be Vietnam Pro"],
+            "body-lg": ["Be Vietnam Pro"],
+            "body-md": ["Be Vietnam Pro"],
+            "label-caps": ["Be Vietnam Pro"]
+          },
+          "fontSize": {
+            "h1": ["40px", { "lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+            "h2": ["32px", { "lineHeight": "1.3", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+            "h3": ["24px", { "lineHeight": "1.4", "fontWeight": "600" }],
+            "body-lg": ["18px", { "lineHeight": "1.6", "fontWeight": "400" }],
+            "body-md": ["16px", { "lineHeight": "1.5", "fontWeight": "400" }],
+            "label-caps": ["12px", { "lineHeight": "1.0", "letterSpacing": "0.05em", "fontWeight": "700" }]
+          }
+        },
+      },
+    }
+  </script>
+  <style>
+    body {
+      font-family: 'Be Vietnam Pro', sans-serif;
+      background-color: #f7fafc;
+    }
+
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    }
+
+    .glass-card {
+      backdrop-filter: blur(8px);
+      background-color: rgba(255, 255, 255, 0.8);
+    }
+
+    .teal-shadow {
+      box-shadow: 0 10px 30px -5px rgba(56, 178, 172, 0.1);
+    }
+  </style>
+  <style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+</head>
+
+<body class="bg-surface selection-screen min-h-screen flex flex-col items-center">
+  <!-- TopAppBar -->
+  <header
+    class="fixed top-0 w-full z-50 flex justify-between items-center px-md h-16 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-100 dark:border-slate-800 shadow-sm shadow-teal-500/5">
+    <div class="flex items-center gap-sm">
+      <span class="material-symbols-outlined text-teal-600 dark:text-teal-400">menu</span>
+      <span class="text-2xl font-bold tracking-tight text-teal-600 dark:text-teal-400">ChezSoi</span>
+    </div>
+    <div class="flex items-center">
+      <div
+        class="w-10 h-10 rounded-full overflow-hidden bg-surface-container-high flex items-center justify-center border-2 border-primary-container">
+        <img alt="Photo de profil utilisateur" class="w-full h-full object-cover"
+          data-alt="professional headshot of a young smiling man in a white studio background, clean and modern aesthetic"
+          src="https://lh3.googleusercontent.com/aida-public/AB6AXuDUyS4rqnq2bF1t0rWJhBMYwTfKCjkdiRshMshQZDixFkgKatEZQSqMMD3BA8RWXor5B126wy-AwaVNkcQoLNil38LGOLvhKV0rR-BLPckW3c6TKHscq8jO6WGZxxYQ5Wz7q9CQFxmZAYN8Q8rlby6alcLSAySy8hW3c0lTMskyMRoLwzEHrdSS23UoaQtVkel-Dbj9d5ea_NOoOY81yq0lc6tixpqI209vzIpaOX4Qg9Qt85vvIr9b-sf19LeXn3vooma9ofkzqvE" />
+      </div>
+    </div>
+  </header>
+  <!-- Main Content Canvas -->
+  <main class="flex-1 w-full max-w-container-max px-gutter pt-xl pb-lg flex flex-col items-center justify-center">
+    <!-- Welcome Heading -->
+    <div class="text-center mb-lg">
+      <h1 class="font-h1 text-h1 text-on-surface mb-xs">Comment souhaitez-vous utiliser ChezSoi ?</h1>
+      <p class="font-body-lg text-body-lg text-on-surface-variant">Sélectionnez votre profil pour une expérience
+        personnalisée.</p>
+    </div>
+    <!-- Selection Cards Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-md w-full max-w-4xl">
+      <!-- Tenant Card -->
+      <button
+        class="group relative flex flex-col text-left overflow-hidden bg-surface-container-lowest rounded-xl teal-shadow hover:ring-2 hover:ring-primary-container transition-all duration-300 active:scale-95">
+        <div class="aspect-[4/3] w-full relative overflow-hidden">
+          <img class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+            data-alt="bright modern apartment living room with sunlight streaming through large windows, white walls, and minimal wooden furniture"
+            src="https://lh3.googleusercontent.com/aida-public/AB6AXuDwBLO0ZQg-CU_4Xd5h0YVGR-hKMRq9TycgeaDK17ucEr_PChNkoteUKHYVCXlQFJY5sPa2iSFzuMnGPEXvQWKYkqWCPYbdHQ_XBB-9jhx9mxdul9bo4XHQWHVUiDChPezeUKDsTqxz4vwwUhE3wReHDB9Q3G3OFzDiC7JQj6Jtnzio3y70KjK4i60P2Zdll5H0jnR8TqSarQlXZrzULdxF47UuyrXcWJ8-2PhJ5bU2r5iIHudiJN3M_kzWDm9wkPXcS1vo1sefqOw" />
+          <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
+          <div class="absolute bottom-md left-md">
+            <span
+              class="bg-primary-container text-on-primary-container text-label-caps px-sm py-1.5 rounded-full mb-xs inline-block">Recherche
+              Permanente</span>
+          </div>
+        </div>
+        <div class="p-md flex flex-col flex-1">
+          <div class="flex items-center gap-xs mb-xs">
+            <span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">home</span>
+            <h2 class="font-h3 text-h3 text-on-surface">Locataire</h2>
+          </div>
+          <p class="font-body-md text-body-md text-on-surface-variant mb-md flex-1">Je cherche un logement pour y vivre
+            avec des contrats annuels sécurisés et sans bureaucratie excessive.</p>
+          <div
+            class="flex items-center text-primary font-semibold text-body-md gap-xs group-hover:translate-x-2 transition-transform">
+            Entrer comme Locataire
+            <span class="material-symbols-outlined">arrow_forward</span>
+          </div>
+        </div>
+      </button>
+      <!-- Owner Card -->
+      <button
+        class="group relative flex flex-col text-left overflow-hidden bg-surface-container-lowest rounded-xl teal-shadow hover:ring-2 hover:ring-primary-container transition-all duration-300 active:scale-95">
+        <div class="aspect-[4/3] w-full relative overflow-hidden">
+          <img class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+            data-alt="professional modern real estate office setting with architectural plans and a scale model of a contemporary building, bright airy lighting"
+            src="https://lh3.googleusercontent.com/aida-public/AB6AXuAVRdvKGt-SIJICIbOGXNma9Pma--XUQkaIb6R-8_It-o0EPwfLlfC-L45X4USZ9pltInIQ-rmZuqXL5hRINGW7pGEgfMzPjLiBEq7zB_Nw-bhAhMVB_gqfHI7TgQQ8oFS1mGVUPH0k7EmaJf-Z2NKwRwgHY7VwE8YwJvvIoZ5_zMrllKDy4fXTt2yV6qN5hU8hleWCqEFqj6CFNfV9Kisu325HsB_Htcn7t6lgawNP7wPxXBbFNk_zOMSL2O6xwFiq0cKrFaDZICI" />
+          <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
+          <div class="absolute bottom-md left-md">
+            <span
+              class="bg-secondary-container text-on-secondary-container text-label-caps px-sm py-1.5 rounded-full mb-xs inline-block">Gestion
+              d'Actifs</span>
+          </div>
+        </div>
+        <div class="p-md flex flex-col flex-1">
+          <div class="flex items-center gap-xs mb-xs">
+            <span class="material-symbols-outlined text-primary"
+              style="font-variation-settings: 'FILL' 1;">vitals</span>
+            <h2 class="font-h3 text-h3 text-on-surface">Propriétaire</h2>
+          </div>
+          <p class="font-body-md text-body-md text-on-surface-variant mb-md flex-1">Je souhaite lister mon bien pour des
+            locataires vérifiés et gérer des contrats de longue durée.</p>
+          <div
+            class="flex items-center text-primary font-semibold text-body-md gap-xs group-hover:translate-x-2 transition-transform">
+            Entrer comme Propriétaire
+            <span class="material-symbols-outlined">arrow_forward</span>
+          </div>
+        </div>
+      </button>
+    </div>
+    <!-- Supportive Info -->
+    <div class="mt-lg grid grid-cols-1 md:grid-cols-3 gap-md w-full max-w-4xl">
+      <div class="flex flex-col items-center text-center px-sm">
+        <div class="w-12 h-12 bg-teal-50 rounded-full flex items-center justify-center mb-xs text-primary">
+          <span class="material-symbols-outlined">verified_user</span>
+        </div>
+        <h3 class="font-label-caps text-label-caps text-on-surface mb-1">Dossier Sécurisé</h3>
+        <p class="text-[14px] text-on-surface-variant">Protection totale de vos documents.</p>
+      </div>
+      <div class="flex flex-col items-center text-center px-sm">
+        <div class="w-12 h-12 bg-teal-50 rounded-full flex items-center justify-center mb-xs text-primary">
+          <span class="material-symbols-outlined">calendar_today</span>
+        </div>
+        <h3 class="font-label-caps text-label-caps text-on-surface mb-1">Contrat Annuel</h3>
+        <p class="text-[14px] text-on-surface-variant">Stabilité pour votre nouvelle demeure.</p>
+      </div>
+      <div class="flex flex-col items-center text-center px-sm">
+        <div class="w-12 h-12 bg-teal-50 rounded-full flex items-center justify-center mb-xs text-primary">
+          <span class="material-symbols-outlined">support_agent</span>
+        </div>
+        <h3 class="font-label-caps text-label-caps text-on-surface mb-1">Support Local</h3>
+        <p class="text-[14px] text-on-surface-variant">Assistance en français et en portugais.</p>
+      </div>
+    </div>
+  </main>
+  <!-- BottomNavBar (Hidden on desktop as per Shell Visibility Rules - using mobile visibility) -->
+  <nav
+    class="md:hidden fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-2 py-3 pb-safe bg-white dark:bg-slate-950 border-t border-slate-100 dark:border-slate-800 shadow-[0_-4px_20px_rgba(56,178,172,0.08)] rounded-t-2xl">
+    <a class="flex flex-col items-center justify-center text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-900/30 rounded-xl px-3 py-1"
+      href="#">
+      <span class="material-symbols-outlined">search</span>
+      <span class="font-be-vietnam-pro text-[11px] font-medium">Explorer</span>
+    </a>
+    <a class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500" href="#">
+      <span class="material-symbols-outlined">description</span>
+      <span class="font-be-vietnam-pro text-[11px] font-medium">Contrats</span>
+    </a>
+    <a class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500" href="#">
+      <span class="material-symbols-outlined">favorite</span>
+      <span class="font-be-vietnam-pro text-[11px] font-medium">Favoris</span>
+    </a>
+    <a class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500" href="#">
+      <span class="material-symbols-outlined">person</span>
+      <span class="font-be-vietnam-pro text-[11px] font-medium">Profil</span>
+    </a>
+  </nav>
+  <!-- Desktop Navigation Drawer (Shown on large screens) -->
+  <aside
+    class="hidden lg:flex fixed inset-y-0 left-0 z-[60] flex flex-col h-full bg-white dark:bg-slate-900 w-80 rounded-r-2xl shadow-2xl shadow-teal-900/10 border-r border-slate-100">
+    <div class="p-md border-b border-slate-50 flex items-center gap-sm">
+      <div class="w-12 h-12 rounded-xl bg-teal-50 flex items-center justify-center overflow-hidden">
+        <img alt="Avatar utilisateur" class="w-full h-full object-cover" data-alt="professional headshot of a young man"
+          src="https://lh3.googleusercontent.com/aida-public/AB6AXuCCbjBVb1wKLoKpPoFvU-GLTXIq0Nzy4MDqOkW3Fv_AAdl_cUS6WqKyQfKXhmsnaICdxIspNz9929F8TvRXsYa03ZJNBDvNV_JNweQgeFsYJzE-5EglNWLqi45BH2bFbPO8zxUs-FBT8ju6NWrG7JeusuqC0DUhQkXdOvPomI94WHVapK06qKEcWiYl0purHhfvg4XdkdkJyKSF_lDUgqxJhC2CXn5Xq9yFY9lJJBvKXYg6nHtPqycMn7Qc3dj3lDGPs_AdioIercY" />
+      </div>
+      <div>
+        <h4 class="font-be-vietnam-pro text-sm font-bold text-teal-600">Mon Compte</h4>
+        <p class="font-be-vietnam-pro text-xs text-slate-500">Locataire / Propriétaire</p>
+      </div>
+    </div>
+    <nav class="flex-1 py-md overflow-y-auto divide-y divide-slate-50 dark:divide-slate-800">
+      <a class="flex items-center gap-sm px-md py-sm hover:pl-2 transition-all duration-200 text-teal-700 font-semibold bg-teal-50 border-r-4 border-teal-500"
+        href="#">
+        <span class="material-symbols-outlined">dashboard</span>
+        <span class="font-be-vietnam-pro text-sm">Vue d'ensemble</span>
+      </a>
+      <a class="flex items-center gap-sm px-md py-sm hover:pl-2 transition-all duration-200 text-slate-600 dark:text-slate-400 hover:bg-slate-50"
+        href="#">
+        <span class="material-symbols-outlined">assignment_ind</span>
+        <span class="font-be-vietnam-pro text-sm">Candidatures</span>
+      </a>
+      <a class="flex items-center gap-sm px-md py-sm hover:pl-2 transition-all duration-200 text-slate-600 dark:text-slate-400 hover:bg-slate-50"
+        href="#">
+        <span class="material-symbols-outlined">home_work</span>
+        <span class="font-be-vietnam-pro text-sm">Biens Immobiliers</span>
+      </a>
+      <a class="flex items-center gap-sm px-md py-sm hover:pl-2 transition-all duration-200 text-slate-600 dark:text-slate-400 hover:bg-slate-50"
+        href="#">
+        <span class="material-symbols-outlined">payments</span>
+        <span class="font-be-vietnam-pro text-sm">Finances &amp; Contrats</span>
+      </a>
+    </nav>
+    <div class="p-md text-center">
+      <span class="text-xs font-medium text-slate-400">© 2024 ChezSoi France</span>
+    </div>
+  </aside>
+</body>
+
+</html>

@@ -1,2 +1,3 @@
-# lacoloc
-Projet personnel for studies
+# la_coloc
+
+A new Flutter project.
