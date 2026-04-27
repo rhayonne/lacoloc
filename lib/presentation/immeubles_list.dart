@@ -10,7 +10,6 @@ class ImmeublesList extends StatefulWidget {
 }
 
 class _ImmeublesListState extends State<ImmeublesList> {
-  // carrega os imoveis somente uma vez e recebe os imoveis do get
   late Future<List<ImmeublesModel>> _future;
 
   @override
@@ -19,7 +18,6 @@ class _ImmeublesListState extends State<ImmeublesList> {
     _future = _getImmeubles();
   }
 
-  // busca os imveis
   Future<List<ImmeublesModel>> _getImmeubles() async {
     final response = await Supabase.instance.client.from('Immeubles').select();
     return (response as List)
@@ -45,24 +43,80 @@ class _ImmeublesListState extends State<ImmeublesList> {
         if (listImmeubles.isEmpty) {
           return const Center(child: Text("Il n'y a pas d'immeubles"));
         }
-
-        return ListView.builder(
-          // Como este widget será usado dentro de uma Column na Home,
-          // certifique-se de que a Home use Expanded() em volta dele.
+        return GridView.builder(
+          padding: const EdgeInsets.all(16),
+          gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+            maxCrossAxisExtent: 450,
+            crossAxisSpacing: 16,
+            mainAxisSpacing: 16,
+            mainAxisExtent: 380, // Altura fixa de cada card (opcional)
+          ),
           itemCount: listImmeubles.length,
           itemBuilder: (context, index) {
             final immeuble = listImmeubles[index];
-            return ListTile(
-              leading: const Icon(Icons.home_work),
-              title: Text(immeuble.nome),
-              subtitle: Text(
-                immeuble.description ?? "L'immeuble n'a pas de description",
+
+            // Usando Card para ficar visualmente melhor em Grid
+            return Card(
+              clipBehavior: Clip.antiAlias,
+              elevation: 2,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  AspectRatio(
+                    aspectRatio: 16 / 9,
+                    child: Image.network(
+                      'https://imgs.search.brave.com/ceJUDCQ4TFJvaMOFbwlrFM_o8y3HWToF21feC4fOb_s/rs:fit:860:0:0:0/g:ce/aHR0cHM6Ly93d3cu/bG9kZ2lzLmNvbS9w/aG90b3MvbHBhL2Fw/LzI2MDA4L29yYW5n/ZS9hcGFydGFtZW50/by1ydWUtZXNxdWly/b2wtcGFyaXMtMTMt/LXBpY0wuanBnP3Y9/MTc0MTM0NzY1Ng',
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+
+                  Padding(
+                    padding: const EdgeInsetsGeometry.fromLTRB(12, 12, 12, 0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          immeuble.nome,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          immeuble.description ?? ' Sans description',
+                          style: TextStyle(
+                            color: Colors.grey[600],
+                            fontSize: 14,
+                          ),
+                          maxLines: 2,
+                        ),
+                      ],
+                    ),
+                  ),
+                  Spacer(),
+                  Padding(
+                    padding: EdgeInsets.all(8.0),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          Text('data');
+                        },
+                        label: Text('Voir détails'),
+                        icon: Icon(Icons.remove_red_eye, size: 18),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Theme.of(
+                            context,
+                          ).colorScheme.primaryContainer,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              trailing: Text(immeuble.id.toString()),
             );
           },
         );
       },
     );
   }
-} // Fechamento correto da classe State
+}
