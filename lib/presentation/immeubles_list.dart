@@ -69,7 +69,6 @@ class _ImmeublesListState extends State<ImmeublesList> {
                       fit: BoxFit.cover,
                     ),
                   ),
-
                   Padding(
                     padding: const EdgeInsetsGeometry.fromLTRB(12, 12, 12, 0),
                     child: Column(
