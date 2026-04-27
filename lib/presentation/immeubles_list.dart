@@ -3,7 +3,14 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../data/models/immeubles.dart';
 
 class ImmeublesList extends StatefulWidget {
-  const ImmeublesList({super.key});
+  final Function(List<ImmeublesModel>) onDataLoaded;
+  final String filter;
+
+  const ImmeublesList({
+    super.key,
+    required this.onDataLoaded,
+    this.filter = '',
+  });
 
   @override
   State<ImmeublesList> createState() => _ImmeublesListState();
@@ -12,10 +19,14 @@ class ImmeublesList extends StatefulWidget {
 class _ImmeublesListState extends State<ImmeublesList> {
   late Future<List<ImmeublesModel>> _future;
 
+  // aferindo os dados da query no banco de dados e passando para o cache e a lista de imoveis
   @override
   void initState() {
     super.initState();
-    _future = _getImmeubles();
+    _future = _getImmeubles().then((data) {
+      widget.onDataLoaded(data);
+      return data;
+    });
   }
 
   Future<List<ImmeublesModel>> _getImmeubles() async {
@@ -38,7 +49,15 @@ class _ImmeublesListState extends State<ImmeublesList> {
           return Center(child: Text('Error: ${snapshot.error}'));
         }
 
-        final listImmeubles = snapshot.data ?? [];
+        // lista sem filtro
+        final allListImmeubles = snapshot.data ?? [];
+
+        //lista com filtro
+        final listImmeubles = allListImmeubles.where((item) {
+          final nome = item.nome.toLowerCase();
+          final search = widget.filter.toLowerCase();
+          return nome.contains(search);
+        }).toList();
 
         if (listImmeubles.isEmpty) {
           return const Center(child: Text("Il n'y a pas d'immeubles"));
