@@ -1,143 +1,186 @@
 import 'package:flutter/material.dart';
-import 'package:lacoloc_front/data/models/immeubles.dart';
-import 'package:lacoloc_front/presentation/immeubles_list.dart';
-import 'package:lacoloc_front/utils/search_delegate_tobar.dart';
+import 'package:lacoloc_front/data/datasources/auth_service.dart';
+import 'package:lacoloc_front/data/models/chambre.dart';
+import 'package:lacoloc_front/presentation/app_search_bar.dart';
+import 'package:lacoloc_front/presentation/chambres/chambres_list.dart';
+import 'package:lacoloc_front/presentation/immeubles/immeubles_list_page.dart';
+import 'package:lacoloc_front/presentation/nav/app_sidebar.dart';
+import 'package:lacoloc_front/presentation/widgets/filter_panel.dart';
+import 'package:lacoloc_front/theme/app_colors.dart';
 
 class HomePage extends StatefulWidget {
-  const HomePage({super.key, required this.title});
+  const HomePage({super.key, this.title = 'Home'});
 
-  final String title;
+  final String? title;
 
   @override
   State<HomePage> createState() => _HomePageState();
 }
 
 class _HomePageState extends State<HomePage> {
-  List<ImmeublesModel> listImmeubleCache = [];
+  final _scaffoldKey = GlobalKey<ScaffoldState>();
+  late final SidebarXController _navCtrl;
+
+  List<ChambreModel> _listCache = [];
   bool _isExpanded = false;
-  final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
+  ChambreFilter _chambreFilter = ChambreFilter.empty;
+
+  static const _idxChambres = 0;
+  static const _idxImmeubles = 1;
+
+  int _section = _idxChambres;
+
+  @override
+  void initState() {
+    super.initState();
+    _navCtrl = SidebarXController(selectedIndex: _idxChambres, extended: true);
+    _navCtrl.addListener(_onNavChanged);
+  }
+
+  @override
+  void dispose() {
+    _navCtrl.removeListener(_onNavChanged);
+    _navCtrl.dispose();
+    super.dispose();
+  }
+
+  void _onNavChanged() {
+    if (!mounted) return;
+    final idx = _navCtrl.selectedIndex;
+    if (idx == _section) return;
+    setState(() {
+      _section = idx;
+      if (idx != _idxChambres) {
+        _searchQuery = '';
+        _chambreFilter = ChambreFilter.empty;
+      }
+    });
+  }
+
+  Future<void> _doLogout() async {
+    await AuthService.signOut();
+    if (mounted) setState(() {});
+  }
+
+  Widget _buildSidebar({required bool isNarrow}) {
+    final user = AuthService.currentUser;
+    final isLoggedIn = AuthService.isLoggedIn;
+
+    return AppSidebar(
+      controller: _navCtrl,
+      showToggleButton: !isNarrow,
+      items: const [
+        SidebarXItem(icon: Icons.home_outlined, label: 'Accueil'),
+        SidebarXItem(icon: Icons.apartment_outlined, label: 'Immeubles'),
+      ],
+      footerBuilder: (ctx, extended) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (isLoggedIn) ...[
+            SidebarActionButton(
+              extended: extended,
+              icon: Icons.manage_accounts_outlined,
+              label: 'Mon espace',
+              onTap: () {
+                if (isNarrow) Navigator.of(ctx).pop();
+                Navigator.of(ctx).pushNamed('/profile');
+              },
+            ),
+            SidebarActionButton(
+              extended: extended,
+              icon: Icons.logout,
+              label: 'Se déconnecter',
+              onTap: _doLogout,
+              color: AppColors.error,
+            ),
+          ] else
+            SidebarActionButton(
+              extended: extended,
+              icon: Icons.login,
+              label: 'Se connecter',
+              onTap: () {
+                if (isNarrow) Navigator.of(ctx).pop();
+                Navigator.of(ctx).pushNamed('/login');
+              },
+              color: AppColors.primary,
+            ),
+        ],
+      ),
+      userEmail: user?.email,
+    );
+  }
+
+  Widget _buildBody() {
+    if (_section == _idxImmeubles) {
+      return const ImmeublesListPage();
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        FilterPanel(
+          filter: _chambreFilter,
+          onChanged: (f) => setState(() => _chambreFilter = f),
+          showEquipments: true,
+        ),
+        Expanded(
+          child: GestureDetector(
+            onTap: () {
+              if (_isExpanded) {
+                setState(() => _isExpanded = false);
+                FocusScope.of(context).unfocus();
+              }
+            },
+            child: ChambresList(
+              filter: _searchQuery,
+              chambreFilter: _chambreFilter,
+              onDataLoaded: (data) => _listCache = data,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () {
-        if (_isExpanded) {
-          setState(() => _isExpanded = false);
-          FocusScope.of(context).unfocus();
-        }
-      },
-      child: Scaffold(
-        drawer: Drawer(
-          child: Column(
-            children: [
-              UserAccountsDrawerHeader(
-                currentAccountPicture: ClipRRect(
-                  borderRadius: BorderRadius.circular(40),
-                  child: Image.network(
-                    'https://plus.unsplash.com/premium_vector-1719858611039-66c134efa74d?q=80&w=1480&auto=format&fit=crop',
-                  ),
-                ),
-                accountName: const Text('Nome'),
-                accountEmail: const Text('Email'),
-              ),
-            ],
-          ),
-        ),
-        appBar: AppBar(
-          backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-          centerTitle: true,
-          title: AnimatedContainer(
-            duration: const Duration(milliseconds: 300),
-            width: _isExpanded ? 400 : 220,
-            height: 40,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(30),
-              boxShadow: [
-                if (_isExpanded)
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.2),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-              ],
-            ),
-            child: TextField(
-              controller: _searchController,
-              onTap: () => setState(() => _isExpanded = true),
-              onChanged: (value) {
-                setState(() => _searchQuery = value);
-              },
-              decoration: InputDecoration(
-                hintText: 'Rechercher...',
-                prefixIcon: _searchQuery.isEmpty
-                    ? const Icon(Icons.search, size: 20)
-                    : null,
-                border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(
-                  vertical: 7,
-                  horizontal: 15,
-                ),
-                // posiciona icone na direita se ha texto no campo de busca
-                suffixIcon: _searchQuery.isNotEmpty
-                    ? Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          // Posiciona a lupa na direita
-                          IconButton(
-                            icon: const Icon(
-                              Icons.search,
-                              size: 18,
-                              color: Colors.deepPurple,
-                            ),
-                            onPressed: () {
-                              FocusScope.of(context).unfocus();
-                              /*// Futuramente, criar a tabela para guardar o que é pesquisado no site, para ver tendencias.
-                              Uma vez criado pode ser usado o codigo abaixo para fazer o insert na tabela*/
+    final isNarrow = MediaQuery.sizeOf(context).width < 800;
+    final sidebar = _buildSidebar(isNarrow: isNarrow);
+    final body = _buildBody();
 
-                              // Supabase.instance.client.from('search_logs').insert({'term': _searchQuery});
-                            },
-                          ),
-                          // Botão de Limpar - Só aparece se houver texto
-                          IconButton(
-                            icon: const Icon(
-                              Icons.close,
-                              size: 18,
-                              color: Colors.grey,
-                            ),
-                            onPressed: () {
-                              setState(() {
-                                _searchController.clear();
-                                _searchQuery = '';
-                              });
-                            },
-                          ),
-                          const SizedBox(width: 5),
-                        ],
-                      )
-                    : null,
-              ),
-            ),
+    if (isNarrow) {
+      return Scaffold(
+        key: _scaffoldKey,
+        drawer: sidebar,
+        appBar: AppSearchBar(
+          listCache: _listCache,
+          isExpanded: _isExpanded,
+          onTap: () => setState(() => _isExpanded = true),
+          onSearch: (value) => setState(() => _searchQuery = value),
+          leading: IconButton(
+            icon: const Icon(Icons.menu),
+            onPressed: () {
+              if (!_navCtrl.extended) _navCtrl.setExtended(true);
+              _scaffoldKey.currentState?.openDrawer();
+            },
           ),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.search_outlined),
-              onPressed: () {
-                showSearch(
-                  context: context,
-                  delegate: SearchDelgateTobar(immeubles: listImmeubleCache),
-                );
-              },
-            ),
-          ],
         ),
-        body: ImmeublesList(
-          filter: _searchQuery,
-          onDataLoaded: (data) {
-            listImmeubleCache = data;
-          },
-        ),
+        body: body,
+      );
+    }
+
+    return Scaffold(
+      appBar: AppSearchBar(
+        listCache: _listCache,
+        isExpanded: _isExpanded,
+        onTap: () => setState(() => _isExpanded = true),
+        onSearch: (value) => setState(() => _searchQuery = value),
+      ),
+      body: Row(
+        children: [
+          sidebar,
+          Expanded(child: body),
+        ],
       ),
     );
   }
