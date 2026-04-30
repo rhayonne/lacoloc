@@ -29,7 +29,7 @@
 
 
  ### Immeuble
-[] - Dans le formulaire pour ajouter/modifier ajouter le champ Code postal
+[] - Dans le formulaire pour ajouter/modifier ajouter le champ Code postal 
 [] - Dans les détailles de l'immeuble, le bouton ajouter facture dois appeler le form pour ajouter une facture mais avec 
 [] - 
 [] - 

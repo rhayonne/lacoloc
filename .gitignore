@@ -47,6 +47,12 @@ linked_*.ds
 unlinked.ds
 unlinked_spec.ds
 
+# personnel
+.claude/
+.mcp.json
+CLAUDE.md
+supabase/migrations/
+
 # Android related
 **/android/**/gradle-wrapper.jar
 .gradle/
