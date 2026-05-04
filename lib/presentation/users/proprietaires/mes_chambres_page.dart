@@ -67,7 +67,11 @@ class _MesChambresPageState extends State<MesChambresPage> {
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, AppSpacing.md),
+                AppSpacing.lg,
+                AppSpacing.lg,
+                AppSpacing.lg,
+                AppSpacing.md,
+              ),
               child: Text('Mes Chambres', style: AppTypography.headlineMd),
             ),
             const Divider(height: 1),
@@ -76,8 +80,9 @@ class _MesChambresPageState extends State<MesChambresPage> {
                   ? Center(
                       child: Text(
                         'Aucune chambre enregistrée.',
-                        style: AppTypography.bodyMd
-                            .copyWith(color: AppColors.onSurfaceVariant),
+                        style: AppTypography.bodyMd.copyWith(
+                          color: AppColors.onSurfaceVariant,
+                        ),
                       ),
                     )
                   : ListView.builder(
@@ -119,8 +124,11 @@ class _ImmeubleGroup extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
           child: Row(
             children: [
-              const Icon(Icons.apartment,
-                  size: 18, color: AppColors.onSurfaceVariant),
+              const Icon(
+                Icons.apartment,
+                size: 18,
+                color: AppColors.onSurfaceVariant,
+              ),
               const SizedBox(width: AppSpacing.sm),
               Expanded(
                 child: Text(group.immeuble.name, style: AppTypography.titleLg),
@@ -128,14 +136,19 @@ class _ImmeubleGroup extends StatelessWidget {
               if (!group.immeuble.isActive)
                 Container(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.sm, vertical: 2),
+                    horizontal: AppSpacing.sm,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.errorContainer,
                     borderRadius: AppRadius.borderFull,
                   ),
-                  child: Text('Inactif',
-                      style: AppTypography.labelSm
-                          .copyWith(color: AppColors.onErrorContainer)),
+                  child: Text(
+                    'Inactif',
+                    style: AppTypography.labelSm.copyWith(
+                      color: AppColors.onErrorContainer,
+                    ),
+                  ),
                 ),
             ],
           ),
@@ -145,8 +158,8 @@ class _ImmeubleGroup extends StatelessWidget {
             final cols = constraints.maxWidth < 480
                 ? 1
                 : constraints.maxWidth < 800
-                    ? 2
-                    : 3;
+                ? 2
+                : 3;
             return GridView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
@@ -208,8 +221,9 @@ class _ChambreCardState extends State<_ChambreCard> {
             : AppColors.surfaceContainerLow,
         borderRadius: AppRadius.borderLg,
         border: Border.all(
-          color:
-              chambre.isActive ? AppColors.outlineVariant : AppColors.outline,
+          color: chambre.isActive
+              ? AppColors.outlineVariant
+              : AppColors.outline,
         ),
       ),
       child: Column(
@@ -259,10 +273,10 @@ class _ChambreCardState extends State<_ChambreCard> {
                               children: List.generate(
                                 photos.length,
                                 (i) => AnimatedContainer(
-                                  duration:
-                                      const Duration(milliseconds: 200),
+                                  duration: const Duration(milliseconds: 200),
                                   margin: const EdgeInsets.symmetric(
-                                      horizontal: 3),
+                                    horizontal: 3,
+                                  ),
                                   width: _currentPhoto == i ? 12 : 6,
                                   height: 6,
                                   decoration: BoxDecoration(
@@ -323,22 +337,28 @@ class _ChambreCardState extends State<_ChambreCard> {
                     if (!chambre.isActive)
                       Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 1),
+                          horizontal: 6,
+                          vertical: 1,
+                        ),
                         decoration: BoxDecoration(
                           color: AppColors.errorContainer,
                           borderRadius: AppRadius.borderFull,
                         ),
-                        child: Text('Off',
-                            style: AppTypography.labelSm.copyWith(
-                                color: AppColors.onErrorContainer)),
+                        child: Text(
+                          'Off',
+                          style: AppTypography.labelSm.copyWith(
+                            color: AppColors.onErrorContainer,
+                          ),
+                        ),
                       ),
                   ],
                 ),
                 if (chambre.m2 != null)
                   Text(
                     '${chambre.m2!.toStringAsFixed(0)} m²',
-                    style: AppTypography.labelSm
-                        .copyWith(color: AppColors.onSurfaceVariant),
+                    style: AppTypography.labelSm.copyWith(
+                      color: AppColors.onSurfaceVariant,
+                    ),
                   ),
                 const SizedBox(height: AppSpacing.xs),
                 SizedBox(
@@ -367,11 +387,11 @@ class _PhotoPlaceholder extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        color: AppColors.surfaceContainerLow,
-        child: const Center(
-          child: Icon(Icons.bed_outlined, size: 32, color: AppColors.outline),
-        ),
-      );
+    color: AppColors.surfaceContainerLow,
+    child: const Center(
+      child: Icon(Icons.bed_outlined, size: 32, color: AppColors.outline),
+    ),
+  );
 }
 
 class _CardArrow extends StatelessWidget {
@@ -381,17 +401,17 @@ class _CardArrow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => GestureDetector(
-        onTap: onTap,
-        child: Container(
-          width: 28,
-          height: 28,
-          decoration: const BoxDecoration(
-            color: Colors.black45,
-            shape: BoxShape.circle,
-          ),
-          child: Icon(icon, color: Colors.white, size: 18),
-        ),
-      );
+    onTap: onTap,
+    child: Container(
+      width: 28,
+      height: 28,
+      decoration: const BoxDecoration(
+        color: Colors.black45,
+        shape: BoxShape.circle,
+      ),
+      child: Icon(icon, color: Colors.white, size: 18),
+    ),
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

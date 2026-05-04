@@ -51,25 +51,21 @@ class UsersClient {
   final DateTime createdAt;
   final String email;
   final String? fullName;
-  /// Código legado (mantido para compatibilidade com o CHECK existente).
-  final UserType? typeClient;
-  /// FK para User_Types_Reference — preferir este quando disponível.
   final int? typeUserId;
   final UserTypeRef? typeUserRef;
+  final bool active;
 
   UsersClient({
     required this.id,
     required this.createdAt,
     required this.email,
     this.fullName,
-    this.typeClient,
     this.typeUserId,
     this.typeUserRef,
+    this.active = true,
   });
 
-  /// Retorna o tipo resolvido: prioriza o join com a tabela de referência,
-  /// cai de volta para o campo legado `type_client`.
-  UserType? get resolvedType => typeUserRef?.userType ?? typeClient;
+  UserType? get resolvedType => typeUserRef?.userType;
 
   factory UsersClient.fromJson(Map<String, dynamic> json) {
     final rawRef = json['User_Types_Reference'];
@@ -80,11 +76,11 @@ class UsersClient {
           : DateTime.now(),
       email: (json['email'] ?? json['login'] ?? '') as String,
       fullName: json['full_name'] as String?,
-      typeClient: UserType.tryParse(json['type_client'] as String?),
       typeUserId: json['type_user_id'] as int?,
       typeUserRef: rawRef is Map
           ? UserTypeRef.fromMap(Map<String, dynamic>.from(rawRef))
           : null,
+      active: (json['active'] as bool?) ?? true,
     );
   }
 
@@ -94,8 +90,8 @@ class UsersClient {
       'created_at': createdAt.toIso8601String(),
       'email': email,
       'full_name': fullName,
-      'type_client': typeClient?.raw,
       if (typeUserId != null) 'type_user_id': typeUserId,
+      'active': active,
     };
   }
 }

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_form_builder/flutter_form_builder.dart';
+import 'package:form_builder_validators/form_builder_validators.dart';
 import 'package:lacoloc_front/data/datasources/auth_service.dart';
 import 'package:lacoloc_front/data/models/users_client.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
@@ -15,44 +17,21 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
-  final _formKey = GlobalKey<FormState>();
+  final _formKey = GlobalKey<FormBuilderState>();
 
   bool _isLoading = false;
-  // alterna entre login e cadastro; no cadastro pedimos o tipo de usuário.
   bool _isSignUp = false;
-  UserType _selectedType = UserType.locataire;
-
-  @override
-  void dispose() {
-    _emailController.dispose();
-    _passwordController.dispose();
-    super.dispose();
-  }
 
   Future<void> _submit() async {
-    if (!(_formKey.currentState?.validate() ?? false)) return;
+    if (!(_formKey.currentState?.saveAndValidate() ?? false)) return;
+    final values = _formKey.currentState!.value;
     setState(() => _isLoading = true);
     try {
-      if (_isSignUp) {
-        final response = await AuthService.signUp(
-          email: _emailController.text.trim(),
-          password: _passwordController.text,
-          type: _selectedType,
-        );
-        if (!mounted) return;
-        if (response.session == null) {
-          _showConfirmationDialog();
-          return;
-        }
-      } else {
-        await AuthService.signInWithPassword(
-          email: _emailController.text.trim(),
-          password: _passwordController.text,
-        );
-        if (!mounted) return;
-      }
+      await AuthService.signInWithPassword(
+        email: values['email'] as String,
+        password: values['password'] as String,
+      );
+      if (!mounted) return;
       Navigator.of(context).pushReplacementNamed('/profile');
     } on AuthException catch (e) {
       _showError(e.message);
@@ -65,33 +44,7 @@ class _LoginPageState extends State<LoginPage> {
 
   void _showError(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
-  }
-
-  void _showConfirmationDialog() {
-    showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => AlertDialog(
-        title: const Text('Vérifiez vos e-mails'),
-        content: const Text(
-          'Un e-mail de confirmation a été envoyé à votre adresse. '
-          'Cliquez sur le lien pour activer votre compte, '
-          'puis revenez vous connecter.',
-        ),
-        actions: [
-          FilledButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              setState(() => _isSignUp = false);
-            },
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -117,95 +70,7 @@ class _LoginPageState extends State<LoginPage> {
                 ],
                 border: Border.all(color: AppColors.outlineVariant),
               ),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text(
-                      'Super Coloc',
-                      textAlign: TextAlign.center,
-                      style: AppTypography.displayMd.copyWith(
-                        color: AppColors.primary,
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    Text(
-                      _isSignUp
-                          ? 'Créez votre compte'
-                          : 'Ravi de vous revoir !',
-                      textAlign: TextAlign.center,
-                      style: AppTypography.bodyMd.copyWith(
-                        color: AppColors.onSurfaceVariant,
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.xl),
-                    _label('E-MAIL'),
-                    TextFormField(
-                      controller: _emailController,
-                      keyboardType: TextInputType.emailAddress,
-                      decoration: const InputDecoration(
-                        hintText: 'nom@exemple.fr',
-                      ),
-                      validator: (v) {
-                        if (v == null || v.trim().isEmpty) return 'Requis';
-                        if (!v.contains('@')) return 'E-mail invalide';
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-                    _label('MOT DE PASSE'),
-                    TextFormField(
-                      controller: _passwordController,
-                      obscureText: true,
-                      decoration: const InputDecoration(hintText: '••••••••'),
-                      validator: (v) {
-                        if (v == null || v.length < 6) {
-                          return '6 caractères minimum';
-                        }
-                        return null;
-                      },
-                    ),
-                    if (_isSignUp) ...[
-                      const SizedBox(height: AppSpacing.lg),
-                      _label('TYPE DE COMPTE'),
-                      _RoleSelector(
-                        selected: _selectedType,
-                        onChanged: (t) => setState(() => _selectedType = t),
-                      ),
-                    ],
-                    const SizedBox(height: AppSpacing.xl),
-                    SizedBox(
-                      height: 52,
-                      child: ElevatedButton(
-                        onPressed: _isLoading ? null : _submit,
-                        child: _isLoading
-                            ? const SizedBox(
-                                height: 22,
-                                width: 22,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2.5,
-                                  color: AppColors.onPrimary,
-                                ),
-                              )
-                            : Text(_isSignUp ? "S'inscrire" : 'Se connecter'),
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-                    TextButton(
-                      onPressed: _isLoading
-                          ? null
-                          : () => setState(() => _isSignUp = !_isSignUp),
-                      child: Text(
-                        _isSignUp
-                            ? 'Déjà un compte ? Se connecter'
-                            : "Pas encore de compte ? S'inscrire",
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              child: _isSignUp ? _buildSignUpPicker() : _buildLoginForm(),
             ),
           ),
         ),
@@ -213,23 +78,133 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  Widget _label(String text) => Padding(
-    padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-    child: Text(
-      text,
-      style: AppTypography.labelSm.copyWith(
-        color: AppColors.onSurfaceVariant,
-        letterSpacing: 1.2,
+  Widget _buildSignUpPicker() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'Super Coloc',
+          textAlign: TextAlign.center,
+          style: AppTypography.displayMd.copyWith(color: AppColors.primary),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Text(
+          'Quel type de compte souhaitez-vous créer ?',
+          textAlign: TextAlign.center,
+          style: AppTypography.bodyMd.copyWith(
+            color: AppColors.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.xl),
+        _RoleSelector(
+          onTap: (type) {
+            if (type == UserType.proprietaire) {
+              Navigator.of(context).pushNamed('/inscription-proprietaire');
+            } else {
+              Navigator.of(context).pushNamed('/inscription-locataire');
+            }
+          },
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        TextButton(
+          onPressed: () => setState(() => _isSignUp = false),
+          child: const Text('Déjà un compte ? Se connecter'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLoginForm() {
+    return FormBuilder(
+      key: _formKey,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Super Coloc',
+            textAlign: TextAlign.center,
+            style: AppTypography.displayMd.copyWith(color: AppColors.primary),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            'Ravi de vous revoir !',
+            textAlign: TextAlign.center,
+            style: AppTypography.bodyMd.copyWith(
+              color: AppColors.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.xl),
+          _label('E-MAIL'),
+          FormBuilderTextField(
+            name: 'email',
+            keyboardType: TextInputType.emailAddress,
+            decoration: const InputDecoration(hintText: 'nom@exemple.fr'),
+            validator: FormBuilderValidators.compose([
+              FormBuilderValidators.required(),
+              FormBuilderValidators.email(),
+            ]),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          _label('MOT DE PASSE'),
+          FormBuilderTextField(
+            name: 'password',
+            obscureText: true,
+            decoration: const InputDecoration(hintText: '••••••••'),
+            validator: FormBuilderValidators.compose([
+              FormBuilderValidators.required(),
+              FormBuilderValidators.minLength(
+                6,
+                errorText: '6 caractères minimum',
+              ),
+            ]),
+          ),
+          const SizedBox(height: AppSpacing.xl),
+          SizedBox(
+            height: 52,
+            child: ElevatedButton(
+              onPressed: _isLoading ? null : _submit,
+              child: _isLoading
+                  ? const SizedBox(
+                      height: 22,
+                      width: 22,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.5,
+                        color: AppColors.onPrimary,
+                      ),
+                    )
+                  : const Text('Se connecter'),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          TextButton(
+            onPressed: _isLoading
+                ? null
+                : () => setState(() => _isSignUp = true),
+            child: const Text("Pas encore de compte ? S'inscrire"),
+          ),
+        ],
       ),
-    ),
-  );
+    );
+  }
+
+  Widget _label(String text) => Padding(
+        padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+        child: Text(
+          text,
+          style: AppTypography.labelSm.copyWith(
+            color: AppColors.onSurfaceVariant,
+            letterSpacing: 1.2,
+          ),
+        ),
+      );
 }
 
 class _RoleSelector extends StatelessWidget {
-  final UserType selected;
-  final ValueChanged<UserType> onChanged;
+  final ValueChanged<UserType> onTap;
 
-  const _RoleSelector({required this.selected, required this.onChanged});
+  const _RoleSelector({required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -239,8 +214,7 @@ class _RoleSelector extends StatelessWidget {
           child: _RoleChip(
             icon: Icons.person,
             label: 'LOCATAIRE',
-            isSelected: selected == UserType.locataire,
-            onTap: () => onChanged(UserType.locataire),
+            onTap: () => onTap(UserType.locataire),
           ),
         ),
         const SizedBox(width: AppSpacing.md),
@@ -248,8 +222,7 @@ class _RoleSelector extends StatelessWidget {
           child: _RoleChip(
             icon: Icons.home_work,
             label: 'PROPRIÉTAIRE',
-            isSelected: selected == UserType.proprietaire,
-            onTap: () => onChanged(UserType.proprietaire),
+            onTap: () => onTap(UserType.proprietaire),
           ),
         ),
       ],
@@ -260,13 +233,11 @@ class _RoleSelector extends StatelessWidget {
 class _RoleChip extends StatelessWidget {
   final IconData icon;
   final String label;
-  final bool isSelected;
   final VoidCallback onTap;
 
   const _RoleChip({
     required this.icon,
     required this.label,
-    required this.isSelected,
     required this.onTap,
   });
 
@@ -276,32 +247,20 @@ class _RoleChip extends StatelessWidget {
       onTap: onTap,
       borderRadius: AppRadius.borderMd,
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
         decoration: BoxDecoration(
-          color: isSelected
-              ? AppColors.primaryFixed
-              : AppColors.surfaceContainerLow,
+          color: AppColors.surfaceContainerLow,
           borderRadius: AppRadius.borderMd,
-          border: Border.all(
-            color: isSelected ? AppColors.primary : AppColors.outlineVariant,
-            width: isSelected ? 1.5 : 1,
-          ),
+          border: Border.all(color: AppColors.outlineVariant),
         ),
         child: Column(
           children: [
-            Icon(
-              icon,
-              color: isSelected
-                  ? AppColors.primary
-                  : AppColors.onSurfaceVariant,
-            ),
+            Icon(icon, color: AppColors.onSurfaceVariant, size: 32),
             const SizedBox(height: AppSpacing.sm),
             Text(
               label,
               style: AppTypography.labelSm.copyWith(
-                color: isSelected
-                    ? AppColors.primary
-                    : AppColors.onSurfaceVariant,
+                color: AppColors.onSurfaceVariant,
               ),
             ),
           ],

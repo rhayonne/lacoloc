@@ -115,68 +115,77 @@ class _FacturesTable extends StatelessWidget {
               child: DataTable(
                 columnSpacing: AppSpacing.lg,
                 headingRowColor: WidgetStateProperty.all(
-                    AppColors.surfaceContainerLow),
+                  AppColors.surfaceContainerLow,
+                ),
                 columns: [
                   const DataColumn(label: Text('Immeuble')),
                   const DataColumn(label: Text('N° Facture')),
                   const DataColumn(label: Text('Fournisseur')),
-                  if (!narrow)
-                    const DataColumn(label: Text('Type')),
-                  const DataColumn(
-                      label: Text('HT (€)'), numeric: true),
-                  const DataColumn(
-                      label: Text('TTC (€)'), numeric: true),
-                  if (!narrow)
-                    const DataColumn(label: Text('Statut')),
+                  if (!narrow) const DataColumn(label: Text('Type')),
+                  const DataColumn(label: Text('HT (€)'), numeric: true),
+                  const DataColumn(label: Text('TTC (€)'), numeric: true),
+                  if (!narrow) const DataColumn(label: Text('Statut')),
                   const DataColumn(label: Text('Actions')),
                 ],
                 rows: factures.map((f) {
                   return DataRow(
                     cells: [
-                      DataCell(Text(f.immeubleName ?? '—',
-                          style: AppTypography.bodyMd)),
-                      DataCell(Text(f.codeFacture ?? '—',
-                          style: AppTypography.bodyMd)),
-                      DataCell(Text(f.fournisseur,
-                          style: AppTypography.bodyMd)),
+                      DataCell(
+                        Text(
+                          f.immeubleName ?? '—',
+                          style: AppTypography.bodyMd,
+                        ),
+                      ),
+                      DataCell(
+                        Text(f.codeFacture ?? '—', style: AppTypography.bodyMd),
+                      ),
+                      DataCell(
+                        Text(f.fournisseur, style: AppTypography.bodyMd),
+                      ),
                       if (!narrow)
-                        DataCell(Text(f.typeFacture,
-                            style: AppTypography.bodyMd)),
-                      DataCell(Text(
-                        f.montantHt != null
-                            ? f.montantHt!.toStringAsFixed(2)
-                            : '—',
-                        style: AppTypography.bodyMd,
-                      )),
-                      DataCell(Text(
-                        f.montantTtc != null
-                            ? f.montantTtc!.toStringAsFixed(2)
-                            : '—',
-                        style: AppTypography.bodyMd,
-                      )),
-                      if (!narrow)
-                        DataCell(_StatutBadge(statut: f.statut)),
-                      DataCell(Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Tooltip(
-                            message: 'Voir',
-                            child: IconButton(
-                              icon: const Icon(Icons.search, size: 20),
-                              color: AppColors.primary,
-                              onPressed: () => onVoir(f),
+                        DataCell(
+                          Text(f.typeFacture, style: AppTypography.bodyMd),
+                        ),
+                      DataCell(
+                        Text(
+                          f.montantHt != null
+                              ? f.montantHt!.toStringAsFixed(2)
+                              : '—',
+                          style: AppTypography.bodyMd,
+                        ),
+                      ),
+                      DataCell(
+                        Text(
+                          f.montantTtc != null
+                              ? f.montantTtc!.toStringAsFixed(2)
+                              : '—',
+                          style: AppTypography.bodyMd,
+                        ),
+                      ),
+                      if (!narrow) DataCell(_StatutBadge(statut: f.statut)),
+                      DataCell(
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Tooltip(
+                              message: 'Voir',
+                              child: IconButton(
+                                icon: const Icon(Icons.search, size: 20),
+                                color: AppColors.primary,
+                                onPressed: () => onVoir(f),
+                              ),
                             ),
-                          ),
-                          Tooltip(
-                            message: 'Modifier',
-                            child: IconButton(
-                              icon: const Icon(Icons.edit_outlined, size: 20),
-                              color: AppColors.onSurfaceVariant,
-                              onPressed: () => onModifier(f),
+                            Tooltip(
+                              message: 'Modifier',
+                              child: IconButton(
+                                icon: const Icon(Icons.edit_outlined, size: 20),
+                                color: AppColors.onSurfaceVariant,
+                                onPressed: () => onModifier(f),
+                              ),
                             ),
-                          ),
-                        ],
-                      )),
+                          ],
+                        ),
+                      ),
                     ],
                   );
                 }).toList(),
@@ -198,22 +207,20 @@ class _StatutBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (bg, fg) = switch (statut) {
-      'Payée' => (
-          AppColors.tertiaryFixed,
-          AppColors.onTertiaryFixedVariant
-        ),
+      'Payée' => (AppColors.tertiaryFixed, AppColors.onTertiaryFixedVariant),
       'En litige' => (AppColors.errorContainer, AppColors.onErrorContainer),
       _ => (AppColors.secondaryFixed, AppColors.onSecondaryFixedVariant),
     };
     return Container(
-      padding:
-          const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 2),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: 2,
+      ),
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Text(statut,
-          style: AppTypography.labelSm.copyWith(color: fg)),
+      child: Text(statut, style: AppTypography.labelSm.copyWith(color: fg)),
     );
   }
 }
@@ -232,16 +239,19 @@ class _EmptyState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.receipt_long_outlined,
-                size: 64, color: AppColors.outline),
+            const Icon(
+              Icons.receipt_long_outlined,
+              size: 64,
+              color: AppColors.outline,
+            ),
             const SizedBox(height: AppSpacing.md),
-            Text('Aucune facture enregistrée',
-                style: AppTypography.titleLg),
+            Text('Aucune facture enregistrée', style: AppTypography.titleLg),
             const SizedBox(height: AppSpacing.sm),
             Text(
               'Ajoutez votre première facture pour commencer.',
-              style: AppTypography.bodyMd
-                  .copyWith(color: AppColors.onSurfaceVariant),
+              style: AppTypography.bodyMd.copyWith(
+                color: AppColors.onSurfaceVariant,
+              ),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: AppSpacing.xl),
@@ -283,7 +293,11 @@ class FactureDetailOverlay extends StatelessWidget {
         // Barra de navegação de volta
         Padding(
           padding: const EdgeInsets.fromLTRB(
-              AppSpacing.lg, AppSpacing.md, AppSpacing.lg, 0),
+            AppSpacing.lg,
+            AppSpacing.md,
+            AppSpacing.lg,
+            0,
+          ),
           child: Row(
             children: [
               IconButton.outlined(

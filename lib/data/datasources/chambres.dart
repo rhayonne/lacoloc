@@ -7,7 +7,7 @@ class ChambresDatasource {
   static final SupabaseClient _client = Supabase.instance.client;
   static const String _table = 'Chambres';
   static const String _selectWithImmeuble =
-      '*, Immeubles!immeuble_id(id, name, address, city, region, department)';
+      '*, Immeubles!immeuble_id(id, name, address, city, region, department, bail_collectif, bail_individuel)';
 
   /// Lista pública: apenas chambres ativas.
   static Future<List<ChambreModel>> listAll() async {

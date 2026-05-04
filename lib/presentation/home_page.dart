@@ -94,6 +94,8 @@ class _HomePageState extends State<HomePage> {
               onTap: _doLogout,
               color: AppColors.error,
             ),
+            Divider(),
+            Text('azer'),
           ] else
             SidebarActionButton(
               extended: extended,
@@ -105,6 +107,11 @@ class _HomePageState extends State<HomePage> {
               },
               color: AppColors.primary,
             ),
+          Padding(
+            padding: EdgeInsetsGeometry.symmetric(vertical: 8.0),
+            child: Divider(height: 1, thickness: 1, color: AppColors.outline),
+          ),
+          SizedBox(height: 4),
         ],
       ),
       userEmail: user?.email,

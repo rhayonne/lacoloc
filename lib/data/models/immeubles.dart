@@ -16,6 +16,8 @@ class ImmeublesModel {
   final String? region;
   final String? department;
   final DateTime? createdAt;
+  final bool bailCollectif;
+  final bool bailIndividuel;
 
   ImmeublesModel({
     required this.id,
@@ -33,7 +35,15 @@ class ImmeublesModel {
     this.region,
     this.department,
     this.createdAt,
+    this.bailCollectif = false,
+    this.bailIndividuel = false,
   });
+
+  String? get bailLabel {
+    if (bailCollectif) return 'Bail collectif';
+    if (bailIndividuel) return 'Bail individuel';
+    return null;
+  }
 
   String get nome => name;
 
@@ -59,6 +69,8 @@ class ImmeublesModel {
       createdAt: map['created_at'] != null
           ? DateTime.parse(map['created_at'] as String)
           : null,
+      bailCollectif: (map['bail_collectif'] as bool?) ?? false,
+      bailIndividuel: (map['bail_individuel'] as bool?) ?? false,
     );
   }
 
@@ -75,6 +87,8 @@ class ImmeublesModel {
         if (city != null) 'city': city,
         if (region != null) 'region': region,
         if (department != null) 'department': department,
+        'bail_collectif': bailCollectif,
+        'bail_individuel': bailIndividuel,
       };
 
   static List<String> _photosFromAny(dynamic raw) {

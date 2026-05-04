@@ -38,12 +38,45 @@ class AuthService {
       password: password,
       data: {
         'full_name': fullName,
-        'type_client': type.raw,
+        'type_code': type.raw,
       },
     );
   }
 
   static Future<void> signOut() => _client.auth.signOut();
+
+  /// Notifica o admin (FORM_NEW_PROPRIETAIRE) sobre novo cadastro de proprietaire.
+  /// Falha silenciosamente — não bloqueia o fluxo principal.
+  static Future<void> notifyProprietaireRegistration({
+    required String fullName,
+    required String email,
+    String? phone,
+    String? note,
+  }) async {
+    try {
+      await _client.functions.invoke(
+        'notify-proprietaire',
+        body: {
+          'fullName': fullName,
+          'email': email,
+          if (phone != null && phone.isNotEmpty) 'phone': phone,
+          if (note != null && note.isNotEmpty) 'note': note,
+        },
+      );
+    } catch (_) {
+      // Notificação é best-effort.
+    }
+  }
+
+  /// Atualiza campos editáveis do perfil na tabela Users_Client.
+  static Future<void> updateProfile({String? fullName}) async {
+    final user = currentUser;
+    if (user == null || fullName == null) return;
+    await _client
+        .from(_profileTable)
+        .update({'full_name': fullName})
+        .eq('id', user.id);
+  }
 
   /// Carrega o perfil atual incluindo o join com User_Types_Reference.
   static Future<UsersClient?> loadCurrentProfile() async {

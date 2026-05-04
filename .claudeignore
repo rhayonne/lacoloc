@@ -1,0 +1,35 @@
+# Build e IDEs
+.vscode/
+.idea/
+build/
+.dart_tool/
+
+# Plataformas Nativas (mantenha se não for mexer em config nativa)
+android/
+ios/
+linux/
+macos/
+web/
+windows/
+
+# Dependências e Bloqueios
+pubspec.lock
+.packages
+.flutter-plugins
+.flutter-plugins-dependencies
+
+# Arquivos Gerados (Build Runner)
+*.g.dart
+*.freezed.dart
+
+# Mídia e Assets
+assets/
+**/*.png
+**/*.jpg
+**/*.jpeg
+**/*.svg
+**/*.pdf
+
+# Logs e Temporários
+*.log
+.DS_Store

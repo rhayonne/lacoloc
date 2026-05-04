@@ -4,7 +4,6 @@ import 'package:lacoloc_front/data/models/chambre.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_radius.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
-import 'package:lacoloc_front/utils/search_delegate_tobar.dart';
 
 class AppSearchBar extends StatefulWidget implements PreferredSizeWidget {
   final List<ChambreModel> listCache;
@@ -39,6 +38,10 @@ class _AppSearchBarState extends State<AppSearchBar> {
 
     return AppBar(
       leading: widget.leading,
+      elevation: 3,
+      scrolledUnderElevation: 0,
+      surfaceTintColor: AppColors.surfaceContainer,
+      shadowColor: Colors.blue,
       title: AnimatedContainer(
         duration: const Duration(milliseconds: 250),
         curve: Curves.easeOut,
@@ -93,28 +96,27 @@ class _AppSearchBarState extends State<AppSearchBar> {
         ),
       ),
       actions: [
-        IconButton(
-          icon: const Icon(Icons.search_outlined),
-          onPressed: () {
-            showSearch(
-              context: context,
-              delegate: SearchDelgateTobar(chambres: widget.listCache),
-            );
-          },
-        ),
+        // IconButton(
+        //   icon: const Icon(Icons.search_outlined),
+        //   onPressed: () {
+        //     showSearch(
+        //       context: context,
+        //       delegate: SearchDelgateTobar(chambres: widget.listCache),
+        //     );
+        //   },
+        // ),
         Padding(
-          padding: const EdgeInsets.symmetric(
-            vertical: AppSpacing.sm,
-            horizontal: AppSpacing.sm,
+          padding: const EdgeInsets.only(
+            top: AppSpacing.sm,
+            bottom: AppSpacing.sm,
+            left: AppSpacing.sm,
+            right: AppSpacing.lg,
           ),
           child: ElevatedButton.icon(
             onPressed: () {
               Navigator.of(context).pushNamed(isLogged ? '/profile' : '/login');
             },
-            icon: Icon(
-              isLogged ? Icons.account_circle : Icons.login,
-              size: 18,
-            ),
+            icon: Icon(isLogged ? Icons.account_circle : Icons.login, size: 18),
             label: Text(isLogged ? 'Mon compte' : 'Connexion'),
           ),
         ),

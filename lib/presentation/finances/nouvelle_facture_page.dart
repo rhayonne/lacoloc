@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_form_builder/flutter_form_builder.dart';
+import 'package:form_builder_validators/form_builder_validators.dart';
+import 'package:intl/intl.dart';
 import 'package:lacoloc_front/data/datasources/auth_service.dart';
 import 'package:lacoloc_front/data/datasources/factures.dart';
 import 'package:lacoloc_front/data/datasources/immeubles.dart';
 import 'package:lacoloc_front/data/models/facture.dart';
 import 'package:lacoloc_front/data/models/immeubles.dart';
-import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
 import 'package:lacoloc_front/theme/app_typography.dart';
 
@@ -29,29 +31,15 @@ class NouvelleFacturePage extends StatefulWidget {
 }
 
 class _NouvelleFacturePageState extends State<NouvelleFacturePage> {
-  final _formKey = GlobalKey<FormState>();
-
-  final _codeCtrl = TextEditingController();
-  final _fournisseurCtrl = TextEditingController();
-  final _montantHtCtrl = TextEditingController();
-  final _montantTtcCtrl = TextEditingController();
-  final _tauxTvaCtrl = TextEditingController();
-  final _notesCtrl = TextEditingController();
-
-  String? _typeFacture;
-  String _statut = 'Non payée';
-  int? _immeubleId;
-
-  DateTime? _periodeDebut;
-  DateTime? _periodeFin;
-  DateTime? _dateEmission;
-  DateTime? _dateEcheance;
+  final _formKey = GlobalKey<FormBuilderState>();
 
   late Future<List<ImmeublesModel>> _immeublesFuture;
   bool _isSubmitting = false;
 
   bool get _isEditing => widget.facture != null;
   bool get _readOnly => widget.readOnly;
+
+  static final _dateFmt = DateFormat('dd/MM/yyyy');
 
   @override
   void initState() {
@@ -60,97 +48,49 @@ class _NouvelleFacturePageState extends State<NouvelleFacturePage> {
     _immeublesFuture = ownerId != null
         ? ImmeublesDatasource.listByOwner(ownerId)
         : Future.value([]);
-
-    final f = widget.facture;
-    if (f != null) {
-      _codeCtrl.text = f.codeFacture ?? '';
-      _fournisseurCtrl.text = f.fournisseur;
-      _montantHtCtrl.text = f.montantHt?.toStringAsFixed(2) ?? '';
-      _montantTtcCtrl.text = f.montantTtc?.toStringAsFixed(2) ?? '';
-      _tauxTvaCtrl.text = f.tauxTva.toStringAsFixed(2);
-      _notesCtrl.text = f.notes ?? '';
-      _typeFacture = f.typeFacture;
-      _statut = f.statut;
-      _immeubleId = f.immeubleId;
-      _periodeDebut = f.periodeDebut;
-      _periodeFin = f.periodeFin;
-      _dateEmission = f.dateEmission;
-      _dateEcheance = f.dateEcheance;
-    } else {
-      _tauxTvaCtrl.text = '20';
-      _immeubleId = widget.prefilledImmeubleId;
-    }
   }
 
-  @override
-  void dispose() {
-    _codeCtrl.dispose();
-    _fournisseurCtrl.dispose();
-    _montantHtCtrl.dispose();
-    _montantTtcCtrl.dispose();
-    _tauxTvaCtrl.dispose();
-    _notesCtrl.dispose();
-    super.dispose();
-  }
-
-  // Calcule automatiquement TTC à partir de HT + TVA
-  void _recalcTtc() {
-    final ht = double.tryParse(_montantHtCtrl.text.replaceAll(',', '.'));
-    final tva = double.tryParse(_tauxTvaCtrl.text.replaceAll(',', '.'));
+  void _recalcTtc(String? htStr, String? tvaStr) {
+    final ht = double.tryParse((htStr ?? '').replaceAll(',', '.'));
+    final tva = double.tryParse((tvaStr ?? '').replaceAll(',', '.'));
     if (ht != null && tva != null) {
-      final ttc = ht * (1 + tva / 100);
-      _montantTtcCtrl.text = ttc.toStringAsFixed(2);
+      _formKey.currentState?.fields['montant_ttc']
+          ?.didChange((ht * (1 + tva / 100)).toStringAsFixed(2));
     }
-  }
-
-  Future<void> _pickDate({
-    required String label,
-    required DateTime? current,
-    required ValueChanged<DateTime> onPicked,
-  }) async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: current ?? DateTime.now(),
-      firstDate: DateTime(2000),
-      lastDate: DateTime(2100),
-      helpText: label,
-    );
-    if (picked != null) onPicked(picked);
   }
 
   Future<void> _submit() async {
-    if (!(_formKey.currentState?.validate() ?? false)) return;
-    if (_typeFacture == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Sélectionnez un type de facture')),
-      );
-      return;
-    }
+    if (!(_formKey.currentState?.saveAndValidate() ?? false)) return;
+    final values = _formKey.currentState!.value;
+
     final ownerId = AuthService.currentUser?.id;
     if (ownerId == null) return;
 
     setState(() => _isSubmitting = true);
     try {
+      String? trimOrNull(String? v) =>
+          v?.trim().isEmpty == true ? null : v?.trim();
+
       final model = FactureModel(
         id: widget.facture?.id ?? 0,
         ownerId: ownerId,
-        immeubleId: _immeubleId,
-        codeFacture:
-            _codeCtrl.text.trim().isEmpty ? null : _codeCtrl.text.trim(),
-        fournisseur: _fournisseurCtrl.text.trim(),
-        typeFacture: _typeFacture!,
-        periodeDebut: _periodeDebut,
-        periodeFin: _periodeFin,
-        dateEmission: _dateEmission,
-        dateEcheance: _dateEcheance,
-        montantHt:
-            double.tryParse(_montantHtCtrl.text.replaceAll(',', '.')),
-        tauxTva:
-            double.tryParse(_tauxTvaCtrl.text.replaceAll(',', '.')) ?? 20,
-        montantTtc:
-            double.tryParse(_montantTtcCtrl.text.replaceAll(',', '.')),
-        statut: _statut,
-        notes: _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
+        immeubleId: values['immeuble_id'] as int?,
+        codeFacture: trimOrNull(values['code_facture'] as String?),
+        fournisseur: values['fournisseur'] as String,
+        typeFacture: values['type_facture'] as String,
+        periodeDebut: values['periode_debut'] as DateTime?,
+        periodeFin: values['periode_fin'] as DateTime?,
+        dateEmission: values['date_emission'] as DateTime?,
+        dateEcheance: values['date_echeance'] as DateTime?,
+        montantHt: double.tryParse(
+            ((values['montant_ht'] as String?) ?? '').replaceAll(',', '.')),
+        tauxTva: double.tryParse(
+                ((values['taux_tva'] as String?) ?? '').replaceAll(',', '.')) ??
+            20,
+        montantTtc: double.tryParse(
+            ((values['montant_ttc'] as String?) ?? '').replaceAll(',', '.')),
+        statut: values['statut'] as String,
+        notes: trimOrNull(values['notes'] as String?),
       );
 
       _isEditing
@@ -175,18 +115,16 @@ class _NouvelleFacturePageState extends State<NouvelleFacturePage> {
 
   @override
   Widget build(BuildContext context) {
-    String title;
-    if (_readOnly) {
-      title = 'Détail de la facture';
-    } else if (_isEditing) {
-      title = 'Modifier la facture';
-    } else {
-      title = 'Nouvelle facture';
-    }
+    final f = widget.facture;
+    final title = _readOnly
+        ? 'Détail de la facture'
+        : _isEditing
+            ? 'Modifier la facture'
+            : 'Nouvelle facture';
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(AppSpacing.lg),
-      child: Form(
+      child: FormBuilder(
         key: _formKey,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -194,68 +132,64 @@ class _NouvelleFacturePageState extends State<NouvelleFacturePage> {
             Text(title, style: AppTypography.titleLg),
             const SizedBox(height: AppSpacing.lg),
 
-            // ── Immeuble ──────────────────────────────────────────────────
+            // ── Immeuble ──────────────────────────────────────────────
             FutureBuilder<List<ImmeublesModel>>(
               future: _immeublesFuture,
               builder: (context, snap) {
-                final items = snap.data ?? [];
-
-                // Immeuble fixé depuis le contexte détail : lecture seule
                 if (widget.prefilledImmeubleId != null) {
-                  return TextFormField(
+                  return FormBuilderTextField(
+                    name: 'immeuble_id_display',
                     initialValue: widget.prefilledImmeubleName ?? '',
-                    readOnly: true,
+                    enabled: false,
                     decoration: const InputDecoration(
                       labelText: 'Immeuble',
                       suffixIcon: Icon(Icons.lock_outline, size: 16),
                     ),
-                    style: TextStyle(color: AppColors.onSurfaceVariant),
                   );
                 }
-
-                return DropdownButtonFormField<int?>(
-                  initialValue: _immeubleId,
+                final items = snap.data ?? [];
+                return FormBuilderDropdown<int?>(
+                  name: 'immeuble_id',
+                  initialValue:
+                      f?.immeubleId ?? widget.prefilledImmeubleId,
                   decoration: const InputDecoration(labelText: 'Immeuble'),
+                  enabled: !_readOnly,
                   items: [
                     const DropdownMenuItem(
                         value: null, child: Text('— Aucun —')),
-                    ...items.map((i) =>
-                        DropdownMenuItem(value: i.id, child: Text(i.name))),
+                    ...items.map((i) => DropdownMenuItem(
+                        value: i.id, child: Text(i.name))),
                   ],
-                  onChanged: _readOnly
-                      ? null
-                      : (v) => setState(() => _immeubleId = v),
                 );
               },
             ),
             const SizedBox(height: AppSpacing.md),
 
-            // ── Type + Code ───────────────────────────────────────────────
+            // ── Type + Code ───────────────────────────────────────────
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
                   flex: 2,
-                  child: DropdownButtonFormField<String>(
-                    initialValue: _typeFacture,
+                  child: FormBuilderDropdown<String>(
+                    name: 'type_facture',
+                    initialValue: f?.typeFacture,
                     decoration:
                         const InputDecoration(labelText: 'Type de facture'),
+                    enabled: !_readOnly,
                     items: kTypesFacture
                         .map((t) =>
                             DropdownMenuItem(value: t, child: Text(t)))
                         .toList(),
-                    onChanged: _readOnly
-                        ? null
-                        : (v) => setState(() => _typeFacture = v),
-                    validator: (v) =>
-                        v == null || v.isEmpty ? 'Requis' : null,
+                    validator: FormBuilderValidators.required(),
                   ),
                 ),
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
-                  child: TextFormField(
-                    controller: _codeCtrl,
-                    readOnly: _readOnly,
+                  child: FormBuilderTextField(
+                    name: 'code_facture',
+                    initialValue: f?.codeFacture,
+                    enabled: !_readOnly,
                     decoration:
                         const InputDecoration(labelText: 'N° facture'),
                   ),
@@ -264,131 +198,144 @@ class _NouvelleFacturePageState extends State<NouvelleFacturePage> {
             ),
             const SizedBox(height: AppSpacing.md),
 
-            // ── Fournisseur ───────────────────────────────────────────────
-            TextFormField(
-              controller: _fournisseurCtrl,
-              readOnly: _readOnly,
+            // ── Fournisseur ───────────────────────────────────────────
+            FormBuilderTextField(
+              name: 'fournisseur',
+              initialValue: f?.fournisseur,
+              enabled: !_readOnly,
               decoration:
                   const InputDecoration(labelText: 'Fournisseur / Prestataire'),
-              validator: (v) =>
-                  v == null || v.trim().isEmpty ? 'Requis' : null,
+              validator: FormBuilderValidators.required(),
             ),
             const SizedBox(height: AppSpacing.md),
 
-            // ── Période ───────────────────────────────────────────────────
+            // ── Période ───────────────────────────────────────────────
             Text('Période', style: AppTypography.labelMd),
             const SizedBox(height: AppSpacing.sm),
             Row(
               children: [
                 Expanded(
-                  child: _DateField(
-                    label: 'Du',
-                    value: _periodeDebut,
-                    readOnly: _readOnly,
-                    onTap: _readOnly
-                        ? null
-                        : () => _pickDate(
-                              label: 'Début de période',
-                              current: _periodeDebut,
-                              onPicked: (d) =>
-                                  setState(() => _periodeDebut = d),
-                            ),
+                  child: FormBuilderDateTimePicker(
+                    name: 'periode_debut',
+                    initialValue: f?.periodeDebut,
+                    inputType: InputType.date,
+                    format: _dateFmt,
+                    locale: const Locale('fr', 'FR'),
+                    enabled: !_readOnly,
+                    decoration: const InputDecoration(
+                      labelText: 'Du',
+                      suffixIcon: Icon(Icons.calendar_today_outlined, size: 18),
+                    ),
                   ),
                 ),
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
-                  child: _DateField(
-                    label: 'Au',
-                    value: _periodeFin,
-                    readOnly: _readOnly,
-                    onTap: _readOnly
-                        ? null
-                        : () => _pickDate(
-                              label: 'Fin de période',
-                              current: _periodeFin,
-                              onPicked: (d) =>
-                                  setState(() => _periodeFin = d),
-                            ),
+                  child: FormBuilderDateTimePicker(
+                    name: 'periode_fin',
+                    initialValue: f?.periodeFin,
+                    inputType: InputType.date,
+                    format: _dateFmt,
+                    locale: const Locale('fr', 'FR'),
+                    enabled: !_readOnly,
+                    decoration: const InputDecoration(
+                      labelText: 'Au',
+                      suffixIcon: Icon(Icons.calendar_today_outlined, size: 18),
+                    ),
                   ),
                 ),
               ],
             ),
             const SizedBox(height: AppSpacing.md),
 
-            // ── Dates émission / échéance ──────────────────────────────────
+            // ── Dates émission / échéance ─────────────────────────────
             Row(
               children: [
                 Expanded(
-                  child: _DateField(
-                    label: "Date d'émission",
-                    value: _dateEmission,
-                    readOnly: _readOnly,
-                    onTap: _readOnly
-                        ? null
-                        : () => _pickDate(
-                              label: "Date d'émission",
-                              current: _dateEmission,
-                              onPicked: (d) =>
-                                  setState(() => _dateEmission = d),
-                            ),
+                  child: FormBuilderDateTimePicker(
+                    name: 'date_emission',
+                    initialValue: f?.dateEmission,
+                    inputType: InputType.date,
+                    format: _dateFmt,
+                    locale: const Locale('fr', 'FR'),
+                    enabled: !_readOnly,
+                    decoration: const InputDecoration(
+                      labelText: "Date d'émission",
+                      suffixIcon: Icon(Icons.calendar_today_outlined, size: 18),
+                    ),
                   ),
                 ),
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
-                  child: _DateField(
-                    label: "Date d'échéance",
-                    value: _dateEcheance,
-                    readOnly: _readOnly,
-                    onTap: _readOnly
-                        ? null
-                        : () => _pickDate(
-                              label: "Date d'échéance",
-                              current: _dateEcheance,
-                              onPicked: (d) =>
-                                  setState(() => _dateEcheance = d),
-                            ),
+                  child: FormBuilderDateTimePicker(
+                    name: 'date_echeance',
+                    initialValue: f?.dateEcheance,
+                    inputType: InputType.date,
+                    format: _dateFmt,
+                    locale: const Locale('fr', 'FR'),
+                    enabled: !_readOnly,
+                    decoration: const InputDecoration(
+                      labelText: "Date d'échéance",
+                      suffixIcon: Icon(Icons.calendar_today_outlined, size: 18),
+                    ),
                   ),
                 ),
               ],
             ),
             const SizedBox(height: AppSpacing.md),
 
-            // ── Montants ──────────────────────────────────────────────────
+            // ── Montants ──────────────────────────────────────────────
             Text('Montants', style: AppTypography.labelMd),
             const SizedBox(height: AppSpacing.sm),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
-                  child: TextFormField(
-                    controller: _montantHtCtrl,
-                    readOnly: _readOnly,
+                  child: FormBuilderTextField(
+                    name: 'montant_ht',
+                    initialValue: f?.montantHt?.toStringAsFixed(2),
+                    enabled: !_readOnly,
                     decoration: const InputDecoration(
                       labelText: 'Montant HT (€)',
                       hintText: '0.00',
                     ),
                     keyboardType:
                         const TextInputType.numberWithOptions(decimal: true),
-                    onChanged: _readOnly ? null : (_) => _recalcTtc(),
+                    onChanged: _readOnly
+                        ? null
+                        : (v) => _recalcTtc(
+                              v,
+                              _formKey.currentState?.fields['taux_tva']?.value
+                                  as String?,
+                            ),
                   ),
                 ),
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
-                  child: TextFormField(
-                    controller: _tauxTvaCtrl,
-                    readOnly: _readOnly,
-                    decoration:
-                        const InputDecoration(labelText: 'TVA (%)', hintText: '20'),
+                  child: FormBuilderTextField(
+                    name: 'taux_tva',
+                    initialValue: f != null
+                        ? f.tauxTva.toStringAsFixed(2)
+                        : '20',
+                    enabled: !_readOnly,
+                    decoration: const InputDecoration(
+                        labelText: 'TVA (%)', hintText: '20'),
                     keyboardType:
                         const TextInputType.numberWithOptions(decimal: true),
-                    onChanged: _readOnly ? null : (_) => _recalcTtc(),
+                    onChanged: _readOnly
+                        ? null
+                        : (v) => _recalcTtc(
+                              _formKey.currentState?.fields['montant_ht']?.value
+                                  as String?,
+                              v,
+                            ),
                   ),
                 ),
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
-                  child: TextFormField(
-                    controller: _montantTtcCtrl,
-                    readOnly: _readOnly,
+                  child: FormBuilderTextField(
+                    name: 'montant_ttc',
+                    initialValue: f?.montantTtc?.toStringAsFixed(2),
+                    enabled: !_readOnly,
                     decoration: const InputDecoration(
                       labelText: 'Montant TTC (€)',
                       hintText: '0.00',
@@ -401,22 +348,23 @@ class _NouvelleFacturePageState extends State<NouvelleFacturePage> {
             ),
             const SizedBox(height: AppSpacing.md),
 
-            // ── Statut ────────────────────────────────────────────────────
-            DropdownButtonFormField<String>(
-              initialValue: _statut,
+            // ── Statut ────────────────────────────────────────────────
+            FormBuilderDropdown<String>(
+              name: 'statut',
+              initialValue: f?.statut ?? 'Non payée',
+              enabled: !_readOnly,
               decoration: const InputDecoration(labelText: 'Statut'),
               items: kStatutsFacture
                   .map((s) => DropdownMenuItem(value: s, child: Text(s)))
                   .toList(),
-              onChanged:
-                  _readOnly ? null : (v) => setState(() => _statut = v!),
             ),
             const SizedBox(height: AppSpacing.md),
 
-            // ── Notes ─────────────────────────────────────────────────────
-            TextFormField(
-              controller: _notesCtrl,
-              readOnly: _readOnly,
+            // ── Notes ─────────────────────────────────────────────────
+            FormBuilderTextField(
+              name: 'notes',
+              initialValue: f?.notes,
+              enabled: !_readOnly,
               decoration: const InputDecoration(
                 labelText: 'Notes',
                 alignLabelWithHint: true,
@@ -435,56 +383,12 @@ class _NouvelleFacturePageState extends State<NouvelleFacturePage> {
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
                     : const Icon(Icons.check),
-                label: Text(
-                    _isEditing ? 'Enregistrer les modifications' : 'Enregistrer'),
+                label: Text(_isEditing
+                    ? 'Enregistrer les modifications'
+                    : 'Enregistrer'),
               ),
             ],
           ],
-        ),
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _DateField extends StatelessWidget {
-  final String label;
-  final DateTime? value;
-  final bool readOnly;
-  final VoidCallback? onTap;
-
-  const _DateField({
-    required this.label,
-    required this.value,
-    required this.readOnly,
-    this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final text = value != null
-        ? '${value!.day.toString().padLeft(2, '0')}/'
-            '${value!.month.toString().padLeft(2, '0')}/'
-            '${value!.year}'
-        : '';
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(4),
-      child: InputDecorator(
-        decoration: InputDecoration(
-          labelText: label,
-          suffixIcon: readOnly
-              ? null
-              : const Icon(Icons.calendar_today_outlined, size: 18),
-        ),
-        child: Text(
-          text.isEmpty ? '—' : text,
-          style: TextStyle(
-            color: text.isEmpty
-                ? AppColors.onSurfaceVariant
-                : AppColors.onSurface,
-          ),
         ),
       ),
     );

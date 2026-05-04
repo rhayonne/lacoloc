@@ -3,6 +3,8 @@ import 'package:lacoloc_front/presentation/auth_gate.dart';
 import 'package:lacoloc_front/presentation/chambres/chambre_detail_page.dart';
 import 'package:lacoloc_front/presentation/home_page.dart';
 import 'package:lacoloc_front/presentation/login_page.dart';
+import 'package:lacoloc_front/presentation/users/locataires/creer_compte_locataire_page.dart';
+import 'package:lacoloc_front/presentation/users/proprietaires/creer_compte_proprietaire_page.dart';
 import 'package:lacoloc_front/presentation/users/proprietaires/proprietaire_profil.dart';
 import 'package:lacoloc_front/theme/app_theme.dart';
 import 'package:responsive_framework/responsive_framework.dart';
@@ -31,6 +33,10 @@ class MyApp extends StatelessWidget {
         '/login': (context) => const LoginPage(),
         '/profile': (context) => const AuthGate(),
         '/proprietaire': (context) => const ProprietaireProfilPage(),
+        '/inscription-locataire': (context) =>
+            const CrierCompteLocatairePage(),
+        '/inscription-proprietaire': (context) =>
+            const CrierCompteProprietairePage(),
       },
       onGenerateRoute: (settings) {
         if (settings.name == '/chambre') {

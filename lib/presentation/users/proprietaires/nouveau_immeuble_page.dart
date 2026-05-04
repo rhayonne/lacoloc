@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_form_builder/flutter_form_builder.dart';
+import 'package:form_builder_validators/form_builder_validators.dart';
 import 'package:lacoloc_front/data/datasources/auth_service.dart';
 import 'package:lacoloc_front/data/datasources/immeubles.dart';
 import 'package:lacoloc_front/data/datasources/reference.dart';
@@ -22,20 +24,13 @@ class NouveauImmeublePage extends StatefulWidget {
 }
 
 class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
-  final _formKey = GlobalKey<FormState>();
-  final _nameCtrl = TextEditingController();
-  String _address = '';
-  final _cityCtrl = TextEditingController();
-  final _regionCtrl = TextEditingController();
-  final _departmentCtrl = TextEditingController();
-  final _totalM2Ctrl = TextEditingController();
-  final _descriptionCtrl = TextEditingController();
+  final _formKey = GlobalKey<FormBuilderState>();
 
   late Future<List<ImmeubleTypeModel>> _typesFuture;
   ImmeubleTypeModel? _selectedType;
+  String _address = '';
   List<String> _photos = [];
   String? _mainPhoto;
-  bool _isActive = true;
   bool _isSubmitting = false;
 
   bool get _isEditing => widget.immeuble != null;
@@ -46,73 +41,62 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
     _typesFuture = ReferenceDatasource.immeubleTypes();
     final imm = widget.immeuble;
     if (imm != null) {
-      _nameCtrl.text = imm.name;
       _address = imm.address ?? '';
-      _cityCtrl.text = imm.city ?? '';
-      _regionCtrl.text = imm.region ?? '';
-      _departmentCtrl.text = imm.department ?? '';
-      _totalM2Ctrl.text = imm.totalM2?.toStringAsFixed(2) ?? '';
-      _descriptionCtrl.text = imm.description ?? '';
       _photos = List.from(imm.commonPhotos);
       _mainPhoto = imm.mainPhoto;
-      _isActive = imm.isActive;
       _typesFuture.then((types) {
         if (!mounted) return;
         final match = types.where((t) => t.id == imm.typeId).firstOrNull;
-        if (match != null) setState(() => _selectedType = match);
+        if (match != null) {
+          setState(() => _selectedType = match);
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _formKey.currentState?.fields['type']?.didChange(match);
+          });
+        }
       });
     }
   }
 
-  @override
-  void dispose() {
-    _nameCtrl.dispose();
-    _cityCtrl.dispose();
-    _regionCtrl.dispose();
-    _departmentCtrl.dispose();
-    _totalM2Ctrl.dispose();
-    _descriptionCtrl.dispose();
-    super.dispose();
-  }
-
   void _onAddressSuggested(AddressSuggestion s) {
-    setState(() {
-      _address = s.label;
-      _cityCtrl.text = s.city;
-      _regionCtrl.text = s.region;
-      _departmentCtrl.text = s.department;
-    });
+    setState(() => _address = s.label);
+    _formKey.currentState?.fields['city']?.didChange(s.city);
+    _formKey.currentState?.fields['department']?.didChange(s.department);
+    _formKey.currentState?.fields['region']?.didChange(s.region);
   }
 
   Future<void> _submit() async {
-    if (!(_formKey.currentState?.validate() ?? false)) return;
-    if (_selectedType == null) {
+    if (!(_formKey.currentState?.saveAndValidate() ?? false)) return;
+    final values = _formKey.currentState!.value;
+
+    final type = values['type'] as ImmeubleTypeModel?;
+    if (type == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Sélectionnez un type d'immeuble")),
       );
       return;
     }
+
     setState(() => _isSubmitting = true);
     try {
+      String? trimOrNull(String? v) => v?.trim().isEmpty == true ? null : v?.trim();
+
       final model = ImmeublesModel(
         id: widget.immeuble?.id ?? 0,
-        name: _nameCtrl.text.trim(),
+        name: values['name'] as String,
         ownerId: AuthService.currentUser?.id,
-        typeId: _selectedType!.id,
+        typeId: type.id,
         address: _address.trim().isEmpty ? null : _address.trim(),
-        city: _cityCtrl.text.trim().isEmpty ? null : _cityCtrl.text.trim(),
-        region:
-            _regionCtrl.text.trim().isEmpty ? null : _regionCtrl.text.trim(),
-        department: _departmentCtrl.text.trim().isEmpty
-            ? null
-            : _departmentCtrl.text.trim(),
-        totalM2: double.tryParse(_totalM2Ctrl.text.replaceAll(',', '.')),
-        description: _descriptionCtrl.text.trim().isEmpty
-            ? null
-            : _descriptionCtrl.text.trim(),
+        city: trimOrNull(values['city'] as String?),
+        region: trimOrNull(values['region'] as String?),
+        department: trimOrNull(values['department'] as String?),
+        totalM2: double.tryParse(
+            ((values['total_m2'] as String?) ?? '').replaceAll(',', '.')),
+        description: trimOrNull(values['description'] as String?),
         commonPhotos: _photos,
-        isActive: _isActive,
+        isActive: !((values['desactiver'] as bool?) ?? false),
         mainPhoto: _mainPhoto,
+        bailCollectif: (values['bail_collectif'] as bool?) ?? false,
+        bailIndividuel: (values['bail_individuel'] as bool?) ?? false,
       );
       _isEditing
           ? await ImmeublesDatasource.update(model)
@@ -137,7 +121,7 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
   Widget build(BuildContext context) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(AppSpacing.lg),
-      child: Form(
+      child: FormBuilder(
         key: _formKey,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -147,11 +131,15 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
               style: AppTypography.titleLg,
             ),
             const SizedBox(height: AppSpacing.lg),
+
+            // ── Type d'immeuble (async) ────────────────────────────────
             FutureBuilder<List<ImmeubleTypeModel>>(
               future: _typesFuture,
               builder: (context, snapshot) {
-                final items = snapshot.data ?? const [];
-                return DropdownButtonFormField<ImmeubleTypeModel>(
+                final items = snapshot.data ?? [];
+                return FormBuilderDropdown<ImmeubleTypeModel>(
+                  key: ValueKey(_selectedType?.id),
+                  name: 'type',
                   initialValue: _selectedType,
                   decoration:
                       const InputDecoration(labelText: "Type d'immeuble"),
@@ -166,53 +154,63 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
               },
             ),
             const SizedBox(height: AppSpacing.md),
-            TextFormField(
-              controller: _nameCtrl,
+
+            FormBuilderTextField(
+              name: 'name',
+              initialValue: widget.immeuble?.name,
               decoration: const InputDecoration(labelText: 'Nom'),
-              validator: (v) =>
-                  v == null || v.trim().isEmpty ? 'Requis' : null,
+              validator: FormBuilderValidators.required(),
             ),
             const SizedBox(height: AppSpacing.md),
+
             AddressAutocompleteField(
               initialValue: _address,
               onChanged: (v) => _address = v,
               onSuggestionSelected: _onAddressSuggested,
             ),
             const SizedBox(height: AppSpacing.md),
+
             Row(
               children: [
                 Expanded(
-                  child: TextFormField(
-                    controller: _cityCtrl,
+                  child: FormBuilderTextField(
+                    name: 'city',
+                    initialValue: widget.immeuble?.city,
                     decoration: const InputDecoration(labelText: 'Ville'),
                   ),
                 ),
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
-                  child: TextFormField(
-                    controller: _departmentCtrl,
-                    decoration:
-                        const InputDecoration(labelText: 'Département'),
+                  child: FormBuilderTextField(
+                    name: 'department',
+                    initialValue: widget.immeuble?.department,
+                    decoration: const InputDecoration(labelText: 'Département'),
                   ),
                 ),
               ],
             ),
             const SizedBox(height: AppSpacing.md),
-            TextFormField(
-              controller: _regionCtrl,
+
+            FormBuilderTextField(
+              name: 'region',
+              initialValue: widget.immeuble?.region,
               decoration: const InputDecoration(labelText: 'Région'),
             ),
             const SizedBox(height: AppSpacing.md),
-            TextFormField(
-              controller: _totalM2Ctrl,
+
+            FormBuilderTextField(
+              name: 'total_m2',
+              initialValue: widget.immeuble?.totalM2?.toStringAsFixed(2),
               decoration:
                   const InputDecoration(labelText: 'Surface totale (m²)'),
               keyboardType:
                   const TextInputType.numberWithOptions(decimal: true),
             ),
             const SizedBox(height: AppSpacing.md),
-            TextFormField(
-              controller: _descriptionCtrl,
+
+            FormBuilderTextField(
+              name: 'description',
+              initialValue: widget.immeuble?.description,
               decoration: const InputDecoration(
                 labelText: 'Description',
                 alignLabelWithHint: true,
@@ -220,6 +218,7 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
               maxLines: 4,
             ),
             const SizedBox(height: AppSpacing.lg),
+
             Text('Photos des espaces communs', style: AppTypography.labelMd),
             const SizedBox(height: AppSpacing.sm),
             PhotoPickerField(
@@ -231,9 +230,45 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
             ),
             const SizedBox(height: AppSpacing.lg),
             const Divider(),
-            CheckboxListTile(
-              value: !_isActive,
-              onChanged: (v) => setState(() => _isActive = !(v ?? false)),
+            const SizedBox(height: AppSpacing.sm),
+
+            Text('Type de bail', style: AppTypography.labelMd),
+            const SizedBox(height: AppSpacing.xs),
+            FormBuilderCheckbox(
+              name: 'bail_collectif',
+              initialValue: widget.immeuble?.bailCollectif ?? false,
+              title: const Text('Bail collectif'),
+              subtitle: const Text(
+                  'Un seul contrat pour toutes les chambres de l\'immeuble.'),
+              contentPadding: EdgeInsets.zero,
+              controlAffinity: ListTileControlAffinity.leading,
+              onChanged: (v) {
+                if (v == true) {
+                  _formKey.currentState?.fields['bail_individuel']
+                      ?.didChange(false);
+                }
+              },
+            ),
+            FormBuilderCheckbox(
+              name: 'bail_individuel',
+              initialValue: widget.immeuble?.bailIndividuel ?? false,
+              title: const Text('Bail individuel'),
+              subtitle: const Text(
+                  'Contrat séparé pour chaque chambre.'),
+              contentPadding: EdgeInsets.zero,
+              controlAffinity: ListTileControlAffinity.leading,
+              onChanged: (v) {
+                if (v == true) {
+                  _formKey.currentState?.fields['bail_collectif']
+                      ?.didChange(false);
+                }
+              },
+            ),
+            const Divider(),
+
+            FormBuilderCheckbox(
+              name: 'desactiver',
+              initialValue: !(widget.immeuble?.isActive ?? true),
               title: const Text('Désactiver immeuble'),
               subtitle: const Text(
                 'Toutes les chambres seront masquées du site public.',
@@ -243,6 +278,7 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
               controlAffinity: ListTileControlAffinity.leading,
             ),
             const SizedBox(height: AppSpacing.xl),
+
             ElevatedButton.icon(
               onPressed: _isSubmitting ? null : _submit,
               icon: _isSubmitting

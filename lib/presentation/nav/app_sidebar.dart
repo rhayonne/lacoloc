@@ -281,6 +281,8 @@ class SidebarActionButton extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
           child: extended
               ? Row(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.start,
                   children: [
                     Icon(icon, color: c, size: 20),
                     const SizedBox(width: 12),

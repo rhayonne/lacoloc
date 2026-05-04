@@ -241,6 +241,11 @@ class _DetailContent extends StatelessWidget {
                         icon: Icons.apartment,
                         label: bundle.immeuble!.type!.typeName,
                       ),
+                    if (bundle.immeuble?.bailLabel != null)
+                      _Stat(
+                        icon: Icons.description_outlined,
+                        label: bundle.immeuble!.bailLabel!,
+                      ),
                   ],
                 ),
 
@@ -369,6 +374,11 @@ class _DetailContent extends StatelessWidget {
                               icon: Icons.square_foot,
                               label:
                                   '${imm.totalM2!.toStringAsFixed(0)} m²',
+                            ),
+                          if (imm.bailLabel != null)
+                            _Stat(
+                              icon: Icons.description_outlined,
+                              label: imm.bailLabel!,
                             ),
                         ],
                       ),

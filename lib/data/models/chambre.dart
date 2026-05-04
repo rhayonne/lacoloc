@@ -18,6 +18,8 @@ class ChambreModel {
   final String? immeubleCity;
   final String? immeubleRegion;
   final String? immeubleDepartment;
+  final bool immeubleBailCollectif;
+  final bool immeubleBailIndividuel;
 
   ChambreModel({
     required this.id,
@@ -37,7 +39,15 @@ class ChambreModel {
     this.immeubleCity,
     this.immeubleRegion,
     this.immeubleDepartment,
+    this.immeubleBailCollectif = false,
+    this.immeubleBailIndividuel = false,
   });
+
+  String? get immeubleBailLabel {
+    if (immeubleBailCollectif) return 'Bail collectif';
+    if (immeubleBailIndividuel) return 'Bail individuel';
+    return null;
+  }
 
   factory ChambreModel.fromMap(Map<String, dynamic> map) {
     final immeuble = map['Immeubles'];
@@ -62,6 +72,12 @@ class ChambreModel {
       immeubleRegion: immeuble is Map ? immeuble['region'] as String? : null,
       immeubleDepartment:
           immeuble is Map ? immeuble['department'] as String? : null,
+      immeubleBailCollectif: immeuble is Map
+          ? (immeuble['bail_collectif'] as bool?) ?? false
+          : false,
+      immeubleBailIndividuel: immeuble is Map
+          ? (immeuble['bail_individuel'] as bool?) ?? false
+          : false,
     );
   }
 

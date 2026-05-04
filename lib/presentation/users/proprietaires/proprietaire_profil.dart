@@ -6,6 +6,7 @@ import 'package:lacoloc_front/data/models/chambre.dart';
 import 'package:lacoloc_front/data/models/facture.dart';
 import 'package:lacoloc_front/data/models/immeubles.dart';
 import 'package:lacoloc_front/presentation/finances/factures_list_page.dart';
+import 'package:lacoloc_front/presentation/finances/fournisseurs_page.dart';
 import 'package:lacoloc_front/presentation/finances/nouvelle_facture_page.dart';
 import 'package:lacoloc_front/presentation/nav/app_sidebar.dart';
 import 'package:lacoloc_front/presentation/users/proprietaires/creer_chambre_page.dart';
@@ -23,27 +24,31 @@ import 'package:lacoloc_front/theme/app_typography.dart';
 // 2 = Mes Chambres
 // 3 = Créer une chambre
 // 4 = Finances / Factures
+// 5 = Fournisseurs
 const _idxAccueil = 0;
 const _idxProprietes = 1;
 const _idxChambres = 2;
 const _idxCreerChambre = 3;
 const _idxFinances = 4;
+const _idxFournisseurs = 5;
 
-enum _Section { proprietes, chambres, creerChambre, finances }
+enum _Section { proprietes, chambres, creerChambre, finances, fournisseurs }
 
 int _sectionToIndex(_Section s) => switch (s) {
-      _Section.proprietes => _idxProprietes,
-      _Section.chambres => _idxChambres,
-      _Section.creerChambre => _idxCreerChambre,
-      _Section.finances => _idxFinances,
-    };
+  _Section.proprietes => _idxProprietes,
+  _Section.chambres => _idxChambres,
+  _Section.creerChambre => _idxCreerChambre,
+  _Section.finances => _idxFinances,
+  _Section.fournisseurs => _idxFournisseurs,
+};
 
 _Section _indexToSection(int i) => switch (i) {
-      _idxChambres => _Section.chambres,
-      _idxCreerChambre => _Section.creerChambre,
-      _idxFinances => _Section.finances,
-      _ => _Section.proprietes,
-    };
+  _idxChambres => _Section.chambres,
+  _idxCreerChambre => _Section.creerChambre,
+  _idxFinances => _Section.finances,
+  _idxFournisseurs => _Section.fournisseurs,
+  _ => _Section.proprietes,
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -143,20 +148,20 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage> {
   }
 
   void _openImmeubleCreation() => setState(() {
-        _editingImmeuble = null;
-        _showImmeubleForm = true;
-        _showImmeubleDetail = false;
-        _showChambreForm = false;
-        _showFactureForm = false;
-      });
+    _editingImmeuble = null;
+    _showImmeubleForm = true;
+    _showImmeubleDetail = false;
+    _showChambreForm = false;
+    _showFactureForm = false;
+  });
 
   void _openImmeubleEdition(ImmeublesModel imm) => setState(() {
-        _editingImmeuble = imm;
-        _showImmeubleForm = true;
-        _showImmeubleDetail = false;
-        _showChambreForm = false;
-        _showFactureForm = false;
-      });
+    _editingImmeuble = imm;
+    _showImmeubleForm = true;
+    _showImmeubleDetail = false;
+    _showChambreForm = false;
+    _showFactureForm = false;
+  });
 
   void _openImmeubleDetail(ImmeublesModel imm, List<ChambreModel> chambres) =>
       setState(() {
@@ -169,41 +174,41 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage> {
       });
 
   void _openChambreEdition(ChambreModel ch) => setState(() {
-        _editingChambre = ch;
-        _showChambreForm = true;
-        _showImmeubleForm = false;
-        _showFactureForm = false;
-      });
+    _editingChambre = ch;
+    _showChambreForm = true;
+    _showImmeubleForm = false;
+    _showFactureForm = false;
+  });
 
   void _openFactureCreation({int? immeubleId}) => setState(() {
-        _factureTarget = null;
-        _factureReadOnly = false;
-        _facturePrefilledImmeubleId = immeubleId;
-        _showFactureForm = true;
-        _showImmeubleForm = false;
-        _showChambreForm = false;
-      });
+    _factureTarget = null;
+    _factureReadOnly = false;
+    _facturePrefilledImmeubleId = immeubleId;
+    _showFactureForm = true;
+    _showImmeubleForm = false;
+    _showChambreForm = false;
+  });
 
   void _openFacture(FactureModel f, {required bool readOnly}) => setState(() {
-        _factureTarget = f;
-        _factureReadOnly = readOnly;
-        _showFactureForm = true;
-        _showImmeubleForm = false;
-        _showChambreForm = false;
-      });
+    _factureTarget = f;
+    _factureReadOnly = readOnly;
+    _showFactureForm = true;
+    _showImmeubleForm = false;
+    _showChambreForm = false;
+  });
 
   void _closeForm() => setState(() {
-        _showImmeubleForm = false;
-        _showImmeubleDetail = false;
-        _showChambreForm = false;
-        _showFactureForm = false;
-        _editingImmeuble = null;
-        _detailImmeuble = null;
-        _detailChambres = [];
-        _editingChambre = null;
-        _factureTarget = null;
-        _facturePrefilledImmeubleId = null;
-      });
+    _showImmeubleForm = false;
+    _showImmeubleDetail = false;
+    _showChambreForm = false;
+    _showFactureForm = false;
+    _editingImmeuble = null;
+    _detailImmeuble = null;
+    _detailChambres = [];
+    _editingChambre = null;
+    _factureTarget = null;
+    _facturePrefilledImmeubleId = null;
+  });
 
   Future<void> _doLogout() async {
     await AuthService.signOut();
@@ -216,11 +221,11 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage> {
 
   // Fecha o formulário de factura e volta ao detalhe do immeuble se era de lá.
   void _closeFactureForm() => setState(() {
-        _showFactureForm = false;
-        _factureTarget = null;
-        _facturePrefilledImmeubleId = null;
-        // _showImmeubleDetail / _detailImmeuble são mantidos para voltar ao detalhe.
-      });
+    _showFactureForm = false;
+    _factureTarget = null;
+    _facturePrefilledImmeubleId = null;
+    // _showImmeubleDetail / _detailImmeuble são mantidos para voltar ao detalhe.
+  });
 
   Widget _buildContent() {
     if (_searchQuery.isNotEmpty) {
@@ -247,8 +252,7 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage> {
         );
       }
       // Decide o callback de "voltar" consoante a origem.
-      final onBack =
-          _showImmeubleDetail ? _closeFactureForm : _closeForm;
+      final onBack = _showImmeubleDetail ? _closeFactureForm : _closeForm;
       return _FactureFormWithBack(
         prefilledImmeubleId: _facturePrefilledImmeubleId,
         prefilledImmeubleName: _detailImmeuble?.name,
@@ -282,46 +286,53 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage> {
         onOuvrir: _openFacture,
       );
     }
+    // Secção Fournisseurs
+    if (_section == _Section.fournisseurs) {
+      return const FournisseursPage();
+    }
     return switch (_section) {
       _Section.proprietes => MesImmeublesPage(
-          onAjouter: _openImmeubleCreation,
-          onModifier: _openImmeubleEdition,
-          onVoirDetail: _openImmeubleDetail,
-        ),
+        onAjouter: _openImmeubleCreation,
+        onModifier: _openImmeubleEdition,
+        onVoirDetail: _openImmeubleDetail,
+      ),
       _Section.chambres => MesChambresPage(onModifier: _openChambreEdition),
       _Section.creerChambre => const CreerChambrePage(),
-      _Section.finances => const SizedBox.shrink(), // tratado acima
+      _Section.finances => const SizedBox.shrink(),
+      _Section.fournisseurs => const SizedBox.shrink(),
     };
   }
 
   // ── Sidebar ────────────────────────────────────────────────────────────────
 
   List<SidebarXItem> _buildNavItems() {
-    final inChambreGroup = _section == _Section.chambres ||
-        _section == _Section.creerChambre;
+    final inChambreGroup =
+        _section == _Section.chambres || _section == _Section.creerChambre;
 
     return [
       const SidebarXItem(icon: Icons.home_outlined, label: 'Accueil'),
       const SidebarXItem(
-          icon: Icons.home_work_outlined, label: 'Mes Propriétés'),
+        icon: Icons.home_work_outlined,
+        label: 'Mes Propriétés',
+      ),
       SidebarXItem(
         icon: Icons.bed_outlined,
         label: 'Mes Chambres',
         iconBuilder: inChambreGroup
-            ? (selected, _) => _GroupIcon(
-                icon: Icons.bed_outlined, selected: selected)
+            ? (selected, _) =>
+                  _GroupIcon(icon: Icons.bed_outlined, selected: selected)
             : null,
       ),
       SidebarXItem(
         icon: Icons.add_circle_outline,
         label: 'Créer une chambre',
         iconBuilder: inChambreGroup
-            ? (selected, _) => _GroupIcon(
-                icon: Icons.add_circle_outline, selected: selected)
+            ? (selected, _) =>
+                  _GroupIcon(icon: Icons.add_circle_outline, selected: selected)
             : null,
       ),
-      const SidebarXItem(
-          icon: Icons.receipt_long_outlined, label: 'Finances'),
+      const SidebarXItem(icon: Icons.receipt_long_outlined, label: 'Finances'),
+      const SidebarXItem(icon: Icons.store_outlined, label: 'Fournisseurs'),
     ];
   }
 
@@ -545,9 +556,7 @@ class _SearchResultsPageState extends State<_SearchResultsPage> {
                       : null,
                   onTap: () => widget.onVoirDetailImmeuble(
                     i,
-                    data.chambres
-                        .where((c) => c.immeubleId == i.id)
-                        .toList(),
+                    data.chambres.where((c) => c.immeubleId == i.id).toList(),
                   ),
                 ),
               ),

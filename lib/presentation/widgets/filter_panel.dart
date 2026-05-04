@@ -7,7 +7,8 @@ import 'package:lacoloc_front/theme/app_radius.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
 import 'package:lacoloc_front/theme/app_typography.dart';
 
-export 'package:lacoloc_front/data/models/filter_state.dart' show ChambreFilter;
+export 'package:lacoloc_front/data/models/filter_state.dart'
+    show ChambreFilter, BailTypeFilter;
 
 /// Painel de filtros expansível, reutilizável em Chambres e Immeubles.
 ///
@@ -67,11 +68,13 @@ class _FilterPanelState extends State<FilterPanel> {
   }
 
   void _emitLocation() {
-    widget.onChanged(widget.filter.copyWith(
-      city: _cityCtrl.text.trim(),
-      region: _regionCtrl.text.trim(),
-      department: _deptCtrl.text.trim(),
-    ));
+    widget.onChanged(
+      widget.filter.copyWith(
+        city: _cityCtrl.text.trim(),
+        region: _regionCtrl.text.trim(),
+        department: _deptCtrl.text.trim(),
+      ),
+    );
   }
 
   void _toggleOption(int id, bool selected) {
@@ -105,23 +108,29 @@ class _FilterPanelState extends State<FilterPanel> {
             ),
             child: Row(
               children: [
-                const Icon(Icons.tune, size: 18,
-                    color: AppColors.onSurfaceVariant),
+                const Icon(
+                  Icons.tune,
+                  size: 18,
+                  color: AppColors.onSurfaceVariant,
+                ),
                 const SizedBox(width: AppSpacing.sm),
-                Text('Filtres', style: AppTypography.labelMd),
+                Text('Filtres', style: AppTypography.titleLs),
                 if (active > 0) ...[
                   const SizedBox(width: AppSpacing.xs),
                   Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 6, vertical: 1),
+                      horizontal: 6,
+                      vertical: 1,
+                    ),
                     decoration: BoxDecoration(
                       color: AppColors.primary,
                       borderRadius: AppRadius.borderFull,
                     ),
                     child: Text(
                       '$active',
-                      style: AppTypography.labelSm
-                          .copyWith(color: AppColors.onPrimary),
+                      style: AppTypography.labelSm.copyWith(
+                        color: AppColors.onPrimary,
+                      ),
                     ),
                   ),
                 ],
@@ -131,7 +140,8 @@ class _FilterPanelState extends State<FilterPanel> {
                     onPressed: _reset,
                     style: TextButton.styleFrom(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: AppSpacing.sm),
+                        horizontal: AppSpacing.sm,
+                      ),
                       minimumSize: Size.zero,
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
@@ -194,6 +204,47 @@ class _FilterPanelState extends State<FilterPanel> {
                   ],
                 ),
 
+                // Type de bail
+                const SizedBox(height: AppSpacing.md),
+                Text('Type de bail', style: AppTypography.labelMd),
+                const SizedBox(height: AppSpacing.sm),
+                Wrap(
+                  spacing: AppSpacing.sm,
+                  runSpacing: AppSpacing.xs,
+                  children: [
+                    FilterChip(
+                      label: Text('Bail collectif',
+                          style: AppTypography.labelSm),
+                      selected: widget.filter.bailType ==
+                          BailTypeFilter.collectif,
+                      onSelected: (v) => widget.onChanged(
+                        widget.filter.copyWith(
+                          bailType: v ? BailTypeFilter.collectif : null,
+                        ),
+                      ),
+                      selectedColor: AppColors.primaryFixed,
+                      checkmarkColor: AppColors.primary,
+                      materialTapTargetSize:
+                          MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    FilterChip(
+                      label: Text('Bail individuel',
+                          style: AppTypography.labelSm),
+                      selected: widget.filter.bailType ==
+                          BailTypeFilter.individuel,
+                      onSelected: (v) => widget.onChanged(
+                        widget.filter.copyWith(
+                          bailType: v ? BailTypeFilter.individuel : null,
+                        ),
+                      ),
+                      selectedColor: AppColors.primaryFixed,
+                      checkmarkColor: AppColors.primary,
+                      materialTapTargetSize:
+                          MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  ],
+                ),
+
                 // Équipements
                 if (widget.showEquipments && _optionsFuture != null) ...[
                   const SizedBox(height: AppSpacing.md),
@@ -208,11 +259,9 @@ class _FilterPanelState extends State<FilterPanel> {
                         spacing: AppSpacing.sm,
                         runSpacing: AppSpacing.xs,
                         children: opts.map((o) {
-                          final sel =
-                              widget.filter.optionIds.contains(o.id);
+                          final sel = widget.filter.optionIds.contains(o.id);
                           return FilterChip(
-                            label: Text(o.name,
-                                style: AppTypography.labelSm),
+                            label: Text(o.name, style: AppTypography.labelSm),
                             selected: sel,
                             onSelected: (v) => _toggleOption(o.id, v),
                             selectedColor: AppColors.primaryFixed,

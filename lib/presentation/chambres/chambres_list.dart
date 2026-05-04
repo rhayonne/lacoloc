@@ -6,6 +6,8 @@ import 'package:lacoloc_front/presentation/chambres/chambre_card.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
 import 'package:lacoloc_front/theme/app_typography.dart';
 
+export 'package:lacoloc_front/data/models/filter_state.dart' show BailTypeFilter;
+
 /// Grid pública de quartos disponíveis com suporte a filtros avançados.
 class ChambresList extends StatefulWidget {
   final String filter;
@@ -74,6 +76,13 @@ class _ChambresListState extends State<ChambresList> {
               .contains(f.department.toLowerCase()) ??
           false;
       if (!match) return false;
+    }
+
+    if (f.bailType == BailTypeFilter.collectif && !c.immeubleBailCollectif) {
+      return false;
+    }
+    if (f.bailType == BailTypeFilter.individuel && !c.immeubleBailIndividuel) {
+      return false;
     }
 
     return true;
