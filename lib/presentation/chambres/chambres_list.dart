@@ -85,6 +85,20 @@ class _ChambresListState extends State<ChambresList> {
       return false;
     }
 
+    // Surface m²
+    if (f.m2Min != null && (c.m2 == null || c.m2! < f.m2Min!)) return false;
+    if (f.m2Max != null && (c.m2 == null || c.m2! > f.m2Max!)) return false;
+
+    // Prix loyer
+    if (f.prixMin != null &&
+        (c.prixLoyer == null || c.prixLoyer! < f.prixMin!)) {
+      return false;
+    }
+    if (f.prixMax != null &&
+        (c.prixLoyer == null || c.prixLoyer! > f.prixMax!)) {
+      return false;
+    }
+
     return true;
   }
 

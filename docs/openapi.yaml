@@ -1,0 +1,1327 @@
+openapi: 3.0.3
+
+info:
+  title: La Coloc — API (Supabase)
+  version: "1.0.0"
+  description: |
+    Especificação detalhada da superfície de API consumida pelo app Flutter `lacoloc_front`.
+
+    A "API" do La Coloc é composta por **quatro famílias** de endpoints Supabase:
+
+    1. **PostgREST** — REST automático sobre as tabelas PostgreSQL (`/rest/v1/{table}`).
+       Cada tabela aceita `GET` (com filtros/embeds), `POST` (insert), `PATCH` (update)
+       e `DELETE`. Os datasources Flutter usam o supabase-dart, que traduz para esses
+       endpoints. Os **embeds** (joins) usam a sintaxe `select=*,rel:Tabela!fk(campos)`.
+    2. **RPC** — funções PostgreSQL expostas em `/rest/v1/rpc/{fn}`.
+    3. **Edge Functions** — Deno em `/functions/v1/{fn}`.
+    4. **Auth (GoTrue)** — `/auth/v1/*` (signup, token, logout) via supabase-dart.
+
+    Todas as requisições autenticadas enviam `apikey` (anon) e `Authorization: Bearer <jwt>`.
+    O acesso é controlado por **Row-Level Security (RLS)** no banco. Os mapeamentos
+    coluna↔modelo Dart estão anotados em cada schema.
+
+    > Cobertura de objetos: a seção `components/schemas` lista **todos os objetos de dados
+    > do código** (tabelas e modelos), incluindo enums e value objects.
+
+servers:
+  - url: https://{projectRef}.supabase.co
+    description: Projeto Supabase
+    variables:
+      projectRef:
+        default: your-project-ref
+
+tags:
+  - name: Auth
+    description: Cadastro, login, logout (GoTrue)
+  - name: Users
+    description: Users_Client + tipos + permissões
+  - name: Patrimoine
+    description: Immeubles, Chambres, Pieces
+  - name: Inventaire
+    description: Inventaire + Meubles_Reference
+  - name: Finances
+    description: Factures, Fournisseurs
+  - name: EtatDesLieux
+    description: etat_de_lieux + observations
+  - name: Visites
+    description: Agenda de visitas
+  - name: Contact
+    description: Demandes_Contact
+  - name: References
+    description: Tabelas de referência
+  - name: RPC
+    description: Funções PostgreSQL
+  - name: EdgeFunctions
+    description: Funções Deno
+  - name: Storage
+    description: Upload de fotos
+
+security:
+  - apiKey: []
+    bearerAuth: []
+
+paths:
+
+  # ───────────────────────────── AUTH ─────────────────────────────
+  /auth/v1/signup:
+    post:
+      tags: [Auth]
+      summary: Criar conta (AuthService.signUp)
+      description: |
+        Cria usuário em `auth.users`. O trigger `on_auth_user_created` cria a linha
+        em `Users_Client` lendo `data` (raw_user_meta_data). Locataire recebe e-mail
+        de confirmação; Propriétaire aguarda ativação do admin.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SignUpRequest' }
+      responses:
+        '200': { description: Sessão ou usuário criado, content: { application/json: { schema: { $ref: '#/components/schemas/AuthResponse' } } } }
+
+  /auth/v1/token:
+    post:
+      tags: [Auth]
+      summary: Login por senha (AuthService.signInWithPassword)
+      parameters:
+        - { name: grant_type, in: query, required: true, schema: { type: string, enum: [password] } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, format: password }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/AuthResponse' } } } }
+
+  /auth/v1/logout:
+    post:
+      tags: [Auth]
+      summary: Logout global (AuthService.signOut, SignOutScope.global)
+      responses:
+        '204': { description: Sessão revogada no servidor }
+
+  # ──────────────────────── USERS_CLIENT ──────────────────────────
+  /rest/v1/Users_Client:
+    get:
+      tags: [Users]
+      summary: Listar / carregar perfis (loadCurrentProfile, UserManagement.listAll)
+      description: |
+        Embeds usados: `User_Types_Reference(id, code, label, description)`.
+        Filtros típicos: `id=eq.<uuid>`, `email=eq.<x>`, `phone=eq.<x>`,
+        `invited_by_proprietaire_id=eq.<uuid>`.
+      parameters:
+        - { $ref: '#/components/parameters/select' }
+        - { name: id, in: query, schema: { type: string }, description: "ex: eq.<uuid>" }
+        - { name: email, in: query, schema: { type: string } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/UsersClient' } } } } }
+    patch:
+      tags: [Users]
+      summary: Atualizar perfil / tipo / ativo (updateProfile, updateUserType, toggleActive)
+      parameters:
+        - { name: id, in: query, required: true, schema: { type: string }, description: "eq.<uuid>" }
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UsersClientUpdate' }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/UsersClient' } } } } }
+
+  /rest/v1/User_Types_Reference:
+    get:
+      tags: [Users, References]
+      summary: Tipos de usuário (locataire / proprietaire / super_admin)
+      parameters: [ { $ref: '#/components/parameters/select' } ]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/UserTypeRef' } } } } }
+
+  /rest/v1/Permissions_Reference:
+    get:
+      tags: [Users, References]
+      summary: Catálogo de permissões (UserManagement.listAllPermissions)
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/PermissionRef' } } } } }
+
+  /rest/v1/User_Permissions:
+    get:
+      tags: [Users]
+      summary: Permissões de um usuário (getUserPermissions)
+      description: "Embed: `Permissions_Reference(id, key, label, category)`. Filtro: `user_id=eq.<uuid>`."
+      parameters:
+        - { $ref: '#/components/parameters/select' }
+        - { name: user_id, in: query, schema: { type: string } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/UserPermission' } } } } }
+    post:
+      tags: [Users]
+      summary: Conceder / definir permissões (grantPermission, setPermissions — upsert/insert)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - { $ref: '#/components/schemas/UserPermissionWrite' }
+                - { type: array, items: { $ref: '#/components/schemas/UserPermissionWrite' } }
+      responses:
+        '201': { description: Criado }
+    delete:
+      tags: [Users]
+      summary: Revogar permissão(ões) (revokePermission, setPermissions limpa antes)
+      parameters:
+        - { name: user_id, in: query, required: true, schema: { type: string } }
+        - { name: permission_id, in: query, schema: { type: integer }, description: "opcional; ausente = remove todas do user" }
+      responses:
+        '204': { description: Removido }
+
+  # ──────────────────────────── IMMEUBLES ─────────────────────────
+  /rest/v1/Immeubles:
+    get:
+      tags: [Patrimoine]
+      summary: Listar imóveis (listAll, listByOwner, byId)
+      description: "Embed: `Immeuble_Types_Reference(id, name)`. Filtros: `owner_id=eq.`, `id=eq.`."
+      parameters:
+        - { $ref: '#/components/parameters/select' }
+        - { name: owner_id, in: query, schema: { type: string } }
+        - { name: id, in: query, schema: { type: integer } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Immeuble' } } } } }
+    post:
+      tags: [Patrimoine]
+      summary: Criar imóvel (ImmeublesDatasource.create)
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/ImmeubleWrite' } } } }
+      responses: { '201': { description: Criado, content: { application/json: { schema: { $ref: '#/components/schemas/Immeuble' } } } } }
+    patch:
+      tags: [Patrimoine]
+      summary: Atualizar imóvel (ImmeublesDatasource.update)
+      parameters: [ { name: id, in: query, required: true, schema: { type: integer } } ]
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/ImmeubleWrite' } } } }
+      responses: { '200': { description: OK } }
+
+  /rest/v1/Immeuble_Types_Reference:
+    get:
+      tags: [References, Patrimoine]
+      summary: Tipos de imóvel (ReferenceDatasource.immeubleTypes — com cache)
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/ImmeubleType' } } } } }
+
+  # ──────────────────────────── CHAMBRES ──────────────────────────
+  /rest/v1/Chambres:
+    get:
+      tags: [Patrimoine]
+      summary: Listar quartos (listAll, listByImmeuble, listByImmeubles, byId)
+      description: |
+        Embed: `Immeubles(name, address, city, region, department, bail_collectif, bail_individuel)`.
+        Filtros: `immeuble_id=eq.` ou `immeuble_id=in.(...)`, `id=eq.`.
+      parameters:
+        - { $ref: '#/components/parameters/select' }
+        - { name: immeuble_id, in: query, schema: { type: integer } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Chambre' } } } } }
+    post:
+      tags: [Patrimoine]
+      summary: Criar quarto (ChambresDatasource.create)
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/ChambreWrite' } } } }
+      responses: { '201': { description: Criado, content: { application/json: { schema: { $ref: '#/components/schemas/Chambre' } } } } }
+    patch:
+      tags: [Patrimoine]
+      summary: Atualizar quarto (ChambresDatasource.update)
+      parameters: [ { name: id, in: query, required: true, schema: { type: integer } } ]
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/ChambreWrite' } } } }
+      responses: { '200': { description: OK } }
+
+  /rest/v1/Options_Reference:
+    get:
+      tags: [References, Patrimoine]
+      summary: Opcionais de quarto (ReferenceDatasource.roomOptions — com cache)
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/ReferenceItem' } } } } }
+
+  # ───────────────────────────── PIECES ───────────────────────────
+  /rest/v1/Pieces:
+    get:
+      tags: [Patrimoine]
+      summary: Listar pièces de um imóvel (PiecesDatasource.listByImmeuble)
+      parameters:
+        - { name: immeuble_id, in: query, schema: { type: integer } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Piece' } } } } }
+    post:
+      tags: [Patrimoine]
+      summary: Criar pièce (PiecesDatasource.create)
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/PieceWrite' } } } }
+      responses: { '201': { description: Criado, content: { application/json: { schema: { $ref: '#/components/schemas/Piece' } } } } }
+    patch:
+      tags: [Patrimoine]
+      summary: Atualizar pièce (PiecesDatasource.update)
+      parameters: [ { name: id, in: query, required: true, schema: { type: integer } } ]
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/PieceWrite' } } } }
+      responses: { '204': { description: OK } }
+    delete:
+      tags: [Patrimoine]
+      summary: Apagar pièce (PiecesDatasource.delete)
+      parameters: [ { name: id, in: query, required: true, schema: { type: integer } } ]
+      responses: { '204': { description: Removido } }
+
+  # ──────────────────────────── INVENTAIRE ────────────────────────
+  /rest/v1/Inventaire:
+    get:
+      tags: [Inventaire]
+      summary: Listar inventário (listByImmeuble, listByChambre)
+      description: |
+        Embeds: `meuble_ref:Meubles_Reference!meuble_ref_id(id, nom, categorie)`,
+        `chambre:Chambres!chambre_id(id, room_name)`, `piece:Pieces!piece_id(id, nom)`.
+      parameters:
+        - { $ref: '#/components/parameters/select' }
+        - { name: immeuble_id, in: query, schema: { type: integer } }
+        - { name: chambre_id, in: query, schema: { type: integer } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Inventaire' } } } } }
+    post:
+      tags: [Inventaire]
+      summary: Criar item (InventaireDatasource.create)
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/InventaireWrite' } } } }
+      responses: { '201': { description: Criado, content: { application/json: { schema: { $ref: '#/components/schemas/Inventaire' } } } } }
+    patch:
+      tags: [Inventaire]
+      summary: Atualizar item (InventaireDatasource.update)
+      parameters: [ { name: id, in: query, required: true, schema: { type: integer } } ]
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/InventaireWrite' } } } }
+      responses: { '200': { description: OK } }
+    delete:
+      tags: [Inventaire]
+      summary: Apagar item (InventaireDatasource.delete)
+      parameters: [ { name: id, in: query, required: true, schema: { type: integer } } ]
+      responses: { '204': { description: Removido } }
+
+  /rest/v1/Meubles_Reference:
+    get:
+      tags: [Inventaire, References]
+      summary: Tipos de meuble (listMeubleReferences)
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/MeubleReference' } } } } }
+    post:
+      tags: [Inventaire, References]
+      summary: Criar tipo (InventaireDatasource.createRef — Super Admin)
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/MeubleReferenceWrite' } } } }
+      responses: { '201': { description: Criado } }
+    patch:
+      tags: [Inventaire, References]
+      summary: Atualizar tipo (updateRef — Super Admin)
+      parameters: [ { name: id, in: query, required: true, schema: { type: integer } } ]
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/MeubleReferenceWrite' } } } }
+      responses: { '200': { description: OK } }
+    delete:
+      tags: [Inventaire, References]
+      summary: Apagar tipo (deleteRef — Super Admin)
+      parameters: [ { name: id, in: query, required: true, schema: { type: integer } } ]
+      responses: { '204': { description: Removido } }
+
+  # ──────────────────────────── FACTURES ──────────────────────────
+  /rest/v1/Factures:
+    get:
+      tags: [Finances]
+      summary: Listar faturas (listByOwner, listByImmeuble)
+      description: "Embeds: `Immeubles(name)`, `Chambres(room_name)`."
+      parameters:
+        - { $ref: '#/components/parameters/select' }
+        - { name: owner_id, in: query, schema: { type: string } }
+        - { name: immeuble_id, in: query, schema: { type: integer } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Facture' } } } } }
+    post:
+      tags: [Finances]
+      summary: Criar fatura (FacturesDatasource.create)
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/FactureWrite' } } } }
+      responses: { '201': { description: Criado, content: { application/json: { schema: { $ref: '#/components/schemas/Facture' } } } } }
+    patch:
+      tags: [Finances]
+      summary: Atualizar fatura (FacturesDatasource.update)
+      parameters: [ { name: id, in: query, required: true, schema: { type: integer } } ]
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/FactureWrite' } } } }
+      responses: { '200': { description: OK } }
+
+  # ─────────────────────────── FOURNISSEURS ───────────────────────
+  /rest/v1/Fournisseurs:
+    get:
+      tags: [Finances]
+      summary: Listar fornecedores (listByOwner, listActiveByOwner)
+      parameters:
+        - { name: owner_id, in: query, schema: { type: string } }
+        - { name: is_active, in: query, schema: { type: string }, description: "ex: eq.true" }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Fournisseur' } } } } }
+    post:
+      tags: [Finances]
+      summary: Criar fornecedor (FournisseursDatasource.create)
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/FournisseurWrite' } } } }
+      responses: { '201': { description: Criado, content: { application/json: { schema: { $ref: '#/components/schemas/Fournisseur' } } } } }
+    patch:
+      tags: [Finances]
+      summary: Atualizar fornecedor (FournisseursDatasource.update)
+      parameters: [ { name: id, in: query, required: true, schema: { type: integer } } ]
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/FournisseurWrite' } } } }
+      responses: { '200': { description: OK } }
+    delete:
+      tags: [Finances]
+      summary: Apagar fornecedor (FournisseursDatasource.delete)
+      parameters: [ { name: id, in: query, required: true, schema: { type: integer } } ]
+      responses: { '204': { description: Removido } }
+
+  /rest/v1/Payment_Types_Reference:
+    get:
+      tags: [Finances, References]
+      summary: Tipos de pagamento (PaymentTypesDatasource.listAll)
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/PaymentTypeRef' } } } } }
+    post:
+      tags: [Finances, References]
+      summary: Criar tipo de pagamento (Super Admin)
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/PaymentTypeWrite' } } } }
+      responses: { '201': { description: Criado } }
+    patch:
+      tags: [Finances, References]
+      summary: Atualizar tipo de pagamento (Super Admin)
+      parameters: [ { name: id, in: query, required: true, schema: { type: integer } } ]
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/PaymentTypeWrite' } } } }
+      responses: { '200': { description: OK } }
+    delete:
+      tags: [Finances, References]
+      summary: Apagar tipo de pagamento (Super Admin)
+      parameters: [ { name: id, in: query, required: true, schema: { type: integer } } ]
+      responses: { '204': { description: Removido } }
+
+  # ──────────────────────────── ETAT_DE_LIEUX ─────────────────────
+  /rest/v1/etat_de_lieux:
+    get:
+      tags: [EtatDesLieux]
+      summary: Listar EDLs (listByProprietaire, listByLocataire)
+      description: |
+        Embeds: `locataire:Users_Client!locataire_id(...)`,
+        `immeuble:Immeubles!immeuble_id(id, name, address)`,
+        `chambre:Chambres!chambre_id(id, room_name)`,
+        `proprietaire:Users_Client!proprietaire_id(id, full_name)`.
+        Filtros: `proprietaire_id=eq.` ou `locataire_id=eq.`.
+      parameters:
+        - { $ref: '#/components/parameters/select' }
+        - { name: proprietaire_id, in: query, schema: { type: string } }
+        - { name: locataire_id, in: query, schema: { type: string } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/EtatDesLieux' } } } } }
+    post:
+      tags: [EtatDesLieux]
+      summary: Criar EDL (EtatDesLieuxDatasource.create)
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/EtatDesLieuxWrite' } } } }
+      responses: { '201': { description: Criado, content: { application/json: { schema: { $ref: '#/components/schemas/EtatDesLieux' } } } } }
+    patch:
+      tags: [EtatDesLieux]
+      summary: Atualizar / finaliser / accepter (update, finaliser, locataireAccepter)
+      description: |
+        - `finaliser(id)`: `{ situation: "finalise" }`.
+        - `locataireAccepter(id)`: `{ locataire_accepte: true, date_finalisation: "<today>" }`.
+      parameters: [ { name: id, in: query, required: true, schema: { type: integer } } ]
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/EtatDesLieuxUpdate' } } } }
+      responses: { '200': { description: OK } }
+
+  /rest/v1/etat_de_lieux_observations:
+    get:
+      tags: [EtatDesLieux]
+      summary: Observations de um EDL (ObservationsEdlDatasource.listByEdl)
+      parameters: [ { name: etat_de_lieux_id, in: query, schema: { type: integer } } ]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/ObservationEdl' } } } } }
+    post:
+      tags: [EtatDesLieux]
+      summary: Inserir observação de mur/geral (insertWall, insertGeneral)
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/ObservationEdlWrite' } } } }
+      responses: { '201': { description: Criado } }
+    patch:
+      tags: [EtatDesLieux]
+      summary: Atualizar observação (updateById)
+      parameters: [ { name: id, in: query, required: true, schema: { type: integer } } ]
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/ObservationEdlWrite' } } } }
+      responses: { '200': { description: OK } }
+    delete:
+      tags: [EtatDesLieux]
+      summary: Apagar observação (deleteById)
+      parameters: [ { name: id, in: query, required: true, schema: { type: integer } } ]
+      responses: { '204': { description: Removido } }
+
+  /rest/v1/etat_de_lieux_preneurs:
+    get:
+      tags: [EtatDesLieux]
+      summary: Preneurs/colocataires de um EDL (EdlDetailsDatasource.listPreneurs)
+      parameters: [ { name: etat_de_lieux_id, in: query, schema: { type: integer } } ]
+      responses: { '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/EdlPreneur' } } } } } }
+    post:
+      tags: [EtatDesLieux]
+      summary: Adicionar preneur (createPreneur)
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/EdlPreneur' } } } }
+      responses: { '201': { description: Criado } }
+    patch:
+      tags: [EtatDesLieux]
+      summary: Atualizar preneur (updatePreneur)
+      parameters: [ { name: id, in: query, required: true, schema: { type: integer } } ]
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/EdlPreneur' } } } }
+      responses: { '200': { description: OK } }
+    delete:
+      tags: [EtatDesLieux]
+      summary: Remover preneur (deletePreneur)
+      parameters: [ { name: id, in: query, required: true, schema: { type: integer } } ]
+      responses: { '204': { description: Removido } }
+
+  /rest/v1/etat_de_lieux_releves:
+    get:
+      tags: [EtatDesLieux]
+      summary: Relevés (compteurs/chauffage/eau chaude) de um EDL (listReleves)
+      parameters: [ { name: etat_de_lieux_id, in: query, schema: { type: integer } } ]
+      responses: { '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/EdlReleve' } } } } } }
+    post:
+      tags: [EtatDesLieux]
+      summary: Adicionar relevé (createReleve)
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/EdlReleve' } } } }
+      responses: { '201': { description: Criado } }
+    patch:
+      tags: [EtatDesLieux]
+      summary: Atualizar relevé (updateReleve)
+      parameters: [ { name: id, in: query, required: true, schema: { type: integer } } ]
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/EdlReleve' } } } }
+      responses: { '200': { description: OK } }
+    delete:
+      tags: [EtatDesLieux]
+      summary: Remover relevé (deleteReleve)
+      parameters: [ { name: id, in: query, required: true, schema: { type: integer } } ]
+      responses: { '204': { description: Removido } }
+
+  /rest/v1/etat_de_lieux_cles:
+    get:
+      tags: [EtatDesLieux]
+      summary: Remise des clés de um EDL privatif (listCles)
+      parameters: [ { name: etat_de_lieux_id, in: query, schema: { type: integer } } ]
+      responses: { '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/EdlCle' } } } } } }
+    post:
+      tags: [EtatDesLieux]
+      summary: Adicionar clé (createCle)
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/EdlCle' } } } }
+      responses: { '201': { description: Criado } }
+    patch:
+      tags: [EtatDesLieux]
+      summary: Atualizar clé (updateCle)
+      parameters: [ { name: id, in: query, required: true, schema: { type: integer } } ]
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/EdlCle' } } } }
+      responses: { '200': { description: OK } }
+    delete:
+      tags: [EtatDesLieux]
+      summary: Remover clé (deleteCle)
+      parameters: [ { name: id, in: query, required: true, schema: { type: integer } } ]
+      responses: { '204': { description: Removido } }
+
+  /rest/v1/etat_de_lieux_sections:
+    get:
+      tags: [EtatDesLieux]
+      summary: Sections (pièces) + lignes de um EDL (listSections)
+      description: "Embed: `etat_de_lieux_lignes(*)`."
+      parameters:
+        - { $ref: '#/components/parameters/select' }
+        - { name: etat_de_lieux_id, in: query, schema: { type: integer } }
+      responses: { '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/EdlSection' } } } } } }
+    post:
+      tags: [EtatDesLieux]
+      summary: Criar section (createSection)
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/EdlSection' } } } }
+      responses: { '201': { description: Criado } }
+    patch:
+      tags: [EtatDesLieux]
+      summary: Atualizar section / commentaire global (updateSection)
+      parameters: [ { name: id, in: query, required: true, schema: { type: integer } } ]
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/EdlSection' } } } }
+      responses: { '200': { description: OK } }
+    delete:
+      tags: [EtatDesLieux]
+      summary: Remover section (deleteSection, cascateia lignes)
+      parameters: [ { name: id, in: query, required: true, schema: { type: integer } } ]
+      responses: { '204': { description: Removido } }
+
+  /rest/v1/etat_de_lieux_lignes:
+    post:
+      tags: [EtatDesLieux]
+      summary: Criar linha de equipamento (createLigne)
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/EdlLigne' } } } }
+      responses: { '201': { description: Criado } }
+    patch:
+      tags: [EtatDesLieux]
+      summary: Atualizar linha (updateLigne)
+      parameters: [ { name: id, in: query, required: true, schema: { type: integer } } ]
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/EdlLigne' } } } }
+      responses: { '200': { description: OK } }
+    delete:
+      tags: [EtatDesLieux]
+      summary: Remover linha (deleteLigne)
+      parameters: [ { name: id, in: query, required: true, schema: { type: integer } } ]
+      responses: { '204': { description: Removido } }
+
+  # ───────────────────────────── VISITES ──────────────────────────
+  /rest/v1/Visites:
+    get:
+      tags: [Visites]
+      summary: Listar visitas do proprietaire (VisitesDatasource.listByOwner)
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Visite' } } } } }
+    post:
+      tags: [Visites]
+      summary: Criar visita (VisitesDatasource.create)
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/VisiteWrite' } } } }
+      responses: { '201': { description: Criado, content: { application/json: { schema: { $ref: '#/components/schemas/Visite' } } } } }
+    patch:
+      tags: [Visites]
+      summary: Atualizar visita (VisitesDatasource.update)
+      parameters: [ { name: id, in: query, required: true, schema: { type: integer } } ]
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/VisiteWrite' } } } }
+      responses: { '200': { description: OK } }
+    delete:
+      tags: [Visites]
+      summary: Apagar visita (VisitesDatasource.delete)
+      parameters: [ { name: id, in: query, required: true, schema: { type: integer } } ]
+      responses: { '204': { description: Removido } }
+
+  # ─────────────────────────── DEMANDES_CONTACT ───────────────────
+  /rest/v1/Demandes_Contact:
+    get:
+      tags: [Contact]
+      summary: Listar demandes (DemandesContactDatasource.listByOwner)
+      description: "Embeds: `Users_Client!locataire_id(...)`, `Chambres!chambre_id(room_name)`, `Immeubles!immeuble_id(name)`."
+      parameters: [ { $ref: '#/components/parameters/select' } ]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/DemandeContact' } } } } }
+    post:
+      tags: [Contact]
+      summary: Criar demande (DemandesContactDatasource.create)
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/DemandeContactWrite' } } } }
+      responses: { '201': { description: Criado } }
+    patch:
+      tags: [Contact]
+      summary: Marcar contato estabelecido (updateContactEtabli)
+      parameters: [ { name: id, in: query, required: true, schema: { type: integer } } ]
+      requestBody:
+        content: { application/json: { schema: { type: object, properties: { contact_etabli: { type: boolean } } } } }
+      responses: { '204': { description: OK } }
+
+  # ───────────────────────────── RPC ──────────────────────────────
+  /rest/v1/rpc/search_locataires:
+    post:
+      tags: [RPC]
+      summary: Buscar locataires (EtatDesLieuxDatasource.searchLocataires)
+      requestBody:
+        content: { application/json: { schema: { type: object, properties: { search_query: { type: string } } } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/UsersClient' } } } } }
+
+  /rest/v1/rpc/list_invited_locataires:
+    post:
+      tags: [RPC]
+      summary: Listar locataires convidados (listInvitedLocataires)
+      requestBody:
+        content: { application/json: { schema: { type: object, properties: { p_proprietaire_id: { type: string } } } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/UsersClient' } } } } }
+
+  # ──────────────────────── EDGE FUNCTIONS ────────────────────────
+  /functions/v1/invite-locataire:
+    post:
+      tags: [EdgeFunctions]
+      summary: Convidar / reenviar convite de locataire
+      description: |
+        **create**: gera link `invite`, cria usuário, grava `invited_by_proprietaire_id`,
+        envia e-mail SMTP e marca `invitation_email_sent`.
+        **resend** (`resend: true` + `userId`): gera `magiclink` e reenvia e-mail.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/InviteLocataireRequest' }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/InviteLocataireResponse' } } } }
+        '400': { description: "Erro (ex: e-mail já existe)", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+
+  /functions/v1/delete-account:
+    post:
+      tags: [EdgeFunctions]
+      summary: Apagar a própria conta (AuthService.deleteAccount)
+      description: "Requer JWT. Bloqueia se houver `etat_de_lieux` com `locataire_id` = usuário."
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: object, properties: { success: { type: boolean } } } } } }
+        '400': { description: "Possui contratos", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '401': { description: "Não autorizado" }
+
+  /functions/v1/notify-proprietaire:
+    post:
+      tags: [EdgeFunctions]
+      summary: Notificar admin de novo cadastro de propriétaire (best-effort)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                fullName: { type: string }
+                email: { type: string }
+                phone: { type: string }
+                note: { type: string }
+      responses:
+        '200': { description: Enviado (falhas são silenciosas no cliente) }
+
+  # ───────────────────────────── STORAGE ──────────────────────────
+  /storage/v1/object/photos/{path}:
+    post:
+      tags: [Storage]
+      summary: Upload de foto (StorageService.upload → bucket "photos")
+      parameters: [ { name: path, in: path, required: true, schema: { type: string } } ]
+      requestBody:
+        content:
+          application/octet-stream:
+            schema: { type: string, format: binary }
+      responses: { '200': { description: "URL pública retornada" } }
+    delete:
+      tags: [Storage]
+      summary: Apagar foto (StorageService.delete)
+      parameters: [ { name: path, in: path, required: true, schema: { type: string } } ]
+      responses: { '200': { description: Removido } }
+
+components:
+
+  securitySchemes:
+    apiKey:
+      type: apiKey
+      in: header
+      name: apikey
+      description: Chave anon do projeto Supabase
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    select:
+      name: select
+      in: query
+      schema: { type: string }
+      description: "Colunas + embeds PostgREST, ex: *,Immeubles(name)"
+
+  schemas:
+
+    # ───────── Auth ─────────
+    SignUpRequest:
+      type: object
+      required: [email, password, data]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, format: password }
+        data:
+          type: object
+          description: raw_user_meta_data lido pelo trigger
+          properties:
+            full_name: { type: string }
+            type_code: { type: string, enum: [locataire, proprietaire, super_admin] }
+            phone: { type: string, nullable: true }
+            date_of_birth: { type: string, format: date, nullable: true }
+        emailRedirectTo: { type: string }
+    AuthResponse:
+      type: object
+      properties:
+        user: { type: object, nullable: true }
+        session: { type: object, nullable: true }
+    ErrorResponse:
+      type: object
+      properties:
+        error: { type: string }
+
+    # ───────── Users ─────────
+    UserType:
+      type: string
+      description: enum Dart UserType (raw = code em User_Types_Reference)
+      enum: [locataire, proprietaire, super_admin]
+    UserTypeRef:
+      type: object
+      description: "Modelo Dart: UserTypeRef (tabela User_Types_Reference)"
+      properties:
+        id: { type: integer }
+        code: { type: string, enum: [locataire, proprietaire, super_admin] }
+        label: { type: string }
+        description: { type: string, nullable: true }
+    UsersClient:
+      type: object
+      description: "Modelo Dart: UsersClient (tabela Users_Client). Idade deve ser calculada de date_of_birth."
+      properties:
+        id: { type: string, format: uuid, description: "= auth.users.id" }
+        created_at: { type: string, format: date-time }
+        email: { type: string, format: email }
+        full_name: { type: string, nullable: true }
+        phone: { type: string, nullable: true, description: "formato internacional, ex +33612345678" }
+        age: { type: integer, nullable: true, description: "fallback legado" }
+        date_of_birth: { type: string, format: date, nullable: true }
+        type_user_id: { type: integer, nullable: true }
+        active: { type: boolean, default: true }
+        invitation_email_sent: { type: boolean, default: false }
+        invitation_sent_at: { type: string, format: date-time, nullable: true }
+        invited_by_proprietaire_id: { type: string, format: uuid, nullable: true }
+        User_Types_Reference: { $ref: '#/components/schemas/UserTypeRef' }
+    UsersClientUpdate:
+      type: object
+      properties:
+        full_name: { type: string }
+        phone: { type: string, nullable: true }
+        age: { type: integer }
+        date_of_birth: { type: string, format: date }
+        type_user_id: { type: integer, description: "updateUserType (Super Admin)" }
+        active: { type: boolean, description: "toggleActive (Super Admin)" }
+    PermissionRef:
+      type: object
+      description: "Modelo Dart: PermissionRef (tabela Permissions_Reference)"
+      properties:
+        id: { type: integer }
+        key: { type: string }
+        label: { type: string }
+        description: { type: string, nullable: true }
+        category: { type: string }
+    UserPermission:
+      type: object
+      description: "Modelo Dart: UserPermission (tabela User_Permissions + embed)"
+      properties:
+        user_id: { type: string, format: uuid }
+        permission_id: { type: integer }
+        granted_at: { type: string, format: date-time }
+        Permissions_Reference: { $ref: '#/components/schemas/PermissionRef' }
+    UserPermissionWrite:
+      type: object
+      properties:
+        user_id: { type: string, format: uuid }
+        permission_id: { type: integer }
+        granted_by: { type: string, format: uuid }
+
+    # ───────── Patrimoine ─────────
+    ImmeubleType:
+      type: object
+      description: "Modelo Dart: ImmeubleTypeModel (tabela Immeuble_Types_Reference)"
+      properties:
+        id: { type: integer }
+        name: { type: string }
+    ReferenceItem:
+      type: object
+      description: "Modelo Dart: ReferenceItem (Options_Reference; id+name genérico)"
+      properties:
+        id: { type: integer }
+        name: { type: string }
+    Immeuble:
+      type: object
+      description: "Modelo Dart: ImmeublesModel (tabela Immeubles)"
+      properties:
+        id: { type: integer }
+        owner_id: { type: string, format: uuid, nullable: true }
+        type_id: { type: integer, nullable: true }
+        name: { type: string }
+        address: { type: string, nullable: true }
+        city: { type: string, nullable: true }
+        region: { type: string, nullable: true }
+        department: { type: string, nullable: true }
+        total_m2: { type: number, format: float, nullable: true }
+        description: { type: string, nullable: true }
+        common_photos: { type: array, items: { type: string }, description: "URLs (JSONB)" }
+        main_photo: { type: string, nullable: true }
+        is_active: { type: boolean, default: true }
+        bail_collectif: { type: boolean, default: false }
+        bail_individuel: { type: boolean, default: false }
+        prix_loyer: { type: number, format: float, nullable: true }
+        created_at: { type: string, format: date-time, nullable: true }
+        Immeuble_Types_Reference: { $ref: '#/components/schemas/ImmeubleType' }
+    ImmeubleWrite:
+      type: object
+      required: [name]
+      properties:
+        owner_id: { type: string, format: uuid }
+        type_id: { type: integer }
+        name: { type: string }
+        address: { type: string }
+        total_m2: { type: number }
+        description: { type: string }
+        common_photos: { type: array, items: { type: string } }
+        is_active: { type: boolean }
+        main_photo: { type: string, nullable: true }
+        city: { type: string }
+        region: { type: string }
+        department: { type: string }
+        bail_collectif: { type: boolean }
+        bail_individuel: { type: boolean }
+        prix_loyer: { type: number }
+    Chambre:
+      type: object
+      description: "Modelo Dart: ChambreModel (tabela Chambres). selected_options = ids (JSONB)."
+      properties:
+        id: { type: integer }
+        immeuble_id: { type: integer }
+        room_name: { type: string }
+        m2: { type: number, format: float, nullable: true }
+        description: { type: string, nullable: true }
+        room_photos: { type: array, items: { type: string } }
+        selected_options: { type: array, items: { type: integer } }
+        main_photo: { type: string, nullable: true }
+        is_active: { type: boolean, default: true }
+        prix_loyer: { type: number, format: float, nullable: true }
+        est_loue: { type: boolean, default: false }
+        created_at: { type: string, format: date-time, nullable: true }
+        Immeubles:
+          type: object
+          description: embed do imóvel
+          properties:
+            name: { type: string }
+            address: { type: string }
+            city: { type: string }
+            region: { type: string }
+            department: { type: string }
+            bail_collectif: { type: boolean }
+            bail_individuel: { type: boolean }
+    ChambreWrite:
+      type: object
+      required: [immeuble_id, room_name]
+      properties:
+        immeuble_id: { type: integer }
+        room_name: { type: string }
+        m2: { type: number }
+        description: { type: string }
+        room_photos: { type: array, items: { type: string } }
+        selected_options: { type: array, items: { type: integer } }
+        is_active: { type: boolean }
+        prix_loyer: { type: number }
+        est_loue: { type: boolean }
+        main_photo: { type: string, nullable: true }
+    PiecePhoto:
+      type: object
+      description: "Value object Dart: PiecePhoto (item de Pieces.photos)"
+      properties:
+        url: { type: string }
+        dans_annonce: { type: boolean, default: false, description: "se aparece no anúncio público" }
+    Piece:
+      type: object
+      description: "Modelo Dart: PieceModel (tabela Pieces)"
+      properties:
+        id: { type: integer }
+        immeuble_id: { type: integer }
+        nom: { type: string }
+        m2: { type: number, format: float, nullable: true }
+        description: { type: string, nullable: true }
+        photos: { type: array, items: { $ref: '#/components/schemas/PiecePhoto' } }
+        created_at: { type: string, format: date-time }
+    PieceWrite:
+      type: object
+      required: [immeuble_id, nom, photos]
+      properties:
+        immeuble_id: { type: integer }
+        nom: { type: string }
+        m2: { type: number }
+        description: { type: string }
+        photos: { type: array, items: { $ref: '#/components/schemas/PiecePhoto' } }
+
+    # ───────── Inventaire ─────────
+    MeubleReference:
+      type: object
+      description: "Modelo Dart: MeubleReferenceModel (tabela Meubles_Reference)"
+      properties:
+        id: { type: integer }
+        nom: { type: string }
+        categorie: { type: string, nullable: true }
+    MeubleReferenceWrite:
+      type: object
+      required: [nom]
+      properties:
+        nom: { type: string }
+        categorie: { type: string, nullable: true }
+    Inventaire:
+      type: object
+      description: "Modelo Dart: InventaireModel (tabela Inventaire). chambre_id e piece_id são mutuamente exclusivos."
+      properties:
+        id: { type: integer }
+        immeuble_id: { type: integer }
+        chambre_id: { type: integer, nullable: true }
+        piece_id: { type: integer, nullable: true }
+        meuble_ref_id: { type: integer, nullable: true }
+        nom_custom: { type: string, nullable: true, description: "fallback legado se não houver meuble_ref_id" }
+        valeur: { type: number, format: float, nullable: true }
+        quantite: { type: integer, default: 1 }
+        description: { type: string, nullable: true }
+        photos: { type: array, items: { type: string } }
+        created_at: { type: string, format: date-time }
+        meuble_ref: { $ref: '#/components/schemas/MeubleReference' }
+        chambre: { type: object, properties: { id: { type: integer }, room_name: { type: string } } }
+        piece: { type: object, properties: { id: { type: integer }, nom: { type: string } } }
+    InventaireWrite:
+      type: object
+      required: [immeuble_id, quantite, photos]
+      properties:
+        immeuble_id: { type: integer }
+        chambre_id: { type: integer, nullable: true }
+        piece_id: { type: integer, nullable: true }
+        meuble_ref_id: { type: integer, nullable: true }
+        nom_custom: { type: string, nullable: true }
+        valeur: { type: number }
+        quantite: { type: integer }
+        description: { type: string }
+        photos: { type: array, items: { type: string } }
+
+    # ───────── Finances ─────────
+    PaymentTypeRef:
+      type: object
+      description: "Modelo Dart: PaymentTypeRef (tabela Payment_Types_Reference)"
+      properties:
+        id: { type: integer }
+        code: { type: string }
+        label: { type: string }
+        description: { type: string, nullable: true }
+    PaymentTypeWrite:
+      type: object
+      required: [code, label]
+      properties:
+        code: { type: string }
+        label: { type: string }
+        description: { type: string, nullable: true }
+    Facture:
+      type: object
+      description: "Modelo Dart: FactureModel (tabela Factures)"
+      properties:
+        id: { type: integer }
+        owner_id: { type: string, format: uuid }
+        immeuble_id: { type: integer, nullable: true }
+        chambre_id: { type: integer, nullable: true }
+        code_facture: { type: string, nullable: true }
+        fournisseur: { type: string }
+        type_facture: { type: string, description: "ex: Eau, Électricité, Gaz, Internet…" }
+        periode_debut: { type: string, format: date, nullable: true }
+        periode_fin: { type: string, format: date, nullable: true }
+        date_emission: { type: string, format: date, nullable: true }
+        date_echeance: { type: string, format: date, nullable: true }
+        montant_ht: { type: number, format: float, nullable: true }
+        taux_tva: { type: number, format: float, default: 20 }
+        montant_ttc: { type: number, format: float, nullable: true }
+        statut: { type: string, default: "Non payée", enum: ["Non payée", "Payée", "En litige"] }
+        notes: { type: string, nullable: true }
+        created_at: { type: string, format: date-time, nullable: true }
+        Immeubles: { type: object, properties: { name: { type: string } } }
+        Chambres: { type: object, properties: { room_name: { type: string } } }
+    FactureWrite:
+      type: object
+      required: [owner_id, fournisseur, type_facture]
+      properties:
+        owner_id: { type: string, format: uuid }
+        immeuble_id: { type: integer, nullable: true }
+        chambre_id: { type: integer, nullable: true }
+        code_facture: { type: string }
+        fournisseur: { type: string }
+        type_facture: { type: string }
+        periode_debut: { type: string, format: date }
+        periode_fin: { type: string, format: date }
+        date_emission: { type: string, format: date }
+        date_echeance: { type: string, format: date }
+        montant_ht: { type: number }
+        taux_tva: { type: number }
+        montant_ttc: { type: number }
+        statut: { type: string }
+        notes: { type: string }
+    Fournisseur:
+      type: object
+      description: "Modelo Dart: FournisseurModel (tabela Fournisseurs)"
+      properties:
+        id: { type: integer }
+        owner_id: { type: string, format: uuid }
+        nom: { type: string }
+        categorie: { type: string, nullable: true }
+        telephone: { type: string, nullable: true }
+        email: { type: string, nullable: true }
+        site_web: { type: string, nullable: true }
+        notes: { type: string, nullable: true }
+        is_active: { type: boolean, default: true }
+        iban: { type: string, nullable: true }
+        bic: { type: string, nullable: true }
+        titulaire_compte: { type: string, nullable: true }
+        telephone_wero: { type: string, nullable: true }
+        wero_actif: { type: boolean, default: false }
+        email_paypal: { type: string, nullable: true }
+        paypal_actif: { type: boolean, default: false }
+        types_paiement: { type: array, items: { type: string }, description: "codes de Payment_Types_Reference (JSONB)" }
+        created_at: { type: string, format: date-time, nullable: true }
+    FournisseurWrite:
+      type: object
+      description: "Corpo de insert/update — ver FournisseurModel.toInsert() (sem id/created_at)"
+      required: [owner_id, nom]
+      properties:
+        owner_id: { type: string, format: uuid }
+        nom: { type: string }
+        categorie: { type: string, nullable: true }
+        telephone: { type: string, nullable: true }
+        email: { type: string, nullable: true }
+        site_web: { type: string, nullable: true }
+        notes: { type: string, nullable: true }
+        is_active: { type: boolean }
+        iban: { type: string, nullable: true }
+        bic: { type: string, nullable: true }
+        titulaire_compte: { type: string, nullable: true }
+        telephone_wero: { type: string, nullable: true }
+        wero_actif: { type: boolean }
+        email_paypal: { type: string, nullable: true }
+        paypal_actif: { type: boolean }
+        types_paiement: { type: array, items: { type: string } }
+
+    # ───────── État des lieux ─────────
+    SituationEdl:
+      type: string
+      description: "enum Dart SituationEdl (raw armazenado em situation)"
+      enum: [en_cours, a_venir, finalise]
+    WallObservation:
+      type: object
+      description: "Value object Dart: WallObservation (item do JSONB observations)"
+      properties:
+        description: { type: string, nullable: true }
+        photos: { type: array, items: { type: string } }
+    EtatDesLieux:
+      type: object
+      description: "Modelo Dart: EtatDesLieuxModel (tabela etat_de_lieux)"
+      properties:
+        id: { type: integer }
+        proprietaire_id: { type: string, format: uuid }
+        locataire_id: { type: string, format: uuid }
+        immeuble_id: { type: integer }
+        chambre_id: { type: integer, nullable: true }
+        type_bail: { type: string, enum: [collectif, individuel] }
+        type_edl: { type: string, enum: [entree, sortie] }
+        date_etat_lieux: { type: string, format: date }
+        date_finalisation: { type: string, format: date, nullable: true, description: "gravada só quando o locataire aceita" }
+        situation: { $ref: '#/components/schemas/SituationEdl' }
+        locataire_accepte: { type: boolean, default: false }
+        montant: { type: number, format: float, nullable: true }
+        notes: { type: string, nullable: true }
+        observations:
+          type: object
+          additionalProperties: { $ref: '#/components/schemas/WallObservation' }
+          description: "{ wall_key: WallObservation } (Plan 2D legado)"
+        partie: { type: string, enum: [commune, privative], default: commune }
+        edl_collectif_id: { type: integer, nullable: true, description: "privative → commune" }
+        surface_m2: { type: number, format: float, nullable: true }
+        nombre_pieces_principales: { type: integer, nullable: true }
+        designation: { type: string, nullable: true }
+        etage: { type: string, nullable: true }
+        bailleur_nom: { type: string, nullable: true }
+        bailleur_adresse: { type: string, nullable: true }
+        nouvelle_adresse: { type: string, nullable: true, description: "EDL de sortie" }
+        lieu_redaction: { type: string, nullable: true, description: "Fait à ___" }
+        nombre_exemplaires: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+        locataire: { $ref: '#/components/schemas/UsersClient' }
+        immeuble: { $ref: '#/components/schemas/Immeuble' }
+        chambre: { type: object, properties: { id: { type: integer }, room_name: { type: string } } }
+        proprietaire: { type: object, properties: { id: { type: string }, full_name: { type: string } } }
+    EtatDesLieuxWrite:
+      type: object
+      required: [proprietaire_id, locataire_id, immeuble_id, type_bail, type_edl, date_etat_lieux, situation]
+      properties:
+        proprietaire_id: { type: string, format: uuid }
+        locataire_id: { type: string, format: uuid }
+        immeuble_id: { type: integer }
+        chambre_id: { type: integer, nullable: true }
+        type_bail: { type: string, enum: [collectif, individuel] }
+        type_edl: { type: string, enum: [entree, sortie] }
+        date_etat_lieux: { type: string, format: date }
+        date_finalisation: { type: string, format: date, nullable: true }
+        situation: { $ref: '#/components/schemas/SituationEdl' }
+        locataire_accepte: { type: boolean }
+        montant: { type: number }
+        notes: { type: string }
+        observations:
+          type: object
+          additionalProperties: { $ref: '#/components/schemas/WallObservation' }
+    EtatDesLieuxUpdate:
+      type: object
+      description: "Update parcial. finaliser → {situation}. locataireAccepter → {locataire_accepte, date_finalisation}."
+      properties:
+        situation: { $ref: '#/components/schemas/SituationEdl' }
+        locataire_accepte: { type: boolean }
+        date_finalisation: { type: string, format: date }
+        montant: { type: number }
+        notes: { type: string }
+        observations:
+          type: object
+          additionalProperties: { $ref: '#/components/schemas/WallObservation' }
+    ObservationEdl:
+      type: object
+      description: "Modelo Dart: ObservationEdl (tabela etat_de_lieux_observations)"
+      properties:
+        id: { type: integer, nullable: true }
+        etat_de_lieux_id: { type: integer }
+        wall_key: { type: string, nullable: true, enum: [fond, gauche, droit, porte], description: "null = observação geral" }
+        description: { type: string, nullable: true }
+        photos: { type: array, items: { type: string } }
+        created_at: { type: string, format: date-time, nullable: true }
+    ObservationEdlWrite:
+      type: object
+      required: [etat_de_lieux_id, photos]
+      properties:
+        etat_de_lieux_id: { type: integer }
+        wall_key: { type: string, nullable: true }
+        description: { type: string }
+        photos: { type: array, items: { type: string } }
+    EdlPreneur:
+      type: object
+      description: "Modelo Dart: EdlPreneur (tabela etat_de_lieux_preneurs)"
+      properties:
+        id: { type: integer, nullable: true }
+        etat_de_lieux_id: { type: integer }
+        locataire_id: { type: string, format: uuid, nullable: true }
+        nom: { type: string, nullable: true }
+        adresse: { type: string, nullable: true }
+        ordre: { type: integer, default: 0 }
+    EdlReleve:
+      type: object
+      description: "Modelo Dart: EdlReleve (tabela etat_de_lieux_releves)"
+      properties:
+        id: { type: integer, nullable: true }
+        etat_de_lieux_id: { type: integer }
+        categorie: { type: string, enum: [eau_gaz, electrique, chauffage, eau_chaude] }
+        type: { type: string, nullable: true }
+        numero_serie: { type: string, nullable: true }
+        valeur_index: { type: number, format: float, nullable: true }
+        unite: { type: string, nullable: true, description: "M3 | KW" }
+        etat_usure: { type: string, nullable: true, enum: [N, B, U, M] }
+        fonctionnement: { type: string, nullable: true }
+        observations: { type: string, nullable: true }
+        ordre: { type: integer, default: 0 }
+    EdlCle:
+      type: object
+      description: "Modelo Dart: EdlCle (tabela etat_de_lieux_cles)"
+      properties:
+        id: { type: integer, nullable: true }
+        etat_de_lieux_id: { type: integer }
+        type_cle: { type: string }
+        nombre: { type: integer, nullable: true }
+        remise_ce_jour: { type: boolean, default: false }
+        date_remise: { type: string, format: date, nullable: true }
+        commentaire: { type: string, nullable: true }
+        ordre: { type: integer, default: 0 }
+    EdlLigne:
+      type: object
+      description: "Modelo Dart: EdlLigne (tabela etat_de_lieux_lignes)"
+      properties:
+        id: { type: integer, nullable: true }
+        section_id: { type: integer }
+        equipement: { type: string }
+        nature_nombre: { type: string, nullable: true }
+        etat_usure: { type: string, nullable: true, enum: [N, B, U, M] }
+        fonctionnement: { type: string, nullable: true }
+        commentaires: { type: string, nullable: true }
+        ordre: { type: integer, default: 0 }
+    EdlSection:
+      type: object
+      description: "Modelo Dart: EdlSection (tabela etat_de_lieux_sections, com lignes embarcadas)"
+      properties:
+        id: { type: integer, nullable: true }
+        etat_de_lieux_id: { type: integer }
+        nom: { type: string }
+        ordre: { type: integer, default: 0 }
+        commentaire_global: { type: string, nullable: true }
+        etat_de_lieux_lignes:
+          type: array
+          items: { $ref: '#/components/schemas/EdlLigne' }
+
+    # ───────── Visites ─────────
+    Visite:
+      type: object
+      description: "Modelo Dart: VisiteModel (tabela Visites)"
+      properties:
+        id: { type: integer }
+        owner_id: { type: string, format: uuid }
+        type_visite: { type: string, enum: [etat_des_lieux_entree, etat_des_lieux_sortie, visite_entree, reparation] }
+        nom_visiteur: { type: string }
+        telephone: { type: string, nullable: true }
+        date_visite: { type: string, format: date }
+        fournisseur_id: { type: integer, nullable: true }
+        created_at: { type: string, format: date-time }
+    VisiteWrite:
+      type: object
+      required: [owner_id, type_visite, nom_visiteur, date_visite]
+      properties:
+        owner_id: { type: string, format: uuid }
+        type_visite: { type: string }
+        nom_visiteur: { type: string }
+        telephone: { type: string, nullable: true }
+        date_visite: { type: string, format: date }
+        fournisseur_id: { type: integer, nullable: true }
+
+    # ───────── Contact ─────────
+    DemandeContact:
+      type: object
+      description: "Modelo Dart: DemandeContactModel (tabela Demandes_Contact). calculatedAge derivado de date_of_birth."
+      properties:
+        id: { type: integer }
+        created_at: { type: string, format: date-time }
+        locataire_id: { type: string, format: uuid }
+        chambre_id: { type: integer, nullable: true }
+        immeuble_id: { type: integer, nullable: true }
+        contact_etabli: { type: boolean, default: false }
+        Users_Client:
+          type: object
+          properties:
+            full_name: { type: string }
+            email: { type: string }
+            phone: { type: string }
+            age: { type: integer }
+            date_of_birth: { type: string, format: date }
+        Chambres: { type: object, properties: { room_name: { type: string } } }
+        Immeubles: { type: object, properties: { name: { type: string } } }
+    DemandeContactWrite:
+      type: object
+      required: [locataire_id, immeuble_id, contact_etabli]
+      properties:
+        locataire_id: { type: string, format: uuid }
+        immeuble_id: { type: integer }
+        chambre_id: { type: integer, nullable: true }
+        contact_etabli: { type: boolean, default: false }
+
+    # ───────── Outros value objects ─────────
+    AddressSuggestion:
+      type: object
+      description: "Value object Dart: AddressSuggestion (resposta de api-adresse.data.gouv.fr)"
+      properties:
+        label: { type: string }
+        city: { type: string }
+        postcode: { type: string }
+        department: { type: string }
+        region: { type: string }
+    ChambreFilter:
+      type: object
+      description: "Estado de filtro (client-side) — model Dart ChambreFilter"
+      properties:
+        optionIds: { type: array, items: { type: integer } }
+        city: { type: string }
+        region: { type: string }
+        department: { type: string }
+        bailType: { type: string, nullable: true, enum: [collectif, individuel] }
+        m2Min: { type: number, nullable: true }
+        m2Max: { type: number, nullable: true }
+        prixMin: { type: number, nullable: true }
+        prixMax: { type: number, nullable: true }
+
+    # ───────── Edge functions ─────────
+    InviteLocataireRequest:
+      type: object
+      properties:
+        fullName: { type: string }
+        email: { type: string, format: email }
+        proprietaireId: { type: string, format: uuid }
+        phone: { type: string, nullable: true }
+        dateOfBirth: { type: string, format: date, nullable: true }
+        resend: { type: boolean, description: "true para reenviar" }
+        userId: { type: string, format: uuid, description: "obrigatório no modo resend" }
+    InviteLocataireResponse:
+      type: object
+      properties:
+        userId: { type: string, format: uuid, nullable: true }
+        emailSent: { type: boolean }
+        smtpError: { type: string, nullable: true }

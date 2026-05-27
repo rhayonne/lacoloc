@@ -15,7 +15,9 @@ class ChambreCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cover = chambre.roomPhotos.isNotEmpty ? chambre.roomPhotos.first : null;
+    final cover = chambre.roomPhotos.isNotEmpty
+        ? chambre.roomPhotos.first
+        : null;
 
     return Card(
       clipBehavior: Clip.antiAlias,
@@ -30,59 +32,60 @@ class ChambreCard extends StatelessWidget {
                   ? CachedNetworkImage(
                       imageUrl: cover,
                       fit: BoxFit.cover,
-                      placeholder: (_, _) => Container(
-                        color: AppColors.surfaceContainerLow,
-                      ),
+                      placeholder: (_, _) =>
+                          Container(color: AppColors.surfaceContainerLow),
                       errorWidget: (_, _, _) => _placeholder(),
                     )
                   : _placeholder(),
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.md,
-                AppSpacing.md,
-                AppSpacing.md,
-                AppSpacing.sm,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    chambre.roomName,
-                    style: AppTypography.titleLg,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: AppSpacing.xs),
-                  if (chambre.immeubleName != null)
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.md,
+                  AppSpacing.sm,
+                  AppSpacing.md,
+                  AppSpacing.xs,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                     Text(
-                      chambre.immeubleAddress != null
-                          ? '${chambre.immeubleName} • ${chambre.immeubleAddress}'
-                          : chambre.immeubleName!,
-                      style: AppTypography.bodyMd.copyWith(
-                        color: AppColors.onSurfaceVariant,
-                      ),
+                      chambre.roomName,
+                      style: AppTypography.titleLg,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                  const SizedBox(height: AppSpacing.sm),
-                  Row(
-                    children: [
-                      if (chambre.m2 != null)
-                        _Pill(label: '${chambre.m2!.toStringAsFixed(0)} m²'),
-                      if (chambre.selectedOptionIds.isNotEmpty) ...[
-                        const SizedBox(width: AppSpacing.sm),
-                        _Pill(
-                          label:
-                              '${chambre.selectedOptionIds.length} options',
+                    if (chambre.immeubleName != null) ...[
+                      const SizedBox(height: AppSpacing.xs),
+                      Text(
+                        chambre.immeubleAddress != null
+                            ? '${chambre.immeubleName} • ${chambre.immeubleAddress}'
+                            : chambre.immeubleName!,
+                        style: AppTypography.bodyMd.copyWith(
+                          color: AppColors.onSurfaceVariant,
                         ),
-                      ],
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ],
-                  ),
-                ],
+                    const Spacer(),
+                    Row(
+                      children: [
+                        if (chambre.m2 != null)
+                          _Pill(label: '${chambre.m2!.toStringAsFixed(0)} m²'),
+                        if (chambre.selectedOptionIds.isNotEmpty) ...[
+                          const SizedBox(width: AppSpacing.sm),
+                          _Pill(
+                            label:
+                                '${chambre.selectedOptionIds.length} options',
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
-            const Spacer(),
             Padding(
               padding: const EdgeInsets.fromLTRB(
                 AppSpacing.md,
@@ -106,13 +109,9 @@ class ChambreCard extends StatelessWidget {
   }
 
   Widget _placeholder() => Container(
-        color: AppColors.surfaceContainerLow,
-        child: const Icon(
-          Icons.bed_outlined,
-          size: 48,
-          color: AppColors.outline,
-        ),
-      );
+    color: AppColors.surfaceContainerLow,
+    child: const Icon(Icons.bed_outlined, size: 48, color: AppColors.outline),
+  );
 }
 
 class _Pill extends StatelessWidget {

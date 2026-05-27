@@ -51,6 +51,9 @@ class UsersClient {
   final DateTime createdAt;
   final String email;
   final String? fullName;
+  final String? phone;
+  final int? age;
+  final DateTime? dateOfBirth;
   final int? typeUserId;
   final UserTypeRef? typeUserRef;
   final bool active;
@@ -60,6 +63,9 @@ class UsersClient {
     required this.createdAt,
     required this.email,
     this.fullName,
+    this.phone,
+    this.age,
+    this.dateOfBirth,
     this.typeUserId,
     this.typeUserRef,
     this.active = true,
@@ -76,6 +82,11 @@ class UsersClient {
           : DateTime.now(),
       email: (json['email'] ?? json['login'] ?? '') as String,
       fullName: json['full_name'] as String?,
+      phone: json['phone'] as String?,
+      age: json['age'] as int?,
+      dateOfBirth: json['date_of_birth'] != null
+          ? DateTime.parse(json['date_of_birth'] as String)
+          : null,
       typeUserId: json['type_user_id'] as int?,
       typeUserRef: rawRef is Map
           ? UserTypeRef.fromMap(Map<String, dynamic>.from(rawRef))
@@ -90,6 +101,9 @@ class UsersClient {
       'created_at': createdAt.toIso8601String(),
       'email': email,
       'full_name': fullName,
+      if (phone != null) 'phone': phone,
+      if (age != null) 'age': age,
+      if (dateOfBirth != null) 'date_of_birth': dateOfBirth!.toIso8601String().substring(0, 10),
       if (typeUserId != null) 'type_user_id': typeUserId,
       'active': active,
     };

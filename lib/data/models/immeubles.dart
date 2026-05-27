@@ -18,6 +18,7 @@ class ImmeublesModel {
   final DateTime? createdAt;
   final bool bailCollectif;
   final bool bailIndividuel;
+  final double? prixLoyer;
 
   ImmeublesModel({
     required this.id,
@@ -37,6 +38,7 @@ class ImmeublesModel {
     this.createdAt,
     this.bailCollectif = false,
     this.bailIndividuel = false,
+    this.prixLoyer,
   });
 
   String? get bailLabel {
@@ -71,6 +73,7 @@ class ImmeublesModel {
           : null,
       bailCollectif: (map['bail_collectif'] as bool?) ?? false,
       bailIndividuel: (map['bail_individuel'] as bool?) ?? false,
+      prixLoyer: (map['prix_loyer'] as num?)?.toDouble(),
     );
   }
 
@@ -89,6 +92,7 @@ class ImmeublesModel {
         if (department != null) 'department': department,
         'bail_collectif': bailCollectif,
         'bail_individuel': bailIndividuel,
+        if (prixLoyer != null) 'prix_loyer': prixLoyer,
       };
 
   static List<String> _photosFromAny(dynamic raw) {

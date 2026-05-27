@@ -8,16 +8,20 @@ import 'package:lacoloc_front/data/models/address_suggestion.dart';
 import 'package:lacoloc_front/data/models/immeuble_type.dart';
 import 'package:lacoloc_front/data/models/immeubles.dart';
 import 'package:lacoloc_front/presentation/widgets/address_autocomplete_field.dart';
+import 'package:lacoloc_front/presentation/widgets/form_page_header.dart';
 import 'package:lacoloc_front/presentation/widgets/photo_picker_field.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
+import 'package:lacoloc_front/theme/app_theme.dart';
 import 'package:lacoloc_front/theme/app_typography.dart';
+import 'package:lacoloc_front/utils/responsive_form_wrapper.dart';
 
 class NouveauImmeublePage extends StatefulWidget {
   final ImmeublesModel? immeuble;
   final VoidCallback? onSaved;
+  final VoidCallback? onBack;
 
-  const NouveauImmeublePage({super.key, this.immeuble, this.onSaved});
+  const NouveauImmeublePage({super.key, this.immeuble, this.onSaved, this.onBack});
 
   @override
   State<NouveauImmeublePage> createState() => _NouveauImmeublePageState();
@@ -32,6 +36,7 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
   List<String> _photos = [];
   String? _mainPhoto;
   bool _isSubmitting = false;
+  bool _isBailCollectif = false;
 
   bool get _isEditing => widget.immeuble != null;
 
@@ -44,6 +49,7 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
       _address = imm.address ?? '';
       _photos = List.from(imm.commonPhotos);
       _mainPhoto = imm.mainPhoto;
+      _isBailCollectif = imm.bailCollectif;
       _typesFuture.then((types) {
         if (!mounted) return;
         final match = types.where((t) => t.id == imm.typeId).firstOrNull;
@@ -62,6 +68,44 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
     _formKey.currentState?.fields['city']?.didChange(s.city);
     _formKey.currentState?.fields['department']?.didChange(s.department);
     _formKey.currentState?.fields['region']?.didChange(s.region);
+  }
+
+  Future<void> _handleBack() async {
+    final isDirty = _formKey.currentState?.isDirty ?? false;
+    if (!isDirty) {
+      widget.onBack?.call();
+      return;
+    }
+    final result = await showDialog<String>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Modifications non sauvegardées'),
+        content: const Text(
+          'Vous avez des modifications non sauvegardées. '
+          'Que souhaitez-vous faire ?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, 'cancel'),
+            child: const Text('Continuer'),
+          ),
+          OutlinedButton(
+            onPressed: () => Navigator.pop(context, 'discard'),
+            child: const Text('Quitter sans sauvegarder'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, 'save'),
+            child: const Text('Sauvegarder et quitter'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    if (result == 'discard') {
+      widget.onBack?.call();
+    } else if (result == 'save') {
+      await _submit();
+    }
   }
 
   Future<void> _submit() async {
@@ -97,6 +141,10 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
         mainPhoto: _mainPhoto,
         bailCollectif: (values['bail_collectif'] as bool?) ?? false,
         bailIndividuel: (values['bail_individuel'] as bool?) ?? false,
+        prixLoyer: _isBailCollectif
+            ? double.tryParse(
+                ((values['prix_loyer'] as String?) ?? '').replaceAll(',', '.'))
+            : null,
       );
       _isEditing
           ? await ImmeublesDatasource.update(model)
@@ -119,18 +167,27 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      child: FormBuilder(
-        key: _formKey,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              _isEditing ? "Modifier l'immeuble" : "Nouvel immeuble",
-              style: AppTypography.titleLg,
-            ),
-            const SizedBox(height: AppSpacing.lg),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        FormPageHeader(
+          title: _isEditing ? "Modifier l'immeuble" : "Nouvel immeuble",
+          leading: widget.onBack != null
+              ? IconButton.outlined(
+                  icon: const Icon(Icons.arrow_back),
+                  onPressed: _handleBack,
+                  tooltip: 'Retour',
+                )
+              : null,
+        ),
+        Expanded(child: ResponsiveFormWrapper(
+          child: SingleChildScrollView(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: FormBuilder(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
 
             // ── Type d'immeuble (async) ────────────────────────────────
             FutureBuilder<List<ImmeubleTypeModel>>(
@@ -243,22 +300,36 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
               contentPadding: EdgeInsets.zero,
               controlAffinity: ListTileControlAffinity.leading,
               onChanged: (v) {
+                setState(() => _isBailCollectif = v ?? false);
                 if (v == true) {
                   _formKey.currentState?.fields['bail_individuel']
                       ?.didChange(false);
                 }
               },
             ),
+            if (_isBailCollectif) ...[
+              const SizedBox(height: AppSpacing.md),
+              FormBuilderTextField(
+                name: 'prix_loyer',
+                initialValue: widget.immeuble?.prixLoyer?.toStringAsFixed(2),
+                decoration: const InputDecoration(
+                  labelText: 'Valeur du loyer (€/mois)',
+                  prefixText: '€ ',
+                ),
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+              ),
+            ],
             FormBuilderCheckbox(
               name: 'bail_individuel',
               initialValue: widget.immeuble?.bailIndividuel ?? false,
               title: const Text('Bail individuel'),
-              subtitle: const Text(
-                  'Contrat séparé pour chaque chambre.'),
+              subtitle: const Text('Contrat séparé pour chaque chambre.'),
               contentPadding: EdgeInsets.zero,
               controlAffinity: ListTileControlAffinity.leading,
               onChanged: (v) {
                 if (v == true) {
+                  setState(() => _isBailCollectif = false);
                   _formKey.currentState?.fields['bail_collectif']
                       ?.didChange(false);
                 }
@@ -279,8 +350,9 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
             ),
             const SizedBox(height: AppSpacing.xl),
 
-            ElevatedButton.icon(
+            FilledButton.icon(
               onPressed: _isSubmitting ? null : _submit,
+              style: AppTheme.saveButtonStyle,
               icon: _isSubmitting
                   ? const SizedBox(
                       width: 18,
@@ -291,9 +363,12 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
               label: Text(
                   _isEditing ? 'Enregistrer les modifications' : 'Enregistrer'),
             ),
-          ],
-        ),
-      ),
+              ],
+            ),
+          ),
+          ),
+        )),
+  ],
     );
   }
 }

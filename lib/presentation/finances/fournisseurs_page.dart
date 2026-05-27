@@ -6,11 +6,14 @@ import 'package:form_builder_validators/form_builder_validators.dart';
 import 'package:lacoloc_front/data/datasources/auth_service.dart';
 import 'package:lacoloc_front/data/datasources/fournisseurs.dart';
 import 'package:lacoloc_front/data/models/fournisseur.dart';
-import 'package:lacoloc_front/presentation/widgets/email_field.dart';
-import 'package:lacoloc_front/presentation/widgets/phone_field.dart';
+import 'package:lacoloc_front/presentation/widgets/form_page_header.dart';
+import 'package:lacoloc_front/utils/email_field.dart';
+import 'package:lacoloc_front/utils/phone_field.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
+import 'package:lacoloc_front/theme/app_theme.dart';
 import 'package:lacoloc_front/theme/app_typography.dart';
+import 'package:lacoloc_front/utils/responsive_form_wrapper.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -87,8 +90,9 @@ class _FournisseursPageState extends State<FournisseursPage> {
           'Cette action est irréversible.',
         ),
         actions: [
-          TextButton(
+          OutlinedButton(
             onPressed: () => Navigator.of(ctx).pop(false),
+            style: AppTheme.cancelButtonStyle,
             child: const Text('Annuler'),
           ),
           FilledButton(
@@ -129,30 +133,26 @@ class _FournisseursPageState extends State<FournisseursPage> {
         final list = snap.data ?? [];
         final isLoading = snap.connectionState == ConnectionState.waiting;
 
-        return Padding(
-          padding: const EdgeInsets.all(AppSpacing.lg),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  Text('Fournisseurs', style: AppTypography.titleLg),
-                  const Spacer(),
-                  FilledButton.icon(
-                    onPressed: _openCreation,
-                    icon: const Icon(Icons.add, size: 18),
-                    label: const Text('Ajouter'),
-                  ),
-                ],
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            FormPageHeader(
+              title: 'Fournisseurs',
+              trailing: FilledButton.icon(
+                onPressed: _openCreation,
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('Ajouter'),
               ),
-              const SizedBox(height: AppSpacing.lg),
-              if (isLoading)
-                const Expanded(
-                  child: Center(child: CircularProgressIndicator()),
-                )
-              else if (list.isEmpty)
-                Expanded(
-                  child: Center(
+            ),
+            if (isLoading)
+              const Expanded(
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else if (list.isEmpty)
+              Expanded(
+                child: Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(AppSpacing.lg),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -173,19 +173,20 @@ class _FournisseursPageState extends State<FournisseursPage> {
                       ],
                     ),
                   ),
-                )
-              else
-                Expanded(
-                  child: SingleChildScrollView(
-                    child: _FournisseursTable(
-                      fournisseurs: list,
-                      onEdit: _openEdition,
-                      onDelete: _confirmDelete,
-                    ),
+                ),
+              )
+            else
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(AppSpacing.lg),
+                  child: _FournisseursTable(
+                    fournisseurs: list,
+                    onEdit: _openEdition,
+                    onDelete: _confirmDelete,
                   ),
                 ),
-            ],
-          ),
+              ),
+          ],
         );
       },
     );
@@ -207,7 +208,8 @@ class _FournisseursTable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DataTable(
+    return Card(
+      child: DataTable(
       columnSpacing: 24,
       columns: const [
         DataColumn(label: Text('Nom')),
@@ -248,7 +250,8 @@ class _FournisseursTable extends StatelessWidget {
           )),
         ]);
       }).toList(),
-    );
+    ),   // DataTable
+    );   // Card
   }
 }
 
@@ -297,23 +300,14 @@ class _FournisseurFormWithBack extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-          child: Row(
-            children: [
-              IconButton.outlined(
-                icon: const Icon(Icons.arrow_back),
-                onPressed: onBack,
-                tooltip: 'Retour à la liste',
-              ),
-              const SizedBox(width: 16),
-              Text(
-                fournisseur == null
-                    ? 'Nouveau fournisseur'
-                    : 'Modifier le fournisseur',
-                style: AppTypography.titleLg,
-              ),
-            ],
+        FormPageHeader(
+          title: fournisseur == null
+              ? 'Nouveau fournisseur'
+              : 'Modifier le fournisseur',
+          leading: IconButton.outlined(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: onBack,
+            tooltip: 'Retour à la liste',
           ),
         ),
         Expanded(
@@ -429,7 +423,8 @@ class _FournisseurFormPageState extends State<FournisseurFormPage> {
   @override
   Widget build(BuildContext context) {
     final f = widget.fournisseur;
-    return SingleChildScrollView(
+    return ResponsiveFormWrapper(
+      child: SingleChildScrollView(
       padding: const EdgeInsets.all(AppSpacing.lg),
       child: FormBuilder(
         key: _formKey,
@@ -649,7 +644,7 @@ class _FournisseurFormPageState extends State<FournisseurFormPage> {
 
             const SizedBox(height: AppSpacing.xl),
 
-            ElevatedButton.icon(
+            FilledButton.icon(
               onPressed: _isSubmitting ? null : _submit,
               icon: _isSubmitting
                   ? const SizedBox(
@@ -663,9 +658,11 @@ class _FournisseurFormPageState extends State<FournisseurFormPage> {
                     ? 'Enregistrer les modifications'
                     : 'Enregistrer',
               ),
+              style: AppTheme.saveButtonStyle,
             ),
           ],
         ),
+      ),
       ),
     );
   }

@@ -3,8 +3,8 @@ import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:form_builder_validators/form_builder_validators.dart';
 import 'package:lacoloc_front/data/datasources/auth_service.dart';
 import 'package:lacoloc_front/data/models/users_client.dart';
-import 'package:lacoloc_front/presentation/widgets/email_field.dart';
-import 'package:lacoloc_front/presentation/widgets/phone_field.dart';
+import 'package:lacoloc_front/utils/email_field.dart';
+import 'package:lacoloc_front/utils/phone_field.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_radius.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
@@ -43,6 +43,7 @@ class _CrierCompteProprietairePageState
         password: password,
         type: UserType.proprietaire,
         fullName: fullName,
+        phone: phone,
       );
 
       // Notificação ao admin — best-effort, não bloqueia

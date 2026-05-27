@@ -6,7 +6,8 @@ class FacturesDatasource {
 
   static final SupabaseClient _client = Supabase.instance.client;
   static const String _table = 'Factures';
-  static const String _select = '*, Immeubles!immeuble_id(id, name)';
+  static const String _select =
+      '*, Immeubles!immeuble_id(id, name), Chambres!chambre_id(id, room_name)';
 
   static Future<List<FactureModel>> listByOwner(String ownerId) async {
     final rows = await _client

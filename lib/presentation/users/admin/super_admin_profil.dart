@@ -1,23 +1,31 @@
 import 'package:flutter/material.dart';
 import 'package:lacoloc_front/data/datasources/auth_service.dart';
+import 'package:lacoloc_front/presentation/admin/meuble_types_page.dart';
 import 'package:lacoloc_front/presentation/admin/payment_types_page.dart';
 import 'package:lacoloc_front/presentation/nav/app_sidebar.dart';
+import 'package:lacoloc_front/presentation/users/admin/utilisateurs_admin_page.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
 import 'package:lacoloc_front/theme/app_typography.dart';
 
 // ─── Índices do sidebar ───────────────────────────────────────────────────────
 const _idxAccueil = 0;
-const _idxPaymentTypes = 1;
+const _idxUtilisateurs = 1;
+const _idxPaymentTypes = 2;
+const _idxMeubleTypes = 3;
 
-enum _Section { paymentTypes }
+enum _Section { utilisateurs, paymentTypes, meubleTypes }
 
 _Section _indexToSection(int i) => switch (i) {
-      _ => _Section.paymentTypes,
+      _idxPaymentTypes => _Section.paymentTypes,
+      _idxMeubleTypes => _Section.meubleTypes,
+      _ => _Section.utilisateurs,
     };
 
 int _sectionToIndex(_Section s) => switch (s) {
+      _Section.utilisateurs => _idxUtilisateurs,
       _Section.paymentTypes => _idxPaymentTypes,
+      _Section.meubleTypes => _idxMeubleTypes,
     };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -33,14 +41,14 @@ class _SuperAdminProfilPageState extends State<SuperAdminProfilPage> {
   final _scaffoldKey = GlobalKey<ScaffoldState>();
   late final SidebarXController _navCtrl;
 
-  _Section _section = _Section.paymentTypes;
+  _Section _section = _Section.utilisateurs;
   bool _syncingNav = false;
 
   @override
   void initState() {
     super.initState();
     _navCtrl = SidebarXController(
-      selectedIndex: _idxPaymentTypes,
+      selectedIndex: _idxUtilisateurs,
       extended: true,
     );
     _navCtrl.addListener(_onNavChanged);
@@ -82,7 +90,9 @@ class _SuperAdminProfilPageState extends State<SuperAdminProfilPage> {
 
   Widget _buildContent() {
     return switch (_section) {
+      _Section.utilisateurs => const UtilisateursAdminPage(),
       _Section.paymentTypes => const PaymentTypesPage(),
+      _Section.meubleTypes => const MeubleTypesPage(),
     };
   }
 
@@ -93,8 +103,9 @@ class _SuperAdminProfilPageState extends State<SuperAdminProfilPage> {
       userEmail: AuthService.currentUser?.email,
       items: const [
         SidebarXItem(icon: Icons.home_outlined, label: 'Accueil'),
-        SidebarXItem(
-            icon: Icons.payment_outlined, label: 'Types de paiement'),
+        SidebarXItem(icon: Icons.people_outlined, label: 'Utilisateurs'),
+        SidebarXItem(icon: Icons.payment_outlined, label: 'Types de paiement'),
+        SidebarXItem(icon: Icons.chair_outlined, label: 'Types de meuble'),
       ],
       footerBuilder: (_, extended) => SidebarActionButton(
         extended: extended,

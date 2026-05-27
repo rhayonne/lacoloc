@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:form_builder_validators/form_builder_validators.dart';
+import 'package:intl/intl.dart';
 import 'package:lacoloc_front/data/datasources/auth_service.dart';
 import 'package:lacoloc_front/data/models/users_client.dart';
-import 'package:lacoloc_front/presentation/widgets/email_field.dart';
-import 'package:lacoloc_front/presentation/widgets/phone_field.dart';
+import 'package:lacoloc_front/utils/email_field.dart';
+import 'package:lacoloc_front/utils/phone_field.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_radius.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
@@ -24,6 +25,17 @@ class _CrierCompteLocatairePageState extends State<CrierCompteLocatairePage> {
   bool _isLoading = false;
   bool _obscurePwd = true;
   bool _obscureConfirm = true;
+  int? _previewAge;
+
+  static int? _computeAge(DateTime dob) {
+    final now = DateTime.now();
+    int age = now.year - dob.year;
+    if (now.month < dob.month ||
+        (now.month == dob.month && now.day < dob.day)) {
+      age--;
+    }
+    return age;
+  }
 
   Future<void> _submit() async {
     if (!(_formKey.currentState?.saveAndValidate() ?? false)) return;
@@ -34,12 +46,18 @@ class _CrierCompteLocatairePageState extends State<CrierCompteLocatairePage> {
       final fullName = (values['full_name'] as String).trim();
       final email = (values['email'] as String).trim();
       final password = values['password'] as String;
+      final phone = (values['phone'] as String?)?.trim();
+      final dob = values['date_of_birth'] as DateTime?;
+      final age = dob != null ? _computeAge(dob) : null;
 
       final response = await AuthService.signUp(
         email: email,
         password: password,
         type: UserType.locataire,
         fullName: fullName,
+        phone: phone,
+        age: age,
+        dateOfBirth: dob,
       );
 
       if (!mounted) return;
@@ -90,6 +108,9 @@ class _CrierCompteLocatairePageState extends State<CrierCompteLocatairePage> {
 
   @override
   Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final lastDateAllowed = DateTime(now.year - 16, now.month, now.day);
+
     return GestureDetector(
       onTap: () => FocusScope.of(context).unfocus(),
       child: Scaffold(
@@ -133,6 +154,7 @@ class _CrierCompteLocatairePageState extends State<CrierCompteLocatairePage> {
                     ),
                     const SizedBox(height: AppSpacing.xl),
 
+                    // ── Nom complet ──────────────────────────────────────
                     _label('NOM COMPLET'),
                     FormBuilderTextField(
                       name: 'full_name',
@@ -145,14 +167,59 @@ class _CrierCompteLocatairePageState extends State<CrierCompteLocatairePage> {
                     ),
                     const SizedBox(height: AppSpacing.md),
 
+                    // ── E-mail ───────────────────────────────────────────
                     _label('E-MAIL'),
                     EmailField(name: 'email', required: true),
                     const SizedBox(height: AppSpacing.md),
 
+                    // ── Téléphone ────────────────────────────────────────
                     _label('TÉLÉPHONE'),
                     PhoneField(name: 'phone'),
                     const SizedBox(height: AppSpacing.md),
 
+                    // ── Date de naissance ────────────────────────────────
+                    _label('DATE DE NAISSANCE'),
+                    FormBuilderDateTimePicker(
+                      name: 'date_of_birth',
+                      inputType: InputType.date,
+                      locale: const Locale('fr'),
+                      format: DateFormat('dd/MM/yyyy'),
+                      firstDate: DateTime(1920),
+                      lastDate: lastDateAllowed,
+                      decoration: const InputDecoration(
+                        hintText: 'JJ/MM/AAAA',
+                        prefixIcon: Icon(Icons.calendar_today_outlined),
+                      ),
+                      onChanged: (value) {
+                        setState(() {
+                          _previewAge =
+                              value != null ? _computeAge(value) : null;
+                        });
+                      },
+                      validator: (value) {
+                        if (value == null) return null;
+                        final age = _computeAge(value)!;
+                        if (age < 16) {
+                          return 'Vous devez avoir au moins 16 ans';
+                        }
+                        return null;
+                      },
+                    ),
+                    if (_previewAge != null) ...[
+                      const SizedBox(height: AppSpacing.xs),
+                      Padding(
+                        padding: const EdgeInsets.only(left: 4),
+                        child: Text(
+                          'Âge : $_previewAge ans',
+                          style: AppTypography.bodyMd.copyWith(
+                            color: AppColors.onSurfaceVariant,
+                          ),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: AppSpacing.md),
+
+                    // ── Mot de passe ─────────────────────────────────────
                     _label('MOT DE PASSE'),
                     FormBuilderTextField(
                       name: 'password',
@@ -177,6 +244,7 @@ class _CrierCompteLocatairePageState extends State<CrierCompteLocatairePage> {
                     ),
                     const SizedBox(height: AppSpacing.md),
 
+                    // ── Confirmer le mot de passe ────────────────────────
                     _label('CONFIRMER LE MOT DE PASSE'),
                     FormBuilderTextField(
                       name: 'password_confirm',

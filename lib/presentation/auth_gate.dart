@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:lacoloc_front/data/datasources/auth_service.dart';
+import 'package:lacoloc_front/utils/session_guard.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:lacoloc_front/data/models/users_client.dart';
 import 'package:lacoloc_front/presentation/login_page.dart';
 import 'package:lacoloc_front/presentation/users/admin/super_admin_profil.dart';
+import 'package:lacoloc_front/presentation/users/locataires/completer_inscription_page.dart';
 import 'package:lacoloc_front/presentation/users/locataires/locataire_profil.dart';
 import 'package:lacoloc_front/presentation/users/proprietaires/proprietaire_profil.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
@@ -11,44 +14,63 @@ import 'package:lacoloc_front/theme/app_typography.dart';
 
 /// Decide para onde mandar o usuário após o login.
 /// Contas inativas (active = false) veem a tela de espera e são desconectadas.
+/// Reage ao stream de auth para tratar refresh token inválido/expirado.
 class AuthGate extends StatelessWidget {
   const AuthGate({super.key});
 
   @override
   Widget build(BuildContext context) {
-    if (!AuthService.isLoggedIn) {
-      return const LoginPage();
-    }
+    return StreamBuilder<AuthState>(
+      stream: AuthService.onAuthStateChange,
+      builder: (context, _) {
+        final user = AuthService.currentUser;
 
-    return FutureBuilder<UsersClient?>(
-      future: AuthService.loadCurrentProfile(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState != ConnectionState.done) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
+        if (user == null) return const LoginPage();
+
+        // Locataire invité qui doit encore créer son mot de passe
+        if (user.userMetadata?['needs_completion'] == true) {
+          return const CompleterInscriptionPage();
         }
 
-        final profile = snapshot.data;
+        return FutureBuilder<UsersClient?>(
+          future: AuthService.loadCurrentProfile(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState != ConnectionState.done) {
+              return const Scaffold(
+                body: Center(child: CircularProgressIndicator()),
+              );
+            }
 
-        if (profile != null && !profile.active) {
-          return _PendingActivationPage(
-            email: profile.email,
-            onLogout: () async {
-              await AuthService.signOut();
-              if (context.mounted) {
-                Navigator.of(context).pushReplacementNamed('/');
-              }
-            },
-          );
-        }
+            final profile = snapshot.data;
 
-        final type = profile?.resolvedType;
-        return switch (type) {
-          UserType.proprietaire => const ProprietaireProfilPage(),
-          UserType.superAdmin => const SuperAdminProfilPage(),
-          _ => const LocataireProfilPage(),
-        };
+            if (profile != null && !profile.active) {
+              return _PendingActivationPage(
+                email: profile.email,
+                onLogout: () async {
+                  await AuthService.signOut();
+                  if (context.mounted) {
+                    Navigator.of(context).pushReplacementNamed('/');
+                  }
+                },
+              );
+            }
+
+            final type = profile?.resolvedType;
+            final page = switch (type) {
+              UserType.proprietaire => const ProprietaireProfilPage(),
+              UserType.superAdmin => const SuperAdminProfilPage(),
+              _ => const LocataireProfilPage(),
+            };
+            return SessionGuard(
+              onTimeout: () async {
+                if (context.mounted) {
+                  Navigator.of(context).pushReplacementNamed('/');
+                }
+              },
+              child: page,
+            );
+          },
+        );
       },
     );
   }

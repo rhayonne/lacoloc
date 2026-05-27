@@ -33,3 +33,5 @@ assets/
 # Logs e Temporários
 *.log
 .DS_Store
+
+# Outros

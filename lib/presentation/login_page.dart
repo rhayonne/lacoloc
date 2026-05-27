@@ -22,13 +22,20 @@ class _LoginPageState extends State<LoginPage> {
   bool _isLoading = false;
   bool _isSignUp = false;
 
+  // Converte identificador curto (ex: "super") em email completo
+  String _resolveEmail(String input) {
+    final trimmed = input.trim();
+    if (!trimmed.contains('@')) return '$trimmed@admin.local';
+    return trimmed;
+  }
+
   Future<void> _submit() async {
     if (!(_formKey.currentState?.saveAndValidate() ?? false)) return;
     final values = _formKey.currentState!.value;
     setState(() => _isLoading = true);
     try {
       await AuthService.signInWithPassword(
-        email: values['email'] as String,
+        email: _resolveEmail(values['email'] as String),
         password: values['password'] as String,
       );
       if (!mounted) return;
@@ -136,15 +143,12 @@ class _LoginPageState extends State<LoginPage> {
             ),
           ),
           const SizedBox(height: AppSpacing.xl),
-          _label('E-MAIL'),
+          _label('IDENTIFIANT OU E-MAIL'),
           FormBuilderTextField(
             name: 'email',
             keyboardType: TextInputType.emailAddress,
             decoration: const InputDecoration(hintText: 'nom@exemple.fr'),
-            validator: FormBuilderValidators.compose([
-              FormBuilderValidators.required(),
-              FormBuilderValidators.email(),
-            ]),
+            validator: FormBuilderValidators.required(),
           ),
           const SizedBox(height: AppSpacing.md),
           _label('MOT DE PASSE'),

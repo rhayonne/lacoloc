@@ -26,7 +26,9 @@ class EmailField extends StatelessWidget {
   final String name;
   final String? labelText;
   final bool required;
+  final bool enabled;
   final String? initialValue;
+  final String? errorText;
   final void Function(String?)? onChanged;
 
   const EmailField({
@@ -34,7 +36,9 @@ class EmailField extends StatelessWidget {
     required this.name,
     this.labelText = 'E-mail',
     this.required = false,
+    this.enabled = true,
     this.initialValue,
+    this.errorText,
     this.onChanged,
   });
 
@@ -43,7 +47,8 @@ class EmailField extends StatelessWidget {
     return FormBuilderTextField(
       name: name,
       initialValue: initialValue,
-      decoration: InputDecoration(labelText: labelText),
+      enabled: enabled,
+      decoration: InputDecoration(labelText: labelText, errorText: errorText),
       keyboardType: TextInputType.emailAddress,
       inputFormatters: [_EmailInputFormatter()],
       onChanged: onChanged,

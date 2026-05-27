@@ -3,16 +3,109 @@ import 'package:carousel_slider/carousel_slider.dart';
 import 'package:flutter/material.dart';
 import 'package:lacoloc_front/data/datasources/auth_service.dart';
 import 'package:lacoloc_front/data/datasources/chambres.dart';
+import 'package:lacoloc_front/data/datasources/demandes_contact.dart';
 import 'package:lacoloc_front/data/datasources/immeubles.dart';
 import 'package:lacoloc_front/data/datasources/reference.dart';
 import 'package:lacoloc_front/data/models/chambre.dart';
 import 'package:lacoloc_front/data/models/immeubles.dart';
 import 'package:lacoloc_front/data/models/reference.dart';
+import 'package:lacoloc_front/data/models/users_client.dart';
 import 'package:lacoloc_front/presentation/nav/app_sidebar.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_radius.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
 import 'package:lacoloc_front/theme/app_typography.dart';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Widget public : contenu seul, sans Scaffold ni sidebar.
+// Utilisé inline dans les profils (locataire, proprietaire)
+// et depuis la page publique ChambreDetailPage.
+
+class ChambreDetailView extends StatefulWidget {
+  final int chambreId;
+  /// Callback du bouton "Retour". Si null, utilise Navigator.pop().
+  final VoidCallback? onBack;
+
+  const ChambreDetailView({
+    super.key,
+    required this.chambreId,
+    this.onBack,
+  });
+
+  @override
+  State<ChambreDetailView> createState() => _ChambreDetailViewState();
+}
+
+class _ChambreDetailViewState extends State<ChambreDetailView> {
+  late Future<_DetailBundle> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = _load();
+  }
+
+  @override
+  void didUpdateWidget(ChambreDetailView old) {
+    super.didUpdateWidget(old);
+    if (old.chambreId != widget.chambreId) {
+      _future = _load();
+    }
+  }
+
+  Future<_DetailBundle> _load() async {
+    final chambre = await ChambresDatasource.byId(widget.chambreId);
+    if (chambre == null) throw Exception('Chambre introuvable');
+    final results = await Future.wait([
+      ImmeublesDatasource.byId(chambre.immeubleId),
+      ReferenceDatasource.roomOptions(),
+      AuthService.loadCurrentProfile(),
+    ]);
+    final profile = results[2] as UsersClient?;
+    bool hasPendingDemande = false;
+    if (profile?.resolvedType == UserType.locataire) {
+      hasPendingDemande = await DemandesContactDatasource.hasDemandeEnAttente(
+        locataireId: profile!.id,
+        chambreId: widget.chambreId,
+      );
+    }
+    return _DetailBundle(
+      chambre: chambre,
+      immeuble: results[0] as ImmeublesModel?,
+      options: results[1] as List<ReferenceItem>,
+      currentProfile: profile,
+      hasPendingDemande: hasPendingDemande,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<_DetailBundle>(
+      future: _future,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.lg),
+              child: Text('Erreur : ${snapshot.error}'),
+            ),
+          );
+        }
+        return _DetailContent(
+          bundle: snapshot.data!,
+          onBack: widget.onBack,
+          onContactSent: () => setState(() => _future = _load()),
+        );
+      },
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Page publique (route /chambre) : sidebar + ChambreDetailView
 
 class ChambreDetailPage extends StatefulWidget {
   final int chambreId;
@@ -25,14 +118,12 @@ class ChambreDetailPage extends StatefulWidget {
 class _ChambreDetailPageState extends State<ChambreDetailPage> {
   final _scaffoldKey = GlobalKey<ScaffoldState>();
   late final SidebarXController _navCtrl;
-  late Future<_DetailBundle> _future;
 
   @override
   void initState() {
     super.initState();
     _navCtrl = SidebarXController(selectedIndex: 0, extended: true);
     _navCtrl.addListener(_onNavChanged);
-    _future = _load();
   }
 
   @override
@@ -50,14 +141,6 @@ class _ChambreDetailPageState extends State<ChambreDetailPage> {
   Future<void> _doLogout() async {
     await AuthService.signOut();
     if (mounted) Navigator.of(context).pushNamedAndRemoveUntil('/', (_) => false);
-  }
-
-  Future<_DetailBundle> _load() async {
-    final chambre = await ChambresDatasource.byId(widget.chambreId);
-    if (chambre == null) throw Exception('Chambre introuvable');
-    final immeuble = await ImmeublesDatasource.byId(chambre.immeubleId);
-    final options = await ReferenceDatasource.roomOptions();
-    return _DetailBundle(chambre: chambre, immeuble: immeuble, options: options);
   }
 
   Widget _buildSidebar({required bool isNarrow}) {
@@ -111,24 +194,7 @@ class _ChambreDetailPageState extends State<ChambreDetailPage> {
   Widget build(BuildContext context) {
     final isNarrow = MediaQuery.sizeOf(context).width < 800;
     final sidebar = _buildSidebar(isNarrow: isNarrow);
-
-    final body = FutureBuilder<_DetailBundle>(
-      future: _future,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (snapshot.hasError) {
-          return Center(
-            child: Padding(
-              padding: const EdgeInsets.all(AppSpacing.lg),
-              child: Text('Erreur : ${snapshot.error}'),
-            ),
-          );
-        }
-        return _DetailContent(bundle: snapshot.data!);
-      },
-    );
+    final body = ChambreDetailView(chambreId: widget.chambreId);
 
     if (isNarrow) {
       return Scaffold(
@@ -165,10 +231,14 @@ class _DetailBundle {
   final ChambreModel chambre;
   final ImmeublesModel? immeuble;
   final List<ReferenceItem> options;
+  final UsersClient? currentProfile;
+  final bool hasPendingDemande;
   _DetailBundle({
     required this.chambre,
     required this.immeuble,
     required this.options,
+    this.currentProfile,
+    this.hasPendingDemande = false,
   });
 }
 
@@ -176,7 +246,9 @@ class _DetailBundle {
 
 class _DetailContent extends StatelessWidget {
   final _DetailBundle bundle;
-  const _DetailContent({required this.bundle});
+  final VoidCallback? onBack;
+  final VoidCallback? onContactSent;
+  const _DetailContent({required this.bundle, this.onBack, this.onContactSent});
 
   List<String> _orderedPhotos(ChambreModel c) {
     if (c.mainPhoto == null || !c.roomPhotos.contains(c.mainPhoto)) {
@@ -202,7 +274,7 @@ class _DetailContent extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 TextButton.icon(
-                  onPressed: () => Navigator.of(context).pop(),
+                  onPressed: onBack ?? () => Navigator.of(context).pop(),
                   icon: const Icon(Icons.arrow_back, size: 18),
                   label: const Text('Retour'),
                 ),
@@ -281,11 +353,68 @@ class _DetailContent extends StatelessWidget {
                     label: const Text("Voir l'immeuble"),
                   ),
                 ],
+                if (bundle.currentProfile?.resolvedType ==
+                    UserType.locataire) ...[
+                  const SizedBox(height: AppSpacing.md),
+                  if (bundle.hasPendingDemande)
+                    OutlinedButton.icon(
+                      onPressed: null,
+                      icon: const Icon(Icons.hourglass_empty_outlined),
+                      label: const Text('Demande envoyée — en attente de réponse'),
+                    )
+                  else
+                    FilledButton.icon(
+                      onPressed: () => _showContactDialog(context),
+                      icon: const Icon(Icons.contact_mail_outlined),
+                      label: const Text('Entrer en contact'),
+                    ),
+                ],
                 const SizedBox(height: AppSpacing.xl),
               ],
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  void _showContactDialog(BuildContext context) {
+    final profile = bundle.currentProfile!;
+    final chambre = bundle.chambre;
+    final immeuble = bundle.immeuble;
+
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => _ContactConfirmDialog(
+        profile: profile,
+        chambreName: chambre.roomName,
+        immeubleName: immeuble?.name ?? '—',
+        onConfirm: () async {
+          Navigator.of(ctx).pop();
+          try {
+            await DemandesContactDatasource.create(
+              locataireId: profile.id,
+              immeubleId: chambre.immeubleId,
+              chambreId: chambre.id,
+            );
+            onContactSent?.call();
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                    'Votre demande de contact a été envoyée au propriétaire.',
+                  ),
+                ),
+              );
+            }
+          } catch (e) {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Erreur : $e')),
+              );
+            }
+          }
+        },
       ),
     );
   }
@@ -681,6 +810,176 @@ class _OptionRow extends StatelessWidget {
               size: 18, color: AppColors.tertiaryContainer),
           const SizedBox(width: AppSpacing.sm),
           Text(label, style: AppTypography.bodyMd),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _ContactConfirmDialog extends StatefulWidget {
+  final UsersClient profile;
+  final String chambreName;
+  final String immeubleName;
+  final Future<void> Function() onConfirm;
+
+  const _ContactConfirmDialog({
+    required this.profile,
+    required this.chambreName,
+    required this.immeubleName,
+    required this.onConfirm,
+  });
+
+  @override
+  State<_ContactConfirmDialog> createState() => _ContactConfirmDialogState();
+}
+
+class _ContactConfirmDialogState extends State<_ContactConfirmDialog> {
+  bool _loading = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = widget.profile;
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: AppRadius.borderLg),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 480),
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.contact_mail_outlined,
+                      color: AppColors.primary, size: 22),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: Text(
+                      'Entrer en contact',
+                      style: AppTypography.titleLg,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed:
+                        _loading ? null : () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+              const Divider(height: AppSpacing.lg),
+              Text(
+                'Confirmez-vous que vous souhaitez transmettre les informations '
+                'suivantes : nom complet, âge, numéro de téléphone et adresse '
+                'e-mail au propriétaire du bien immobilier afin qu\'il puisse '
+                'vous contacter ?',
+                style: AppTypography.bodyMd,
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(AppSpacing.md),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceContainerLow,
+                  borderRadius: AppRadius.borderMd,
+                  border: Border.all(color: AppColors.outlineVariant),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _InfoRow(
+                      icon: Icons.person_outline,
+                      label: 'Nom complet',
+                      value: p.fullName ?? '—',
+                    ),
+                    _InfoRow(
+                      icon: Icons.cake_outlined,
+                      label: 'Âge',
+                      value: p.age != null ? '${p.age} ans' : '—',
+                    ),
+                    _InfoRow(
+                      icon: Icons.phone_outlined,
+                      label: 'Téléphone',
+                      value: p.phone ?? '—',
+                    ),
+                    _InfoRow(
+                      icon: Icons.email_outlined,
+                      label: 'E-mail',
+                      value: p.email,
+                    ),
+                    const Divider(height: AppSpacing.lg),
+                    _InfoRow(
+                      icon: Icons.bed_outlined,
+                      label: 'Chambre',
+                      value: widget.chambreName,
+                    ),
+                    _InfoRow(
+                      icon: Icons.apartment_outlined,
+                      label: 'Immeuble',
+                      value: widget.immeubleName,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed:
+                        _loading ? null : () => Navigator.of(context).pop(),
+                    child: const Text('Annuler'),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  FilledButton(
+                    onPressed: _loading
+                        ? null
+                        : () async {
+                            setState(() => _loading = true);
+                            await widget.onConfirm();
+                          },
+                    child: _loading
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text('Confirmer'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _InfoRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  const _InfoRow({required this.icon, required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: AppColors.onSurfaceVariant),
+          const SizedBox(width: AppSpacing.sm),
+          Text(
+            '$label : ',
+            style: AppTypography.labelMd
+                .copyWith(color: AppColors.onSurfaceVariant),
+          ),
+          Expanded(
+            child: Text(value, style: AppTypography.bodyMd),
+          ),
         ],
       ),
     );

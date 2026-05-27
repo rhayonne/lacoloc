@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:lacoloc_front/data/datasources/reference.dart';
 import 'package:lacoloc_front/data/models/filter_state.dart';
 import 'package:lacoloc_front/data/models/reference.dart';
@@ -12,18 +13,23 @@ export 'package:lacoloc_front/data/models/filter_state.dart'
 
 /// Painel de filtros expansível, reutilizável em Chambres e Immeubles.
 ///
-/// [showEquipments] – exibe chips de équipements (apenas para chambres).
-/// [filter] / [onChanged] – estado externo; o pai gerencia o ChambreFilter.
+/// [showEquipments] – chips de équipements (apenas para chambres).
+/// [showM2]         – campos de surface min/max.
+/// [showPrix]       – campos de loyer min/max.
 class FilterPanel extends StatefulWidget {
   final ChambreFilter filter;
   final ValueChanged<ChambreFilter> onChanged;
   final bool showEquipments;
+  final bool showM2;
+  final bool showPrix;
 
   const FilterPanel({
     super.key,
     required this.filter,
     required this.onChanged,
     this.showEquipments = false,
+    this.showM2 = false,
+    this.showPrix = false,
   });
 
   @override
@@ -35,6 +41,10 @@ class _FilterPanelState extends State<FilterPanel> {
   final _cityCtrl = TextEditingController();
   final _regionCtrl = TextEditingController();
   final _deptCtrl = TextEditingController();
+  final _m2MinCtrl = TextEditingController();
+  final _m2MaxCtrl = TextEditingController();
+  final _prixMinCtrl = TextEditingController();
+  final _prixMaxCtrl = TextEditingController();
   Future<List<ReferenceItem>>? _optionsFuture;
 
   @override
@@ -49,7 +59,6 @@ class _FilterPanelState extends State<FilterPanel> {
   @override
   void didUpdateWidget(FilterPanel old) {
     super.didUpdateWidget(old);
-    // Sincroniza campos de texto quando o pai reseta o filtro
     if (old.filter != widget.filter) _syncCtrls(widget.filter);
   }
 
@@ -57,6 +66,14 @@ class _FilterPanelState extends State<FilterPanel> {
     if (_cityCtrl.text != f.city) _cityCtrl.text = f.city;
     if (_regionCtrl.text != f.region) _regionCtrl.text = f.region;
     if (_deptCtrl.text != f.department) _deptCtrl.text = f.department;
+    final m2Min = f.m2Min?.toStringAsFixed(0) ?? '';
+    final m2Max = f.m2Max?.toStringAsFixed(0) ?? '';
+    final prixMin = f.prixMin?.toStringAsFixed(0) ?? '';
+    final prixMax = f.prixMax?.toStringAsFixed(0) ?? '';
+    if (_m2MinCtrl.text != m2Min) _m2MinCtrl.text = m2Min;
+    if (_m2MaxCtrl.text != m2Max) _m2MaxCtrl.text = m2Max;
+    if (_prixMinCtrl.text != prixMin) _prixMinCtrl.text = prixMin;
+    if (_prixMaxCtrl.text != prixMax) _prixMaxCtrl.text = prixMax;
   }
 
   @override
@@ -64,15 +81,23 @@ class _FilterPanelState extends State<FilterPanel> {
     _cityCtrl.dispose();
     _regionCtrl.dispose();
     _deptCtrl.dispose();
+    _m2MinCtrl.dispose();
+    _m2MaxCtrl.dispose();
+    _prixMinCtrl.dispose();
+    _prixMaxCtrl.dispose();
     super.dispose();
   }
 
-  void _emitLocation() {
+  void _emitAll() {
     widget.onChanged(
       widget.filter.copyWith(
         city: _cityCtrl.text.trim(),
         region: _regionCtrl.text.trim(),
         department: _deptCtrl.text.trim(),
+        m2Min: double.tryParse(_m2MinCtrl.text.trim()),
+        m2Max: double.tryParse(_m2MaxCtrl.text.trim()),
+        prixMin: double.tryParse(_prixMinCtrl.text.trim()),
+        prixMax: double.tryParse(_prixMaxCtrl.text.trim()),
       ),
     );
   }
@@ -87,6 +112,10 @@ class _FilterPanelState extends State<FilterPanel> {
     _cityCtrl.clear();
     _regionCtrl.clear();
     _deptCtrl.clear();
+    _m2MinCtrl.clear();
+    _m2MaxCtrl.clear();
+    _prixMinCtrl.clear();
+    _prixMaxCtrl.clear();
     widget.onChanged(ChambreFilter.empty);
   }
 
@@ -170,7 +199,7 @@ class _FilterPanelState extends State<FilterPanel> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Localização
+                // Localisation
                 Text('Localisation', style: AppTypography.labelMd),
                 const SizedBox(height: AppSpacing.sm),
                 Row(
@@ -180,7 +209,7 @@ class _FilterPanelState extends State<FilterPanel> {
                         controller: _cityCtrl,
                         label: 'Ville',
                         icon: Icons.location_city_outlined,
-                        onSubmitted: (_) => _emitLocation(),
+                        onSubmitted: (_) => _emitAll(),
                       ),
                     ),
                     const SizedBox(width: AppSpacing.md),
@@ -189,7 +218,7 @@ class _FilterPanelState extends State<FilterPanel> {
                         controller: _deptCtrl,
                         label: 'Département',
                         icon: Icons.map_outlined,
-                        onSubmitted: (_) => _emitLocation(),
+                        onSubmitted: (_) => _emitAll(),
                       ),
                     ),
                     const SizedBox(width: AppSpacing.md),
@@ -198,7 +227,7 @@ class _FilterPanelState extends State<FilterPanel> {
                         controller: _regionCtrl,
                         label: 'Région',
                         icon: Icons.public_outlined,
-                        onSubmitted: (_) => _emitLocation(),
+                        onSubmitted: (_) => _emitAll(),
                       ),
                     ),
                   ],
@@ -245,6 +274,58 @@ class _FilterPanelState extends State<FilterPanel> {
                   ],
                 ),
 
+                // Surface m²
+                if (widget.showM2) ...[
+                  const SizedBox(height: AppSpacing.md),
+                  Text('Surface (m²)', style: AppTypography.labelMd),
+                  const SizedBox(height: AppSpacing.sm),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _NumberField(
+                          controller: _m2MinCtrl,
+                          label: 'Min m²',
+                          onSubmitted: (_) => _emitAll(),
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.md),
+                      Expanded(
+                        child: _NumberField(
+                          controller: _m2MaxCtrl,
+                          label: 'Max m²',
+                          onSubmitted: (_) => _emitAll(),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+
+                // Loyer €
+                if (widget.showPrix) ...[
+                  const SizedBox(height: AppSpacing.md),
+                  Text('Loyer mensuel (€)', style: AppTypography.labelMd),
+                  const SizedBox(height: AppSpacing.sm),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _NumberField(
+                          controller: _prixMinCtrl,
+                          label: 'Min €',
+                          onSubmitted: (_) => _emitAll(),
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.md),
+                      Expanded(
+                        child: _NumberField(
+                          controller: _prixMaxCtrl,
+                          label: 'Max €',
+                          onSubmitted: (_) => _emitAll(),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+
                 // Équipements
                 if (widget.showEquipments && _optionsFuture != null) ...[
                   const SizedBox(height: AppSpacing.md),
@@ -275,13 +356,13 @@ class _FilterPanelState extends State<FilterPanel> {
                   ),
                 ],
 
-                // Appliquer (confirma campos de texto não submetidos)
+                // Appliquer
                 const SizedBox(height: AppSpacing.md),
                 Align(
                   alignment: Alignment.centerRight,
                   child: FilledButton.tonal(
                     onPressed: () {
-                      _emitLocation();
+                      _emitAll();
                       setState(() => _expanded = false);
                     },
                     child: const Text('Appliquer'),
@@ -320,6 +401,39 @@ class _LocationField extends StatelessWidget {
       decoration: InputDecoration(
         labelText: label,
         prefixIcon: Icon(icon, size: 16),
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(
+          vertical: AppSpacing.sm,
+          horizontal: AppSpacing.sm,
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _NumberField extends StatelessWidget {
+  final TextEditingController controller;
+  final String label;
+  final ValueChanged<String>? onSubmitted;
+
+  const _NumberField({
+    required this.controller,
+    required this.label,
+    this.onSubmitted,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: controller,
+      onSubmitted: onSubmitted,
+      textInputAction: TextInputAction.done,
+      keyboardType: const TextInputType.numberWithOptions(decimal: false),
+      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+      decoration: InputDecoration(
+        labelText: label,
         isDense: true,
         contentPadding: const EdgeInsets.symmetric(
           vertical: AppSpacing.sm,

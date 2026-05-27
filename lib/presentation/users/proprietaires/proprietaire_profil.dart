@@ -10,39 +10,71 @@ import 'package:lacoloc_front/presentation/finances/fournisseurs_page.dart';
 import 'package:lacoloc_front/presentation/finances/nouvelle_facture_page.dart';
 import 'package:lacoloc_front/presentation/nav/app_sidebar.dart';
 import 'package:lacoloc_front/presentation/users/proprietaires/creer_chambre_page.dart';
+import 'package:lacoloc_front/presentation/users/proprietaires/agenda_visites_page.dart';
+import 'package:lacoloc_front/presentation/users/proprietaires/documentation_page.dart';
+import 'package:lacoloc_front/presentation/users/proprietaires/etat_de_lieux_page.dart';
+import 'package:lacoloc_front/presentation/users/proprietaires/interactions_page.dart';
+import 'package:lacoloc_front/presentation/users/proprietaires/mon_profil_proprietaire_page.dart';
+import 'package:lacoloc_front/presentation/users/proprietaires/vue_generale_page.dart';
 import 'package:lacoloc_front/presentation/users/proprietaires/immeuble_detail_page.dart';
+import 'package:lacoloc_front/presentation/users/proprietaires/inventaire_page.dart';
 import 'package:lacoloc_front/presentation/users/proprietaires/mes_chambres_page.dart';
 import 'package:lacoloc_front/presentation/users/proprietaires/mes_immeubles_page.dart';
 import 'package:lacoloc_front/presentation/users/proprietaires/nouveau_immeuble_page.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
+import 'package:lacoloc_front/theme/app_radius.dart';
+import 'package:lacoloc_front/theme/app_spacing.dart';
 import 'package:lacoloc_front/theme/app_typography.dart';
 
 // ─── Índices do sidebar ──────────────────────────────────────────────────────
-// 0 = Accueil (navegar para /)
-// 1 = Mes Propriétés
-// 2 = Mes Chambres
-// 3 = Finances / Factures
-// 4 = Fournisseurs
-const _idxAccueil = 0;
-const _idxProprietes = 1;
-const _idxChambres = 2;
-const _idxFinances = 3;
-const _idxFournisseurs = 4;
+// 0 = Vue générale
+// 1 = Gestion Immobilière (abas: Mes Propriétés / Mes Chambres)
+// 2 = Finances / Factures
+// 3 = Fournisseurs
+// 4 = État des lieux
+// 5 = Documentation
+// 6 = Interactions
+// 7 = Mon Profil
+const _idxVueGenerale = 0;
+const _idxGestion = 1;
+const _idxFinances = 2;
+const _idxFournisseurs = 3;
+const _idxEtatDesLieux = 4;
+const _idxDocumentation = 5;
+const _idxInteractions = 6;
+const _idxMonProfil = 7;
 
-enum _Section { proprietes, chambres, finances, fournisseurs }
+enum _Section {
+  vueGenerale,
+  gestion,
+  finances,
+  fournisseurs,
+  etatDesLieux,
+  documentation,
+  interactions,
+  monProfil,
+}
 
 int _sectionToIndex(_Section s) => switch (s) {
-  _Section.proprietes => _idxProprietes,
-  _Section.chambres => _idxChambres,
+  _Section.vueGenerale => _idxVueGenerale,
+  _Section.gestion => _idxGestion,
   _Section.finances => _idxFinances,
   _Section.fournisseurs => _idxFournisseurs,
+  _Section.etatDesLieux => _idxEtatDesLieux,
+  _Section.documentation => _idxDocumentation,
+  _Section.interactions => _idxInteractions,
+  _Section.monProfil => _idxMonProfil,
 };
 
 _Section _indexToSection(int i) => switch (i) {
-  _idxChambres => _Section.chambres,
+  _idxVueGenerale => _Section.vueGenerale,
   _idxFinances => _Section.finances,
   _idxFournisseurs => _Section.fournisseurs,
-  _ => _Section.proprietes,
+  _idxEtatDesLieux => _Section.etatDesLieux,
+  _idxDocumentation => _Section.documentation,
+  _idxInteractions => _Section.interactions,
+  _idxMonProfil => _Section.monProfil,
+  _ => _Section.gestion,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -54,11 +86,13 @@ class ProprietaireProfilPage extends StatefulWidget {
   State<ProprietaireProfilPage> createState() => _ProprietaireProfilPageState();
 }
 
-class _ProprietaireProfilPageState extends State<ProprietaireProfilPage> {
+class _ProprietaireProfilPageState extends State<ProprietaireProfilPage>
+    with SingleTickerProviderStateMixin {
   final _scaffoldKey = GlobalKey<ScaffoldState>();
   late final SidebarXController _navCtrl;
+  late final TabController _gestionTabCtrl;
 
-  _Section _section = _Section.proprietes;
+  _Section _section = _Section.vueGenerale;
 
   // Formulário immeuble
   bool _showImmeubleForm = false;
@@ -89,8 +123,9 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage> {
   @override
   void initState() {
     super.initState();
+    _gestionTabCtrl = TabController(length: 4, vsync: this);
     _navCtrl = SidebarXController(
-      selectedIndex: _idxProprietes,
+      selectedIndex: _idxVueGenerale,
       extended: true,
     );
     _navCtrl.addListener(_onNavChanged);
@@ -101,6 +136,7 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage> {
 
   @override
   void dispose() {
+    _gestionTabCtrl.dispose();
     _navCtrl.removeListener(_onNavChanged);
     _navCtrl.dispose();
     _searchCtrl.dispose();
@@ -111,12 +147,7 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage> {
 
   void _onNavChanged() {
     if (_syncingNav || !mounted) return;
-    final idx = _navCtrl.selectedIndex;
-    if (idx == _idxAccueil) {
-      Navigator.of(context).pushNamedAndRemoveUntil('/', (r) => false);
-      return;
-    }
-    _changeSection(_indexToSection(idx));
+    _changeSection(_indexToSection(_navCtrl.selectedIndex));
   }
 
   void _changeSection(_Section s) {
@@ -153,7 +184,6 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage> {
   void _openImmeubleEdition(ImmeublesModel imm) => setState(() {
     _editingImmeuble = imm;
     _showImmeubleForm = true;
-    _showImmeubleDetail = false;
     _showChambreForm = false;
     _showFactureForm = false;
   });
@@ -199,6 +229,12 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage> {
     _showChambreForm = false;
   });
 
+  void _openRecetteCreation() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Fonctionnalité Recettes à venir.')),
+    );
+  }
+
   void _closeForm() => setState(() {
     _showImmeubleForm = false;
     _showImmeubleDetail = false;
@@ -210,6 +246,22 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage> {
     _editingChambre = null;
     _factureTarget = null;
     _facturePrefilledImmeubleId = null;
+  });
+
+  void _closeImmeubleDetail() => setState(() {
+    _showImmeubleDetail = false;
+    _detailImmeuble = null;
+    _detailChambres = [];
+  });
+
+  void _closeImmeubleForm() => setState(() {
+    _showImmeubleForm = false;
+    _editingImmeuble = null;
+  });
+
+  void _closeChambreForm() => setState(() {
+    _showChambreForm = false;
+    _editingChambre = null;
   });
 
   Future<void> _doLogout() async {
@@ -262,6 +314,20 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage> {
         onSaved: onBack,
       );
     }
+    if (_showImmeubleForm) {
+      return NouveauImmeublePage(
+        immeuble: _editingImmeuble,
+        onSaved: _closeForm,
+        onBack: _closeImmeubleForm,
+      );
+    }
+    if (_showChambreForm) {
+      return CreerChambrePage(
+        chambre: _editingChambre,
+        onSaved: _closeForm,
+        onBack: _closeChambreForm,
+      );
+    }
     if (_showImmeubleDetail && _detailImmeuble != null) {
       return ImmeubleDetailPage(
         immeuble: _detailImmeuble!,
@@ -270,52 +336,90 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage> {
         onModifierChambre: _openChambreEdition,
         onAjouterFacture: () =>
             _openFactureCreation(immeubleId: _detailImmeuble!.id),
+        onBack: _closeImmeubleDetail,
       );
     }
-    if (_showImmeubleForm) {
-      return NouveauImmeublePage(
-        immeuble: _editingImmeuble,
-        onSaved: _closeForm,
-      );
-    }
-    if (_showChambreForm) {
-      return CreerChambrePage(chambre: _editingChambre, onSaved: _closeForm);
-    }
-    // Secção Finances
+    if (_section == _Section.vueGenerale) return const VueGeneralePage();
+    if (_section == _Section.monProfil) return const MonProfilProprietairePage();
     if (_section == _Section.finances) {
       return FacturesListPage(
         onAjouter: _openFactureCreation,
         onOuvrir: _openFacture,
+        onAjouterRecette: _openRecetteCreation,
       );
     }
-    // Secção Fournisseurs
-    if (_section == _Section.fournisseurs) {
-      return const FournisseursPage();
-    }
-    return switch (_section) {
-      _Section.proprietes => MesImmeublesPage(
-        onAjouter: _openImmeubleCreation,
-        onModifier: _openImmeubleEdition,
-        onVoirDetail: _openImmeubleDetail,
-      ),
-      _Section.chambres => MesChambresPage(
-        onModifier: _openChambreEdition,
-        onCreerChambre: _openChambreCreation,
-      ),
-      _Section.finances => const SizedBox.shrink(),
-      _Section.fournisseurs => const SizedBox.shrink(),
-    };
+    if (_section == _Section.fournisseurs) return const FournisseursPage();
+    if (_section == _Section.etatDesLieux) return const EtatDesLieuxPage();
+    if (_section == _Section.documentation) return const DocumentationPage();
+    if (_section == _Section.interactions) return const InteractionsPage();
+
+    // Secção Gestion Immobilière — abas Mes Propriétés / Mes Chambres
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            AppSpacing.lg,
+            AppSpacing.lg,
+            0,
+          ),
+          child: TabBar(
+            controller: _gestionTabCtrl,
+            tabs: const [
+              Tab(text: 'Mes Propriétés'),
+              Tab(text: 'Mes Chambres'),
+              Tab(text: 'Agenda — Visites'),
+              Tab(text: 'Inventaire'),
+            ],
+          ),
+        ),
+        const Divider(height: 1),
+        Expanded(
+          child: TabBarView(
+            controller: _gestionTabCtrl,
+            physics: const NeverScrollableScrollPhysics(),
+            children: [
+              _GestionCard(
+                child: MesImmeublesPage(
+                  onAjouter: _openImmeubleCreation,
+                  onModifier: _openImmeubleEdition,
+                  onVoirDetail: _openImmeubleDetail,
+                ),
+              ),
+              _GestionCard(
+                child: MesChambresPage(
+                  onModifier: _openChambreEdition,
+                  onCreerChambre: _openChambreCreation,
+                ),
+              ),
+              const _GestionCard(child: AgendaVisitesPage()),
+              const _GestionCard(child: InventairePage()),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 
   // ── Sidebar ────────────────────────────────────────────────────────────────
 
   List<SidebarXItem> _buildNavItems() {
     return const [
-      SidebarXItem(icon: Icons.home_outlined, label: 'Accueil'),
-      SidebarXItem(icon: Icons.home_work_outlined, label: 'Mes Propriétés'),
-      SidebarXItem(icon: Icons.bed_outlined, label: 'Mes Chambres'),
+      SidebarXItem(icon: Icons.dashboard_outlined, label: 'Vue générale'),
+      SidebarXItem(
+        icon: Icons.home_work_outlined,
+        label: 'Gestion Immobilière',
+      ),
       SidebarXItem(icon: Icons.receipt_long_outlined, label: 'Finances'),
       SidebarXItem(icon: Icons.store_outlined, label: 'Fournisseurs'),
+      SidebarXItem(
+        icon: Icons.assignment_outlined,
+        label: 'État des lieux',
+      ),
+      SidebarXItem(icon: Icons.menu_book_outlined, label: 'Documentation'),
+      SidebarXItem(icon: Icons.people_alt_outlined, label: 'Interactions'),
+      SidebarXItem(icon: Icons.person_outline, label: 'Mon Profil'),
     ];
   }
 
@@ -326,12 +430,26 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage> {
       userEmail: AuthService.currentUser?.email,
       searchController: _searchCtrl,
       items: _buildNavItems(),
-      footerBuilder: (_, extended) => SidebarActionButton(
-        extended: extended,
-        icon: Icons.logout,
-        label: 'Se déconnecter',
-        onTap: _doLogout,
-        color: AppColors.error,
+      footerBuilder: (ctx, extended) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SidebarActionButton(
+            extended: extended,
+            icon: Icons.home_outlined,
+            label: 'Accueil',
+            onTap: () {
+              if (isNarrow) Navigator.of(ctx).pop();
+              Navigator.of(ctx).pushNamedAndRemoveUntil('/', (r) => false);
+            },
+          ),
+          SidebarActionButton(
+            extended: extended,
+            icon: Icons.logout,
+            label: 'Se déconnecter',
+            onTap: _doLogout,
+            color: AppColors.error,
+          ),
+        ],
       ),
     );
   }
@@ -367,6 +485,38 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage> {
           sidebar,
           Expanded(child: _buildContent()),
         ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _GestionCard extends StatelessWidget {
+  final Widget child;
+  const _GestionCard({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppColors.surfaceContainerLowest,
+          borderRadius: AppRadius.borderLg,
+          border: Border.all(color: AppColors.outlineVariant),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.shadowTint.withValues(alpha: 0.06),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: AppRadius.borderLg,
+          child: child,
+        ),
       ),
     );
   }

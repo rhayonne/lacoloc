@@ -53,6 +53,7 @@ unlinked_spec.ds
 CLAUDE.md
 supabase/migrations/
 
+
 # Android related
 **/android/**/gradle-wrapper.jar
 .gradle/

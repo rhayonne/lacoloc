@@ -14,7 +14,7 @@ class MesImmeublesPage extends StatefulWidget {
   final VoidCallback onAjouter;
   final ValueChanged<ImmeublesModel> onModifier;
   final void Function(ImmeublesModel immeuble, List<ChambreModel> chambres)
-      onVoirDetail;
+  onVoirDetail;
 
   const MesImmeublesPage({
     super.key,
@@ -132,8 +132,8 @@ class _Grid extends StatelessWidget {
               final cols = constraints.maxWidth < 480
                   ? 1
                   : constraints.maxWidth < 820
-                      ? 2
-                      : 3;
+                  ? 2
+                  : 3;
               return GridView.builder(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
@@ -192,21 +192,22 @@ class _ImmeubleCard extends StatelessWidget {
         color: allOccupied
             ? AppColors.tertiaryFixed.withValues(alpha: 0.35)
             : immeuble.isActive
-                ? AppColors.surfaceContainerLowest
-                : AppColors.surfaceContainerLow,
+            ? AppColors.surfaceContainerLowest
+            : AppColors.surfaceContainerLow,
         borderRadius: AppRadius.borderLg,
         border: Border.all(
           color: allOccupied
               ? AppColors.tertiary.withValues(alpha: 0.45)
               : immeuble.isActive
-                  ? AppColors.outlineVariant
-                  : AppColors.outline,
+              ? AppColors.outlineVariant
+              : AppColors.outline,
         ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // En-tête : icône + nom + badge inactif
+          /* CARD IMMEUBLES*/
           Row(
             children: [
               Container(
@@ -216,49 +217,79 @@ class _ImmeubleCard extends StatelessWidget {
                   color: AppColors.primaryFixed,
                   borderRadius: AppRadius.borderMd,
                 ),
-                child: const Icon(Icons.apartment,
-                    color: AppColors.primary, size: 20),
+                child: const Icon(
+                  Icons.apartment,
+                  color: AppColors.primary,
+                  size: 20,
+                ),
               ),
               const SizedBox(width: AppSpacing.sm),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(immeuble.name,
-                        style: AppTypography.titleLg,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis),
-                    Text(subtitle,
-                        style: AppTypography.labelMd
-                            .copyWith(color: AppColors.onSurfaceVariant),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis),
+                    Text(
+                      immeuble.name,
+                      style: AppTypography.titleLg,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      subtitle,
+                      style: AppTypography.labelMd.copyWith(
+                        color: AppColors.onSurfaceVariant,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(),
+                        if (immeuble.bailCollectif == true)
+                          Text('Bail collectif', style: AppTypography.labelMd)
+                        else if (immeuble.bailIndividuel == true)
+                          Text('Bail individuel', style: AppTypography.labelMd)
+                        else
+                          Text('Type de bail non définit.'),
+                      ],
+                    ),
                   ],
                 ),
               ),
               if (allOccupied)
                 Container(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.sm, vertical: 2),
+                    horizontal: AppSpacing.sm,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.tertiaryFixed,
                     borderRadius: AppRadius.borderFull,
                   ),
-                  child: Text('Complet',
-                      style: AppTypography.labelSm.copyWith(
-                          color: AppColors.onTertiaryFixedVariant)),
+                  child: Text(
+                    'Complet',
+                    style: AppTypography.labelSm.copyWith(
+                      color: AppColors.onTertiaryFixedVariant,
+                    ),
+                  ),
                 )
               else if (!immeuble.isActive)
                 Container(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.sm, vertical: 2),
+                    horizontal: AppSpacing.sm,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.errorContainer,
                     borderRadius: AppRadius.borderFull,
                   ),
-                  child: Text('Inactif',
-                      style: AppTypography.labelSm
-                          .copyWith(color: AppColors.onErrorContainer)),
+                  child: Text(
+                    'Inactif',
+                    style: AppTypography.labelSm.copyWith(
+                      color: AppColors.onErrorContainer,
+                    ),
+                  ),
                 ),
             ],
           ),
@@ -269,16 +300,18 @@ class _ImmeubleCard extends StatelessWidget {
           else
             Text(
               'Aucune chambre',
-              style:
-                  AppTypography.labelSm.copyWith(color: AppColors.onSurfaceVariant),
+              style: AppTypography.labelSm.copyWith(
+                color: AppColors.onSurfaceVariant,
+              ),
             ),
           const Spacer(),
           // Compteur
           Text(
             '${chambres.length} chambre${chambres.length != 1 ? 's' : ''}'
             ' · $totalOccupied désactivée${totalOccupied != 1 ? 's' : ''}',
-            style: AppTypography.labelMd
-                .copyWith(color: AppColors.onSurfaceVariant),
+            style: AppTypography.labelMd.copyWith(
+              color: AppColors.onSurfaceVariant,
+            ),
           ),
           const SizedBox(height: AppSpacing.sm),
           Row(
@@ -297,7 +330,9 @@ class _ImmeubleCard extends StatelessWidget {
                 onPressed: onModifier,
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.sm, vertical: 0),
+                    horizontal: AppSpacing.sm,
+                    vertical: 0,
+                  ),
                 ),
                 child: const Icon(Icons.edit_outlined, size: 16),
               ),
@@ -338,12 +373,16 @@ class _ChambreThumbnailStrip extends StatelessWidget {
                       imageUrl: photo,
                       fit: BoxFit.cover,
                       errorWidget: (_, _, _) => const Icon(
-                          Icons.bed_outlined,
-                          size: 18,
-                          color: AppColors.outline),
+                        Icons.bed_outlined,
+                        size: 18,
+                        color: AppColors.outline,
+                      ),
                     )
-                  : const Icon(Icons.bed_outlined,
-                      size: 18, color: AppColors.outline),
+                  : const Icon(
+                      Icons.bed_outlined,
+                      size: 18,
+                      color: AppColors.outline,
+                    ),
             ),
           ),
         );
@@ -366,15 +405,19 @@ class _EmptyState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.home_work_outlined,
-                size: 64, color: AppColors.outline),
+            const Icon(
+              Icons.home_work_outlined,
+              size: 64,
+              color: AppColors.outline,
+            ),
             const SizedBox(height: AppSpacing.md),
             Text('Aucun immeuble enregistré', style: AppTypography.titleLg),
             const SizedBox(height: AppSpacing.sm),
             Text(
               'Ajoutez votre premier immeuble pour commencer.',
-              style: AppTypography.bodyMd
-                  .copyWith(color: AppColors.onSurfaceVariant),
+              style: AppTypography.bodyMd.copyWith(
+                color: AppColors.onSurfaceVariant,
+              ),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: AppSpacing.xl),

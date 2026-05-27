@@ -52,7 +52,10 @@ class _MesChambresPageState extends State<MesChambresPage> {
         .toList();
   }
 
-  void _reload() => setState(() => _future = _load());
+  void _reload() {
+    final f = _load();
+    setState(() { _future = f; });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -88,7 +91,7 @@ class _MesChambresPageState extends State<MesChambresPage> {
                   FilledButton.icon(
                     onPressed: widget.onCreerChambre,
                     icon: const Icon(Icons.add, size: 18),
-                    label: const Text('Créer'),
+                    label: const Text('Ajouter'),
                   ),
                   const SizedBox(width: AppSpacing.sm),
                 ],
@@ -137,69 +140,104 @@ class _ImmeubleGroup extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
-          child: Row(
-            children: [
-              const Icon(
-                Icons.apartment,
-                size: 18,
-                color: AppColors.onSurfaceVariant,
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(
-                child: Text(group.immeuble.name, style: AppTypography.titleLg),
-              ),
-              if (!group.immeuble.isActive)
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceContainerLowest,
+        borderRadius: AppRadius.borderLg,
+        border: Border.all(color: AppColors.outlineVariant),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.shadowTint.withValues(alpha: 0.06),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // En-tête du groupe
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.lg,
+              AppSpacing.md,
+              AppSpacing.md,
+              AppSpacing.md,
+            ),
+            child: Row(
+              children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.sm,
-                    vertical: 2,
-                  ),
+                  width: 32,
+                  height: 32,
                   decoration: BoxDecoration(
-                    color: AppColors.errorContainer,
-                    borderRadius: AppRadius.borderFull,
+                    color: AppColors.primaryFixed,
+                    borderRadius: AppRadius.borderSm,
                   ),
-                  child: Text(
-                    'Inactif',
-                    style: AppTypography.labelSm.copyWith(
-                      color: AppColors.onErrorContainer,
-                    ),
+                  child: const Icon(
+                    Icons.apartment,
+                    size: 16,
+                    color: AppColors.primary,
                   ),
                 ),
-            ],
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Text(
+                    group.immeuble.name,
+                    style: AppTypography.titleLg,
+                  ),
+                ),
+                if (!group.immeuble.isActive)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.sm,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.errorContainer,
+                      borderRadius: AppRadius.borderFull,
+                    ),
+                    child: Text(
+                      'Inactif',
+                      style: AppTypography.labelSm.copyWith(
+                        color: AppColors.onErrorContainer,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
-        ),
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final cols = constraints.maxWidth < 480
-                ? 1
-                : constraints.maxWidth < 800
-                ? 2
-                : 3;
-            return GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: cols,
-                crossAxisSpacing: AppSpacing.md,
-                mainAxisSpacing: AppSpacing.md,
-                childAspectRatio: 1.2,
-              ),
-              itemCount: group.chambres.length,
-              itemBuilder: (context, i) => _ChambreCard(
-                chambre: group.chambres[i],
-                onModifier: () => onModifier(group.chambres[i]),
-              ),
-            );
-          },
-        ),
-        const SizedBox(height: AppSpacing.lg),
-        const Divider(),
-      ],
+          const Divider(height: 1),
+          // Grille de chambres
+          Padding(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final cols = constraints.maxWidth < 480
+                    ? 1
+                    : constraints.maxWidth < 800
+                    ? 2
+                    : 3;
+                return GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: cols,
+                    crossAxisSpacing: AppSpacing.md,
+                    mainAxisSpacing: AppSpacing.md,
+                    childAspectRatio: 1.2,
+                  ),
+                  itemCount: group.chambres.length,
+                  itemBuilder: (context, i) => _ChambreCard(
+                    chambre: group.chambres[i],
+                    onModifier: () => onModifier(group.chambres[i]),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

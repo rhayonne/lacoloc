@@ -9,8 +9,10 @@ import 'package:lacoloc_front/data/datasources/reference.dart';
 import 'package:lacoloc_front/data/models/chambre.dart';
 import 'package:lacoloc_front/data/models/immeubles.dart';
 import 'package:lacoloc_front/data/models/reference.dart';
+import 'package:lacoloc_front/presentation/widgets/form_page_header.dart';
 import 'package:lacoloc_front/presentation/widgets/photo_picker_field.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
+import 'package:lacoloc_front/theme/app_theme.dart';
 import 'package:lacoloc_front/utils/currency.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
 import 'package:lacoloc_front/theme/app_typography.dart';
@@ -18,8 +20,9 @@ import 'package:lacoloc_front/theme/app_typography.dart';
 class CreerChambrePage extends StatefulWidget {
   final ChambreModel? chambre;
   final VoidCallback? onSaved;
+  final VoidCallback? onBack;
 
-  const CreerChambrePage({super.key, this.chambre, this.onSaved});
+  const CreerChambrePage({super.key, this.chambre, this.onSaved, this.onBack});
 
   @override
   State<CreerChambrePage> createState() => _CreerChambrePageState();
@@ -75,7 +78,45 @@ class _CreerChambrePageState extends State<CreerChambrePage> {
     return (value * 100).round();
   }
 
-  Future<void> _submit() async {
+  Future<void> _handleBack() async {
+    final isDirty = _formKey.currentState?.isDirty ?? false;
+    if (!isDirty) {
+      widget.onBack?.call();
+      return;
+    }
+    final result = await showDialog<String>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Modifications non sauvegardées'),
+        content: const Text(
+          'Vous avez des modifications non sauvegardées. '
+          'Que souhaitez-vous faire ?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, 'cancel'),
+            child: const Text('Continuer'),
+          ),
+          OutlinedButton(
+            onPressed: () => Navigator.pop(context, 'discard'),
+            child: const Text('Quitter sans sauvegarder'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, 'save'),
+            child: const Text('Sauvegarder et quitter'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    if (result == 'discard') {
+      widget.onBack?.call();
+    } else if (result == 'save') {
+      await _submit(fromBack: true);
+    }
+  }
+
+  Future<void> _submit({bool fromBack = false}) async {
     if (!(_formKey.currentState?.saveAndValidate() ?? false)) return;
     final values = _formKey.currentState!.value;
 
@@ -122,7 +163,7 @@ class _CreerChambrePageState extends State<CreerChambrePage> {
             : 'Chambre créée avec succès'),
       ));
 
-      if (_isEditing) {
+      if (_isEditing || fromBack) {
         widget.onSaved?.call();
       } else {
         _formKey.currentState?.reset();
@@ -144,57 +185,63 @@ class _CreerChambrePageState extends State<CreerChambrePage> {
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<_FormBundle>(
-      future: _bundleFuture,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (snapshot.hasError) {
-          return Center(child: Text('Erreur : ${snapshot.error}'));
-        }
-        final bundle = snapshot.data!;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        FormPageHeader(
+          title: _isEditing ? 'Modifier la chambre' : 'Nouvelle chambre',
+          leading: widget.onBack != null
+              ? IconButton.outlined(
+                  icon: const Icon(Icons.arrow_back),
+                  onPressed: _handleBack,
+                  tooltip: 'Retour',
+                )
+              : null,
+        ),
+        Expanded(child: FutureBuilder<_FormBundle>(
+          future: _bundleFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (snapshot.hasError) {
+              return Center(child: Text('Erreur : ${snapshot.error}'));
+            }
+            final bundle = snapshot.data!;
 
-        if (!_isEditing && bundle.immeubles.isEmpty) {
-          return Padding(
-            padding: const EdgeInsets.all(AppSpacing.xl),
-            child: Center(
-              child: Text(
-                "Créez d'abord un immeuble avant d'ajouter une chambre.",
-                style: AppTypography.bodyLg,
-                textAlign: TextAlign.center,
-              ),
-            ),
-          );
-        }
-
-        return SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 800),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-                child: Container(
-                  padding: const EdgeInsets.all(AppSpacing.md),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).scaffoldBackgroundColor,
-                    borderRadius: BorderRadius.circular(12),
+            if (!_isEditing && bundle.immeubles.isEmpty) {
+              return Padding(
+                padding: const EdgeInsets.all(AppSpacing.xl),
+                child: Center(
+                  child: Text(
+                    "Créez d'abord un immeuble avant d'ajouter une chambre.",
+                    style: AppTypography.bodyLg,
+                    textAlign: TextAlign.center,
                   ),
-                  child: FormBuilder(
-                    key: _formKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Text(
-                          _isEditing
-                              ? 'Modifier la chambre'
-                              : 'Nouvelle chambre',
-                          style: AppTypography.titleLg,
-                        ),
-                        const SizedBox(height: AppSpacing.lg),
+                ),
+              );
+            }
 
-                        // ── Immeuble ────────────────────────────────────
+            return SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 800),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+                    child: Container(
+                      padding: const EdgeInsets.all(AppSpacing.md),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).scaffoldBackgroundColor,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: FormBuilder(
+                        key: _formKey,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+
+                            // ── Immeuble ────────────────────────────────────
                         if (_isEditing)
                           FormBuilderTextField(
                             name: 'immeuble_display',
@@ -351,31 +398,21 @@ class _CreerChambrePageState extends State<CreerChambrePage> {
                         ),
 
                         const SizedBox(height: AppSpacing.xl),
-                        SizedBox(
-                          height: 50,
-                          child: ElevatedButton.icon(
-                            onPressed: _isSubmitting ? null : _submit,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF006D77),
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                            icon: _isSubmitting
-                                ? const SizedBox(
-                                    width: 18,
-                                    height: 18,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: Colors.white,
-                                    ),
-                                  )
-                                : const Icon(Icons.check),
-                            label: Text(_isEditing
-                                ? 'Enregistrer les modifications'
-                                : 'Créer la chambre'),
-                          ),
+                        FilledButton.icon(
+                          onPressed: _isSubmitting ? null : _submit,
+                          style: AppTheme.saveButtonStyle,
+                          icon: _isSubmitting
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.check),
+                          label: Text(_isEditing
+                              ? 'Enregistrer les modifications'
+                              : 'Créer la chambre'),
                         ),
                       ],
                     ),
@@ -386,6 +423,8 @@ class _CreerChambrePageState extends State<CreerChambrePage> {
           ),
         );
       },
+    )),
+  ],
     );
   }
 }

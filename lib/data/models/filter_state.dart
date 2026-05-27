@@ -8,6 +8,10 @@ class ChambreFilter {
   final String region;
   final String department;
   final BailTypeFilter? bailType;
+  final double? m2Min;
+  final double? m2Max;
+  final double? prixMin;
+  final double? prixMax;
 
   const ChambreFilter({
     this.optionIds = const {},
@@ -15,6 +19,10 @@ class ChambreFilter {
     this.region = '',
     this.department = '',
     this.bailType,
+    this.m2Min,
+    this.m2Max,
+    this.prixMin,
+    this.prixMax,
   });
 
   bool get isEmpty =>
@@ -22,14 +30,20 @@ class ChambreFilter {
       city.isEmpty &&
       region.isEmpty &&
       department.isEmpty &&
-      bailType == null;
+      bailType == null &&
+      m2Min == null &&
+      m2Max == null &&
+      prixMin == null &&
+      prixMax == null;
 
   int get activeCount =>
       (optionIds.isNotEmpty ? 1 : 0) +
       (city.isNotEmpty ? 1 : 0) +
       (region.isNotEmpty ? 1 : 0) +
       (department.isNotEmpty ? 1 : 0) +
-      (bailType != null ? 1 : 0);
+      (bailType != null ? 1 : 0) +
+      (m2Min != null || m2Max != null ? 1 : 0) +
+      (prixMin != null || prixMax != null ? 1 : 0);
 
   ChambreFilter copyWith({
     Set<int>? optionIds,
@@ -37,6 +51,10 @@ class ChambreFilter {
     String? region,
     String? department,
     Object? bailType = _sentinel,
+    Object? m2Min = _sentinel,
+    Object? m2Max = _sentinel,
+    Object? prixMin = _sentinel,
+    Object? prixMax = _sentinel,
   }) =>
       ChambreFilter(
         optionIds: optionIds ?? this.optionIds,
@@ -46,6 +64,10 @@ class ChambreFilter {
         bailType: bailType == _sentinel
             ? this.bailType
             : bailType as BailTypeFilter?,
+        m2Min: m2Min == _sentinel ? this.m2Min : m2Min as double?,
+        m2Max: m2Max == _sentinel ? this.m2Max : m2Max as double?,
+        prixMin: prixMin == _sentinel ? this.prixMin : prixMin as double?,
+        prixMax: prixMax == _sentinel ? this.prixMax : prixMax as double?,
       );
 
   static const empty = ChambreFilter();

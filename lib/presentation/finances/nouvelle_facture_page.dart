@@ -1,14 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
+import 'package:form_builder_extra_fields/form_builder_extra_fields.dart';
 import 'package:form_builder_validators/form_builder_validators.dart';
 import 'package:intl/intl.dart';
 import 'package:lacoloc_front/data/datasources/auth_service.dart';
+import 'package:lacoloc_front/data/datasources/chambres.dart';
 import 'package:lacoloc_front/data/datasources/factures.dart';
 import 'package:lacoloc_front/data/datasources/immeubles.dart';
+import 'package:lacoloc_front/data/models/chambre.dart';
 import 'package:lacoloc_front/data/models/facture.dart';
 import 'package:lacoloc_front/data/models/immeubles.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
+import 'package:lacoloc_front/theme/app_theme.dart';
 import 'package:lacoloc_front/theme/app_typography.dart';
+import 'package:lacoloc_front/utils/responsive_form_wrapper.dart';
 
 class NouvelleFacturePage extends StatefulWidget {
   final FactureModel? facture;
@@ -33,8 +38,14 @@ class NouvelleFacturePage extends StatefulWidget {
 class _NouvelleFacturePageState extends State<NouvelleFacturePage> {
   final _formKey = GlobalKey<FormBuilderState>();
 
-  late Future<List<ImmeublesModel>> _immeublesFuture;
+  bool _dataLoaded = false;
   bool _isSubmitting = false;
+  bool _loadingChambres = false;
+
+  List<ImmeublesModel> _immeubles = [];
+  List<ChambreModel> _chambresForImmeuble = [];
+  ImmeublesModel? _selectedImmeuble;
+  ChambreModel? _selectedChambre;
 
   bool get _isEditing => widget.facture != null;
   bool get _readOnly => widget.readOnly;
@@ -44,10 +55,63 @@ class _NouvelleFacturePageState extends State<NouvelleFacturePage> {
   @override
   void initState() {
     super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
     final ownerId = AuthService.currentUser?.id;
-    _immeublesFuture = ownerId != null
-        ? ImmeublesDatasource.listByOwner(ownerId)
-        : Future.value([]);
+    final immeubles = ownerId != null
+        ? await ImmeublesDatasource.listByOwner(ownerId)
+        : <ImmeublesModel>[];
+
+    if (!mounted) return;
+
+    final initImmeubleId =
+        widget.facture?.immeubleId ?? widget.prefilledImmeubleId;
+    ImmeublesModel? initImmeuble;
+    List<ChambreModel> initChambres = [];
+    ChambreModel? initChambre;
+
+    if (initImmeubleId != null) {
+      try {
+        initImmeuble =
+            immeubles.firstWhere((i) => i.id == initImmeubleId);
+      } catch (_) {}
+      initChambres =
+          await ChambresDatasource.listByImmeuble(initImmeubleId);
+      if (!mounted) return;
+
+      final initChambreId = widget.facture?.chambreId;
+      if (initChambreId != null) {
+        try {
+          initChambre =
+              initChambres.firstWhere((c) => c.id == initChambreId);
+        } catch (_) {}
+      }
+    }
+
+    setState(() {
+      _immeubles = immeubles;
+      _selectedImmeuble = initImmeuble;
+      _chambresForImmeuble = initChambres;
+      _selectedChambre = initChambre;
+      _dataLoaded = true;
+    });
+  }
+
+  Future<void> _loadChambresPourImmeuble(int immeubleId) async {
+    setState(() {
+      _loadingChambres = true;
+      _chambresForImmeuble = [];
+      _selectedChambre = null;
+    });
+    _formKey.currentState?.fields['chambre']?.didChange(null);
+    final chambres = await ChambresDatasource.listByImmeuble(immeubleId);
+    if (!mounted) return;
+    setState(() {
+      _chambresForImmeuble = chambres;
+      _loadingChambres = false;
+    });
   }
 
   void _recalcTtc(String? htStr, String? tvaStr) {
@@ -71,10 +135,18 @@ class _NouvelleFacturePageState extends State<NouvelleFacturePage> {
       String? trimOrNull(String? v) =>
           v?.trim().isEmpty == true ? null : v?.trim();
 
+      // Extract immeuble id: from searchable dropdown (model) or prefilled id
+      final immeubleModel = values['immeuble'] as ImmeublesModel?;
+      final immeubleId =
+          immeubleModel?.id ?? widget.prefilledImmeubleId;
+
+      final chambreModel = values['chambre'] as ChambreModel?;
+
       final model = FactureModel(
         id: widget.facture?.id ?? 0,
         ownerId: ownerId,
-        immeubleId: values['immeuble_id'] as int?,
+        immeubleId: immeubleId,
+        chambreId: chambreModel?.id,
         codeFacture: trimOrNull(values['code_facture'] as String?),
         fournisseur: values['fournisseur'] as String,
         typeFacture: values['type_facture'] as String,
@@ -113,6 +185,15 @@ class _NouvelleFacturePageState extends State<NouvelleFacturePage> {
     }
   }
 
+  static const _searchBoxDecoration = InputDecoration(
+    hintText: 'Rechercher…',
+    isDense: true,
+    contentPadding: EdgeInsets.symmetric(
+      vertical: AppSpacing.sm,
+      horizontal: AppSpacing.sm,
+    ),
+  );
+
   @override
   Widget build(BuildContext context) {
     final f = widget.facture;
@@ -122,7 +203,12 @@ class _NouvelleFacturePageState extends State<NouvelleFacturePage> {
             ? 'Modifier la facture'
             : 'Nouvelle facture';
 
-    return SingleChildScrollView(
+    if (!_dataLoaded) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    return ResponsiveFormWrapper(
+      child: SingleChildScrollView(
       padding: const EdgeInsets.all(AppSpacing.lg),
       child: FormBuilder(
         key: _formKey,
@@ -133,35 +219,91 @@ class _NouvelleFacturePageState extends State<NouvelleFacturePage> {
             const SizedBox(height: AppSpacing.lg),
 
             // ── Immeuble ──────────────────────────────────────────────
-            FutureBuilder<List<ImmeublesModel>>(
-              future: _immeublesFuture,
-              builder: (context, snap) {
-                if (widget.prefilledImmeubleId != null) {
-                  return FormBuilderTextField(
-                    name: 'immeuble_id_display',
-                    initialValue: widget.prefilledImmeubleName ?? '',
-                    enabled: false,
-                    decoration: const InputDecoration(
-                      labelText: 'Immeuble',
-                      suffixIcon: Icon(Icons.lock_outline, size: 16),
-                    ),
-                  );
-                }
-                final items = snap.data ?? [];
-                return FormBuilderDropdown<int?>(
-                  name: 'immeuble_id',
-                  initialValue:
-                      f?.immeubleId ?? widget.prefilledImmeubleId,
-                  decoration: const InputDecoration(labelText: 'Immeuble'),
-                  enabled: !_readOnly,
-                  items: [
-                    const DropdownMenuItem(
-                        value: null, child: Text('— Aucun —')),
-                    ...items.map((i) => DropdownMenuItem(
-                        value: i.id, child: Text(i.name))),
-                  ],
-                );
-              },
+            if (widget.prefilledImmeubleId != null)
+              FormBuilderTextField(
+                name: 'immeuble_id_display',
+                initialValue: widget.prefilledImmeubleName ?? '',
+                enabled: false,
+                decoration: const InputDecoration(
+                  labelText: 'Immeuble',
+                  suffixIcon: Icon(Icons.lock_outline, size: 16),
+                ),
+              )
+            else
+              FormBuilderSearchableDropdown<ImmeublesModel>(
+                name: 'immeuble',
+                initialValue: _selectedImmeuble,
+                items: _immeubles,
+                itemAsString: (i) => i.name,
+                filterFn: (i, q) =>
+                    i.name.toLowerCase().contains(q.toLowerCase()) ||
+                    (i.city?.toLowerCase().contains(q.toLowerCase()) ?? false),
+                compareFn: (a, b) => a.id == b.id,
+                enabled: !_readOnly,
+                decoration: const InputDecoration(labelText: 'Immeuble'),
+                popupProps: PopupProps.menu(
+                  showSearchBox: true,
+                  searchFieldProps: const TextFieldProps(
+                    decoration: _searchBoxDecoration,
+                  ),
+                ),
+                onChanged: (imm) {
+                  if (imm != null) {
+                    _loadChambresPourImmeuble(imm.id);
+                  } else {
+                    setState(() {
+                      _chambresForImmeuble = [];
+                      _selectedChambre = null;
+                    });
+                    _formKey.currentState?.fields['chambre']?.didChange(null);
+                  }
+                },
+              ),
+            const SizedBox(height: AppSpacing.md),
+
+            // ── Chambre (optionnel) ───────────────────────────────────
+            FormBuilderSearchableDropdown<ChambreModel>(
+              key: ValueKey(_chambresForImmeuble.length),
+              name: 'chambre',
+              initialValue: _selectedChambre,
+              items: _chambresForImmeuble,
+              itemAsString: (c) => c.roomName,
+              filterFn: (c, q) =>
+                  c.roomName.toLowerCase().contains(q.toLowerCase()),
+              compareFn: (a, b) => a.id == b.id,
+              enabled: !_readOnly &&
+                  !_loadingChambres &&
+                  _chambresForImmeuble.isNotEmpty,
+              decoration: InputDecoration(
+                labelText: 'Chambre (optionnel)',
+                suffixIcon: _loadingChambres
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: Padding(
+                          padding: EdgeInsets.all(12),
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      )
+                    : null,
+                hintText: _loadingChambres
+                    ? 'Chargement…'
+                    : (widget.prefilledImmeubleId == null &&
+                            _selectedImmeuble == null &&
+                            _chambresForImmeuble.isEmpty)
+                        ? 'Sélectionnez d\'abord un immeuble'
+                        : null,
+              ),
+              popupProps: PopupProps.menu(
+                showSearchBox: true,
+                searchFieldProps: const TextFieldProps(
+                  decoration: _searchBoxDecoration,
+                ),
+                emptyBuilder: (_, _) => const Padding(
+                  padding: EdgeInsets.all(AppSpacing.md),
+                  child: Text('Aucune chambre disponible'),
+                ),
+              ),
             ),
             const SizedBox(height: AppSpacing.md),
 
@@ -374,8 +516,9 @@ class _NouvelleFacturePageState extends State<NouvelleFacturePage> {
 
             if (!_readOnly) ...[
               const SizedBox(height: AppSpacing.xl),
-              ElevatedButton.icon(
+              FilledButton.icon(
                 onPressed: _isSubmitting ? null : _submit,
+                style: AppTheme.saveButtonStyle,
                 icon: _isSubmitting
                     ? const SizedBox(
                         width: 18,
@@ -390,6 +533,7 @@ class _NouvelleFacturePageState extends State<NouvelleFacturePage> {
             ],
           ],
         ),
+      ),
       ),
     );
   }

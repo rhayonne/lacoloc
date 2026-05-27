@@ -3,6 +3,8 @@ class FactureModel {
   final String ownerId;
   final int? immeubleId;
   final String? immeubleName; // join only
+  final int? chambreId;
+  final String? chambreName; // join only
   final String? codeFacture;
   final String fournisseur;
   final String typeFacture;
@@ -22,6 +24,8 @@ class FactureModel {
     required this.ownerId,
     this.immeubleId,
     this.immeubleName,
+    this.chambreId,
+    this.chambreName,
     this.codeFacture,
     required this.fournisseur,
     required this.typeFacture,
@@ -39,11 +43,14 @@ class FactureModel {
 
   factory FactureModel.fromMap(Map<String, dynamic> map) {
     final rawImm = map['Immeubles'];
+    final rawChambre = map['Chambres'];
     return FactureModel(
       id: map['id'] as int,
       ownerId: map['owner_id'] as String,
       immeubleId: map['immeuble_id'] as int?,
       immeubleName: rawImm is Map ? rawImm['name'] as String? : null,
+      chambreId: map['chambre_id'] as int?,
+      chambreName: rawChambre is Map ? rawChambre['room_name'] as String? : null,
       codeFacture: map['code_facture'] as String?,
       fournisseur: map['fournisseur'] as String,
       typeFacture: map['type_facture'] as String,
@@ -65,6 +72,7 @@ class FactureModel {
   Map<String, dynamic> toInsert() => {
         'owner_id': ownerId,
         if (immeubleId != null) 'immeuble_id': immeubleId,
+        'chambre_id': chambreId,
         if (codeFacture != null) 'code_facture': codeFacture,
         'fournisseur': fournisseur,
         'type_facture': typeFacture,

@@ -173,4 +173,30 @@ class AppTheme {
       iconTheme: const IconThemeData(color: AppColors.onSurfaceVariant),
     );
   }
+
+  /// Style bordé pour tous les boutons "Annuler" de l'app.
+  static ButtonStyle get cancelButtonStyle => OutlinedButton.styleFrom(
+    foregroundColor: AppColors.onSurfaceVariant,
+    side: const BorderSide(color: AppColors.outlineVariant),
+    textStyle: AppTypography.labelMd,
+    padding: const EdgeInsets.symmetric(
+      horizontal: AppSpacing.lg,
+      vertical: AppSpacing.md,
+    ),
+    shape: RoundedRectangleBorder(borderRadius: AppRadius.borderMd),
+    minimumSize: const Size(0, 48),
+  );
+
+  /// Style vert clair pour tous les boutons "Sauvegarder" de l'app.
+  static ButtonStyle get saveButtonStyle => FilledButton.styleFrom(
+    backgroundColor: AppColors.tertiaryFixed,
+    foregroundColor: AppColors.onTertiaryFixed,
+    textStyle: AppTypography.labelMd,
+    padding: const EdgeInsets.symmetric(
+      horizontal: AppSpacing.lg,
+      vertical: AppSpacing.md,
+    ),
+    shape: RoundedRectangleBorder(borderRadius: AppRadius.borderMd),
+    minimumSize: const Size(0, 48),
+  );
 }
