@@ -13,8 +13,13 @@ import 'package:lacoloc_front/theme/app_typography.dart';
 
 class MesChambresPage extends StatefulWidget {
   final ValueChanged<ChambreModel> onModifier;
+  final VoidCallback onCreerChambre;
 
-  const MesChambresPage({super.key, required this.onModifier});
+  const MesChambresPage({
+    super.key,
+    required this.onModifier,
+    required this.onCreerChambre,
+  });
 
   @override
   State<MesChambresPage> createState() => _MesChambresPageState();
@@ -69,10 +74,25 @@ class _MesChambresPageState extends State<MesChambresPage> {
               padding: const EdgeInsets.fromLTRB(
                 AppSpacing.lg,
                 AppSpacing.lg,
-                AppSpacing.lg,
+                AppSpacing.sm,
                 AppSpacing.md,
               ),
-              child: Text('Mes Chambres', style: AppTypography.headlineMd),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Mes Chambres',
+                      style: AppTypography.headlineMd,
+                    ),
+                  ),
+                  FilledButton.icon(
+                    onPressed: widget.onCreerChambre,
+                    icon: const Icon(Icons.add, size: 18),
+                    label: const Text('Créer'),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                ],
+              ),
             ),
             const Divider(height: 1),
             Expanded(

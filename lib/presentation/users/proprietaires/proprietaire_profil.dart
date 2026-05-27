@@ -15,36 +15,31 @@ import 'package:lacoloc_front/presentation/users/proprietaires/mes_chambres_page
 import 'package:lacoloc_front/presentation/users/proprietaires/mes_immeubles_page.dart';
 import 'package:lacoloc_front/presentation/users/proprietaires/nouveau_immeuble_page.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
-import 'package:lacoloc_front/theme/app_radius.dart';
 import 'package:lacoloc_front/theme/app_typography.dart';
 
 // ─── Índices do sidebar ──────────────────────────────────────────────────────
 // 0 = Accueil (navegar para /)
 // 1 = Mes Propriétés
 // 2 = Mes Chambres
-// 3 = Créer une chambre
-// 4 = Finances / Factures
-// 5 = Fournisseurs
+// 3 = Finances / Factures
+// 4 = Fournisseurs
 const _idxAccueil = 0;
 const _idxProprietes = 1;
 const _idxChambres = 2;
-const _idxCreerChambre = 3;
-const _idxFinances = 4;
-const _idxFournisseurs = 5;
+const _idxFinances = 3;
+const _idxFournisseurs = 4;
 
-enum _Section { proprietes, chambres, creerChambre, finances, fournisseurs }
+enum _Section { proprietes, chambres, finances, fournisseurs }
 
 int _sectionToIndex(_Section s) => switch (s) {
   _Section.proprietes => _idxProprietes,
   _Section.chambres => _idxChambres,
-  _Section.creerChambre => _idxCreerChambre,
   _Section.finances => _idxFinances,
   _Section.fournisseurs => _idxFournisseurs,
 };
 
 _Section _indexToSection(int i) => switch (i) {
   _idxChambres => _Section.chambres,
-  _idxCreerChambre => _Section.creerChambre,
   _idxFinances => _Section.finances,
   _idxFournisseurs => _Section.fournisseurs,
   _ => _Section.proprietes,
@@ -173,6 +168,13 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage> {
         _showFactureForm = false;
       });
 
+  void _openChambreCreation() => setState(() {
+    _editingChambre = null;
+    _showChambreForm = true;
+    _showImmeubleForm = false;
+    _showFactureForm = false;
+  });
+
   void _openChambreEdition(ChambreModel ch) => setState(() {
     _editingChambre = ch;
     _showChambreForm = true;
@@ -296,8 +298,10 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage> {
         onModifier: _openImmeubleEdition,
         onVoirDetail: _openImmeubleDetail,
       ),
-      _Section.chambres => MesChambresPage(onModifier: _openChambreEdition),
-      _Section.creerChambre => const CreerChambrePage(),
+      _Section.chambres => MesChambresPage(
+        onModifier: _openChambreEdition,
+        onCreerChambre: _openChambreCreation,
+      ),
       _Section.finances => const SizedBox.shrink(),
       _Section.fournisseurs => const SizedBox.shrink(),
     };
@@ -306,33 +310,12 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage> {
   // ── Sidebar ────────────────────────────────────────────────────────────────
 
   List<SidebarXItem> _buildNavItems() {
-    final inChambreGroup =
-        _section == _Section.chambres || _section == _Section.creerChambre;
-
-    return [
-      const SidebarXItem(icon: Icons.home_outlined, label: 'Accueil'),
-      const SidebarXItem(
-        icon: Icons.home_work_outlined,
-        label: 'Mes Propriétés',
-      ),
-      SidebarXItem(
-        icon: Icons.bed_outlined,
-        label: 'Mes Chambres',
-        iconBuilder: inChambreGroup
-            ? (selected, _) =>
-                  _GroupIcon(icon: Icons.bed_outlined, selected: selected)
-            : null,
-      ),
-      SidebarXItem(
-        icon: Icons.add_circle_outline,
-        label: 'Créer une chambre',
-        iconBuilder: inChambreGroup
-            ? (selected, _) =>
-                  _GroupIcon(icon: Icons.add_circle_outline, selected: selected)
-            : null,
-      ),
-      const SidebarXItem(icon: Icons.receipt_long_outlined, label: 'Finances'),
-      const SidebarXItem(icon: Icons.store_outlined, label: 'Fournisseurs'),
+    return const [
+      SidebarXItem(icon: Icons.home_outlined, label: 'Accueil'),
+      SidebarXItem(icon: Icons.home_work_outlined, label: 'Mes Propriétés'),
+      SidebarXItem(icon: Icons.bed_outlined, label: 'Mes Chambres'),
+      SidebarXItem(icon: Icons.receipt_long_outlined, label: 'Finances'),
+      SidebarXItem(icon: Icons.store_outlined, label: 'Fournisseurs'),
     ];
   }
 
@@ -436,32 +419,6 @@ class _FactureFormWithBack extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _GroupIcon extends StatelessWidget {
-  final IconData icon;
-  final bool selected;
-  const _GroupIcon({required this.icon, required this.selected});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 36,
-      height: 36,
-      decoration: BoxDecoration(
-        color: selected
-            ? Colors.transparent
-            : AppColors.primaryFixed.withValues(alpha: 0.55),
-        borderRadius: BorderRadius.circular(AppRadius.md),
-      ),
-      child: Icon(
-        icon,
-        size: 20,
-        color: selected ? AppColors.primary : AppColors.onSurfaceVariant,
-      ),
-    );
-  }
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:lacoloc_front/presentation/auth_gate.dart';
 import 'package:lacoloc_front/presentation/chambres/chambre_detail_page.dart';
 import 'package:lacoloc_front/presentation/home_page.dart';
@@ -18,6 +19,15 @@ class MyApp extends StatelessWidget {
       title: 'Super Coloc',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [
+        Locale('fr'),
+        Locale('en'),
+      ],
       builder: (context, child) => ResponsiveBreakpoints.builder(
         child: child!,
         breakpoints: const [
@@ -33,8 +43,7 @@ class MyApp extends StatelessWidget {
         '/login': (context) => const LoginPage(),
         '/profile': (context) => const AuthGate(),
         '/proprietaire': (context) => const ProprietaireProfilPage(),
-        '/inscription-locataire': (context) =>
-            const CrierCompteLocatairePage(),
+        '/inscription-locataire': (context) => const CrierCompteLocatairePage(),
         '/inscription-proprietaire': (context) =>
             const CrierCompteProprietairePage(),
       },

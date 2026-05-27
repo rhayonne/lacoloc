@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localization/flutter_localization.dart';
 import 'package:lacoloc_front/presentation/my_app.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -11,5 +12,7 @@ void main() async {
   final apiUrl = dotenv.get('SUPA_URL');
   final apiAnoKey = dotenv.get('SUP_ANNON_KEY');
   await Supabase.initialize(url: apiUrl, anonKey: apiAnoKey);
+  await FlutterLocalization.instance.ensureInitialized();
+
   runApp(MyApp());
 }

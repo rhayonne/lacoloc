@@ -65,10 +65,25 @@ class _MesImmeublesPageState extends State<MesImmeublesPage> {
               padding: const EdgeInsets.fromLTRB(
                 AppSpacing.lg,
                 AppSpacing.lg,
-                AppSpacing.lg,
+                AppSpacing.sm,
                 AppSpacing.md,
               ),
-              child: Text('Mes Propriétés', style: AppTypography.headlineMd),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Mes Propriétés',
+                      style: AppTypography.headlineMd,
+                    ),
+                  ),
+                  FilledButton.icon(
+                    onPressed: widget.onAjouter,
+                    icon: const Icon(Icons.add, size: 18),
+                    label: const Text('Ajouter'),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                ],
+              ),
             ),
             const Divider(height: 1),
             Expanded(
@@ -78,7 +93,6 @@ class _MesImmeublesPageState extends State<MesImmeublesPage> {
                       bundle: bundle,
                       onModifier: widget.onModifier,
                       onVoirDetail: widget.onVoirDetail,
-                      onAjouter: widget.onAjouter,
                     ),
             ),
           ],
@@ -94,13 +108,11 @@ class _Grid extends StatelessWidget {
   final _Bundle bundle;
   final ValueChanged<ImmeublesModel> onModifier;
   final void Function(ImmeublesModel, List<ChambreModel>) onVoirDetail;
-  final VoidCallback onAjouter;
 
   const _Grid({
     required this.bundle,
     required this.onModifier,
     required this.onVoirDetail,
-    required this.onAjouter,
   });
 
   @override
@@ -144,12 +156,6 @@ class _Grid extends StatelessWidget {
                 },
               );
             },
-          ),
-          const SizedBox(height: AppSpacing.xl),
-          FilledButton.icon(
-            onPressed: onAjouter,
-            icon: const Icon(Icons.add),
-            label: const Text('Ajouter un immeuble'),
           ),
         ],
       ),
