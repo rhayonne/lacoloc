@@ -101,6 +101,43 @@ class _ImmeubleDetailPageState extends State<ImmeubleDetailPage> {
     if (result == true) _reloadPieces();
   }
 
+  Future<void> _supprimerPiece(PieceModel piece) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Supprimer la pièce'),
+        content: Text(
+          'La pièce « ${piece.nom} » et tous les articles d\'inventaire qui '
+          'y sont rattachés seront supprimés. Cette action est irréversible.',
+        ),
+        actions: [
+          OutlinedButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+            child: const Text('Supprimer'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+    try {
+      await InventaireDatasource.deleteByPiece(piece.id);
+      await PiecesDatasource.delete(piece.id);
+      if (!mounted) return;
+      _reloadPieces();
+      _reloadInventaire();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Erreur : $e')));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final totalLoue = widget.chambres.where((c) => c.estLoue).length;
@@ -244,6 +281,7 @@ class _ImmeubleDetailPageState extends State<ImmeubleDetailPage> {
               return _PiecesTable(
                 pieces: pieces,
                 onModifier: (p) => _navigerVersFormPiece(existing: p),
+                onSupprimer: _supprimerPiece,
               );
             },
           ),
@@ -399,8 +437,13 @@ class _StatChip extends StatelessWidget {
 class _PiecesTable extends StatelessWidget {
   final List<PieceModel> pieces;
   final ValueChanged<PieceModel> onModifier;
+  final ValueChanged<PieceModel> onSupprimer;
 
-  const _PiecesTable({required this.pieces, required this.onModifier});
+  const _PiecesTable({
+    required this.pieces,
+    required this.onModifier,
+    required this.onSupprimer,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -480,10 +523,21 @@ class _PiecesTable extends StatelessWidget {
         ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
-          child: IconButton(
-            icon: const Icon(Icons.edit_outlined, size: 18),
-            tooltip: 'Modifier',
-            onPressed: () => onModifier(p),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.edit_outlined, size: 18),
+                tooltip: 'Modifier',
+                onPressed: () => onModifier(p),
+              ),
+              IconButton(
+                icon: const Icon(Icons.delete_outline, size: 18),
+                tooltip: 'Supprimer',
+                color: AppColors.error,
+                onPressed: () => onSupprimer(p),
+              ),
+            ],
           ),
         ),
       ],
@@ -747,81 +801,310 @@ class _FactureStatutBadge extends StatelessWidget {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _InventaireDetailTable extends StatelessWidget {
+class _InventaireDetailTable extends StatefulWidget {
   final List<InventaireModel> items;
 
   const _InventaireDetailTable({required this.items});
 
   @override
+  State<_InventaireDetailTable> createState() => _InventaireDetailTableState();
+}
+
+class _InventaireDetailTableState extends State<_InventaireDetailTable> {
+  String _query = '';
+  String? _filterLieu; // displayLieu sélectionné (null = tous)
+
+  List<InventaireModel> get _filtered => widget.items.where((it) {
+    if (_filterLieu != null && it.displayLieu != _filterLieu) return false;
+    if (_query.isEmpty) return true;
+    final q = _query.toLowerCase();
+    return it.displayNom.toLowerCase().contains(q) ||
+        (it.meubleCategorie?.toLowerCase().contains(q) ?? false) ||
+        it.displayLieu.toLowerCase().contains(q);
+  }).toList();
+
+  /// Lieux distincts (ordre d'apparition) avec leur compteur.
+  Map<String, int> get _lieuxCounts {
+    final map = <String, int>{};
+    for (final it in widget.items) {
+      map[it.displayLieu] = (map[it.displayLieu] ?? 0) + 1;
+    }
+    return map;
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
-      child: Table(
-        border: TableBorder.all(
-          color: AppColors.outlineVariant,
-          borderRadius: BorderRadius.circular(12),
+    final filtered = _filtered;
+    final lieux = _lieuxCounts;
+
+    final searchField = TextField(
+      onChanged: (v) => setState(() => _query = v),
+      decoration: InputDecoration(
+        hintText: 'Rechercher article, lieu…',
+        prefixIcon: const Icon(Icons.search, size: 20),
+        suffixIcon: _query.isNotEmpty
+            ? IconButton(
+                icon: const Icon(Icons.close, size: 18),
+                onPressed: () => setState(() => _query = ''),
+              )
+            : null,
+        isDense: true,
+        border: const OutlineInputBorder(),
+        contentPadding: const EdgeInsets.symmetric(
+          vertical: 10,
+          horizontal: AppSpacing.md,
         ),
-        columnWidths: const {
-          0: FlexColumnWidth(3),
-          1: FlexColumnWidth(2),
-          2: FlexColumnWidth(2),
-          3: IntrinsicColumnWidth(),
-          4: FlexColumnWidth(2),
-        },
-        defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-        children: [
-          TableRow(
-            decoration:
-                const BoxDecoration(color: AppColors.surfaceContainerLow),
-            children: [
-              _HeaderCell('Article'),
-              _HeaderCell('Catégorie'),
-              _HeaderCell('Lieu'),
-              _HeaderCell('Qté'),
-              _HeaderCell('Valeur'),
-            ],
+      ),
+    );
+
+    final chips = <Widget>[
+      _InventaireFilterChip(
+        label: 'Tous',
+        count: widget.items.length,
+        selected: _filterLieu == null,
+        onTap: () => setState(() => _filterLieu = null),
+      ),
+      ...lieux.entries.map(
+        (e) => _InventaireFilterChip(
+          label: e.key,
+          count: e.value,
+          selected: _filterLieu == e.key,
+          onTap: () => setState(
+            () => _filterLieu = _filterLieu == e.key ? null : e.key,
           ),
-          ...items.map(_buildRow),
+        ),
+      ),
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final chipsRow = Wrap(
+              spacing: AppSpacing.xs,
+              runSpacing: AppSpacing.xs,
+              children: chips,
+            );
+            if (constraints.maxWidth < 600) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  searchField,
+                  const SizedBox(height: AppSpacing.sm),
+                  chipsRow,
+                ],
+              );
+            }
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: searchField),
+                const SizedBox(width: AppSpacing.md),
+                Flexible(child: chipsRow),
+              ],
+            );
+          },
+        ),
+        const SizedBox(height: AppSpacing.md),
+        if (filtered.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: AppSpacing.xl),
+            child: Center(
+              child: Text(
+                'Aucun article ne correspond au filtre.',
+                style: AppTypography.bodyMd
+                    .copyWith(color: AppColors.onSurfaceVariant),
+              ),
+            ),
+          )
+        else
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.outlineVariant),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Ligne de titre — fixe
+                  const _InvHeaderRow(),
+                  const Divider(height: 1),
+                  // Corps défilant (hauteur bornée pour garder l'en-tête fixe)
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 360),
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: filtered.length,
+                      separatorBuilder: (_, _) => const Divider(height: 1),
+                      itemBuilder: (_, i) => _InvDataRow(item: filtered[i]),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+// Largeurs partagées (en-tête fixe + lignes) du tableau d'inventaire.
+const int _kFlexArticle = 3;
+const int _kFlexCategorie = 2;
+const int _kFlexLieu = 2;
+const int _kFlexQte = 1;
+const int _kFlexValeur = 2;
+
+class _InvHeaderRow extends StatelessWidget {
+  const _InvHeaderRow();
+
+  @override
+  Widget build(BuildContext context) {
+    Widget cell(String t, int flex) => Expanded(
+          flex: flex,
+          child: Text(
+            t,
+            style: AppTypography.labelMd
+                .copyWith(color: AppColors.onSurfaceVariant),
+          ),
+        );
+    return Container(
+      color: AppColors.surfaceContainerLow,
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
+      ),
+      child: Row(
+        children: [
+          cell('Article', _kFlexArticle),
+          cell('Catégorie', _kFlexCategorie),
+          cell('Lieu', _kFlexLieu),
+          cell('Qté', _kFlexQte),
+          cell('Valeur', _kFlexValeur),
         ],
       ),
     );
   }
+}
 
-  TableRow _buildRow(InventaireModel item) {
-    return TableRow(
-      decoration:
-          const BoxDecoration(color: AppColors.surfaceContainerLowest),
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.md,
-            vertical: AppSpacing.sm,
+class _InvDataRow extends StatelessWidget {
+  final InventaireModel item;
+  const _InvDataRow({required this.item});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: AppColors.surfaceContainerLowest,
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            flex: _kFlexArticle,
+            child: Text(item.displayNom, style: AppTypography.labelMd),
           ),
-          child: Text(item.displayNom, style: AppTypography.labelMd),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-          child:
-              Text(item.meubleCategorie ?? '—', style: AppTypography.bodyMd),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-          child: Text(item.displayLieu, style: AppTypography.bodyMd),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-          child: Text('${item.quantite}', style: AppTypography.bodyMd),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-          child: Text(
-            item.valeur != null
-                ? formatFrenchCurrency(item.valeur!.round())
-                : '—',
-            style: AppTypography.bodyMd,
+          Expanded(
+            flex: _kFlexCategorie,
+            child:
+                Text(item.meubleCategorie ?? '—', style: AppTypography.bodyMd),
           ),
+          Expanded(
+            flex: _kFlexLieu,
+            child: Text(item.displayLieu, style: AppTypography.bodyMd),
+          ),
+          Expanded(
+            flex: _kFlexQte,
+            child: Text('${item.quantite}', style: AppTypography.bodyMd),
+          ),
+          Expanded(
+            flex: _kFlexValeur,
+            child: Text(
+              item.valeur != null
+                  ? formatFrenchCurrency(item.valeur!.round())
+                  : '—',
+              style: AppTypography.bodyMd,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Chip de filtre avec compteur (modèle Vision générale)
+
+class _InventaireFilterChip extends StatelessWidget {
+  final String label;
+  final int count;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _InventaireFilterChip({
+    required this.label,
+    required this.count,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = selected ? AppColors.primary : AppColors.surfaceContainerLowest;
+    final fg = selected ? AppColors.onPrimary : AppColors.onSurface;
+    final badgeBg = selected
+        ? AppColors.onPrimary.withValues(alpha: 0.18)
+        : AppColors.surfaceContainerHigh;
+    final borderColor = selected ? AppColors.primary : AppColors.outlineVariant;
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(20),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: 8,
         ),
-      ],
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: borderColor),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (selected) ...[
+              Icon(Icons.check, size: 14, color: fg),
+              const SizedBox(width: 4),
+            ],
+            Text(
+              label,
+              style: AppTypography.labelSm
+                  .copyWith(color: fg, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+              decoration: BoxDecoration(
+                color: badgeBg,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                '$count',
+                style: AppTypography.labelSm.copyWith(
+                  color: fg,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 11,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

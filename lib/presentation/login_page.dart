@@ -9,14 +9,45 @@ import 'package:lacoloc_front/theme/app_spacing.dart';
 import 'package:lacoloc_front/theme/app_typography.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-class LoginPage extends StatefulWidget {
+class LoginPage extends StatelessWidget {
   const LoginPage({super.key});
 
   @override
-  State<LoginPage> createState() => _LoginPageState();
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => FocusScope.of(context).unfocus(),
+      child: Scaffold(
+        body: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            child: LoginCard(
+              onSuccess: () =>
+                  Navigator.of(context).pushReplacementNamed('/profile'),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
-class _LoginPageState extends State<LoginPage> {
+/// Carte de connexion / sélecteur d'inscription — réutilisable en page plein
+/// écran ([LoginPage]) ou en pop-up flouté ([showLoginDialog]).
+class LoginCard extends StatefulWidget {
+  /// Appelé après une connexion réussie. Par défaut, navigue vers `/profile`.
+  final VoidCallback? onSuccess;
+
+  /// Appelé pour ouvrir une route d'inscription (`/inscription-locataire` ou
+  /// `/inscription-proprietaire`). Par défaut, `Navigator.pushNamed`.
+  final void Function(String route)? onNavigate;
+
+  const LoginCard({super.key, this.onSuccess, this.onNavigate});
+
+  @override
+  State<LoginCard> createState() => _LoginCardState();
+}
+
+class _LoginCardState extends State<LoginCard> {
   final _formKey = GlobalKey<FormBuilderState>();
 
   bool _isLoading = false;
@@ -29,6 +60,14 @@ class _LoginPageState extends State<LoginPage> {
     return trimmed;
   }
 
+  void _navigate(String route) {
+    if (widget.onNavigate != null) {
+      widget.onNavigate!(route);
+    } else {
+      Navigator.of(context).pushNamed(route);
+    }
+  }
+
   Future<void> _submit() async {
     if (!(_formKey.currentState?.saveAndValidate() ?? false)) return;
     final values = _formKey.currentState!.value;
@@ -39,7 +78,11 @@ class _LoginPageState extends State<LoginPage> {
         password: values['password'] as String,
       );
       if (!mounted) return;
-      Navigator.of(context).pushReplacementNamed('/profile');
+      if (widget.onSuccess != null) {
+        widget.onSuccess!();
+      } else {
+        Navigator.of(context).pushReplacementNamed('/profile');
+      }
     } on AuthException catch (e) {
       _showError(e.message);
     } catch (e) {
@@ -56,32 +99,22 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () => FocusScope.of(context).unfocus(),
-      child: Scaffold(
-        body: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(AppSpacing.lg),
-            child: Container(
-              constraints: const BoxConstraints(maxWidth: 420),
-              padding: const EdgeInsets.all(AppSpacing.xl),
-              decoration: BoxDecoration(
-                color: AppColors.surfaceContainerLowest,
-                borderRadius: AppRadius.borderXl,
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.shadowTint.withValues(alpha: 0.08),
-                    blurRadius: 24,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
-                border: Border.all(color: AppColors.outlineVariant),
-              ),
-              child: _isSignUp ? _buildSignUpPicker() : _buildLoginForm(),
-            ),
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 420),
+      padding: const EdgeInsets.all(AppSpacing.xl),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceContainerLowest,
+        borderRadius: AppRadius.borderXl,
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.shadowTint.withValues(alpha: 0.08),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
           ),
-        ),
+        ],
+        border: Border.all(color: AppColors.outlineVariant),
       ),
+      child: _isSignUp ? _buildSignUpPicker() : _buildLoginForm(),
     );
   }
 
@@ -106,11 +139,9 @@ class _LoginPageState extends State<LoginPage> {
         const SizedBox(height: AppSpacing.xl),
         _RoleSelector(
           onTap: (type) {
-            if (type == UserType.proprietaire) {
-              Navigator.of(context).pushNamed('/inscription-proprietaire');
-            } else {
-              Navigator.of(context).pushNamed('/inscription-locataire');
-            }
+            _navigate(type == UserType.proprietaire
+                ? '/inscription-proprietaire'
+                : '/inscription-locataire');
           },
         ),
         const SizedBox(height: AppSpacing.lg),

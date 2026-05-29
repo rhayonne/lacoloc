@@ -17,6 +17,7 @@ import 'package:lacoloc_front/data/models/etat_de_lieux.dart';
 import 'package:lacoloc_front/data/models/immeubles.dart';
 import 'package:lacoloc_front/data/models/inventaire.dart';
 import 'package:lacoloc_front/data/models/observation_edl.dart';
+import 'package:lacoloc_front/data/models/piece.dart';
 import 'package:lacoloc_front/data/models/users_client.dart';
 import 'package:lacoloc_front/presentation/users/proprietaires/edl_document_editor.dart';
 import 'package:lacoloc_front/presentation/widgets/form_page_header.dart';
@@ -1253,6 +1254,7 @@ class _EdlFormOverlayState extends State<_EdlFormOverlay> {
   // Données du formulaire
   late Future<_FormBundle> _formBundleFuture;
   List<ChambreModel> _chambresForImmeuble = [];
+  List<PieceModel> _piecesForImmeuble = []; // pièces du bien (EDL collectif)
 
   bool _isSaving = false;
   bool _isFinalising = false;
@@ -1301,6 +1303,7 @@ class _EdlFormOverlayState extends State<_EdlFormOverlay> {
                   .firstOrNull;
             }
           });
+          _loadPieces(imm.id);
         }
       }
       return bundle;
@@ -1431,7 +1434,10 @@ class _EdlFormOverlayState extends State<_EdlFormOverlay> {
       _chambresForImmeuble = imm != null
           ? allChambres.where((c) => c.immeubleId == imm.id).toList()
           : [];
+      _piecesForImmeuble = [];
     });
+    // Charger les pièces du bien (plan de murs par pièce — EDL collectif)
+    if (imm != null) _loadPieces(imm.id);
     // Auto-fill surface m² depuis l'immeuble (bail collectif)
     if (imm?.bailCollectif == true && imm?.totalM2 != null) {
       _surfaceCtrl.text = imm!.totalM2!.toStringAsFixed(0);
@@ -2188,14 +2194,183 @@ class _EdlFormOverlayState extends State<_EdlFormOverlay> {
           _ObservationsList(
             observations: _observations,
             onEdit: (obs) => obs.wallKey != null
-                ? _openWallDialog(obs.wallKey!, obs)
-                : _openGeneralObsDialog(obs),
+                ? _openWallDialog(obs.wallKey!, existing: obs)
+                : _openGeneralObsDialog(existing: obs),
             onDelete: (obs) {
               if (obs.id != null) _deleteObservation(obs.id!);
             },
           ),
         ],
       ],
+    );
+  }
+
+  /// EDL collectif : plan de murs + observations pour CHAQUE pièce commune et
+  /// CHAQUE chambre du bien (liste expansible). Les observations sont rattachées
+  /// à la pièce/chambre via piece_id / chambre_id.
+  Widget _buildEtatPiecesChambres() {
+    if (_piecesForImmeuble.isEmpty && _chambresForImmeuble.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceContainerLow,
+          borderRadius: AppRadius.borderMd,
+          border: Border.all(color: AppColors.outlineVariant),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.info_outline, color: AppColors.onSurfaceVariant),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Text(
+                "Ce bien n'a aucune pièce ni chambre enregistrée. "
+                "Ajoutez-les dans la gestion de l'immeuble.",
+                style: AppTypography.bodyMd.copyWith(
+                  color: AppColors.onSurfaceVariant,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'Établissez le plan de chaque pièce commune et de chaque chambre.',
+          style: AppTypography.labelSm.copyWith(
+            color: AppColors.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        ExpansionPanelList.radio(
+          elevation: 0,
+          expandedHeaderPadding: EdgeInsets.zero,
+          children: [
+            for (final p in _piecesForImmeuble)
+              _roomObsPanel(
+                value: 'piece-${p.id}',
+                icon: Icons.meeting_room_outlined,
+                name: p.nom,
+                planLabel: 'Plan de la pièce — ${p.nom}',
+                photo: p.photos.isNotEmpty ? p.photos.first.url : null,
+                obs: _observations.where((o) => o.pieceId == p.id).toList(),
+                onEditWall: (wallKey) =>
+                    _openWallDialog(wallKey, pieceId: p.id),
+                onAddGeneral: () => _openGeneralObsDialog(pieceId: p.id),
+              ),
+            for (final c in _chambresForImmeuble)
+              _roomObsPanel(
+                value: 'chambre-${c.id}',
+                icon: Icons.bed_outlined,
+                name: c.roomName,
+                planLabel: 'Plan de la chambre — ${c.roomName}',
+                photo:
+                    c.mainPhoto ??
+                    (c.roomPhotos.isNotEmpty ? c.roomPhotos.first : null),
+                obs: _observations.where((o) => o.chambreId == c.id).toList(),
+                onEditWall: (wallKey) =>
+                    _openWallDialog(wallKey, chambreId: c.id),
+                onAddGeneral: () => _openGeneralObsDialog(chambreId: c.id),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  /// Panneau (accordéon) d'une pièce/chambre : diagramme de murs + observations.
+  ExpansionPanelRadio _roomObsPanel({
+    required String value,
+    required IconData icon,
+    required String name,
+    required String planLabel,
+    String? photo,
+    required List<ObservationEdl> obs,
+    required void Function(String wallKey) onEditWall,
+    required VoidCallback onAddGeneral,
+  }) {
+    return ExpansionPanelRadio(
+      value: value,
+      canTapOnHeader: true,
+      headerBuilder: (context, isExpanded) => ListTile(
+        leading: Icon(icon, color: AppColors.primary),
+        title: Text(
+          name,
+          style: AppTypography.titleLg,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        trailing: obs.isNotEmpty
+            ? Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.sm,
+                  vertical: 2,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.secondary.withValues(alpha: 0.12),
+                  borderRadius: AppRadius.borderFull,
+                ),
+                child: Text(
+                  '${obs.length} obs',
+                  style: AppTypography.labelSm.copyWith(
+                    color: AppColors.secondary,
+                  ),
+                ),
+              )
+            : null,
+      ),
+      body: Padding(
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.md,
+          0,
+          AppSpacing.md,
+          AppSpacing.lg,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _RoomDiagram(
+              chambreName: name,
+              planLabel: planLabel,
+              chambrePhoto: photo,
+              observations: obs,
+              onEditWall: onEditWall,
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: OutlinedButton.icon(
+                onPressed: onAddGeneral,
+                icon: const Icon(Icons.add, size: 16),
+                label: const Text('Ajouter une observation générale'),
+              ),
+            ),
+            if (obs.isNotEmpty) ...[
+              const SizedBox(height: AppSpacing.md),
+              _ObservationsList(
+                observations: obs,
+                onEdit: (o) => o.wallKey != null
+                    ? _openWallDialog(
+                        o.wallKey!,
+                        existing: o,
+                        pieceId: o.pieceId,
+                        chambreId: o.chambreId,
+                      )
+                    : _openGeneralObsDialog(
+                        existing: o,
+                        pieceId: o.pieceId,
+                        chambreId: o.chambreId,
+                      ),
+                onDelete: (o) {
+                  if (o.id != null) _deleteObservation(o.id!);
+                },
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 
@@ -2329,6 +2504,12 @@ class _EdlFormOverlayState extends State<_EdlFormOverlay> {
           'Composition',
           'Pièces et équipements (état N/B/U/M)',
           docOr(() => EdlCompositionSection(edlId: _currentEdlId!)),
+          enabled: saved,
+        ),
+        mk(
+          'État des pièces et chambres',
+          saved ? 'Plan, observations par mur' : "Enregistrez d'abord",
+          docOr(_buildEtatPiecesChambres),
           enabled: saved,
         ),
       ]);
@@ -2508,6 +2689,15 @@ class _EdlFormOverlayState extends State<_EdlFormOverlay> {
     );
   }
 
+  Future<void> _loadPieces(int immeubleId) async {
+    try {
+      final pieces = await PiecesDatasource.listByImmeuble(immeubleId);
+      if (mounted) setState(() => _piecesForImmeuble = pieces);
+    } catch (_) {
+      // Falha silenciosa — lista vazia
+    }
+  }
+
   Future<void> _loadObservations() async {
     final id = _currentEdlId;
     if (id == null) return;
@@ -2532,9 +2722,11 @@ class _EdlFormOverlayState extends State<_EdlFormOverlay> {
   }
 
   Future<void> _openWallDialog(
-    String wallKey, [
+    String wallKey, {
     ObservationEdl? existing,
-  ]) async {
+    int? pieceId,
+    int? chambreId,
+  }) async {
     final id = _currentEdlId;
     if (id == null) return;
 
@@ -2550,6 +2742,8 @@ class _EdlFormOverlayState extends State<_EdlFormOverlay> {
       final obs = ObservationEdl(
         etatDesLieuxId: id,
         wallKey: wallKey,
+        pieceId: pieceId,
+        chambreId: chambreId,
         description: saved.description,
         photos: saved.photos,
       );
@@ -2565,7 +2759,11 @@ class _EdlFormOverlayState extends State<_EdlFormOverlay> {
     }
   }
 
-  Future<void> _openGeneralObsDialog([ObservationEdl? existing]) async {
+  Future<void> _openGeneralObsDialog({
+    ObservationEdl? existing,
+    int? pieceId,
+    int? chambreId,
+  }) async {
     final id = _currentEdlId;
     if (id == null) return;
 
@@ -2581,6 +2779,8 @@ class _EdlFormOverlayState extends State<_EdlFormOverlay> {
       final obs = ObservationEdl(
         etatDesLieuxId: id,
         wallKey: null,
+        pieceId: pieceId,
+        chambreId: chambreId,
         description: saved.description,
         photos: saved.photos,
       );
@@ -2728,11 +2928,7 @@ class _ImmeubleDropdown extends StatelessWidget {
 
   String _label(ImmeublesModel imm) {
     if (imm.bailIndividuel) return '${imm.name} (bail individuel)';
-    final total = allChambres.where((c) => c.immeubleId == imm.id).length;
-    final available = allChambres
-        .where((c) => c.immeubleId == imm.id && c.isActive && !c.estLoue)
-        .length;
-    return '${imm.name} ($available/$total)';
+    return '${imm.name} (bail collectif)';
   }
 
   @override
@@ -3528,12 +3724,14 @@ class _CreerLocataireDialogState extends State<_CreerLocataireDialog> {
 
 class _RoomDiagram extends StatelessWidget {
   final String chambreName;
+  final String? planLabel; // titre personnalisé (pièce vs chambre)
   final String? chambrePhoto;
   final List<ObservationEdl> observations;
   final void Function(String wallKey) onEditWall;
 
   const _RoomDiagram({
     required this.chambreName,
+    this.planLabel,
     this.chambrePhoto,
     required this.observations,
     required this.onEditWall,
@@ -3552,9 +3750,10 @@ class _RoomDiagram extends StatelessWidget {
             const Icon(Icons.home_outlined, size: 18, color: AppColors.primary),
             const SizedBox(width: AppSpacing.xs),
             Text(
-              chambreName.isNotEmpty
-                  ? 'Plan de la chambre — $chambreName'
-                  : 'Plan de la chambre',
+              planLabel ??
+                  (chambreName.isNotEmpty
+                      ? 'Plan de la chambre — $chambreName'
+                      : 'Plan de la chambre'),
               style: AppTypography.labelMd.copyWith(color: AppColors.primary),
             ),
           ],

@@ -834,6 +834,7 @@ components:
         bail_collectif: { type: boolean, default: false }
         bail_individuel: { type: boolean, default: false }
         prix_loyer: { type: number, format: float, nullable: true }
+        location_meuble: { type: boolean, nullable: true, description: "Oui/Non — si meublée, la génération des parties communes crée aussi l'inventaire" }
         created_at: { type: string, format: date-time, nullable: true }
         Immeuble_Types_Reference: { $ref: '#/components/schemas/ImmeubleType' }
     ImmeubleWrite:
@@ -855,6 +856,7 @@ components:
         bail_collectif: { type: boolean }
         bail_individuel: { type: boolean }
         prix_loyer: { type: number }
+        location_meuble: { type: boolean, nullable: true }
     Chambre:
       type: object
       description: "Modelo Dart: ChambreModel (tabela Chambres). selected_options = ids (JSONB)."
@@ -1156,6 +1158,8 @@ components:
       properties:
         id: { type: integer, nullable: true }
         etat_de_lieux_id: { type: integer }
+        piece_id: { type: integer, nullable: true, description: "EDL collectif: observação escopada a uma pièce" }
+        chambre_id: { type: integer, nullable: true, description: "EDL collectif: observação escopada a uma chambre" }
         wall_key: { type: string, nullable: true, enum: [fond, gauche, droit, porte], description: "null = observação geral" }
         description: { type: string, nullable: true }
         photos: { type: array, items: { type: string } }
@@ -1165,6 +1169,8 @@ components:
       required: [etat_de_lieux_id, photos]
       properties:
         etat_de_lieux_id: { type: integer }
+        piece_id: { type: integer, nullable: true }
+        chambre_id: { type: integer, nullable: true }
         wall_key: { type: string, nullable: true }
         description: { type: string }
         photos: { type: array, items: { type: string } }

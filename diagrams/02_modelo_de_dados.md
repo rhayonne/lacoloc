@@ -61,6 +61,7 @@ erDiagram
         bool bail_collectif
         bool bail_individuel
         float prix_loyer
+        bool location_meuble
         timestamp created_at
     }
 
@@ -208,6 +209,8 @@ erDiagram
     etat_de_lieux_observations {
         int id PK
         int etat_de_lieux_id FK
+        int piece_id FK
+        int chambre_id FK
         text wall_key
         text description
         jsonb photos
@@ -305,6 +308,8 @@ erDiagram
     etat_de_lieux }o--o| Chambres : "referencia quarto"
     etat_de_lieux }o--o| etat_de_lieux : "privative → commune (edl_collectif_id)"
     etat_de_lieux_observations }o--|| etat_de_lieux : "detalha murs/pièces (legado)"
+    etat_de_lieux_observations }o--o| Pieces : "observação de pièce (collectif)"
+    etat_de_lieux_observations }o--o| Chambres : "observação de chambre (collectif)"
     etat_de_lieux_preneurs }o--|| etat_de_lieux : "colocataires"
     etat_de_lieux_preneurs }o--o| Users_Client : "locataire (opcional)"
     etat_de_lieux_releves }o--|| etat_de_lieux : "compteurs/chauffage/eau"
@@ -362,6 +367,11 @@ erDiagram
   `{ wall_key: { description, photos } }`) no `etat_de_lieux` e linhas individuais em
   `etat_de_lieux_observations`. As `wall_key` conhecidas: `fond`, `gauche`, `droit`,
   `porte` (e `null`/`Général` para observação geral).
+  - **Escopo por pièce/chambre (EDL collectif)**: `etat_de_lieux_observations.piece_id`
+    e `chambre_id` (ambos nullable, `on delete cascade`) escopam a observação a uma
+    pièce **ou** chambre específica do imóvel. Ambos `null` = comportamento legado
+    (EDL privatif single-room ou observação geral do EDL). No fluxo collectif cada
+    pièce e cada chambre tem seu próprio plano de murs.
 - **Trigger de criação de usuário**: `auth.users` → trigger `SECURITY DEFINER` cria a
   linha em `Users_Client`, lendo `raw_user_meta_data` (`full_name`, `type_code`, `phone`,
   `date_of_birth`).

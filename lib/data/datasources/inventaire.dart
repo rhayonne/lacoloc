@@ -63,6 +63,17 @@ class InventaireDatasource {
     await _db.from(_table).delete().eq('id', id);
   }
 
+  /// Insère plusieurs articles en une requête.
+  static Future<void> createMany(List<InventaireModel> items) async {
+    if (items.isEmpty) return;
+    await _db.from(_table).insert(items.map((m) => m.toInsert()).toList());
+  }
+
+  /// Supprime tous les articles liés à une pièce.
+  static Future<void> deleteByPiece(int pieceId) async {
+    await _db.from(_table).delete().eq('piece_id', pieceId);
+  }
+
   static Future<MeubleReferenceModel> createRef({
     required String nom,
     String? categorie,

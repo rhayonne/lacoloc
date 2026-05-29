@@ -153,6 +153,10 @@ class _InventairePageState extends State<InventairePage> {
                     )
                   : _InventaireTable(
                       items: data.items,
+                      immeubleNoms: {
+                        for (final i in data.immeubles) i.id: i.name,
+                      },
+                      lockedImmeubleId: widget.prefilledImmeubleId,
                       onEdit: (item) => setState(() {
                         _editing = item;
                         _showForm = true;
@@ -194,67 +198,216 @@ class _InventairePageState extends State<InventairePage> {
 // ─────────────────────────────────────────────────────────────────────────────
 // Tableau
 
-class _InventaireTable extends StatelessWidget {
+class _InventaireTable extends StatefulWidget {
   final List<InventaireModel> items;
+  final Map<int, String> immeubleNoms;
+  final int? lockedImmeubleId; // immeuble fixé (depuis le détail d'immeuble)
   final ValueChanged<InventaireModel> onEdit;
   final ValueChanged<InventaireModel> onDelete;
 
   const _InventaireTable({
     required this.items,
+    required this.immeubleNoms,
+    this.lockedImmeubleId,
     required this.onEdit,
     required this.onDelete,
   });
 
+  @override
+  State<_InventaireTable> createState() => _InventaireTableState();
+}
+
+class _InventaireTableState extends State<_InventaireTable> {
   static const _hStyle = TextStyle(
     fontWeight: FontWeight.w600,
     fontSize: 12,
     letterSpacing: 0.5,
   );
 
+  String _query = '';
+  int? _filterImmeuble;
+
+  @override
+  void initState() {
+    super.initState();
+    _filterImmeuble = widget.lockedImmeubleId;
+  }
+
+  String _immeubleNom(int id) => widget.immeubleNoms[id] ?? '—';
+
+  List<InventaireModel> get _filtered => widget.items.where((it) {
+    if (_filterImmeuble != null && it.immeubleId != _filterImmeuble) {
+      return false;
+    }
+    if (_query.isEmpty) return true;
+    final q = _query.toLowerCase();
+    return it.displayNom.toLowerCase().contains(q) ||
+        (it.meubleCategorie?.toLowerCase().contains(q) ?? false) ||
+        it.displayLieu.toLowerCase().contains(q) ||
+        _immeubleNom(it.immeubleId).toLowerCase().contains(q);
+  }).toList();
+
+  /// Immeubles présents dans la liste avec leur compteur.
+  Map<int, int> get _immeubleCounts {
+    final map = <int, int>{};
+    for (final it in widget.items) {
+      map[it.immeubleId] = (map[it.immeubleId] ?? 0) + 1;
+    }
+    return map;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final filtered = _filtered;
+    final locked = widget.lockedImmeubleId != null;
+
+    final searchField = TextField(
+      onChanged: (v) => setState(() => _query = v),
+      decoration: InputDecoration(
+        hintText: 'Rechercher article, lieu, immeuble…',
+        prefixIcon: const Icon(Icons.search, size: 20),
+        suffixIcon: _query.isNotEmpty
+            ? IconButton(
+                icon: const Icon(Icons.close, size: 18),
+                onPressed: () => setState(() => _query = ''),
+              )
+            : null,
+        isDense: true,
+        border: const OutlineInputBorder(),
+        contentPadding: const EdgeInsets.symmetric(
+          vertical: 10,
+          horizontal: AppSpacing.md,
+        ),
+      ),
+    );
+
+    final List<Widget> chips;
+    if (locked) {
+      // Immeuble fixé : un seul chip verrouillé et sélectionné.
+      final id = widget.lockedImmeubleId!;
+      chips = [
+        _InvFilterChip(
+          label: _immeubleNom(id),
+          count: _immeubleCounts[id] ?? 0,
+          selected: true,
+          onTap: () {},
+        ),
+      ];
+    } else {
+      final counts = _immeubleCounts;
+      chips = [
+        _InvFilterChip(
+          label: 'Tous',
+          count: widget.items.length,
+          selected: _filterImmeuble == null,
+          onTap: () => setState(() => _filterImmeuble = null),
+        ),
+        ...counts.entries.map(
+          (e) => _InvFilterChip(
+            label: _immeubleNom(e.key),
+            count: e.value,
+            selected: _filterImmeuble == e.key,
+            onTap: () => setState(
+              () => _filterImmeuble = _filterImmeuble == e.key ? null : e.key,
+            ),
+          ),
+        ),
+      ];
+    }
+
     return Padding(
       padding: const EdgeInsets.all(AppSpacing.lg),
-      child: Container(
-        decoration: BoxDecoration(
-          color: AppColors.surfaceContainerLowest,
-          borderRadius: AppRadius.borderLg,
-          border: Border.all(color: AppColors.outlineVariant),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Header
-            Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.md,
-                vertical: AppSpacing.sm,
-              ),
-              color: AppColors.surfaceContainerLow,
-              child: const Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // ── Filtres (recherche + chips immeuble) ──────────────────────
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final chipsRow = Wrap(
+                spacing: AppSpacing.xs,
+                runSpacing: AppSpacing.xs,
+                children: chips,
+              );
+              if (constraints.maxWidth < 600) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    searchField,
+                    const SizedBox(height: AppSpacing.sm),
+                    chipsRow,
+                  ],
+                );
+              }
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(flex: 3, child: Text('Article', style: _hStyle)),
-                  Expanded(flex: 2, child: Text('Lieu', style: _hStyle)),
-                  Expanded(flex: 1, child: Text('Qté', style: _hStyle)),
-                  Expanded(flex: 2, child: Text('Valeur', style: _hStyle)),
-                  SizedBox(width: 80),
+                  Expanded(child: searchField),
+                  const SizedBox(width: AppSpacing.md),
+                  Flexible(child: chipsRow),
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Expanded(
+            child: Container(
+              decoration: BoxDecoration(
+                color: AppColors.surfaceContainerLowest,
+                borderRadius: AppRadius.borderLg,
+                border: Border.all(color: AppColors.outlineVariant),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Ligne de titre — fixe
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.md,
+                      vertical: AppSpacing.sm,
+                    ),
+                    color: AppColors.surfaceContainerLow,
+                    child: const Row(
+                      children: [
+                        Expanded(
+                            flex: 3, child: Text('Article', style: _hStyle)),
+                        Expanded(
+                            flex: 2, child: Text('Immeuble', style: _hStyle)),
+                        Expanded(flex: 2, child: Text('Lieu', style: _hStyle)),
+                        Expanded(flex: 1, child: Text('Qté', style: _hStyle)),
+                        Expanded(
+                            flex: 2, child: Text('Valeur', style: _hStyle)),
+                        SizedBox(width: 80),
+                      ],
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  Expanded(
+                    child: filtered.isEmpty
+                        ? Center(
+                            child: Text(
+                              'Aucun article ne correspond au filtre.',
+                              style: AppTypography.bodyMd.copyWith(
+                                color: AppColors.onSurfaceVariant,
+                              ),
+                            ),
+                          )
+                        : ListView.separated(
+                            itemCount: filtered.length,
+                            separatorBuilder: (_, _) =>
+                                const Divider(height: 1),
+                            itemBuilder: (_, i) => _InventaireRow(
+                              item: filtered[i],
+                              immeubleNom: _immeubleNom(filtered[i].immeubleId),
+                              onEdit: () => widget.onEdit(filtered[i]),
+                              onDelete: () => widget.onDelete(filtered[i]),
+                            ),
+                          ),
+                  ),
                 ],
               ),
             ),
-            const Divider(height: 1),
-            Expanded(
-              child: ListView.separated(
-                itemCount: items.length,
-                separatorBuilder: (_, _) => const Divider(height: 1),
-                itemBuilder: (_, i) => _InventaireRow(
-                  item: items[i],
-                  onEdit: () => onEdit(items[i]),
-                  onDelete: () => onDelete(items[i]),
-                ),
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -262,11 +415,13 @@ class _InventaireTable extends StatelessWidget {
 
 class _InventaireRow extends StatelessWidget {
   final InventaireModel item;
+  final String immeubleNom;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
 
   const _InventaireRow({
     required this.item,
+    required this.immeubleNom,
     required this.onEdit,
     required this.onDelete,
   });
@@ -302,6 +457,15 @@ class _InventaireRow extends StatelessWidget {
           ),
           Expanded(
             flex: 2,
+            child: Text(
+              immeubleNom,
+              style: AppTypography.bodyMd,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          Expanded(
+            flex: 2,
             child: Text(item.displayLieu, style: AppTypography.bodyMd),
           ),
           Expanded(
@@ -332,6 +496,77 @@ class _InventaireRow extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// Chip de filtre avec compteur (modèle Vision générale).
+class _InvFilterChip extends StatelessWidget {
+  final String label;
+  final int count;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _InvFilterChip({
+    required this.label,
+    required this.count,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = selected ? AppColors.primary : AppColors.surfaceContainerLowest;
+    final fg = selected ? AppColors.onPrimary : AppColors.onSurface;
+    final badgeBg = selected
+        ? AppColors.onPrimary.withValues(alpha: 0.18)
+        : AppColors.surfaceContainerHigh;
+    final borderColor = selected ? AppColors.primary : AppColors.outlineVariant;
+
+    return InkWell(
+      borderRadius: AppRadius.borderFull,
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: 8,
+        ),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: AppRadius.borderFull,
+          border: Border.all(color: borderColor),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (selected) ...[
+              Icon(Icons.check, size: 14, color: fg),
+              const SizedBox(width: 4),
+            ],
+            Text(
+              label,
+              style: AppTypography.labelSm
+                  .copyWith(color: fg, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+              decoration: BoxDecoration(
+                color: badgeBg,
+                borderRadius: AppRadius.borderFull,
+              ),
+              child: Text(
+                '$count',
+                style: AppTypography.labelSm.copyWith(
+                  color: fg,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 11,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

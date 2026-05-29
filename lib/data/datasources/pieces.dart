@@ -34,4 +34,16 @@ class PiecesDatasource {
   static Future<void> delete(int id) async {
     await _db.from(_table).delete().eq('id', id);
   }
+
+  /// Insère plusieurs pièces en une requête. Retourne les modèles créés (avec id).
+  static Future<List<PieceModel>> createMany(List<PieceModel> pieces) async {
+    if (pieces.isEmpty) return [];
+    final rows = await _db
+        .from(_table)
+        .insert(pieces.map((p) => p.toInsert()).toList())
+        .select();
+    return rows
+        .map((r) => PieceModel.fromMap(Map<String, dynamic>.from(r)))
+        .toList();
+  }
 }

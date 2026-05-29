@@ -172,10 +172,28 @@ graph LR
 
     subgraph Persistencia["Persistência dupla"]
         J["etat_de_lieux.observations (JSONB)\n{ wall_key: { description, photos } }"]
-        T["etat_de_lieux_observations (linhas)\n(id, wall_key, description, photos)"]
+        T["etat_de_lieux_observations (linhas)\n(id, wall_key, piece_id?, chambre_id?, description, photos)"]
     end
 
     Murs --> Persistencia
 ```
 
 Cada observação tem `description` (texto livre) e `photos` (URLs do bucket `photos`).
+
+### Plano de murs por pièce e por chambre (EDL collectif)
+
+No fluxo **bail collectif**, o step **« État des pièces et chambres »** (após
+« Composition ») mostra uma **lista expansível**: um item por **pièce** comum e um
+por **chambre** do imóvel. Expandir um item revela o mesmo diagrama 2D de murs
+(`_RoomDiagram`) daquela peça, com observações e fotos por mur + observação geral.
+
+O escopo é feito por `etat_de_lieux_observations.piece_id` / `chambre_id`:
+
+| Cenário | `piece_id` | `chambre_id` |
+|---|---|---|
+| Observação de uma pièce comum (collectif) | preenchido | null |
+| Observação de uma chambre (collectif) | null | preenchido |
+| EDL privatif (single-room) / observação geral | null | null |
+
+O EDL **privatif** (bail individuel) mantém o step único « État de la chambre »
+com observações de target null — comportamento inalterado.

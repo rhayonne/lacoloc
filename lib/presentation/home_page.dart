@@ -4,6 +4,7 @@ import 'package:lacoloc_front/data/models/chambre.dart';
 import 'package:lacoloc_front/presentation/app_search_bar.dart';
 import 'package:lacoloc_front/presentation/chambres/chambres_list.dart';
 import 'package:lacoloc_front/presentation/immeubles/immeubles_list_page.dart';
+import 'package:lacoloc_front/presentation/login_dialog.dart';
 import 'package:lacoloc_front/presentation/nav/app_sidebar.dart';
 import 'package:lacoloc_front/presentation/widgets/filter_panel.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
@@ -103,7 +104,7 @@ class _HomePageState extends State<HomePage> {
               label: 'Se connecter',
               onTap: () {
                 if (isNarrow) Navigator.of(ctx).pop();
-                Navigator.of(ctx).pushNamed('/login');
+                showLoginDialog(ctx);
               },
               color: AppColors.primary,
             ),

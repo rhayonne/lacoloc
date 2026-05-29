@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:lacoloc_front/data/datasources/auth_service.dart';
 import 'package:lacoloc_front/data/models/chambre.dart';
+import 'package:lacoloc_front/presentation/login_dialog.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_radius.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
@@ -114,7 +115,11 @@ class _AppSearchBarState extends State<AppSearchBar> {
           ),
           child: ElevatedButton.icon(
             onPressed: () {
-              Navigator.of(context).pushNamed(isLogged ? '/profile' : '/login');
+              if (isLogged) {
+                Navigator.of(context).pushNamed('/profile');
+              } else {
+                showLoginDialog(context);
+              }
             },
             icon: Icon(isLogged ? Icons.account_circle : Icons.login, size: 18),
             label: Text(isLogged ? 'Mon compte' : 'Connexion'),

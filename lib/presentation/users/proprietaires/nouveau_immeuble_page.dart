@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:form_builder_validators/form_builder_validators.dart';
 import 'package:lacoloc_front/data/datasources/auth_service.dart';
+import 'package:lacoloc_front/data/datasources/commons_seeder.dart';
 import 'package:lacoloc_front/data/datasources/immeubles.dart';
+import 'package:lacoloc_front/data/datasources/pieces.dart';
 import 'package:lacoloc_front/data/datasources/reference.dart';
+import 'package:lacoloc_front/data/pieces_communes_seed.dart';
 import 'package:lacoloc_front/data/models/address_suggestion.dart';
 import 'package:lacoloc_front/data/models/immeuble_type.dart';
 import 'package:lacoloc_front/data/models/immeubles.dart';
@@ -38,7 +41,14 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
   bool _isSubmitting = false;
   bool _isBailCollectif = false;
 
-  bool get _isEditing => widget.immeuble != null;
+  // Parties communes
+  ImmeublesModel? _createdImmeuble; // immeuble créé via le bouton (page neuve)
+  bool _communesCreated = false;
+  bool _creatingCommunes = false;
+
+  /// Immeuble persisté (édition d'un existant OU créé via le bouton communes).
+  ImmeublesModel? get _persistedImmeuble => widget.immeuble ?? _createdImmeuble;
+  bool get _isEditing => _persistedImmeuble != null;
 
   @override
   void initState() {
@@ -60,7 +70,18 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
           });
         }
       });
+      _checkCommunesExistantes(imm.id);
     }
+  }
+
+  /// Désactive le bouton si les pièces communes standard existent déjà.
+  Future<void> _checkCommunesExistantes(int immeubleId) async {
+    try {
+      final pieces = await PiecesDatasource.listByImmeuble(immeubleId);
+      final hasCommunes =
+          pieces.any((p) => kPiecesCommunesNoms.contains(p.nom));
+      if (mounted && hasCommunes) setState(() => _communesCreated = true);
+    } catch (_) {}
   }
 
   void _onAddressSuggested(AddressSuggestion s) {
@@ -108,6 +129,34 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
     }
   }
 
+  /// Construit le modèle à partir des valeurs du formulaire (déjà validées).
+  ImmeublesModel _buildModel(Map<String, dynamic> values, ImmeubleTypeModel type) {
+    String? trimOrNull(String? v) => v?.trim().isEmpty == true ? null : v?.trim();
+    return ImmeublesModel(
+      id: _persistedImmeuble?.id ?? 0,
+      name: values['name'] as String,
+      ownerId: AuthService.currentUser?.id,
+      typeId: type.id,
+      address: _address.trim().isEmpty ? null : _address.trim(),
+      city: trimOrNull(values['city'] as String?),
+      region: trimOrNull(values['region'] as String?),
+      department: trimOrNull(values['department'] as String?),
+      totalM2: double.tryParse(
+          ((values['total_m2'] as String?) ?? '').replaceAll(',', '.')),
+      description: trimOrNull(values['description'] as String?),
+      commonPhotos: _photos,
+      isActive: !((values['desactiver'] as bool?) ?? false),
+      mainPhoto: _mainPhoto,
+      bailCollectif: (values['bail_collectif'] as bool?) ?? false,
+      bailIndividuel: (values['bail_individuel'] as bool?) ?? false,
+      prixLoyer: _isBailCollectif
+          ? double.tryParse(
+              ((values['prix_loyer'] as String?) ?? '').replaceAll(',', '.'))
+          : null,
+      locationMeuble: values['location_meuble'] as bool?,
+    );
+  }
+
   Future<void> _submit() async {
     if (!(_formKey.currentState?.saveAndValidate() ?? false)) return;
     final values = _formKey.currentState!.value;
@@ -122,30 +171,7 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
 
     setState(() => _isSubmitting = true);
     try {
-      String? trimOrNull(String? v) => v?.trim().isEmpty == true ? null : v?.trim();
-
-      final model = ImmeublesModel(
-        id: widget.immeuble?.id ?? 0,
-        name: values['name'] as String,
-        ownerId: AuthService.currentUser?.id,
-        typeId: type.id,
-        address: _address.trim().isEmpty ? null : _address.trim(),
-        city: trimOrNull(values['city'] as String?),
-        region: trimOrNull(values['region'] as String?),
-        department: trimOrNull(values['department'] as String?),
-        totalM2: double.tryParse(
-            ((values['total_m2'] as String?) ?? '').replaceAll(',', '.')),
-        description: trimOrNull(values['description'] as String?),
-        commonPhotos: _photos,
-        isActive: !((values['desactiver'] as bool?) ?? false),
-        mainPhoto: _mainPhoto,
-        bailCollectif: (values['bail_collectif'] as bool?) ?? false,
-        bailIndividuel: (values['bail_individuel'] as bool?) ?? false,
-        prixLoyer: _isBailCollectif
-            ? double.tryParse(
-                ((values['prix_loyer'] as String?) ?? '').replaceAll(',', '.'))
-            : null,
-      );
+      final model = _buildModel(values, type);
       _isEditing
           ? await ImmeublesDatasource.update(model)
           : await ImmeublesDatasource.create(model);
@@ -165,6 +191,53 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
     }
   }
 
+  void _snack(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  /// Génère automatiquement les pièces communes (+ inventaire si meublé).
+  /// Persiste l'immeuble au besoin pour obtenir son id.
+  Future<void> _creerCommunes() async {
+    final state = _formKey.currentState;
+    final meuble = state?.fields['location_meuble']?.value as bool?;
+    if (meuble == null) {
+      _snack('Sélectionnez le type de location (meublée ou non) avant de '
+          'créer les pièces.');
+      return;
+    }
+    if (!(state?.saveAndValidate() ?? false)) return;
+    final values = state!.value;
+    final type = values['type'] as ImmeubleTypeModel?;
+    if (type == null) {
+      _snack("Sélectionnez un type d'immeuble");
+      return;
+    }
+
+    setState(() => _creatingCommunes = true);
+    try {
+      // 1) Garantir l'existence de l'immeuble (id requis pour rattacher).
+      var immeuble = _persistedImmeuble;
+      final model = _buildModel(values, type);
+      if (immeuble == null) {
+        immeuble = await ImmeublesDatasource.create(model);
+        if (!mounted) return;
+        setState(() => _createdImmeuble = immeuble);
+      } else {
+        await ImmeublesDatasource.update(model);
+      }
+      // 2) Semer les pièces communes (+ inventaire si meublé).
+      await CommonsSeeder.seed(immeuble.id, meuble: meuble);
+      if (!mounted) return;
+      setState(() => _communesCreated = true);
+      _snack('Les parties communes ont été créées.');
+    } catch (e) {
+      _snack('Erreur : $e');
+    } finally {
+      if (mounted) setState(() => _creatingCommunes = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -179,6 +252,20 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
                   tooltip: 'Retour',
                 )
               : null,
+          trailing: FilledButton.icon(
+            onPressed: _isSubmitting ? null : _submit,
+            style: AppTheme.saveButtonStyle,
+            icon: _isSubmitting
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.check),
+            label: Text(_isEditing
+                ? 'Enregistrer les modifications'
+                : 'Enregistrer'),
+          ),
         ),
         Expanded(child: ResponsiveFormWrapper(
           child: SingleChildScrollView(
@@ -291,21 +378,27 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
 
             Text('Type de bail', style: AppTypography.labelMd),
             const SizedBox(height: AppSpacing.xs),
-            FormBuilderCheckbox(
-              name: 'bail_collectif',
-              initialValue: widget.immeuble?.bailCollectif ?? false,
-              title: const Text('Bail collectif'),
-              subtitle: const Text(
-                  'Un seul contrat pour toutes les chambres de l\'immeuble.'),
-              contentPadding: EdgeInsets.zero,
-              controlAffinity: ListTileControlAffinity.leading,
-              onChanged: (v) {
-                setState(() => _isBailCollectif = v ?? false);
-                if (v == true) {
-                  _formKey.currentState?.fields['bail_individuel']
-                      ?.didChange(false);
-                }
-              },
+            Align(
+              alignment: Alignment.centerLeft,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 480),
+                child: FormBuilderCheckbox(
+                  name: 'bail_collectif',
+                  initialValue: widget.immeuble?.bailCollectif ?? false,
+                  title: const Text('Bail collectif'),
+                  subtitle: const Text(
+                      'Un seul contrat pour toutes les chambres de l\'immeuble.'),
+                  contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.leading,
+                  onChanged: (v) {
+                    setState(() => _isBailCollectif = v ?? false);
+                    if (v == true) {
+                      _formKey.currentState?.fields['bail_individuel']
+                          ?.didChange(false);
+                    }
+                  },
+                ),
+              ),
             ),
             if (_isBailCollectif) ...[
               const SizedBox(height: AppSpacing.md),
@@ -320,49 +413,96 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
                     const TextInputType.numberWithOptions(decimal: true),
               ),
             ],
-            FormBuilderCheckbox(
-              name: 'bail_individuel',
-              initialValue: widget.immeuble?.bailIndividuel ?? false,
-              title: const Text('Bail individuel'),
-              subtitle: const Text('Contrat séparé pour chaque chambre.'),
-              contentPadding: EdgeInsets.zero,
-              controlAffinity: ListTileControlAffinity.leading,
-              onChanged: (v) {
-                if (v == true) {
-                  setState(() => _isBailCollectif = false);
-                  _formKey.currentState?.fields['bail_collectif']
-                      ?.didChange(false);
-                }
-              },
+            const SizedBox(height: AppSpacing.md),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 480),
+                child: FormBuilderCheckbox(
+                  name: 'bail_individuel',
+                  initialValue: widget.immeuble?.bailIndividuel ?? false,
+                  title: const Text('Bail individuel'),
+                  subtitle: const Text('Contrat séparé pour chaque chambre.'),
+                  contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.leading,
+                  onChanged: (v) {
+                    if (v == true) {
+                      setState(() => _isBailCollectif = false);
+                      _formKey.currentState?.fields['bail_collectif']
+                          ?.didChange(false);
+                    }
+                  },
+                ),
+              ),
             ),
             const Divider(),
+            const SizedBox(height: AppSpacing.sm),
 
-            FormBuilderCheckbox(
-              name: 'desactiver',
-              initialValue: !(widget.immeuble?.isActive ?? true),
-              title: const Text('Désactiver immeuble'),
-              subtitle: const Text(
-                'Toutes les chambres seront masquées du site public.',
-              ),
-              activeColor: AppColors.error,
-              contentPadding: EdgeInsets.zero,
-              controlAffinity: ListTileControlAffinity.leading,
+            // ── Parties communes ───────────────────────────────────────
+            Text('Parties communes', style: AppTypography.labelMd),
+            const SizedBox(height: AppSpacing.sm),
+            FormBuilderDropdown<bool>(
+              name: 'location_meuble',
+              initialValue: widget.immeuble?.locationMeuble,
+              decoration:
+                  const InputDecoration(labelText: 'Location meublée ?'),
+              items: const [
+                DropdownMenuItem(value: true, child: Text('Oui')),
+                DropdownMenuItem(value: false, child: Text('Non')),
+              ],
             ),
-            const SizedBox(height: AppSpacing.xl),
-
-            FilledButton.icon(
-              onPressed: _isSubmitting ? null : _submit,
-              style: AppTheme.saveButtonStyle,
-              icon: _isSubmitting
+            const SizedBox(height: AppSpacing.md),
+            OutlinedButton.icon(
+              onPressed: (_communesCreated || _creatingCommunes)
+                  ? null
+                  : _creerCommunes,
+              icon: _creatingCommunes
                   ? const SizedBox(
                       width: 18,
                       height: 18,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : const Icon(Icons.check),
-              label: Text(
-                  _isEditing ? 'Enregistrer les modifications' : 'Enregistrer'),
+                  : const Icon(Icons.meeting_room_outlined),
+              label: const Text('Ajouter les pièces communes et inventaire'),
             ),
+            if (_communesCreated) ...[
+              const SizedBox(height: AppSpacing.xs),
+              Row(
+                children: [
+                  const Icon(Icons.check_circle_outline,
+                      size: 16, color: AppColors.tertiary),
+                  const SizedBox(width: AppSpacing.xs),
+                  Expanded(
+                    child: Text(
+                      'Les parties communes ont été créées.',
+                      style: AppTypography.labelSm
+                          .copyWith(color: AppColors.tertiary),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+            const SizedBox(height: AppSpacing.sm),
+            const Divider(),
+
+            Align(
+              alignment: Alignment.centerLeft,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 480),
+                child: FormBuilderCheckbox(
+                  name: 'desactiver',
+                  initialValue: !(widget.immeuble?.isActive ?? true),
+                  title: const Text('Désactiver immeuble'),
+                  subtitle: const Text(
+                    'Toutes les chambres seront masquées du site public.',
+                  ),
+                  activeColor: AppColors.error,
+                  contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.leading,
+                ),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.xl),
               ],
             ),
           ),
