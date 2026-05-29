@@ -4,6 +4,7 @@ import 'package:lacoloc_front/data/datasources/edl_details.dart';
 import 'package:lacoloc_front/data/models/edl_details.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
+import 'package:lacoloc_front/theme/app_theme.dart';
 import 'package:lacoloc_front/theme/app_typography.dart';
 
 // ╔══════════════════════════════════════════════════════════════════════════╗
@@ -534,7 +535,7 @@ class _EdlCompositionSectionState extends State<EdlCompositionSection> {
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Annuler')),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+            style: AppTheme.deleteButtonStyle,
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Supprimer'),
           ),

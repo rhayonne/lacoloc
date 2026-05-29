@@ -18,7 +18,7 @@ class EdlDetailsDatasource {
   static Future<List<EdlPreneur>> listPreneurs(int edlId) async {
     final rows = await _db
         .from(_preneurs)
-        .select()
+        .select('*, locataire:Users_Client!locataire_id(email)')
         .eq('etat_de_lieux_id', edlId)
         .order('ordre');
     return rows.map(EdlPreneur.fromMap).toList();

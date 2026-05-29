@@ -97,10 +97,7 @@ class _FournisseursPageState extends State<FournisseursPage> {
           ),
           FilledButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            style: FilledButton.styleFrom(
-              backgroundColor: AppColors.error,
-              foregroundColor: AppColors.onError,
-            ),
+            style: AppTheme.deleteButtonStyle,
             child: const Text('Supprimer'),
           ),
         ],

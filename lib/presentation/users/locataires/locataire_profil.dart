@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:intl/intl.dart';
@@ -15,6 +16,7 @@ import 'package:lacoloc_front/utils/phone_field.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_radius.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
+import 'package:lacoloc_front/theme/app_theme.dart';
 import 'package:lacoloc_front/theme/app_typography.dart';
 
 class LocataireProfilPage extends StatefulWidget {
@@ -678,7 +680,7 @@ class _ProfilSectionState extends State<_ProfilSection> {
             child: const Text('Annuler'),
           ),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+            style: AppTheme.deleteButtonStyle,
             onPressed: () => Navigator.of(ctx).pop(true),
             child: const Text('Supprimer définitivement'),
           ),
@@ -1900,11 +1902,17 @@ class _EdlDetailPageState extends State<_EdlDetailPage> {
                                       const SizedBox(width: 8),
                                   itemBuilder: (_, i) => ClipRRect(
                                     borderRadius: AppRadius.borderSm,
-                                    child: Image.network(
-                                      entry.value.photos[i],
+                                    child: CachedNetworkImage(
+                                      imageUrl: entry.value.photos[i],
                                       width: 80,
                                       height: 80,
                                       fit: BoxFit.cover,
+                                      errorWidget: (_, _, _) => const SizedBox(
+                                        width: 80,
+                                        height: 80,
+                                        child: Icon(Icons.broken_image_outlined,
+                                            color: AppColors.onSurfaceVariant),
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -2061,11 +2069,7 @@ class _DangerZoneSection extends StatelessWidget {
                     child: OutlinedButton.icon(
                       style: OutlinedButton.styleFrom(
                         foregroundColor: AppColors.error,
-                        side: BorderSide(
-                          color: hasContracts || loading
-                              ? AppColors.error.withValues(alpha: 0.3)
-                              : AppColors.error,
-                        ),
+                        side: const BorderSide(color: AppColors.error),
                       ),
                       onPressed:
                           (hasContracts || loading || isDeleting) ? null : onDelete,

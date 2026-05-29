@@ -12,6 +12,7 @@ import 'package:lacoloc_front/data/models/piece.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_radius.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
+import 'package:lacoloc_front/theme/app_theme.dart';
 import 'package:lacoloc_front/theme/app_typography.dart';
 import 'package:lacoloc_front/utils/currency.dart';
 
@@ -183,7 +184,7 @@ class _InventairePageState extends State<InventairePage> {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+            style: AppTheme.deleteButtonStyle,
             child: const Text('Supprimer'),
           ),
         ],

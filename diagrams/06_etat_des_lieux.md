@@ -162,11 +162,13 @@ graph TD
 
 ```mermaid
 graph LR
-    subgraph Murs["wall_key conhecidas"]
+    subgraph Murs["wall_key conhecidas (6 zonas + général)"]
         F["fond — Mur du fond"]
         G["gauche — Mur gauche"]
         D["droit — Mur droit"]
         P["porte — Mur d'entrée / Porte"]
+        S["sol — Sol (intérieur, moitié basse)"]
+        PL["plafond — Plafond (intérieur, moitié haute)"]
         N["null — Général"]
     end
 
@@ -197,3 +199,24 @@ O escopo é feito por `etat_de_lieux_observations.piece_id` / `chambre_id`:
 
 O EDL **privatif** (bail individuel) mantém o step único « État de la chambre »
 com observações de target null — comportamento inalterado.
+
+### Novo fluxo "Nouveau EDL" — Collectif + non meublée
+
+Ao clicar « Nouveau » em Vision générale / Entrée / Sortie:
+
+1. Abre **`showSelectImmeubleDialog`** com a lista de imóveis (chips bail + meublée).
+2. Se o imóvel é **bail collectif** e **`location_meuble = false`** → abre a página
+   **`EdlCollectifNonMeubleePage`** (full-width):
+   - Topo 3 colunas: **Bien** (nome, endereço, m², chips Collectif/Non meublée) ·
+     **Locataires** (busca `search_locataires` + lista de preneurs com lixeira,
+     persistidos em `etat_de_lieux_preneurs`) · **Dates** (`date_etat_lieux`).
+   - Abaixo: lista expansível de pièces + chambres com o `_RoomDiagram` de **6
+     zonas** (4 murs + plafond + sol). Observações escopadas via
+     `piece_id`/`chambre_id` + `wall_key`.
+3. Demais combinações (Individuel / Meublée) → SnackBar
+   « Ce cas est en cours de développement » — a edição de EDLs existentes
+   continua usando o stepper `_EdlFormOverlay`.
+
+Schema: `etat_de_lieux.locataire_id` é **nullable** desde a migração
+`etat_de_lieux_locataire_id_nullable` (collectif usa `preneurs`, sem locataire
+principal).

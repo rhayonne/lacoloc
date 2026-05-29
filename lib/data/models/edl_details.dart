@@ -27,6 +27,8 @@ class EdlPreneur {
   final String? nom;
   final String? adresse;
   final int ordre;
+  // Campo local preenchido via join — não persiste no DB
+  final String? email;
 
   const EdlPreneur({
     this.id,
@@ -35,16 +37,21 @@ class EdlPreneur {
     this.nom,
     this.adresse,
     this.ordre = 0,
+    this.email,
   });
 
-  factory EdlPreneur.fromMap(Map<String, dynamic> m) => EdlPreneur(
-    id: m['id'] as int?,
-    etatDesLieuxId: m['etat_de_lieux_id'] as int,
-    locataireId: m['locataire_id'] as String?,
-    nom: m['nom'] as String?,
-    adresse: m['adresse'] as String?,
-    ordre: (m['ordre'] as num?)?.toInt() ?? 0,
-  );
+  factory EdlPreneur.fromMap(Map<String, dynamic> m) {
+    final loc = m['locataire'] as Map<String, dynamic>?;
+    return EdlPreneur(
+      id: m['id'] as int?,
+      etatDesLieuxId: m['etat_de_lieux_id'] as int,
+      locataireId: m['locataire_id'] as String?,
+      nom: m['nom'] as String?,
+      adresse: m['adresse'] as String?,
+      ordre: (m['ordre'] as num?)?.toInt() ?? 0,
+      email: loc?['email'] as String?,
+    );
+  }
 
   Map<String, dynamic> toInsert() => {
     'etat_de_lieux_id': etatDesLieuxId,

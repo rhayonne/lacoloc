@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:intl/intl.dart';
@@ -20,10 +21,12 @@ import 'package:lacoloc_front/data/models/observation_edl.dart';
 import 'package:lacoloc_front/data/models/piece.dart';
 import 'package:lacoloc_front/data/models/users_client.dart';
 import 'package:lacoloc_front/presentation/users/proprietaires/edl_document_editor.dart';
+import 'package:lacoloc_front/presentation/users/proprietaires/edl_select_immeuble_dialog.dart';
 import 'package:lacoloc_front/presentation/widgets/form_page_header.dart';
 import 'package:lacoloc_front/presentation/widgets/photo_picker_field.dart';
 import 'package:lacoloc_front/utils/phone_field.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
+import 'package:lacoloc_front/theme/card_delete_button.dart';
 import 'package:lacoloc_front/theme/app_radius.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
 import 'package:lacoloc_front/theme/app_theme.dart';
@@ -36,6 +39,7 @@ const double _colEtat = 100.0;
 const double _colFin = 118.0;
 const double _colSit = 158.0;
 const double _colBtn = 112.0;
+const double _colDel = 36.0;
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -56,7 +60,109 @@ class _EtatDesLieuxPageState extends State<EtatDesLieuxPage>
   String _formTypeEdl = 'entree';
   bool _showDetail = false;
   EtatDesLieuxModel? _detailEdl;
+  // Nouveau flux : page Collectif + non meublée
+  bool _showCollectifForm = false;
+  ImmeublesModel? _formImmeuble;
+  EtatDesLieuxModel? _formEdl; // EDL existant à éditer dans le nouveau flux
   late Future<_PageData> _future;
+
+  /// Démarre un nouvel EDL : popup de sélection d'immeuble puis routage.
+  /// Cas géré : Collectif + non meublée → nouvelle page.
+  /// Autres cas → SnackBar "en cours de développement".
+  Future<void> _startNewEdl(String typeEdl) async {
+    final uid = AuthService.currentUser?.id;
+    if (uid == null) return;
+    final immeubles = await ImmeublesDatasource.listByOwner(uid);
+    if (!mounted) return;
+    final selected = await showSelectImmeubleDialog(context, immeubles);
+    if (selected == null || !mounted) return;
+    final isCollectifNonMeublee =
+        selected.bailCollectif && selected.locationMeuble == false;
+    if (isCollectifNonMeublee) {
+      setState(() {
+        _showCollectifForm = true;
+        _formImmeuble = selected;
+        _formEdl = null;
+        _formTypeEdl = typeEdl;
+      });
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Ce cas est en cours de développement.'),
+        ),
+      );
+    }
+  }
+
+  /// Ouvre un EDL existant pour édition.
+  /// Collectif + non meublée → nouvelle page. Autres → SnackBar.
+  Future<void> _openExistingEdl(EtatDesLieuxModel edl) async {
+    if (edl.typeBail != 'collectif') {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("L'édition de ce type d'EDL est en cours de développement."),
+        ),
+      );
+      return;
+    }
+    // Charger l'immeuble pour vérifier location_meuble
+    ImmeublesModel? immeuble;
+    try {
+      final uid = AuthService.currentUser?.id ?? '';
+      final list = await ImmeublesDatasource.listByOwner(uid);
+      immeuble = list.where((i) => i.id == edl.immeubleId).firstOrNull;
+    } catch (_) {}
+    if (!mounted) return;
+    if (immeuble == null || immeuble.locationMeuble != false) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("L'édition de ce type d'EDL est en cours de développement."),
+        ),
+      );
+      return;
+    }
+    setState(() {
+      _showCollectifForm = true;
+      _formImmeuble = immeuble;
+      _formEdl = edl;
+      _formTypeEdl = edl.typeEdl;
+    });
+  }
+
+  Future<void> _confirmDelete(EtatDesLieuxModel edl) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Supprimer l\'état des lieux ?'),
+        content: Text(
+          'Cette action est irréversible. L\'état des lieux du '
+          '${_dateFmt.format(edl.dateEtatLieux)} sera définitivement supprimé.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: AppTheme.deleteButtonStyle,
+            child: const Text('Supprimer'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    try {
+      await EtatDesLieuxDatasource.delete(edl.id);
+      _reload();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erreur : $e')),
+      );
+    }
+  }
 
   @override
   void initState() {
@@ -111,6 +217,22 @@ class _EtatDesLieuxPageState extends State<EtatDesLieuxPage>
       );
     }
 
+    if (_showCollectifForm && _formImmeuble != null) {
+      return EdlCollectifNonMeubleePage(
+        immeuble: _formImmeuble!,
+        typeEdl: _formTypeEdl,
+        existingEdl: _formEdl,
+        onClose: (refresh) {
+          setState(() {
+            _showCollectifForm = false;
+            _formImmeuble = null;
+            _formEdl = null;
+          });
+          if (refresh) _reload();
+        },
+      );
+    }
+
     if (_showForm) {
       return _EdlFormOverlay(
         existingEdl: _editingEdl,
@@ -140,11 +262,14 @@ class _EtatDesLieuxPageState extends State<EtatDesLieuxPage>
         final entrees = all.where((e) => e.typeEdl == 'entree').toList();
         final sorties = all.where((e) => e.typeEdl == 'sortie').toList();
 
-        void openForm(String type, [EtatDesLieuxModel? edl]) => setState(() {
-          _editingEdl = edl;
-          _formTypeEdl = type;
-          _showForm = true;
-        });
+        void openForm(String type, [EtatDesLieuxModel? edl]) {
+          if (edl == null) {
+            _startNewEdl(type);
+            return;
+          }
+          // Édition d'un EDL existant : nouveau flux ou SnackBar.
+          _openExistingEdl(edl);
+        }
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -186,6 +311,7 @@ class _EtatDesLieuxPageState extends State<EtatDesLieuxPage>
                       }
                     },
                     onEditer: (e) => openForm(e.typeEdl, e),
+                    onDelete: (e) => _confirmDelete(e),
                   ),
                   _EdlListTab(
                     edls: entrees,
@@ -202,6 +328,7 @@ class _EtatDesLieuxPageState extends State<EtatDesLieuxPage>
                       }
                     },
                     onEditer: (e) => openForm('entree', e),
+                    onDelete: (e) => _confirmDelete(e),
                   ),
                   _EdlListTab(
                     edls: sorties,
@@ -218,6 +345,7 @@ class _EtatDesLieuxPageState extends State<EtatDesLieuxPage>
                       }
                     },
                     onEditer: (e) => openForm('sortie', e),
+                    onDelete: (e) => _confirmDelete(e),
                   ),
                 ],
               ),
@@ -238,6 +366,7 @@ class _VisionGeneraleTab extends StatelessWidget {
   final VoidCallback onNouveau;
   final ValueChanged<EtatDesLieuxModel> onVoir;
   final ValueChanged<EtatDesLieuxModel>? onEditer;
+  final ValueChanged<EtatDesLieuxModel>? onDelete;
 
   const _VisionGeneraleTab({
     required this.all,
@@ -245,6 +374,7 @@ class _VisionGeneraleTab extends StatelessWidget {
     required this.onNouveau,
     required this.onVoir,
     this.onEditer,
+    this.onDelete,
   });
 
   @override
@@ -304,6 +434,7 @@ class _VisionGeneraleTab extends StatelessWidget {
             onNouveau: onNouveau,
             onVoir: onVoir,
             onEditer: onEditer,
+            onDelete: onDelete,
             shrinkWrap: true,
           ),
         ],
@@ -479,6 +610,7 @@ class _EdlListTab extends StatelessWidget {
   final VoidCallback onNouveau;
   final ValueChanged<EtatDesLieuxModel> onVoir;
   final ValueChanged<EtatDesLieuxModel>? onEditer;
+  final ValueChanged<EtatDesLieuxModel>? onDelete;
 
   const _EdlListTab({
     required this.edls,
@@ -486,6 +618,7 @@ class _EdlListTab extends StatelessWidget {
     required this.onNouveau,
     required this.onVoir,
     this.onEditer,
+    this.onDelete,
   });
 
   @override
@@ -498,6 +631,7 @@ class _EdlListTab extends StatelessWidget {
         onNouveau: onNouveau,
         onVoir: onVoir,
         onEditer: onEditer,
+        onDelete: onDelete,
         shrinkWrap: false,
       ),
     );
@@ -513,6 +647,7 @@ class _EdlTableCard extends StatefulWidget {
   final VoidCallback onNouveau;
   final ValueChanged<EtatDesLieuxModel> onVoir;
   final ValueChanged<EtatDesLieuxModel>? onEditer;
+  final ValueChanged<EtatDesLieuxModel>? onDelete;
 
   /// true → shrinkWrap (pour SingleChildScrollView parent),
   /// false → Expanded (pour tab plein écran)
@@ -525,6 +660,7 @@ class _EdlTableCard extends StatefulWidget {
     required this.onVoir,
     required this.shrinkWrap,
     this.onEditer,
+    this.onDelete,
   });
 
   @override
@@ -709,12 +845,13 @@ class _EdlTableCardState extends State<_EdlTableCard> {
           SizedBox(
             width: _colEtat,
             child: Text(
-              'ÉTAT',
+              'DATE EDL',
               textAlign: TextAlign.center,
               style: AppTypography.labelSm.copyWith(
                 color: AppColors.onSurfaceVariant,
                 letterSpacing: 0.8,
                 fontWeight: FontWeight.w600,
+                fontSize: 10,
               ),
             ),
           ),
@@ -746,6 +883,8 @@ class _EdlTableCardState extends State<_EdlTableCard> {
           ),
           const SizedBox(width: AppSpacing.md),
           SizedBox(width: _colBtn),
+          const SizedBox(width: AppSpacing.xs),
+          SizedBox(width: _colDel),
         ],
       ),
     );
@@ -778,6 +917,9 @@ class _EdlTableCardState extends State<_EdlTableCard> {
               onVoir: () => widget.onVoir(filtered[i]),
               onEditer: widget.onEditer != null
                   ? () => widget.onEditer!(filtered[i])
+                  : null,
+              onDelete: widget.onDelete != null
+                  ? () => widget.onDelete!(filtered[i])
                   : null,
             ),
           );
@@ -818,12 +960,14 @@ class _EdlRow extends StatelessWidget {
   final EtatDesLieuxModel edl;
   final VoidCallback onVoir;
   final VoidCallback? onEditer;
+  final VoidCallback? onDelete;
   final bool compact;
 
   const _EdlRow({
     required this.edl,
     required this.onVoir,
     this.onEditer,
+    this.onDelete,
     this.compact = false,
   });
 
@@ -924,13 +1068,34 @@ class _EdlRow extends StatelessWidget {
             ],
           ),
           const SizedBox(height: AppSpacing.sm),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              onPressed: onVoir,
-              icon: const Icon(Icons.play_arrow, size: 16),
-              label: const Text('Continuer'),
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: onVoir,
+                  icon: const Icon(Icons.play_arrow, size: 16),
+                  label: const Text('Continuer'),
+                ),
+              ),
+              if (onDelete != null) ...[
+                const SizedBox(width: AppSpacing.xs),
+                SizedBox(
+                  width: _colDel,
+                  height: 36,
+                  child: FilledButton(
+                    onPressed: onDelete,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.error,
+                      padding: EdgeInsets.zero,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: AppRadius.borderMd,
+                      ),
+                    ),
+                    child: const Icon(Icons.delete_outline, size: 18),
+                  ),
+                ),
+              ],
+            ],
           ),
         ],
       ),
@@ -1036,13 +1201,15 @@ class _EdlRow extends StatelessWidget {
           ),
           const SizedBox(width: AppSpacing.md),
 
-          // ÉTAT (date)
+          // DATE EDL
           SizedBox(
             width: _colEtat,
             child: Text(
               edl.dateEdlFormatted,
               textAlign: TextAlign.center,
-              style: AppTypography.bodyMd,
+              style: AppTypography.labelSm.copyWith(
+                color: AppColors.onSurfaceVariant,
+              ),
             ),
           ),
           const SizedBox(width: AppSpacing.md),
@@ -1084,6 +1251,23 @@ class _EdlRow extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 textStyle: const TextStyle(fontSize: 12),
               ),
+            ),
+          ),
+          const SizedBox(width: AppSpacing.xs),
+          SizedBox(
+            width: _colDel,
+            height: 32,
+            child: FilledButton(
+              onPressed: onDelete,
+              style: FilledButton.styleFrom(
+                backgroundColor:
+                    onDelete != null ? AppColors.error : AppColors.outlineVariant,
+                padding: EdgeInsets.zero,
+                shape: RoundedRectangleBorder(
+                  borderRadius: AppRadius.borderMd,
+                ),
+              ),
+              child: const Icon(Icons.delete_outline, size: 16),
             ),
           ),
         ],
@@ -1347,9 +1531,10 @@ class _EdlFormOverlayState extends State<_EdlFormOverlay> {
     _nouvelleAdrCtrl.text = edl.nouvelleAdresse ?? '';
     _lieuRedactionCtrl.text = edl.lieuRedaction ?? '';
     _exemplairesCtrl.text = edl.nombreExemplaires ?? '';
-    if (edl.locataireId.isNotEmpty) {
+    final loId = edl.locataireId;
+    if (loId != null && loId.isNotEmpty) {
       _locataire = UsersClient(
-        id: edl.locataireId,
+        id: loId,
         createdAt: DateTime.now(),
         email: edl.locataireEmail ?? '',
         fullName: edl.locataireNom,
@@ -1855,7 +2040,7 @@ class _EdlFormOverlayState extends State<_EdlFormOverlay> {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+            style: AppTheme.deleteButtonStyle,
             child: const Text('Supprimer'),
           ),
         ],
@@ -3337,11 +3522,17 @@ class _EdlObsTile extends StatelessWidget {
                   separatorBuilder: (_, _) => const SizedBox(width: 8),
                   itemBuilder: (_, i) => ClipRRect(
                     borderRadius: AppRadius.borderSm,
-                    child: Image.network(
-                      obs.photos[i],
+                    child: CachedNetworkImage(
+                      imageUrl: obs.photos[i],
                       width: 80,
                       height: 80,
                       fit: BoxFit.cover,
+                      errorWidget: (_, _, _) => const SizedBox(
+                        width: 80,
+                        height: 80,
+                        child: Icon(Icons.broken_image_outlined,
+                            color: AppColors.onSurfaceVariant),
+                      ),
                     ),
                   ),
                 ),
@@ -3799,7 +3990,8 @@ class _RoomDiagram extends StatelessWidget {
                     vertical: true,
                   ),
                 ),
-                // Intérieur
+                // Intérieur : photo de fond + deux zones cliquables
+                // (Plafond en haut, Sol en bas — séparées horizontalement)
                 Positioned(
                   top: 60,
                   left: 60,
@@ -3812,27 +4004,65 @@ class _RoomDiagram extends StatelessWidget {
                         color: AppColors.primary.withValues(alpha: 0.2),
                       ),
                     ),
-                    child: chambrePhoto != null
-                        ? Image.network(
-                            chambrePhoto!,
-                            fit: BoxFit.cover,
-                            width: double.infinity,
-                            height: double.infinity,
-                            errorBuilder: (_, _, _) => const Center(
-                              child: Icon(
-                                Icons.home_outlined,
-                                size: 36,
-                                color: AppColors.onSurfaceVariant,
+                    child: Stack(
+                      children: [
+                        Positioned.fill(
+                          child: (chambrePhoto != null &&
+                                  chambrePhoto!.trim().isNotEmpty &&
+                                  Uri.tryParse(chambrePhoto!.trim())
+                                          ?.hasScheme ==
+                                      true)
+                              ? CachedNetworkImage(
+                                  imageUrl: chambrePhoto!.trim(),
+                                  fit: BoxFit.cover,
+                                  placeholder: (_, _) => const Center(
+                                    child: SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                          strokeWidth: 2),
+                                    ),
+                                  ),
+                                  errorWidget: (_, _, _) => const Center(
+                                    child: Icon(
+                                      Icons.home_outlined,
+                                      size: 36,
+                                      color: AppColors.onSurfaceVariant,
+                                    ),
+                                  ),
+                                )
+                              : const Center(
+                                  child: Icon(
+                                    Icons.home_outlined,
+                                    size: 36,
+                                    color: AppColors.onSurfaceVariant,
+                                  ),
+                                ),
+                        ),
+                        Column(
+                          children: [
+                            Expanded(
+                              child: _InnerZone(
+                                label: 'Plafond',
+                                icon: Icons.expand_less,
+                                obsCount: _obsCount('plafond'),
+                                onTap: () => onEditWall('plafond'),
+                                alignTop: true,
                               ),
                             ),
-                          )
-                        : const Center(
-                            child: Icon(
-                              Icons.home_outlined,
-                              size: 36,
-                              color: AppColors.onSurfaceVariant,
+                            Expanded(
+                              child: _InnerZone(
+                                label: 'Sol',
+                                icon: Icons.expand_more,
+                                obsCount: _obsCount('sol'),
+                                onTap: () => onEditWall('sol'),
+                                alignTop: false,
+                              ),
                             ),
-                          ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ),
                 // Mur droit
@@ -3938,12 +4168,92 @@ class _WallPanel extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
+        hoverColor: Colors.lightBlue.withValues(alpha: 0.18),
+        splashColor: Colors.lightBlue.withValues(alpha: 0.25),
         child: Container(
           decoration: BoxDecoration(
             color: bg,
             border: Border.all(color: borderColor),
           ),
           child: content,
+        ),
+      ),
+    );
+  }
+}
+
+/// Zone cliquable à l'intérieur du diagramme (Plafond en haut, Sol en bas).
+/// Photo de fond visible derrière ; bandeau translucide en haut/bas avec le
+/// libellé, l'icône et le compteur d'observations.
+class _InnerZone extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final int obsCount;
+  final VoidCallback onTap;
+  final bool alignTop;
+
+  const _InnerZone({
+    required this.label,
+    required this.icon,
+    required this.obsCount,
+    required this.onTap,
+    required this.alignTop,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final hasContent = obsCount > 0;
+    final overlay = hasContent
+        ? AppColors.primary.withValues(alpha: 0.85)
+        : Colors.black.withValues(alpha: 0.6);
+    final fgColor = Colors.white;
+
+    final pill = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: overlay,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: fgColor),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              color: fgColor,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          if (hasContent) ...[
+            const SizedBox(width: 6),
+            Text(
+              '$obsCount',
+              style: const TextStyle(
+                fontSize: 11,
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        hoverColor: Colors.lightBlue.withValues(alpha: 0.18),
+        splashColor: Colors.lightBlue.withValues(alpha: 0.25),
+        child: Align(
+          alignment: alignTop ? Alignment.topCenter : Alignment.bottomCenter,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: pill,
+          ),
         ),
       ),
     );
@@ -3964,13 +4274,17 @@ class _ObservationsList extends StatelessWidget {
     required this.onDelete,
   });
 
-  static const _wallOrder = <String?>['fond', 'gauche', 'droit', 'porte', null];
+  static const _wallOrder = <String?>[
+    'plafond', 'fond', 'gauche', 'droit', 'porte', 'sol', null,
+  ];
 
   static String _groupLabel(String? wallKey) => switch (wallKey) {
     'fond' => 'Mur du fond',
     'gauche' => 'Mur gauche',
     'droit' => 'Mur droit',
     'porte' => "Mur d'entrée / Porte",
+    'sol' => 'Sol',
+    'plafond' => 'Plafond',
     _ => 'Général',
   };
 
@@ -4312,6 +4626,995 @@ class _GeneralObsDialogState extends State<_GeneralObsDialog> {
           child: const Text('Enregistrer'),
         ),
       ],
+    );
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// EDL Collectif + non meublée — nouvelle page full-width
+// ═════════════════════════════════════════════════════════════════════════════
+
+/// Page de saisie d'un EDL pour un immeuble **Collectif + non meublée**.
+/// Layout : 3 colonnes en haut (Bien · Locataires · Dates) + en bas la liste
+/// expansible des pièces / chambres avec le diagramme à 6 zones.
+class EdlCollectifNonMeubleePage extends StatefulWidget {
+  final ImmeublesModel immeuble;
+  final String typeEdl; // 'entree' | 'sortie'
+  final EtatDesLieuxModel? existingEdl; // null = nouvel EDL
+  final void Function(bool refresh) onClose;
+
+  const EdlCollectifNonMeubleePage({
+    super.key,
+    required this.immeuble,
+    required this.typeEdl,
+    this.existingEdl,
+    required this.onClose,
+  });
+
+  @override
+  State<EdlCollectifNonMeubleePage> createState() =>
+      _EdlCollectifNonMeubleePageState();
+}
+
+class _EdlCollectifNonMeubleePageState
+    extends State<EdlCollectifNonMeubleePage> {
+  int? _edlId;
+  DateTime _date = DateTime.now();
+  bool _isSaving = false;
+
+  List<PieceModel> _pieces = [];
+  List<ChambreModel> _chambres = [];
+  List<EdlPreneur> _preneurs = [];
+  List<ObservationEdl> _observations = [];
+
+  final _searchCtrl = TextEditingController();
+  final _scrollCtrl = ScrollController();
+  final Map<String, GlobalKey> _tileKeys = {};
+  final LayerLink _searchLink = LayerLink();
+  final GlobalKey _searchFieldKey = GlobalKey();
+  final OverlayPortalController _resultsCtrl = OverlayPortalController();
+  Timer? _debounce;
+  List<UsersClient> _searchResults = [];
+  bool _searching = false;
+  bool _showResults = false;
+  // Fallback local (locataireId → e-mail) caso le join Users_Client soit
+  // bloqué par la RLS au moment du rechargement des preneurs.
+  final Map<String, String> _emailByLocataire = {};
+
+  void _syncResultsOverlay() {
+    if (_showResults && _searchResults.isNotEmpty) {
+      _resultsCtrl.show();
+    } else {
+      _resultsCtrl.hide();
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    final edl = widget.existingEdl;
+    if (edl != null) {
+      _edlId = edl.id;
+      _date = edl.dateEtatLieux;
+    }
+    _loadRooms();
+    if (edl != null) {
+      _loadPreneurs();
+      _loadObservations();
+    }
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    _scrollCtrl.dispose();
+    _debounce?.cancel();
+    super.dispose();
+  }
+
+  bool get _saved => _edlId != null;
+
+  Future<void> _loadRooms() async {
+    try {
+      final pieces =
+          await PiecesDatasource.listByImmeuble(widget.immeuble.id);
+      final chambres =
+          await ChambresDatasource.listByImmeubles([widget.immeuble.id]);
+      if (!mounted) return;
+      setState(() {
+        _pieces = pieces;
+        _chambres = chambres;
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _loadPreneurs() async {
+    if (_edlId == null) return;
+    try {
+      final list = await EdlDetailsDatasource.listPreneurs(_edlId!);
+      final merged = list.map((p) {
+        if ((p.email == null || p.email!.isEmpty) &&
+            p.locataireId != null &&
+            _emailByLocataire.containsKey(p.locataireId)) {
+          return EdlPreneur(
+            id: p.id,
+            etatDesLieuxId: p.etatDesLieuxId,
+            locataireId: p.locataireId,
+            nom: p.nom,
+            adresse: p.adresse,
+            ordre: p.ordre,
+            email: _emailByLocataire[p.locataireId],
+          );
+        }
+        return p;
+      }).toList();
+      if (mounted) setState(() => _preneurs = merged);
+    } catch (_) {}
+  }
+
+  Future<void> _loadObservations() async {
+    if (_edlId == null) return;
+    try {
+      final obs = await ObservationsEdlDatasource.listByEdl(_edlId!);
+      if (mounted) setState(() => _observations = obs);
+    } catch (_) {}
+  }
+
+  void _snack(String m) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+  }
+
+  Future<void> _pickDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _date,
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+      locale: const Locale('fr'),
+    );
+    if (picked != null && mounted) setState(() => _date = picked);
+  }
+
+  Future<bool> _saveEdl() async {
+    setState(() => _isSaving = true);
+    try {
+      final uid = AuthService.currentUser?.id ?? '';
+      final situation = SituationEdl.fromDate(_date);
+      if (_edlId == null) {
+        final model = EtatDesLieuxModel(
+          id: 0,
+          proprietaireId: uid,
+          locataireId: null,
+          immeubleId: widget.immeuble.id,
+          typeBail: 'collectif',
+          typeEdl: widget.typeEdl,
+          dateEtatLieux: _date,
+          situation: situation,
+          createdAt: DateTime.now(),
+          partie: PartieEdl.commune,
+        );
+        final created = await EtatDesLieuxDatasource.create(model);
+        if (!mounted) return false;
+        setState(() => _edlId = created.id);
+      } else {
+        await EtatDesLieuxDatasource.update(_edlId!, {
+          'date_etat_lieux': _date.toIso8601String().substring(0, 10),
+          'situation': situation.raw,
+        });
+      }
+      return true;
+    } catch (e) {
+      _snack('Erreur : $e');
+      return false;
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  Future<void> _onSavePressed() async {
+    final ok = await _saveEdl();
+    if (ok) _snack('Enregistré.');
+  }
+
+  void _onSearchChanged(String value) {
+    _debounce?.cancel();
+    final q = value.trim();
+    if (q.isEmpty) {
+      setState(() {
+        _searchResults = [];
+        _showResults = false;
+      });
+      _syncResultsOverlay();
+      return;
+    }
+    _debounce = Timer(const Duration(milliseconds: 300), () async {
+      setState(() => _searching = true);
+      try {
+        final r = await EtatDesLieuxDatasource.searchLocataires(q);
+        if (!mounted) return;
+        setState(() {
+          _searchResults = r;
+          _showResults = true;
+        });
+        _syncResultsOverlay();
+      } catch (_) {
+      } finally {
+        if (mounted) setState(() => _searching = false);
+      }
+    });
+  }
+
+  Future<void> _addPreneur(UsersClient user) async {
+    if (_preneurs.any((p) => p.locataireId == user.id)) {
+      _snack('Ce locataire est déjà ajouté.');
+      _clearSearch();
+      return;
+    }
+    if (_edlId == null) {
+      final ok = await _saveEdl();
+      if (!ok) return;
+    }
+    if (user.email.isNotEmpty) _emailByLocataire[user.id] = user.email;
+    try {
+      await EdlDetailsDatasource.createPreneur(EdlPreneur(
+        etatDesLieuxId: _edlId!,
+        locataireId: user.id,
+        nom: user.fullName ?? user.email,
+        ordre: _preneurs.length,
+      ));
+      _clearSearch();
+      await _loadPreneurs();
+    } catch (e) {
+      _snack('Erreur : $e');
+    }
+  }
+
+  Future<void> _deletePreneur(int id) async {
+    try {
+      await EdlDetailsDatasource.deletePreneur(id);
+      await _loadPreneurs();
+    } catch (e) {
+      _snack('Erreur : $e');
+    }
+  }
+
+  void _clearSearch() {
+    _searchCtrl.clear();
+    setState(() {
+      _searchResults = [];
+      _showResults = false;
+    });
+    _syncResultsOverlay();
+  }
+
+  /// Liste flottante des résultats — affichée par-dessus le reste de l'UI
+  /// (ne pousse pas les autres sections vers le bas).
+  Widget _buildResultsOverlay(BuildContext context) {
+    final box = _searchFieldKey.currentContext?.findRenderObject() as RenderBox?;
+    final width = box?.size.width ?? 320.0;
+    return Positioned(
+      width: width,
+      child: CompositedTransformFollower(
+        link: _searchLink,
+        showWhenUnlinked: false,
+        targetAnchor: Alignment.bottomLeft,
+        followerAnchor: Alignment.topLeft,
+        offset: const Offset(0, 4),
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            decoration: BoxDecoration(
+              border: Border.all(color: AppColors.outlineVariant),
+              borderRadius: AppRadius.borderSm,
+              color: AppColors.surfaceContainerLowest,
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.shadowTint.withValues(alpha: 0.18),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: _searchResults
+                  .take(5)
+                  .map((u) => ListTile(
+                        dense: true,
+                        title: Text(u.fullName ?? u.email),
+                        subtitle: Text(u.email,
+                            maxLines: 1, overflow: TextOverflow.ellipsis),
+                        onTap: () => _addPreneur(u),
+                      ))
+                  .toList(),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openWall(
+    String wallKey, {
+    int? pieceId,
+    int? chambreId,
+    ObservationEdl? existing,
+  }) async {
+    if (_edlId == null) {
+      final ok = await _saveEdl();
+      if (!ok || !mounted) return;
+    }
+    final saved =
+        await showDialog<({String? description, List<String> photos})>(
+      context: context,
+      builder: (_) => _WallObsDialog(wallKey: wallKey, existing: existing),
+    );
+    if (saved == null || !mounted) return;
+    try {
+      final obs = ObservationEdl(
+        etatDesLieuxId: _edlId!,
+        wallKey: wallKey,
+        pieceId: pieceId,
+        chambreId: chambreId,
+        description: saved.description,
+        photos: saved.photos,
+      );
+      if (existing?.id != null) {
+        await ObservationsEdlDatasource.updateById(existing!.id!, obs);
+      } else {
+        await ObservationsEdlDatasource.insertWall(obs);
+      }
+      await _loadObservations();
+    } catch (e) {
+      _snack('Erreur : $e');
+    }
+  }
+
+  Future<void> _openGeneral({
+    int? pieceId,
+    int? chambreId,
+    ObservationEdl? existing,
+  }) async {
+    if (_edlId == null) {
+      final ok = await _saveEdl();
+      if (!ok || !mounted) return;
+    }
+    final saved =
+        await showDialog<({String? description, List<String> photos})>(
+      context: context,
+      builder: (_) => _GeneralObsDialog(existing: existing),
+    );
+    if (saved == null || !mounted) return;
+    try {
+      final obs = ObservationEdl(
+        etatDesLieuxId: _edlId!,
+        wallKey: null,
+        pieceId: pieceId,
+        chambreId: chambreId,
+        description: saved.description,
+        photos: saved.photos,
+      );
+      if (existing?.id != null) {
+        await ObservationsEdlDatasource.updateById(existing!.id!, obs);
+      } else {
+        await ObservationsEdlDatasource.insertGeneral(obs);
+      }
+      await _loadObservations();
+    } catch (e) {
+      _snack('Erreur : $e');
+    }
+  }
+
+  Future<void> _deleteObservation(int id) async {
+    try {
+      await ObservationsEdlDatasource.deleteById(id);
+      await _loadObservations();
+    } catch (e) {
+      _snack('Erreur : $e');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        FormPageHeader(
+          title: "Nouvel état des lieux — ${widget.immeuble.name}",
+          leading: IconButton.outlined(
+            icon: const Icon(Icons.close),
+            tooltip: 'Annuler',
+            onPressed: () => widget.onClose(_saved),
+          ),
+          trailing: FilledButton.icon(
+            onPressed: _isSaving ? null : _onSavePressed,
+            style: AppTheme.saveButtonStyle,
+            icon: _isSaving
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.save_outlined),
+            label: const Text('Enregistrer'),
+          ),
+        ),
+        Expanded(
+          child: SingleChildScrollView(
+            controller: _scrollCtrl,
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _buildTopRow(),
+                const SizedBox(height: AppSpacing.md),
+                _buildLocatairesSection(),
+                const SizedBox(height: AppSpacing.xl),
+                _buildRoomsSection(),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTopRow() {
+    return LayoutBuilder(builder: (context, constraints) {
+      final wide = constraints.maxWidth >= 640;
+      if (wide) {
+        return IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(flex: 3, child: _buildBienCard()),
+              const SizedBox(width: AppSpacing.md),
+              SizedBox(width: 220, child: _buildDatesCard()),
+            ],
+          ),
+        );
+      }
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildBienCard(),
+          const SizedBox(height: AppSpacing.md),
+          _buildDatesCard(),
+        ],
+      );
+    });
+  }
+
+  Widget _sectionCard({required String title, required Widget child}) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceContainerLowest,
+        borderRadius: AppRadius.borderMd,
+        border: Border.all(color: AppColors.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            title,
+            style: AppTypography.labelMd
+                .copyWith(color: AppColors.onSurfaceVariant),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          child,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBienCard() {
+    final imm = widget.immeuble;
+    final lieu = [imm.address, imm.city]
+        .where((s) => s != null && s.isNotEmpty)
+        .join(' · ');
+    return _sectionCard(
+      title: 'BIEN',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(imm.name, style: AppTypography.titleLg),
+          if (lieu.isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Text(
+              lieu,
+              style: AppTypography.bodyMd
+                  .copyWith(color: AppColors.onSurfaceVariant),
+            ),
+          ],
+          const SizedBox(height: AppSpacing.sm),
+          Wrap(
+            spacing: AppSpacing.sm,
+            runSpacing: AppSpacing.xs,
+            children: [
+              _MetaChip(
+                icon: Icons.square_foot,
+                text: imm.totalM2 != null
+                    ? '${imm.totalM2!.toStringAsFixed(0)} m²'
+                    : '— m²',
+              ),
+              const _MetaChip(
+                  icon: Icons.assignment_outlined, text: 'Collectif'),
+              const _MetaChip(
+                  icon: Icons.chair_outlined, text: 'Non meublée'),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLocatairesSection() {
+    final searchField = CompositedTransformTarget(
+      link: _searchLink,
+      child: OverlayPortal(
+        controller: _resultsCtrl,
+        overlayChildBuilder: _buildResultsOverlay,
+        child: TextField(
+          key: _searchFieldKey,
+          controller: _searchCtrl,
+          onChanged: _onSearchChanged,
+          decoration: InputDecoration(
+            hintText: 'Rechercher un locataire (nom, e-mail)…',
+            prefixIcon: const Icon(Icons.search, size: 18),
+            suffixIcon: _searching
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: Padding(
+                      padding: EdgeInsets.all(10),
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  )
+                : (_searchCtrl.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.close, size: 18),
+                        onPressed: _clearSearch,
+                      )
+                    : null),
+            isDense: true,
+            border: const OutlineInputBorder(),
+          ),
+        ),
+      ),
+    );
+
+    final searchColumn = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        searchField,
+        if (!_saved) ...[
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            "Enregistrez d'abord pour ajouter des locataires.",
+            style: AppTypography.labelSm
+                .copyWith(color: AppColors.onSurfaceVariant),
+          ),
+        ] else if (_preneurs.isNotEmpty) ...[
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            '${_preneurs.length} locataire${_preneurs.length > 1 ? 's' : ''} ajouté${_preneurs.length > 1 ? 's' : ''} à droite.',
+            style: AppTypography.labelSm
+                .copyWith(color: AppColors.onSurfaceVariant),
+          ),
+        ],
+      ],
+    );
+
+    final tenantsArea = _preneurs.isEmpty
+        ? Padding(
+            padding: const EdgeInsets.only(top: AppSpacing.sm),
+            child: Text(
+              _saved ? 'Aucun locataire ajouté.' : '',
+              style: AppTypography.bodyMd
+                  .copyWith(color: AppColors.onSurfaceVariant),
+            ),
+          )
+        : Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              for (final p in _preneurs)
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 300),
+                  child: IntrinsicWidth(
+                    child: _TenantCard(
+                      preneur: p,
+                      onDelete: () => _deletePreneur(p.id!),
+                    ),
+                  ),
+                ),
+            ],
+          );
+
+    return _sectionCard(
+      title: 'LOCATAIRES',
+      child: LayoutBuilder(builder: (context, constraints) {
+        if (constraints.maxWidth >= 580) {
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(width: 320, child: searchColumn),
+              const SizedBox(width: 24),
+              Expanded(child: tenantsArea),
+            ],
+          );
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            searchColumn,
+            const SizedBox(height: AppSpacing.md),
+            tenantsArea,
+          ],
+        );
+      }),
+    );
+  }
+
+  Widget _buildDatesCard() {
+    return _sectionCard(
+      title: 'DATES',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            "Date de l'état des lieux",
+            style: AppTypography.labelSm
+                .copyWith(color: AppColors.onSurfaceVariant),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          InkWell(
+            onTap: _pickDate,
+            borderRadius: AppRadius.borderSm,
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md,
+                vertical: 12,
+              ),
+              decoration: BoxDecoration(
+                borderRadius: AppRadius.borderSm,
+                border: Border.all(color: AppColors.outlineVariant),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.calendar_today_outlined, size: 16),
+                  const SizedBox(width: AppSpacing.sm),
+                  Text(_dateFmt.format(_date), style: AppTypography.bodyMd),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRoomsSection() {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceContainerLowest,
+        borderRadius: AppRadius.borderMd,
+        border: Border.all(color: AppColors.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.meeting_room_outlined,
+                  size: 18, color: AppColors.primary),
+              const SizedBox(width: AppSpacing.xs),
+              Text('État des pièces et chambres',
+                  style: AppTypography.titleLg),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            _saved
+                ? 'Cliquez sur un mur, le sol ou le plafond pour ajouter une observation.'
+                : "Enregistrez d'abord pour activer les observations.",
+            style: AppTypography.labelSm
+                .copyWith(color: AppColors.onSurfaceVariant),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          if (_pieces.isEmpty && _chambres.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
+              child: Center(
+                child: Text(
+                  "Aucune pièce ni chambre enregistrée pour cet immeuble.",
+                  style: AppTypography.bodyMd
+                      .copyWith(color: AppColors.onSurfaceVariant),
+                ),
+              ),
+            )
+          else
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (final p in _pieces)
+                  _buildRoomTile(
+                    key: ValueKey('piece-${p.id}'),
+                    tileId: 'piece-${p.id}',
+                    icon: Icons.meeting_room_outlined,
+                    name: p.nom,
+                    planLabel: 'Plan de la pièce — ${p.nom}',
+                    photo: p.photos.isNotEmpty ? p.photos.first.url : null,
+                    obs: _observations
+                        .where((o) => o.pieceId == p.id)
+                        .toList(),
+                    onEditWall: (k) => _openWall(k, pieceId: p.id),
+                    onAddGeneral: () => _openGeneral(pieceId: p.id),
+                  ),
+                for (final c in _chambres)
+                  _buildRoomTile(
+                    key: ValueKey('chambre-${c.id}'),
+                    tileId: 'chambre-${c.id}',
+                    icon: Icons.bed_outlined,
+                    name: c.roomName,
+                    planLabel: 'Plan de la chambre — ${c.roomName}',
+                    photo: c.mainPhoto ??
+                        (c.roomPhotos.isNotEmpty ? c.roomPhotos.first : null),
+                    obs: _observations
+                        .where((o) => o.chambreId == c.id)
+                        .toList(),
+                    onEditWall: (k) => _openWall(k, chambreId: c.id),
+                    onAddGeneral: () => _openGeneral(chambreId: c.id),
+                  ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+
+  static const _wallKeys = ['fond', 'gauche', 'droit', 'porte', 'sol', 'plafond'];
+
+  Widget _wallProgressBadge(List<ObservationEdl> obs) {
+    final done = _wallKeys.where((k) => obs.any((o) => o.wallKey == k)).length;
+    final color = done == 6
+        ? AppColors.primary
+        : (done > 0 ? AppColors.secondary : AppColors.onSurfaceVariant);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: AppRadius.borderFull,
+        border: Border.all(color: color.withValues(alpha: 0.35)),
+      ),
+      child: Text(
+        '$done/6',
+        style: AppTypography.labelSm.copyWith(
+          color: color,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRoomTile({
+    required Key key,
+    required String tileId,
+    required IconData icon,
+    required String name,
+    required String planLabel,
+    String? photo,
+    required List<ObservationEdl> obs,
+    required void Function(String wallKey) onEditWall,
+    required VoidCallback onAddGeneral,
+  }) {
+    final tileKey = _tileKeys.putIfAbsent(tileId, GlobalKey.new);
+    return Container(
+      key: key,
+      margin: const EdgeInsets.only(bottom: AppSpacing.xs),
+      decoration: BoxDecoration(
+        borderRadius: AppRadius.borderSm,
+        border: Border.all(color: AppColors.outlineVariant),
+      ),
+      child: ClipRRect(
+        borderRadius: AppRadius.borderSm,
+        child: ExpansionTile(
+          key: tileKey,
+          // Header ligeiramente colorido; body branco abaixo via Container filho.
+          collapsedBackgroundColor: const Color(0xFFF0F6FA),
+          backgroundColor: const Color(0xFFF0F6FA),
+          shape: const Border(),
+          collapsedShape: const Border(),
+          leading: Icon(icon, color: AppColors.primary),
+          title: Text(name,
+              style: AppTypography.titleLg,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis),
+          trailing: _wallProgressBadge(obs),
+          onExpansionChanged: (expanded) {
+            if (!expanded) return;
+            // Attendre la fin de l'animation d'expansion (≈200 ms) avant de
+            // scroller, sinon la box n'a pas encore sa hauteur finale.
+            Future.delayed(const Duration(milliseconds: 260), () {
+              if (!mounted) return;
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                final ctx = tileKey.currentContext;
+                if (ctx != null) {
+                  Scrollable.ensureVisible(
+                    ctx,
+                    alignment: 0.05,
+                    duration: const Duration(milliseconds: 350),
+                    curve: Curves.easeOut,
+                  );
+                }
+              });
+            });
+          },
+          childrenPadding: EdgeInsets.zero,
+          children: [
+            Container(
+              color: AppColors.surfaceContainerLowest,
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.md,
+                AppSpacing.sm,
+                AppSpacing.md,
+                AppSpacing.lg,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  AbsorbPointer(
+                    absorbing: !_saved,
+                    child: Opacity(
+                      opacity: _saved ? 1 : 0.5,
+                      child: RepaintBoundary(
+                        child: _RoomDiagram(
+                          chambreName: name,
+                          planLabel: planLabel,
+                          chambrePhoto: photo,
+                          observations: obs,
+                          onEditWall: onEditWall,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: OutlinedButton.icon(
+                      onPressed: _saved ? onAddGeneral : null,
+                      icon: const Icon(Icons.add, size: 16),
+                      label: const Text('Ajouter une observation générale'),
+                    ),
+                  ),
+                  if (obs.isNotEmpty) ...[
+                    const SizedBox(height: AppSpacing.md),
+                    _ObservationsList(
+                      observations: obs,
+                      onEdit: (o) => o.wallKey != null
+                          ? _openWall(o.wallKey!,
+                              existing: o,
+                              pieceId: o.pieceId,
+                              chambreId: o.chambreId)
+                          : _openGeneral(
+                              existing: o,
+                              pieceId: o.pieceId,
+                              chambreId: o.chambreId),
+                      onDelete: (o) {
+                        if (o.id != null) _deleteObservation(o.id!);
+                      },
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MetaChip extends StatelessWidget {
+  final IconData icon;
+  final String text;
+  const _MetaChip({required this.icon, required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceContainerLow,
+        borderRadius: AppRadius.borderFull,
+        border: Border.all(color: AppColors.outlineVariant),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: AppColors.onSurfaceVariant),
+          const SizedBox(width: 4),
+          Text(text,
+              style: AppTypography.labelSm
+                  .copyWith(color: AppColors.onSurfaceVariant)),
+        ],
+      ),
+    );
+  }
+}
+
+class _TenantCard extends StatelessWidget {
+  final EdlPreneur preneur;
+  final VoidCallback onDelete;
+
+  const _TenantCard({required this.preneur, required this.onDelete});
+
+  @override
+  Widget build(BuildContext context) {
+    final initials = (preneur.nom ?? '?')
+        .trim()
+        .split(' ')
+        .where((w) => w.isNotEmpty)
+        .take(2)
+        .map((w) => w[0].toUpperCase())
+        .join();
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFCFE0E7)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          CircleAvatar(
+            radius: 14,
+            backgroundColor: AppColors.primary.withValues(alpha: 0.12),
+            child: Text(
+              initials,
+              style: AppTypography.labelSm.copyWith(
+                color: AppColors.primary,
+                fontWeight: FontWeight.w700,
+                fontSize: 11,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  preneur.nom ?? '—',
+                  style: AppTypography.labelMd
+                      .copyWith(fontWeight: FontWeight.w600),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if (preneur.email != null && preneur.email!.isNotEmpty)
+                  Text(
+                    preneur.email!,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: Color(0xFF5B6772),
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 6),
+          CardDeleteButton(onPressed: onDelete),
+        ],
+      ),
     );
   }
 }

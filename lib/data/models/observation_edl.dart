@@ -23,11 +23,13 @@ class ObservationEdl {
       (description != null && description!.isNotEmpty) || photos.isNotEmpty;
 
   String get wallLabel => switch (wallKey) {
-    'fond'   => 'Mur du fond',
-    'gauche' => 'Mur gauche',
-    'droit'  => 'Mur droit',
-    'porte'  => "Mur d'entrée / Porte",
-    _        => 'Général',
+    'fond'    => 'Mur du fond',
+    'gauche'  => 'Mur gauche',
+    'droit'   => 'Mur droit',
+    'porte'   => "Mur d'entrée / Porte",
+    'sol'     => 'Sol',
+    'plafond' => 'Plafond',
+    _         => 'Général',
   };
 
   factory ObservationEdl.fromMap(Map<String, dynamic> map) => ObservationEdl(

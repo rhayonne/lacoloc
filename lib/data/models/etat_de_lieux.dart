@@ -85,7 +85,7 @@ enum SituationEdl {
 class EtatDesLieuxModel {
   final int id;
   final String proprietaireId;
-  final String locataireId;
+  final String? locataireId;
   final int immeubleId;
   final int? chambreId;
   final String typeBail; // 'collectif' | 'individuel'
@@ -128,7 +128,7 @@ class EtatDesLieuxModel {
   const EtatDesLieuxModel({
     required this.id,
     required this.proprietaireId,
-    required this.locataireId,
+    this.locataireId,
     required this.immeubleId,
     this.chambreId,
     required this.typeBail,
@@ -172,7 +172,7 @@ class EtatDesLieuxModel {
     return EtatDesLieuxModel(
       id: map['id'] as int,
       proprietaireId: map['proprietaire_id'] as String,
-      locataireId: map['locataire_id'] as String,
+      locataireId: map['locataire_id'] as String?,
       immeubleId: map['immeuble_id'] as int,
       chambreId: map['chambre_id'] as int?,
       typeBail: map['type_bail'] as String,
@@ -226,7 +226,7 @@ class EtatDesLieuxModel {
 
   Map<String, dynamic> toInsert() => {
     'proprietaire_id': proprietaireId,
-    'locataire_id': locataireId,
+    if (locataireId != null) 'locataire_id': locataireId,
     'immeuble_id': immeubleId,
     if (chambreId != null) 'chambre_id': chambreId,
     'type_bail': typeBail,

@@ -10,6 +10,7 @@ import 'package:lacoloc_front/data/models/visite.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_radius.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
+import 'package:lacoloc_front/theme/app_theme.dart';
 import 'package:lacoloc_front/theme/app_typography.dart';
 import 'package:lacoloc_front/utils/phone_field.dart';
 
@@ -88,10 +89,7 @@ class _AgendaVisitesPageState extends State<AgendaVisitesPage> {
             child: const Text('Annuler'),
           ),
           FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: AppColors.error,
-              foregroundColor: AppColors.onError,
-            ),
+            style: AppTheme.deleteButtonStyle,
             onPressed: () => Navigator.pop(context, true),
             child: const Text('Supprimer'),
           ),

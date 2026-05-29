@@ -12,6 +12,7 @@ import 'package:lacoloc_front/presentation/users/proprietaires/creer_piece_page.
 import 'package:lacoloc_front/presentation/users/proprietaires/inventaire_page.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
+import 'package:lacoloc_front/theme/app_theme.dart';
 import 'package:lacoloc_front/theme/app_typography.dart';
 import 'package:lacoloc_front/utils/currency.dart';
 
@@ -117,7 +118,7 @@ class _ImmeubleDetailPageState extends State<ImmeubleDetailPage> {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+            style: AppTheme.deleteButtonStyle,
             child: const Text('Supprimer'),
           ),
         ],

@@ -199,4 +199,17 @@ class AppTheme {
     shape: RoundedRectangleBorder(borderRadius: AppRadius.borderMd),
     minimumSize: const Size(0, 48),
   );
+
+  /// Style rouge pour tous les boutons "Supprimer" de l'app.
+  static ButtonStyle get deleteButtonStyle => FilledButton.styleFrom(
+    backgroundColor: AppColors.error,
+    foregroundColor: Colors.white,
+    textStyle: AppTypography.labelMd,
+    padding: const EdgeInsets.symmetric(
+      horizontal: AppSpacing.lg,
+      vertical: AppSpacing.md,
+    ),
+    shape: RoundedRectangleBorder(borderRadius: AppRadius.borderMd),
+    minimumSize: const Size(0, 48),
+  );
 }

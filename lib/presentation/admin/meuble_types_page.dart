@@ -5,6 +5,7 @@ import 'package:lacoloc_front/data/datasources/inventaire.dart';
 import 'package:lacoloc_front/data/models/inventaire.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
+import 'package:lacoloc_front/theme/app_theme.dart';
 import 'package:lacoloc_front/theme/app_typography.dart';
 
 class MeubleTypesPage extends StatefulWidget {
@@ -66,10 +67,7 @@ class _MeubleTypesPageState extends State<MeubleTypesPage> {
           ),
           FilledButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            style: FilledButton.styleFrom(
-              backgroundColor: AppColors.error,
-              foregroundColor: AppColors.onError,
-            ),
+            style: AppTheme.deleteButtonStyle,
             child: const Text('Supprimer'),
           ),
         ],
