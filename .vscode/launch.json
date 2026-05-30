@@ -2,22 +2,63 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Flutter: Debug (Selected Device)",
+      "name": "Flutter: Dev",
       "request": "launch",
       "type": "dart",
-      "program": "lib/main.dart"
+      "program": "lib/main.dart",
+      "args": [
+        "--dart-define",
+        "ENV=dev",
+        "--web-port",
+        "44785"
+      ]
     },
     {
-      "name": "Flutter: Web (Chrome)",
+      "name": "Flutter: Prod",
       "request": "launch",
       "type": "dart",
+      "program": "lib/main.dart",
+      "args": [
+        "--dart-define",
+        "ENV=prod"
+      ]
+    },
+    {
+      "name": "Flutter: Web (Chrome - Dev)",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
       "args": [
         "-d",
         "chrome",
         "--web-port",
-        "44785"
-      ],
-      "program": "lib/main.dart"
+        "44785",
+        "--dart-define",
+        "ENV=dev"
+      ]
     }
   ]
 }
+// {
+//   "version": "0.2.0",
+//   "configurations": [
+//     {
+//       "name": "Flutter: Debug (Selected Device)",
+//       "request": "launch",
+//       "type": "dart",
+//       "program": "lib/main.dart"
+//     },
+//     {
+//       "name": "Flutter: Web (Chrome)",
+//       "request": "launch",
+//       "type": "dart",
+//       "args": [
+//         "-d",
+//         "chrome",
+//         "--web-port",
+//         "44785"
+//       ],
+//       "program": "lib/main.dart"
+//     }
+//   ]
+// }

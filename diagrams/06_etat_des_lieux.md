@@ -208,11 +208,21 @@ Ao clicar « Nouveau » em Vision générale / Entrée / Sortie:
 2. Se o imóvel é **bail collectif** e **`location_meuble = false`** → abre a página
    **`EdlCollectifNonMeubleePage`** (full-width):
    - Topo 3 colunas: **Bien** (nome, endereço, m², chips Collectif/Non meublée) ·
-     **Locataires** (busca `search_locataires` + lista de preneurs com lixeira,
-     persistidos em `etat_de_lieux_preneurs`) · **Dates** (`date_etat_lieux`).
+     **Locataires** · **Dates** (`date_etat_lieux`).
+   - **Locataires**: campo de busca (`search_locataires`) cujos resultados são
+     exibidos num **painel flutuante** (`OverlayPortal` + `CompositedTransformFollower`)
+     que **não empurra** o resto da UI. O rodapé do painel sempre oferece
+     **« Enregistrer un nouveau locataire »** (em destaque quando a busca não retorna
+     nada) → abre o `_CreerLocataireDialog` (nom, e-mail, téléphone). Os preneurs
+     adicionados aparecem em **cards compactos** (grade via `Wrap`, avatar + nom +
+     e-mail) com botão **lixeira** (`CardDeleteButton`, widget padrão do tema).
+     Persistidos em `etat_de_lieux_preneurs`. O e-mail vem do join `Users_Client`,
+     com fallback num cache local (`_emailByLocataire`) caso a RLS bloqueie o embed.
    - Abaixo: lista expansível de pièces + chambres com o `_RoomDiagram` de **6
      zonas** (4 murs + plafond + sol). Observações escopadas via
-     `piece_id`/`chambre_id` + `wall_key`.
+     `piece_id`/`chambre_id` + `wall_key`. Ao expandir um item, a tela faz
+     `Scrollable.ensureVisible` (após a animação) para trazê-lo ao topo; o header do
+     accordeon tem cor distinta do corpo para sinalizar a área clicável.
 3. Demais combinações (Individuel / Meublée) → SnackBar
    « Ce cas est en cours de développement » — a edição de EDLs existentes
    continua usando o stepper `_EdlFormOverlay`.
@@ -220,3 +230,31 @@ Ao clicar « Nouveau » em Vision générale / Entrée / Sortie:
 Schema: `etat_de_lieux.locataire_id` é **nullable** desde a migração
 `etat_de_lieux_locataire_id_nullable` (collectif usa `preneurs`, sem locataire
 principal).
+
+### Criar locataire pelo EDL → e-mail de ativação → criação de senha
+
+```mermaid
+sequenceDiagram
+    actor PR as Propriétaire
+    participant UI as EdlCollectifNonMeubleePage
+    participant EDS as EtatDesLieuxDatasource
+    participant FN as Edge invite-locataire
+    participant MAIL as SMTP (Supabase)
+    actor LC as Locataire
+
+    PR->>UI: busca não acha → "Enregistrer un nouveau locataire"
+    UI->>EDS: inviteLocataire(fullName, email, phone, redirectTo, mailTo?)
+    Note over EDS: redirectTo = raiz do app\n(URL_EMAIL_CONFIRMATION_DEV/PROD)\nmailTo = ADDR_MAIL_CONFIRMATION (dev)
+    EDS->>FN: functions.invoke
+    FN->>FN: gera senha temp + admin.createUser\n(email_confirm:true, needs_completion:true)
+    FN->>MAIL: e-mail com senha temp + link …/?email&temp
+    FN-->>UI: { userId } → adicionado como preneur
+    LC->>LC: clica no link do e-mail
+    LC->>UI: abre raiz com ?email&temp
+    Note over UI: my_app._handleActivationLink:\nsignInWithPassword(email, temp) automático\n→ needs_completion → /completer-inscription
+    LC->>EDS: define NOVA senha (updateUser, needs_completion=false) → /profile
+```
+
+A senha temporária deixa de valer após a troca, então o **link não expira mas é
+naturalmente de uso único**. O e-mail real do compte nunca muda; em dev o e-mail
+é só **entregue** em `ADDR_MAIL_CONFIRMATION`.

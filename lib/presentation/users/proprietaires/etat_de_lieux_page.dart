@@ -4295,50 +4295,53 @@ class _ObservationsList extends StatelessWidget {
       (grouped[obs.wallKey] ??= []).add(obs);
     }
 
-    final sections = <Widget>[];
+    // Um "bloco" por mur (cabeçalho + suas observações), mantido inteiro para
+    // poder dispor os blocos em 2 colunas sem separar header das obs.
+    final blocks = <Widget>[];
     for (final wallKey in _wallOrder) {
       final group = grouped[wallKey];
       if (group == null || group.isEmpty) continue;
 
-      sections.add(
-        Padding(
-          padding: const EdgeInsets.only(
-            top: AppSpacing.md,
-            bottom: AppSpacing.xs,
-          ),
-          child: Row(
-            children: [
-              Icon(
-                wallKey != null ? Icons.crop_square : Icons.notes_outlined,
-                size: 14,
-                color: AppColors.primary,
+      blocks.add(
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(
+                top: AppSpacing.md,
+                bottom: AppSpacing.xs,
               ),
-              const SizedBox(width: AppSpacing.xs),
-              Text(
-                _groupLabel(wallKey).toUpperCase(),
-                style: AppTypography.labelSm.copyWith(
-                  color: AppColors.primary,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1.1,
+              child: Row(
+                children: [
+                  Icon(
+                    wallKey != null ? Icons.crop_square : Icons.notes_outlined,
+                    size: 14,
+                    color: AppColors.primary,
+                  ),
+                  const SizedBox(width: AppSpacing.xs),
+                  Text(
+                    _groupLabel(wallKey).toUpperCase(),
+                    style: AppTypography.labelSm.copyWith(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.1,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            for (final obs in group)
+              Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                child: _ObservationTile(
+                  obs: obs,
+                  onEdit: () => onEdit(obs),
+                  onDelete: () => onDelete(obs),
                 ),
               ),
-            ],
-          ),
+          ],
         ),
       );
-
-      for (final obs in group) {
-        sections.add(
-          Padding(
-            padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-            child: _ObservationTile(
-              obs: obs,
-              onEdit: () => onEdit(obs),
-              onDelete: () => onDelete(obs),
-            ),
-          ),
-        );
-      }
     }
 
     return Column(
@@ -4351,7 +4354,27 @@ class _ObservationsList extends StatelessWidget {
             letterSpacing: 1.2,
           ),
         ),
-        ...sections,
+        // 2 colunas (cada bloco = metade da largura) em telas não-mobile;
+        // empilhado no mobile (< 600px).
+        LayoutBuilder(
+          builder: (context, constraints) {
+            if (constraints.maxWidth < 600) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: blocks,
+              );
+            }
+            const gap = AppSpacing.lg;
+            final colWidth = (constraints.maxWidth - gap) / 2;
+            return Wrap(
+              spacing: gap,
+              runSpacing: 0,
+              children: [
+                for (final b in blocks) SizedBox(width: colWidth, child: b),
+              ],
+            );
+          },
+        ),
       ],
     );
   }
@@ -4682,7 +4705,9 @@ class _EdlCollectifNonMeubleePageState
   final Map<String, String> _emailByLocataire = {};
 
   void _syncResultsOverlay() {
-    if (_showResults && _searchResults.isNotEmpty) {
+    // On affiche aussi le panneau quand il n'y a aucun résultat, pour proposer
+    // la création d'un nouveau locataire.
+    if (_showResults) {
       _resultsCtrl.show();
     } else {
       _resultsCtrl.hide();
@@ -4888,6 +4913,21 @@ class _EdlCollectifNonMeubleePageState
     _syncResultsOverlay();
   }
 
+  /// Ouvre le pop-up de création d'un nouveau locataire. À la confirmation,
+  /// la fonction edge `invite-locataire` crée le compte et envoie l'e-mail
+  /// d'activation ; le locataire est ensuite ajouté comme preneur de l'EDL.
+  Future<void> _openCreerLocataireDialog() async {
+    final uid = AuthService.currentUser?.id ?? '';
+    final created = await showDialog<UsersClient>(
+      context: context,
+      builder: (_) => _CreerLocataireDialog(proprietaireId: uid),
+    );
+    if (created == null || !mounted) return;
+    _clearSearch();
+    await _addPreneur(created);
+    _snack('Locataire enregistré — un e-mail d\'activation a été envoyé.');
+  }
+
   /// Liste flottante des résultats — affichée par-dessus le reste de l'UI
   /// (ne pousse pas les autres sections vers le bas).
   Widget _buildResultsOverlay(BuildContext context) {
@@ -4918,16 +4958,37 @@ class _EdlCollectifNonMeubleePageState
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
-              children: _searchResults
-                  .take(5)
-                  .map((u) => ListTile(
+              children: [
+                if (_searchResults.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                    child: Text(
+                      'Aucun locataire trouvé.',
+                      style: AppTypography.bodyMd
+                          .copyWith(color: AppColors.onSurfaceVariant),
+                    ),
+                  )
+                else
+                  ..._searchResults.take(5).map((u) => ListTile(
                         dense: true,
                         title: Text(u.fullName ?? u.email),
                         subtitle: Text(u.email,
                             maxLines: 1, overflow: TextOverflow.ellipsis),
                         onTap: () => _addPreneur(u),
-                      ))
-                  .toList(),
+                      )),
+                const Divider(height: 1),
+                ListTile(
+                  dense: true,
+                  leading: const Icon(Icons.person_add_outlined,
+                      size: 20, color: AppColors.primary),
+                  title: Text(
+                    'Enregistrer un nouveau locataire',
+                    style: AppTypography.labelMd
+                        .copyWith(color: AppColors.primary),
+                  ),
+                  onTap: _openCreerLocataireDialog,
+                ),
+              ],
             ),
           ),
         ),

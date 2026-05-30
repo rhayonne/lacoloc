@@ -1,3 +1,5 @@
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:lacoloc_front/config/env_config.dart';
 import 'package:lacoloc_front/data/models/etat_de_lieux.dart';
 import 'package:lacoloc_front/data/models/users_client.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -6,6 +8,22 @@ class EtatDesLieuxDatasource {
   EtatDesLieuxDatasource._();
 
   static final _db = Supabase.instance.client;
+
+  /// URL de la page de création de mot de passe vers laquelle le lien
+  /// d'invitation par e-mail doit rediriger. En prod (`EnvConfig.isProd`) on
+  /// utilise `URL_EMAIL_CONFIRMATION_PROD`, sinon `URL_EMAIL_CONFIRMATION_DEV`.
+  static String get _confirmationUrl {
+    final key = EnvConfig.isProd
+        ? 'URL_EMAIL_CONFIRMATION_PROD'
+        : 'URL_EMAIL_CONFIRMATION_DEV';
+    return dotenv.get(
+      key,
+      fallback: dotenv.get(
+        'URL_EMAIL_CONFIRMATION',
+        fallback: 'http://localhost:44785/confirmation-locataire',
+      ),
+    );
+  }
   static const _table = 'etat_de_lieux';
   static const _select =
       '*, '
@@ -173,6 +191,31 @@ class EtatDesLieuxDatasource {
     return rows.map((r) => UsersClient.fromJson(r as Map<String, dynamic>)).toList();
   }
 
+  /// En **dev**, redirige tous les e-mails d'invitation vers `ADDR_MAIL_CONFIRMATION`
+  /// (boîte de test), sans changer l'e-mail réel du compte créé. En prod : `null`.
+  static String? get _devMailOverride {
+    if (!EnvConfig.isDev) return null;
+    final addr = dotenv.get('ADDR_MAIL_CONFIRMATION', fallback: '').trim();
+    return addr.isEmpty ? null : addr;
+  }
+
+  /// Teste de diagnostic SMTP — envoie **uniquement** un e-mail de test
+  /// (aucun compte créé). Retourne la réponse brute de la fonction edge :
+  /// `{ emailSent, recipient, smtpConfigured, smtpError? }`.
+  ///
+  /// Exemple :
+  /// ```dart
+  /// final r = await EtatDesLieuxDatasource.testInviteEmail('moi@exemple.com');
+  /// debugPrint('$r'); // emailSent: true/false + smtpError éventuel
+  /// ```
+  static Future<Map<String, dynamic>> testInviteEmail(String to) async {
+    final res = await Supabase.instance.client.functions.invoke(
+      'invite-locataire',
+      body: {'test': true, 'fullName': 'Test La Coloc', 'email': to},
+    );
+    return Map<String, dynamic>.from(res.data as Map);
+  }
+
   static Future<String> inviteLocataire({
     required String fullName,
     required String email,
@@ -180,12 +223,15 @@ class EtatDesLieuxDatasource {
     String? phone,
     DateTime? dateOfBirth,
   }) async {
+    final mailTo = _devMailOverride;
     final res = await Supabase.instance.client.functions.invoke(
       'invite-locataire',
       body: {
         'fullName': fullName,
         'email': email,
         'proprietaireId': proprietaireId,
+        'redirectTo': _confirmationUrl,
+        'mailTo': ?mailTo,
         if (phone != null && phone.isNotEmpty) 'phone': phone,
         if (dateOfBirth != null)
           'dateOfBirth': dateOfBirth.toIso8601String().substring(0, 10),

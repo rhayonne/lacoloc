@@ -30,13 +30,51 @@ class _MyAppState extends State<MyApp> {
   void initState() {
     super.initState();
     _authSub = Supabase.instance.client.auth.onAuthStateChange.listen((state) {
-      if (state.event == AuthChangeEvent.signedIn) {
-        final meta = state.session?.user.userMetadata;
-        if (meta?['needs_completion'] == true) {
-          _navigatorKey.currentState
-              ?.pushReplacementNamed('/completer-inscription');
-        }
+      // `initialSession` é emitido quando a sessão é recuperada da URL/Storage
+      // durante o boot (caso do link de convite na web). Tratamos junto com
+      // `signedIn`/`userUpdated` para não perder o redirecionamento.
+      switch (state.event) {
+        case AuthChangeEvent.initialSession:
+        case AuthChangeEvent.signedIn:
+        case AuthChangeEvent.userUpdated:
+          _maybeRedirectToCompletion(state.session);
+        default:
+          break;
       }
+    });
+    _handleActivationLink();
+  }
+
+  /// Lien d'activation `?email=...&temp=...` : connecte automatiquement le
+  /// locataire avec son mot de passe temporaire. Le listener ci-dessus prend
+  /// le relais (needs_completion) et l'amène au formulaire de mot de passe.
+  /// Le compte n'est activé qu'après le changement de mot de passe.
+  Future<void> _handleActivationLink() async {
+    final params = Uri.base.queryParameters;
+    final email = params['email'];
+    final temp = params['temp'];
+    if (email == null || temp == null || email.isEmpty || temp.isEmpty) return;
+    try {
+      await Supabase.instance.client.auth
+          .signInWithPassword(email: email, password: temp);
+      // → signedIn → _maybeRedirectToCompletion → /completer-inscription
+    } catch (_) {
+      // Mot de passe temporaire invalide (déjà changé) → page de connexion.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _navigatorKey.currentState?.pushReplacementNamed('/login');
+      });
+    }
+  }
+
+  /// Se o usuário ainda precisa definir a senha (`needs_completion`), leva-o
+  /// ao formulário. Adiado para pós-frame pois o evento pode chegar antes do
+  /// Navigator existir.
+  void _maybeRedirectToCompletion(Session? session) {
+    final needs = session?.user.userMetadata?['needs_completion'] == true;
+    if (!needs) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _navigatorKey.currentState
+          ?.pushReplacementNamed('/completer-inscription');
     });
   }
 

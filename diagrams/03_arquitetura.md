@@ -117,6 +117,32 @@ graph TB
 
 ---
 
+## Inicialização e seleção de ambiente (`.env`)
+
+`main.dart` carrega o arquivo `.env` do ambiente **antes** de inicializar o Supabase.
+O ambiente é escolhido em tempo de build via `--dart-define=ENV=dev|prod` (padrão `dev`)
+e cada ambiente tem seu próprio arquivo: **`.env.dev`** / **`.env.prod`** (ambos são
+assets no `pubspec.yaml` e estão no `.gitignore` via `.env.*`).
+
+```mermaid
+graph LR
+    DART["--dart-define=ENV=dev|prod\n(padrão: dev)"] --> EC["EnvConfig\n(lib/config/env_config.dart)"]
+    EC -->|fileName = .env.$env| LOAD["dotenv.load(fileName)"]
+    LOAD --> KEYS["SUPA_URL · SUP_ANNON_KEY\nURL_EMAIL_CONFIRMATION_DEV/PROD\nBrevo_Sup_Key · …"]
+    EC -->|isProd| URL["EtatDesLieuxDatasource._confirmationUrl\n→ redirectTo da invite-locataire"]
+```
+
+```bash
+flutter run                              # dev (padrão)
+flutter run --dart-define=ENV=prod       # prod
+flutter build web --dart-define=ENV=prod # build de prod
+```
+
+`EnvConfig.isProd` também seleciona qual URL de confirmação de e-mail é enviada à
+edge function `invite-locataire` (ver [07_convite_e_edge_functions.md](07_convite_e_edge_functions.md)).
+
+---
+
 ## Convenção de Datasource
 
 Todos os datasources são classes com métodos `static` puros — sem instância, sem estado
