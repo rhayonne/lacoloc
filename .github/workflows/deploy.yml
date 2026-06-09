@@ -48,6 +48,11 @@ jobs:
           ENV_PROD: ${{ secrets.ENV_PROD }}
         run: printf '%s\n' "$ENV_PROD" > .env.prod
 
+      # .env.dev doit exister pour que Flutter puisse bundler tous les assets
+      # listés dans pubspec.yaml — il n'est pas chargé en prod (ENV=prod).
+      - name: Create empty .env.dev (required by pubspec assets)
+        run: touch .env.dev
+
       # 4. Dépendances
       - name: Flutter pub get
         run: flutter pub get
