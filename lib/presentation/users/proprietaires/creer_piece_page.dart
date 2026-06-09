@@ -8,6 +8,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:lacoloc_front/data/datasources/pieces.dart';
 import 'package:lacoloc_front/data/datasources/storage_service.dart';
 import 'package:lacoloc_front/data/models/piece.dart';
+import 'package:lacoloc_front/presentation/widgets/form_page_header.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_radius.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
@@ -106,13 +107,22 @@ class _CreerPiecePageState extends State<CreerPiecePage> {
     return GestureDetector(
       onTap: () => FocusScope.of(context).unfocus(),
       child: Scaffold(
-        appBar: AppBar(
-          title: Text(
-            widget.isEditing ? 'Modifier la pièce' : 'Nouvelle pièce',
-          ),
-          leading: const BackButton(),
-        ),
-        body: Center(
+        body: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            FormPageHeader(
+              title: widget.isEditing ? 'Modifier la pièce' : 'Nouvelle pièce',
+              trailing: FormHeaderActions(
+                onSave: _submit,
+                onClose: () => Navigator.of(context).maybePop(),
+                isSaving: _isLoading,
+                saveLabel: widget.isEditing
+                    ? 'Enregistrer les modifications'
+                    : 'Ajouter la pièce',
+              ),
+            ),
+            Expanded(
+              child: Center(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(AppSpacing.lg),
             child: Container(
@@ -183,33 +193,14 @@ class _CreerPiecePageState extends State<CreerPiecePage> {
                           setState(() => _photos = photos),
                     ),
                     const SizedBox(height: AppSpacing.xl),
-
-                    // ── Bouton soumettre ─────────────────────────────────
-                    SizedBox(
-                      height: 52,
-                      child: FilledButton(
-                        onPressed: _isLoading ? null : _submit,
-                        child: _isLoading
-                            ? const SizedBox(
-                                height: 22,
-                                width: 22,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2.5,
-                                  color: AppColors.onPrimary,
-                                ),
-                              )
-                            : Text(
-                                widget.isEditing
-                                    ? 'Enregistrer les modifications'
-                                    : 'Ajouter la pièce',
-                              ),
-                      ),
-                    ),
                   ],
                 ),
               ),
             ),
           ),
+            ),
+            ),
+          ],
         ),
       ),
     );

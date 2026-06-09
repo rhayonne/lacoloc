@@ -31,11 +31,38 @@ class AppSearchBar extends StatefulWidget implements PreferredSizeWidget {
 
 class _AppSearchBarState extends State<AppSearchBar> {
   final TextEditingController _searchController = TextEditingController();
+  final FocusNode _focusNode = FocusNode();
   String _searchQuery = '';
+
+  @override
+  void initState() {
+    super.initState();
+    // A barra cresce ao receber foco e volta ao tamanho padrão ao perdê-lo
+    // (clique fora).
+    _focusNode.addListener(() {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _focusNode.dispose();
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final isLogged = AuthService.isLoggedIn;
+
+    // Em tablet/desktop (≥ 600px) a barra fica ~40% mais larga.
+    final isWide = MediaQuery.sizeOf(context).width >= 600;
+    final expandedWidth = isWide ? 560.0 : 400.0;
+    final collapsedWidth = isWide ? 320.0 : 220.0;
+
+    // O tamanho é dirigido pelo foco do campo (clique dentro → grande,
+    // clique fora → padrão).
+    final isExpanded = _focusNode.hasFocus;
 
     return AppBar(
       leading: widget.leading,
@@ -46,14 +73,14 @@ class _AppSearchBarState extends State<AppSearchBar> {
       title: AnimatedContainer(
         duration: const Duration(milliseconds: 250),
         curve: Curves.easeOut,
-        width: widget.isExpanded ? 400 : 220,
+        width: isExpanded ? expandedWidth : collapsedWidth,
         height: 42,
         decoration: BoxDecoration(
           color: AppColors.surfaceContainerLowest,
           borderRadius: AppRadius.borderFull,
           border: Border.all(color: AppColors.outlineVariant),
           boxShadow: [
-            if (widget.isExpanded)
+            if (isExpanded)
               BoxShadow(
                 color: AppColors.shadowTint.withValues(alpha: 0.12),
                 blurRadius: 12,
@@ -63,6 +90,7 @@ class _AppSearchBarState extends State<AppSearchBar> {
         ),
         child: TextField(
           controller: _searchController,
+          focusNode: _focusNode,
           onTap: widget.onTap,
           onChanged: (value) {
             setState(() => _searchQuery = value);
@@ -118,7 +146,7 @@ class _AppSearchBarState extends State<AppSearchBar> {
               if (isLogged) {
                 Navigator.of(context).pushNamed('/profile');
               } else {
-                showLoginDialog(context);
+                showConnexionDialog(context);
               }
             },
             icon: Icon(isLogged ? Icons.account_circle : Icons.login, size: 18),

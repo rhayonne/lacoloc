@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:flutter/material.dart';
+import 'package:lacoloc_front/data/cache/realtime_refresh_mixin.dart';
 import 'package:lacoloc_front/data/datasources/auth_service.dart';
 import 'package:lacoloc_front/data/datasources/chambres.dart';
 import 'package:lacoloc_front/data/datasources/immeubles.dart';
@@ -25,7 +26,8 @@ class MesChambresPage extends StatefulWidget {
   State<MesChambresPage> createState() => _MesChambresPageState();
 }
 
-class _MesChambresPageState extends State<MesChambresPage> {
+class _MesChambresPageState extends State<MesChambresPage>
+    with RealtimeRefreshMixin {
   late Future<List<_Group>> _future;
 
   @override
@@ -33,6 +35,9 @@ class _MesChambresPageState extends State<MesChambresPage> {
     super.initState();
     _future = _load();
   }
+
+  @override
+  void onRealtimeChange() => _reload();
 
   Future<List<_Group>> _load() async {
     final ownerId = AuthService.currentUser?.id;

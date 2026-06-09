@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:lacoloc_front/data/datasources/chambres.dart';
 import 'package:lacoloc_front/data/datasources/immeubles.dart';
+import 'package:lacoloc_front/data/models/chambre.dart';
 import 'package:lacoloc_front/data/models/immeubles.dart';
 import 'package:lacoloc_front/presentation/widgets/filter_panel.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
@@ -21,6 +22,11 @@ class _ImmeublesListPageState extends State<ImmeublesListPage> {
   late Future<List<ImmeublesModel>> _future;
   ChambreFilter _filter = ChambreFilter.empty;
 
+  /// immeubleId → union des options de ses chambres actives (pour le filtre
+  /// `équipements` côté immeubles : un immeuble matche s'il a au moins une
+  /// chambre couvrant toutes les options choisies).
+  Map<int, Set<int>> _immeubleOptions = const {};
+
   @override
   void initState() {
     super.initState();
@@ -30,10 +36,24 @@ class _ImmeublesListPageState extends State<ImmeublesListPage> {
   Future<List<ImmeublesModel>> _load() async {
     final results = await Future.wait([
       ImmeublesDatasource.listAll(),
-      ChambresDatasource.activeImmeubleIds(),
+      ChambresDatasource.listAll(),
     ]);
     final immeubles = results[0] as List<ImmeublesModel>;
-    final activeIds = results[1] as Set<int>;
+    final chambres = results[1] as List<ChambreModel>;
+
+    // Mapa immeubleId → conjuntos de opções (uma entrada por chambre) +
+    // ids de imóveis com ao menos uma chambre ativa.
+    final activeIds = <int>{};
+    final optsByImmeuble = <int, Set<int>>{};
+    for (final c in chambres) {
+      if (!c.isActive) continue;
+      activeIds.add(c.immeubleId);
+      optsByImmeuble
+          .putIfAbsent(c.immeubleId, () => <int>{})
+          .addAll(c.selectedOptionIds);
+    }
+    _immeubleOptions = optsByImmeuble;
+
     // Apenas imóveis com pelo menos uma chambre activa
     return immeubles.where((i) => activeIds.contains(i.id)).toList();
   }
@@ -59,6 +79,20 @@ class _ImmeublesListPageState extends State<ImmeublesListPage> {
         return false;
       }
     }
+    if (f.bailType == BailTypeFilter.collectif && !imm.bailCollectif) {
+      return false;
+    }
+    if (f.bailType == BailTypeFilter.individuel && !imm.bailIndividuel) {
+      return false;
+    }
+    if (f.meuble != null && imm.locationMeuble != f.meuble) return false;
+    if (f.immeubleTypeId != null && imm.typeId != f.immeubleTypeId) {
+      return false;
+    }
+    if (f.optionIds.isNotEmpty) {
+      final opts = _immeubleOptions[imm.id] ?? const <int>{};
+      if (!f.optionIds.every(opts.contains)) return false;
+    }
     return true;
   }
 
@@ -70,6 +104,13 @@ class _ImmeublesListPageState extends State<ImmeublesListPage> {
         FilterPanel(
           filter: _filter,
           onChanged: (f) => setState(() => _filter = f),
+          modules: const {
+            FilterModule.localisation,
+            FilterModule.bail,
+            FilterModule.meuble,
+            FilterModule.typeImmeuble,
+            FilterModule.equipements,
+          },
         ),
         Expanded(
           child: FutureBuilder<List<ImmeublesModel>>(

@@ -1,3 +1,5 @@
+import 'package:lacoloc_front/data/cache/data_cache.dart';
+import 'package:lacoloc_front/data/cache/realtime_service.dart';
 import 'package:lacoloc_front/data/models/inventaire.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -13,6 +15,9 @@ class InventaireDatasource {
       'chambre:Chambres!chambre_id(id, room_name), '
       'piece:Pieces!piece_id(id, nom)';
 
+  static final _cache = DataCache.instance;
+  static void _invalidate() => _cache.invalidatePrefix(CacheKeys.inventaire);
+
   static Future<List<MeubleReferenceModel>> listMeubleReferences() async {
     final rows = await _db
         .from(_refTable)
@@ -22,22 +27,32 @@ class InventaireDatasource {
     return rows.map(MeubleReferenceModel.fromMap).toList();
   }
 
-  static Future<List<InventaireModel>> listByImmeuble(int immeubleId) async {
-    final rows = await _db
-        .from(_table)
-        .select(_select)
-        .eq('immeuble_id', immeubleId)
-        .order('created_at', ascending: false);
-    return rows.map(InventaireModel.fromMap).toList();
+  static Future<List<InventaireModel>> listByImmeuble(
+    int immeubleId, {
+    bool refresh = false,
+  }) {
+    return _cache.get('${CacheKeys.inventaire}immeuble:$immeubleId', () async {
+      final rows = await _db
+          .from(_table)
+          .select(_select)
+          .eq('immeuble_id', immeubleId)
+          .order('created_at', ascending: false);
+      return rows.map(InventaireModel.fromMap).toList();
+    }, refresh: refresh);
   }
 
-  static Future<List<InventaireModel>> listByChambre(int chambreId) async {
-    final rows = await _db
-        .from(_table)
-        .select(_select)
-        .eq('chambre_id', chambreId)
-        .order('created_at', ascending: false);
-    return rows.map(InventaireModel.fromMap).toList();
+  static Future<List<InventaireModel>> listByChambre(
+    int chambreId, {
+    bool refresh = false,
+  }) {
+    return _cache.get('${CacheKeys.inventaire}chambre:$chambreId', () async {
+      final rows = await _db
+          .from(_table)
+          .select(_select)
+          .eq('chambre_id', chambreId)
+          .order('created_at', ascending: false);
+      return rows.map(InventaireModel.fromMap).toList();
+    }, refresh: refresh);
   }
 
   static Future<InventaireModel> create(InventaireModel m) async {
@@ -46,6 +61,7 @@ class InventaireDatasource {
         .insert(m.toInsert())
         .select(_select)
         .single();
+    _invalidate();
     return InventaireModel.fromMap(row);
   }
 
@@ -56,22 +72,26 @@ class InventaireDatasource {
         .eq('id', id)
         .select(_select)
         .single();
+    _invalidate();
     return InventaireModel.fromMap(row);
   }
 
   static Future<void> delete(int id) async {
     await _db.from(_table).delete().eq('id', id);
+    _invalidate();
   }
 
   /// Insère plusieurs articles en une requête.
   static Future<void> createMany(List<InventaireModel> items) async {
     if (items.isEmpty) return;
     await _db.from(_table).insert(items.map((m) => m.toInsert()).toList());
+    _invalidate();
   }
 
   /// Supprime tous les articles liés à une pièce.
   static Future<void> deleteByPiece(int pieceId) async {
     await _db.from(_table).delete().eq('piece_id', pieceId);
+    _invalidate();
   }
 
   static Future<MeubleReferenceModel> createRef({

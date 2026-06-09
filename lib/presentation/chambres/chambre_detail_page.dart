@@ -10,6 +10,7 @@ import 'package:lacoloc_front/data/models/chambre.dart';
 import 'package:lacoloc_front/data/models/immeubles.dart';
 import 'package:lacoloc_front/data/models/reference.dart';
 import 'package:lacoloc_front/data/models/users_client.dart';
+import 'package:lacoloc_front/presentation/login_dialog.dart';
 import 'package:lacoloc_front/presentation/nav/app_sidebar.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_radius.dart';
@@ -181,7 +182,7 @@ class _ChambreDetailPageState extends State<ChambreDetailPage> {
               label: 'Se connecter',
               onTap: () {
                 if (isNarrow) Navigator.of(ctx).pop();
-                Navigator.of(ctx).pushNamed('/login');
+                showConnexionDialog(ctx);
               },
               color: AppColors.primary,
             ),

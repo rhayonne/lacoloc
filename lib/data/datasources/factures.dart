@@ -1,3 +1,5 @@
+import 'package:lacoloc_front/data/cache/data_cache.dart';
+import 'package:lacoloc_front/data/cache/realtime_service.dart';
 import 'package:lacoloc_front/data/models/facture.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -9,22 +11,35 @@ class FacturesDatasource {
   static const String _select =
       '*, Immeubles!immeuble_id(id, name), Chambres!chambre_id(id, room_name)';
 
-  static Future<List<FactureModel>> listByOwner(String ownerId) async {
-    final rows = await _client
-        .from(_table)
-        .select(_select)
-        .eq('owner_id', ownerId)
-        .order('created_at', ascending: false);
-    return _map(rows);
+  static final _cache = DataCache.instance;
+  static void _invalidate() => _cache.invalidatePrefix(CacheKeys.factures);
+
+  static Future<List<FactureModel>> listByOwner(
+    String ownerId, {
+    bool refresh = false,
+  }) {
+    return _cache.get('${CacheKeys.factures}owner:$ownerId', () async {
+      final rows = await _client
+          .from(_table)
+          .select(_select)
+          .eq('owner_id', ownerId)
+          .order('created_at', ascending: false);
+      return _map(rows);
+    }, refresh: refresh);
   }
 
-  static Future<List<FactureModel>> listByImmeuble(int immeubleId) async {
-    final rows = await _client
-        .from(_table)
-        .select(_select)
-        .eq('immeuble_id', immeubleId)
-        .order('created_at', ascending: false);
-    return _map(rows);
+  static Future<List<FactureModel>> listByImmeuble(
+    int immeubleId, {
+    bool refresh = false,
+  }) {
+    return _cache.get('${CacheKeys.factures}immeuble:$immeubleId', () async {
+      final rows = await _client
+          .from(_table)
+          .select(_select)
+          .eq('immeuble_id', immeubleId)
+          .order('created_at', ascending: false);
+      return _map(rows);
+    }, refresh: refresh);
   }
 
   static Future<FactureModel> create(FactureModel input) async {
@@ -33,6 +48,7 @@ class FacturesDatasource {
         .insert(input.toInsert())
         .select(_select)
         .single();
+    _invalidate();
     return FactureModel.fromMap(inserted);
   }
 
@@ -43,6 +59,7 @@ class FacturesDatasource {
         .eq('id', input.id)
         .select(_select)
         .single();
+    _invalidate();
     return FactureModel.fromMap(updated);
   }
 

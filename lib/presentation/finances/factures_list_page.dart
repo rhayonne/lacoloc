@@ -3,7 +3,6 @@ import 'package:lacoloc_front/data/datasources/auth_service.dart';
 import 'package:lacoloc_front/data/datasources/factures.dart';
 import 'package:lacoloc_front/data/models/facture.dart';
 import 'package:lacoloc_front/presentation/finances/nouvelle_facture_page.dart';
-import 'package:lacoloc_front/presentation/widgets/form_page_header.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_radius.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
@@ -589,25 +588,12 @@ class FactureDetailOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        FormPageHeader(
-          title: readOnly ? 'Détail de la facture' : 'Modifier la facture',
-          leading: IconButton.outlined(
-            icon: const Icon(Icons.arrow_back),
-            onPressed: onClose,
-            tooltip: 'Retour à la liste',
-          ),
-        ),
-        Expanded(
-          child: NouvelleFacturePage(
-            facture: facture,
-            readOnly: readOnly,
-            onSaved: onSaved,
-          ),
-        ),
-      ],
+    // Le header (titre + Enregistrer/Fermer) est rendu par NouvelleFacturePage.
+    return NouvelleFacturePage(
+      facture: facture,
+      readOnly: readOnly,
+      onSaved: onSaved,
+      onClose: onClose,
     );
   }
 }

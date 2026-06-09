@@ -11,14 +11,15 @@ import 'package:lacoloc_front/data/models/chambre.dart';
 import 'package:lacoloc_front/data/models/facture.dart';
 import 'package:lacoloc_front/data/models/immeubles.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
-import 'package:lacoloc_front/theme/app_theme.dart';
 import 'package:lacoloc_front/theme/app_typography.dart';
+import 'package:lacoloc_front/presentation/widgets/form_page_header.dart';
 import 'package:lacoloc_front/utils/responsive_form_wrapper.dart';
 
 class NouvelleFacturePage extends StatefulWidget {
   final FactureModel? facture;
   final bool readOnly;
   final VoidCallback? onSaved;
+  final VoidCallback? onClose;
   final int? prefilledImmeubleId;
   final String? prefilledImmeubleName;
 
@@ -27,6 +28,7 @@ class NouvelleFacturePage extends StatefulWidget {
     this.facture,
     this.readOnly = false,
     this.onSaved,
+    this.onClose,
     this.prefilledImmeubleId,
     this.prefilledImmeubleName,
   });
@@ -207,12 +209,31 @@ class _NouvelleFacturePageState extends State<NouvelleFacturePage> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    return ResponsiveFormWrapper(
-      child: SingleChildScrollView(
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      child: FormBuilder(
-        key: _formKey,
-        child: Column(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        FormPageHeader(
+          title: title,
+          trailing: _readOnly
+              ? (widget.onClose != null
+                  ? FormHeaderActions(onClose: widget.onClose!)
+                  : null)
+              : FormHeaderActions(
+                  onSave: _submit,
+                  onClose: widget.onClose ?? () {},
+                  isSaving: _isSubmitting,
+                  saveLabel: _isEditing
+                      ? 'Enregistrer les modifications'
+                      : 'Enregistrer',
+                ),
+        ),
+        Expanded(
+          child: ResponsiveFormWrapper(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(AppSpacing.lg),
+              child: FormBuilder(
+                key: _formKey,
+                child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(title, style: AppTypography.titleLg),
@@ -514,27 +535,14 @@ class _NouvelleFacturePageState extends State<NouvelleFacturePage> {
               maxLines: 3,
             ),
 
-            if (!_readOnly) ...[
-              const SizedBox(height: AppSpacing.xl),
-              FilledButton.icon(
-                onPressed: _isSubmitting ? null : _submit,
-                style: AppTheme.saveButtonStyle,
-                icon: _isSubmitting
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.check),
-                label: Text(_isEditing
-                    ? 'Enregistrer les modifications'
-                    : 'Enregistrer'),
+            const SizedBox(height: AppSpacing.xl),
+                  ],
+                ),
               ),
-            ],
-          ],
+            ),
+          ),
         ),
-      ),
-      ),
+      ],
     );
   }
 }

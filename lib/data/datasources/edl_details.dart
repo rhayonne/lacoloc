@@ -1,3 +1,5 @@
+import 'package:lacoloc_front/data/cache/data_cache.dart';
+import 'package:lacoloc_front/data/cache/realtime_service.dart';
 import 'package:lacoloc_front/data/models/edl_details.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -7,6 +9,11 @@ class EdlDetailsDatasource {
   EdlDetailsDatasource._();
 
   static final _db = Supabase.instance.client;
+
+  /// Les preneurs influencent `listByPreneur` / `listForLocataire` (cachés) :
+  /// on invalide le cache EDL après un write de preneur.
+  static void _invalidateEdl() =>
+      DataCache.instance.invalidatePrefix(CacheKeys.edl);
 
   static const _preneurs = 'etat_de_lieux_preneurs';
   static const _releves = 'etat_de_lieux_releves';
@@ -26,15 +33,33 @@ class EdlDetailsDatasource {
 
   static Future<EdlPreneur> createPreneur(EdlPreneur p) async {
     final row = await _db.from(_preneurs).insert(p.toInsert()).select().single();
+    _invalidateEdl();
     return EdlPreneur.fromMap(row);
   }
 
   static Future<void> updatePreneur(int id, EdlPreneur p) async {
     await _db.from(_preneurs).update(p.toInsert()).eq('id', id);
+    _invalidateEdl();
   }
 
   static Future<void> deletePreneur(int id) async {
     await _db.from(_preneurs).delete().eq('id', id);
+    _invalidateEdl();
+  }
+
+  /// Supprime le preneur d'un EDL (collectif) correspondant à un `locataire_id`.
+  /// Utilisé quand on supprime l'EDL individuel d'une chambre : le locataire est
+  /// retiré du collectif lié.
+  static Future<void> deletePreneurByLocataire(
+    int collectifId,
+    String locataireId,
+  ) async {
+    await _db
+        .from(_preneurs)
+        .delete()
+        .eq('etat_de_lieux_id', collectifId)
+        .eq('locataire_id', locataireId);
+    _invalidateEdl();
   }
 
   // ── Relevés (compteurs / chauffage / eau chaude) ─────────────────────────────

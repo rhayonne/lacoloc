@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, PlatformDispatcher;
 import 'package:flutter/material.dart';
 import 'package:flutter_localization/flutter_localization.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
@@ -22,5 +22,11 @@ void main() async {
   await Supabase.initialize(url: apiUrl, anonKey: apiAnoKey);
   await FlutterLocalization.instance.ensureInitialized();
 
-  runApp(MyApp());
+  // Empêche le freeze sur des erreurs async non gérées en Flutter web.
+  PlatformDispatcher.instance.onError = (error, stack) {
+    debugPrint('[PlatformError] $error');
+    return true; // marque comme géré → pas de crash
+  };
+
+  runApp(const MyApp());
 }

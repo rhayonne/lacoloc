@@ -2,10 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:lacoloc_front/data/cache/realtime_service.dart';
 import 'package:lacoloc_front/presentation/auth_gate.dart';
 import 'package:lacoloc_front/presentation/chambres/chambre_detail_page.dart';
 import 'package:lacoloc_front/presentation/home_page.dart';
-import 'package:lacoloc_front/presentation/login_page.dart';
 import 'package:lacoloc_front/presentation/users/locataires/completer_inscription_page.dart';
 import 'package:lacoloc_front/presentation/users/locataires/confirmation_locataire_page.dart';
 import 'package:lacoloc_front/presentation/users/locataires/creer_compte_locataire_page.dart';
@@ -37,7 +37,12 @@ class _MyAppState extends State<MyApp> {
         case AuthChangeEvent.initialSession:
         case AuthChangeEvent.signedIn:
         case AuthChangeEvent.userUpdated:
+          // Realtime + cache : démarre dès qu'une session est active.
+          if (state.session != null) RealtimeService.instance.start();
           _maybeRedirectToCompletion(state.session);
+        case AuthChangeEvent.signedOut:
+          // Coupe les abonnements et vide le cache au logout.
+          RealtimeService.instance.stop();
         default:
           break;
       }
@@ -59,9 +64,10 @@ class _MyAppState extends State<MyApp> {
           .signInWithPassword(email: email, password: temp);
       // → signedIn → _maybeRedirectToCompletion → /completer-inscription
     } catch (_) {
-      // Mot de passe temporaire invalide (déjà changé) → page de connexion.
+      // Mot de passe temporaire invalide (déjà changé) → accueil
+      // (l'utilisateur peut s'y reconnecter via le pop-up « Se connecter »).
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        _navigatorKey.currentState?.pushReplacementNamed('/login');
+        _navigatorKey.currentState?.pushReplacementNamed('/');
       });
     }
   }
@@ -112,7 +118,6 @@ class _MyAppState extends State<MyApp> {
       initialRoute: '/',
       routes: {
         '/': (context) => const HomePage(),
-        '/login': (context) => const LoginPage(),
         '/profile': (context) => const AuthGate(),
         '/proprietaire': (context) => const ProprietaireProfilPage(),
         '/inscription-locataire': (context) => const CrierCompteLocatairePage(),

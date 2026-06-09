@@ -1,0 +1,113 @@
+name: 🚀 Deploy — GitHub Pages
+
+# ─── Déclencheurs ──────────────────────────────────────────────────────────────
+on:
+  push:
+    branches: [main]          # deploy automatique à chaque merge/push sur main
+
+  workflow_dispatch:           # déclenchement MANUEL (rollback ou hotfix)
+    inputs:
+      ref:
+        description: |
+          Commit SHA ou tag à déployer.
+          Ex : "v1.0.0+3" ou "a3f8c21"
+          Laisser vide = dernière version de main.
+        required: false
+        default: ''
+
+# ─── Permissions ───────────────────────────────────────────────────────────────
+permissions:
+  contents: write   # créer/pousser tags + gh-pages
+
+# ─── Job unique ────────────────────────────────────────────────────────────────
+jobs:
+  build-and-deploy:
+    name: Build & Deploy
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Checkout — le ref peut être forcé manuellement pour un rollback
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref || github.sha }}
+          fetch-depth: 0   # nécessaire pour créer les tags Git
+
+      # 2. Flutter 3.41.7 stable (version utilisée en développement)
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.41.7'
+          channel: stable
+          cache: true
+
+      # 3. Recréer .env.prod depuis le secret GitHub
+      #    → GitHub Secrets → nouveau secret "ENV_PROD" = contenu complet du fichier .env.prod
+      - name: Recreate .env.prod
+        env:
+          ENV_PROD: ${{ secrets.ENV_PROD }}
+        run: printf '%s\n' "$ENV_PROD" > .env.prod
+
+      # 4. Dépendances
+      - name: Flutter pub get
+        run: flutter pub get
+
+      # 5. Build web production
+      #    --dart-define=ENV=prod → sélectionne .env.prod
+      #    --base-href /lacoloc/  → chemin GitHub Pages (rhayonne.github.io/lacoloc/)
+      - name: Build web — production
+        run: |
+          flutter build web \
+            --dart-define=ENV=prod \
+            --base-href /lacoloc/ \
+            --release
+
+      # 6. Fix SPA routing : GitHub Pages sert 404.html pour les URLs inconnues ;
+      #    Flutter intercepte et route correctement côté client.
+      - name: Fix SPA routing (404 → index)
+        run: cp build/web/index.html build/web/404.html
+
+      # 7. Lire la version depuis pubspec.yaml (ex : "1.0.0+2")
+      - name: Read version
+        id: ver
+        run: |
+          VERSION=$(grep '^version:' pubspec.yaml | awk '{print $2}' | tr -d '[:space:]')
+          echo "value=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Deploying v$VERSION"
+
+      # 8. Pousser le build sur la branche gh-pages
+      - name: Deploy to gh-pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./build/web
+          commit_message: "deploy: v${{ steps.ver.outputs.value }} (${{ github.sha }})"
+
+      # 9. Créer / mettre à jour le tag Git de version (--force pour redéployer la même version)
+      - name: Tag version
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -f "v${{ steps.ver.outputs.value }}" \
+            -m "Release v${{ steps.ver.outputs.value }} — $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          git push origin "v${{ steps.ver.outputs.value }}" --force
+
+      # 10. GitHub Release (historique consultable dans l'onglet Releases)
+      #     continue-on-error : ne bloque pas si la release existe déjà
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.ver.outputs.value }}
+          name: v${{ steps.ver.outputs.value }}
+          body: |
+            ## v${{ steps.ver.outputs.value }}
+
+            | Champ | Valeur |
+            |---|---|
+            | Commit | `${{ github.sha }}` |
+            | Branche | `${{ github.ref_name }}` |
+            | Message | ${{ github.event.head_commit.message || 'déclenchement manuel' }} |
+
+            ### Rollback
+            Pour revenir à cette version : **Actions → Deploy — GitHub Pages → Run workflow** et saisir le tag `v${{ steps.ver.outputs.value }}`.
+        continue-on-error: true

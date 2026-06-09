@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:lacoloc_front/data/cache/realtime_refresh_mixin.dart';
 import 'package:lacoloc_front/data/datasources/demandes_contact.dart';
+import 'package:lacoloc_front/data/datasources/notifications.dart';
 import 'package:lacoloc_front/data/models/demande_contact.dart';
+import 'package:lacoloc_front/data/models/notification_model.dart';
 import 'package:lacoloc_front/presentation/chambres/chambre_detail_page.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
+import 'package:lacoloc_front/theme/app_radius.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
 import 'package:lacoloc_front/theme/app_typography.dart';
 
@@ -20,7 +25,7 @@ class _InteractionsPageState extends State<InteractionsPage>
   @override
   void initState() {
     super.initState();
-    _tabCtrl = TabController(length: 1, vsync: this);
+    _tabCtrl = TabController(length: 2, vsync: this);
   }
 
   @override
@@ -55,8 +60,11 @@ class _InteractionsPageState extends State<InteractionsPage>
               const SizedBox(height: AppSpacing.lg),
               TabBar(
                 controller: _tabCtrl,
+                isScrollable: true,
+                tabAlignment: TabAlignment.start,
                 tabs: const [
                   Tab(text: 'Demandes de contact'),
+                  Tab(text: 'Notifications'),
                 ],
               ),
             ],
@@ -69,6 +77,7 @@ class _InteractionsPageState extends State<InteractionsPage>
             physics: const NeverScrollableScrollPhysics(),
             children: const [
               _DemandesContactTab(),
+              _NotificationsTab(),
             ],
           ),
         ),
@@ -86,7 +95,8 @@ class _DemandesContactTab extends StatefulWidget {
   State<_DemandesContactTab> createState() => _DemandesContactTabState();
 }
 
-class _DemandesContactTabState extends State<_DemandesContactTab> {
+class _DemandesContactTabState extends State<_DemandesContactTab>
+    with RealtimeRefreshMixin {
   bool _loading = true;
   String? _error;
   List<DemandeContactModel> _demandes = [];
@@ -95,6 +105,12 @@ class _DemandesContactTabState extends State<_DemandesContactTab> {
   // Coluna 7 = "Contact établi", ascending = pending (false) primeiro
   int _sortCol = 7;
   bool _sortAsc = true;
+
+  @override
+  Set<String> get watchedEntities => {'demandes'};
+
+  @override
+  void onRealtimeChange() => _load();
 
   @override
   void initState() {
@@ -410,6 +426,192 @@ class _SortableDemandesTable extends StatelessWidget {
                 ),
         ),
       ],
+    );
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Onglet Notifications
+// ═════════════════════════════════════════════════════════════════════════════
+
+class _NotificationsTab extends StatefulWidget {
+  const _NotificationsTab();
+
+  @override
+  State<_NotificationsTab> createState() => _NotificationsTabState();
+}
+
+class _NotificationsTabState extends State<_NotificationsTab>
+    with RealtimeRefreshMixin {
+  bool _loading = true;
+  String? _error;
+  List<NotificationModel> _items = [];
+
+  @override
+  Set<String> get watchedEntities => {'notifications'};
+
+  @override
+  void onRealtimeChange() => _load();
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final data = await NotificationsDatasource.listByOwner();
+      if (!mounted) return;
+      setState(() => _items = data);
+    } catch (e) {
+      if (mounted) setState(() => _error = e.toString());
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _markRead(NotificationModel n) async {
+    if (n.isRead) return;
+    await NotificationsDatasource.markRead(n.id);
+    await _load();
+  }
+
+  Future<void> _markAllRead() async {
+    await NotificationsDatasource.markAllRead();
+    await _load();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_error != null) {
+      return Center(child: Text('Erreur : $_error'));
+    }
+    if (_items.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.xl),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.notifications_none,
+                  size: 48, color: AppColors.onSurfaceVariant),
+              const SizedBox(height: AppSpacing.md),
+              Text('Aucune notification.',
+                  style: AppTypography.bodyMd
+                      .copyWith(color: AppColors.onSurfaceVariant)),
+            ],
+          ),
+        ),
+      );
+    }
+    final hasUnread = _items.any((n) => !n.isRead);
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: ListView(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        children: [
+          if (hasUnread)
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: _markAllRead,
+                icon: const Icon(Icons.done_all, size: 18),
+                label: const Text('Tout marquer comme lu'),
+              ),
+            ),
+          for (final n in _items)
+            Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+              child: NotificationCard(notification: n, onTap: () => _markRead(n)),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Carte de notification réutilisable (Interactions + Vue générale).
+class NotificationCard extends StatelessWidget {
+  final NotificationModel notification;
+  final VoidCallback? onTap;
+
+  const NotificationCard({super.key, required this.notification, this.onTap});
+
+  IconData get _icon => switch (notification.type) {
+        'edl_accepte' => Icons.verified_outlined,
+        _ => Icons.notifications_outlined,
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    final unread = !notification.isRead;
+    final dateStr = DateFormat('dd/MM/yyyy à HH:mm').format(
+      notification.createdAt.toLocal(),
+    );
+    return InkWell(
+      onTap: onTap,
+      borderRadius: AppRadius.borderMd,
+      child: Container(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        decoration: BoxDecoration(
+          color: unread
+              ? AppColors.primary.withValues(alpha: 0.06)
+              : AppColors.surfaceContainerLowest,
+          borderRadius: AppRadius.borderMd,
+          border: Border.all(
+            color: unread
+                ? AppColors.primary.withValues(alpha: 0.35)
+                : AppColors.outlineVariant,
+          ),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(_icon, size: 20, color: AppColors.primary),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(notification.title,
+                      style: AppTypography.titleLg.copyWith(
+                        fontWeight: unread ? FontWeight.w700 : FontWeight.w500,
+                      )),
+                  if (notification.body != null &&
+                      notification.body!.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(notification.body!,
+                        style: AppTypography.bodyMd
+                            .copyWith(color: AppColors.onSurfaceVariant)),
+                  ],
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(dateStr,
+                      style: AppTypography.labelSm
+                          .copyWith(color: AppColors.onSurfaceVariant)),
+                ],
+              ),
+            ),
+            if (unread)
+              Container(
+                width: 10,
+                height: 10,
+                margin: const EdgeInsets.only(top: 4, left: AppSpacing.sm),
+                decoration: const BoxDecoration(
+                  color: AppColors.primary,
+                  shape: BoxShape.circle,
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }

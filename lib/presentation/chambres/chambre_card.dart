@@ -11,13 +11,32 @@ class ChambreCard extends StatelessWidget {
   final ChambreModel chambre;
   final VoidCallback onTap;
 
-  const ChambreCard({super.key, required this.chambre, required this.onTap});
+  /// Mapa optionId → nom para exibir os nomes das options. Vazio = só contagem.
+  final Map<int, String> optionNames;
+
+  /// Máximo de chips de options listados antes do indicador "+N".
+  static const _maxOptionChips = 5;
+
+  const ChambreCard({
+    super.key,
+    required this.chambre,
+    required this.onTap,
+    this.optionNames = const {},
+  });
 
   @override
   Widget build(BuildContext context) {
     final cover = chambre.roomPhotos.isNotEmpty
         ? chambre.roomPhotos.first
         : null;
+
+    // Nomes das options selecionadas (ignora ids sem nome conhecido).
+    final optionLabels = [
+      for (final id in chambre.selectedOptionIds)
+        if (optionNames[id] != null) optionNames[id]!,
+    ];
+    final shown = optionLabels.take(_maxOptionChips).toList();
+    final extra = optionLabels.length - shown.length;
 
     return Card(
       clipBehavior: Clip.antiAlias,
@@ -68,19 +87,39 @@ class ChambreCard extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                     ],
-                    const Spacer(),
-                    Row(
-                      children: [
-                        if (chambre.m2 != null)
-                          _Pill(label: '${chambre.m2!.toStringAsFixed(0)} m²'),
-                        if (chambre.selectedOptionIds.isNotEmpty) ...[
-                          const SizedBox(width: AppSpacing.sm),
-                          _Pill(
-                            label:
-                                '${chambre.selectedOptionIds.length} options',
+                    const SizedBox(height: AppSpacing.sm),
+                    // Pills (m² + options) au bas du card. Flexible + ClipRect :
+                    // empêche tout débordement vertical si la liste passe à la
+                    // ligne (hauteur du card fixe dans la grille).
+                    Flexible(
+                      child: ClipRect(
+                        child: Align(
+                          alignment: Alignment.bottomLeft,
+                          child: Wrap(
+                            spacing: AppSpacing.xs,
+                            runSpacing: AppSpacing.xs,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              if (chambre.m2 != null)
+                                _Pill(
+                                    label:
+                                        '${chambre.m2!.toStringAsFixed(0)} m²'),
+                              // Options nomeadas (até 5). Sem nomes conhecidos,
+                              // mostra a contagem total como fallback.
+                              if (shown.isNotEmpty)
+                                ...shown.map((l) => _Pill(label: l))
+                              else if (chambre.selectedOptionIds.isNotEmpty)
+                                _Pill(
+                                  label:
+                                      '${chambre.selectedOptionIds.length} options',
+                                ),
+                              // Indicador de mais opções → leva ao detalhe.
+                              if (extra > 0)
+                                _Pill(label: '+$extra', highlighted: true),
+                            ],
                           ),
-                        ],
-                      ],
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -89,7 +128,7 @@ class ChambreCard extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.fromLTRB(
                 AppSpacing.md,
-                0,
+                AppSpacing.md,
                 AppSpacing.md,
                 AppSpacing.md,
               ),
@@ -116,7 +155,11 @@ class ChambreCard extends StatelessWidget {
 
 class _Pill extends StatelessWidget {
   final String label;
-  const _Pill({required this.label});
+
+  /// Quando true, usa a cor primária (ex.: indicador "+N" / voir plus).
+  final bool highlighted;
+
+  const _Pill({required this.label, this.highlighted = false});
 
   @override
   Widget build(BuildContext context) {
@@ -126,13 +169,14 @@ class _Pill extends StatelessWidget {
         vertical: AppSpacing.xs,
       ),
       decoration: BoxDecoration(
-        color: AppColors.primaryFixed,
+        color: highlighted ? AppColors.primary : AppColors.primaryFixed,
         borderRadius: AppRadius.borderFull,
       ),
       child: Text(
         label,
         style: AppTypography.labelSm.copyWith(
-          color: AppColors.onPrimaryFixedVariant,
+          color:
+              highlighted ? AppColors.onPrimary : AppColors.onPrimaryFixedVariant,
         ),
       ),
     );

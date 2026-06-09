@@ -95,6 +95,32 @@ class AppSidebar extends StatelessWidget {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
+/// Évite les RenderFlex overflow pendant l'animation d'ouverture/fermeture de la
+/// sidebar (largeur animée 64 ↔ 240) : pendant que le conteneur est plus étroit
+/// que [minWidth], on masque le contenu « étendu » (qui ne tiendrait pas) ; au-
+/// dessus, on l'affiche (ses enfants Expanded/Flexible s'ajustent) sous un
+/// [ClipRect] de sécurité. N'utilise aucun box dimensionné par le parent
+/// (pas d'OverflowBox) → pas d'assertion de contrainte même en largeur non bornée.
+class _CollapseClip extends StatelessWidget {
+  final double minWidth;
+  final Widget child;
+  const _CollapseClip({required this.child, this.minWidth = 0});
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth.isFinite && constraints.maxWidth < minWidth) {
+          return const SizedBox.shrink();
+        }
+        return ClipRect(child: child);
+      },
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 class _SidebarHeader extends StatelessWidget {
   final bool extended;
   final String? email;
@@ -113,12 +139,7 @@ class _SidebarHeader extends StatelessWidget {
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
             child: extended
-                ? Row(
-                    children: [
-                      const SizedBox(width: AppSpacing.xs),
-                      const _AppLogoFull(),
-                    ],
-                  )
+                ? const Center(child: _AppLogoFull())
                 : const Center(child: _AppLogoIcon()),
           ),
         ),
@@ -131,7 +152,9 @@ class _SidebarHeader extends StatelessWidget {
               AppSpacing.md,
               0,
             ),
-            child: Row(
+            child: _CollapseClip(
+              minWidth: 44, // avatar (36) + écart (8) ; masqué en deçà
+              child: Row(
               children: [
                 CircleAvatar(
                   radius: 18,
@@ -153,6 +176,7 @@ class _SidebarHeader extends StatelessWidget {
                   ),
                 ),
               ],
+              ),
             ),
           ),
         // Barra de pesquisa (apenas expandido + controller presente)
@@ -164,7 +188,9 @@ class _SidebarHeader extends StatelessWidget {
               AppSpacing.md,
               AppSpacing.sm,
             ),
-            child: Row(
+            child: _CollapseClip(
+              minWidth: 60, // champ + icône d'aide ; masqué en deçà
+              child: Row(
               children: [
                 Expanded(
                   child: AnimatedBuilder(
@@ -201,6 +227,7 @@ class _SidebarHeader extends StatelessWidget {
                   ),
                 ),
               ],
+              ),
             ),
           )
         else if (email != null && extended)
@@ -217,14 +244,22 @@ class _AppLogoFull extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Le texte est `Flexible` + ellipsis : pendant l'animation de
+    // collapse/expand de la sidebar, la largeur disponible peut tomber à ~47 px
+    // alors que le logo complet est encore rendu — sans ça, ça déborde.
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         const _AppLogoIcon(),
         const SizedBox(width: AppSpacing.sm),
-        Text(
-          'Super Coloc',
-          style: AppTypography.titleLg.copyWith(color: AppColors.primary),
+        Flexible(
+          child: Text(
+            'Super Coloc',
+            style: AppTypography.titleLg.copyWith(color: AppColors.primary),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            softWrap: false,
+          ),
         ),
       ],
     );
@@ -286,7 +321,17 @@ class SidebarActionButton extends StatelessWidget {
                   children: [
                     Icon(icon, color: c, size: 20),
                     const SizedBox(width: 12),
-                    Text(label, style: AppTypography.bodyMd.copyWith(color: c)),
+                    // Flexible + ellipsis : le libellé rétrécit pendant l'animation
+                    // de fermeture au lieu de provoquer un overflow.
+                    Flexible(
+                      child: Text(
+                        label,
+                        maxLines: 1,
+                        softWrap: false,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTypography.bodyMd.copyWith(color: c),
+                      ),
+                    ),
                   ],
                 )
               : Center(child: Icon(icon, color: c, size: 20)),

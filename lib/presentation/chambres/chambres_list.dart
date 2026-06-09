@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:lacoloc_front/data/datasources/chambres.dart';
+import 'package:lacoloc_front/data/datasources/reference.dart';
 import 'package:lacoloc_front/data/models/chambre.dart';
 import 'package:lacoloc_front/data/models/filter_state.dart';
 import 'package:lacoloc_front/presentation/chambres/chambre_card.dart';
@@ -28,13 +29,24 @@ class ChambresList extends StatefulWidget {
 class _ChambresListState extends State<ChambresList> {
   late Future<List<ChambreModel>> _future;
 
+  /// Mapa optionId → nom (Wifi, Lit double…) para rotular as options no card.
+  /// Carregado uma vez (cache de [ReferenceDatasource]) — evita fetch por card.
+  Map<int, String> _optionNames = const {};
+
   @override
   void initState() {
     super.initState();
+    _loadOptionNames();
     _future = ChambresDatasource.listAll().then((data) {
       widget.onDataLoaded?.call(data);
       return data;
     });
+  }
+
+  Future<void> _loadOptionNames() async {
+    final opts = await ReferenceDatasource.roomOptions();
+    if (!mounted) return;
+    setState(() => _optionNames = {for (final o in opts) o.id: o.name});
   }
 
   bool _matches(ChambreModel c) {
@@ -82,6 +94,14 @@ class _ChambresListState extends State<ChambresList> {
       return false;
     }
     if (f.bailType == BailTypeFilter.individuel && !c.immeubleBailIndividuel) {
+      return false;
+    }
+
+    // Location meublée / non meublée
+    if (f.meuble != null && c.immeubleLocationMeuble != f.meuble) return false;
+
+    // Type d'immeuble
+    if (f.immeubleTypeId != null && c.immeubleTypeId != f.immeubleTypeId) {
       return false;
     }
 
@@ -142,13 +162,14 @@ class _ChambresListState extends State<ChambresList> {
             maxCrossAxisExtent: 420,
             crossAxisSpacing: AppSpacing.md,
             mainAxisSpacing: AppSpacing.md,
-            mainAxisExtent: 380,
+            mainAxisExtent: 410,
           ),
           itemCount: filtered.length,
           itemBuilder: (context, index) {
             final chambre = filtered[index];
             return ChambreCard(
               chambre: chambre,
+              optionNames: _optionNames,
               onTap: () => Navigator.of(context)
                   .pushNamed('/chambre', arguments: chambre.id),
             );

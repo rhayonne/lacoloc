@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:lacoloc_front/data/cache/realtime_refresh_mixin.dart';
 import 'package:lacoloc_front/data/datasources/auth_service.dart';
 import 'package:lacoloc_front/data/datasources/chambres.dart';
 import 'package:lacoloc_front/data/datasources/immeubles.dart';
@@ -27,13 +28,20 @@ class MesImmeublesPage extends StatefulWidget {
   State<MesImmeublesPage> createState() => _MesImmeublesPageState();
 }
 
-class _MesImmeublesPageState extends State<MesImmeublesPage> {
+class _MesImmeublesPageState extends State<MesImmeublesPage>
+    with RealtimeRefreshMixin {
   late Future<_Bundle> _future;
 
   @override
   void initState() {
     super.initState();
     _future = _load();
+  }
+
+  @override
+  void onRealtimeChange() {
+    final f = _load();
+    setState(() => _future = f);
   }
 
   Future<_Bundle> _load() async {

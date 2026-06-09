@@ -48,4 +48,16 @@ class ObservationsEdlDatasource {
   static Future<void> deleteById(int id) async {
     await _db.from(_table).delete().eq('id', id);
   }
+
+  /// Insère un **ajout** (« addition ») fait après finalisation. `created_at`
+  /// (date/heure auto) tient lieu d'horodatage. La RLS n'autorise l'insertion
+  /// que dans la fenêtre d'1 mois suivant la finalisation.
+  static Future<ObservationEdl> insertAddition(ObservationEdl obs) async {
+    final row = await _db
+        .from(_table)
+        .insert(obs.toInsert())
+        .select()
+        .single();
+    return ObservationEdl.fromMap(row);
+  }
 }

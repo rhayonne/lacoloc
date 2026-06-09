@@ -2,13 +2,16 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:intl/intl.dart';
+import 'package:lacoloc_front/data/cache/realtime_refresh_mixin.dart';
 import 'package:lacoloc_front/data/datasources/auth_service.dart';
 import 'package:lacoloc_front/data/datasources/chambres.dart';
 import 'package:lacoloc_front/data/datasources/etat_de_lieux.dart';
+import 'package:lacoloc_front/data/datasources/immeubles.dart';
 import 'package:lacoloc_front/data/models/chambre.dart';
 import 'package:lacoloc_front/data/models/etat_de_lieux.dart';
 import 'package:lacoloc_front/data/models/users_client.dart';
 import 'package:lacoloc_front/presentation/chambres/chambre_card.dart';
+import 'package:lacoloc_front/presentation/users/proprietaires/etat_de_lieux_page.dart';
 import 'package:lacoloc_front/presentation/chambres/chambre_detail_page.dart';
 import 'package:lacoloc_front/presentation/nav/app_sidebar.dart';
 import 'package:lacoloc_front/presentation/widgets/filter_panel.dart';
@@ -496,9 +499,15 @@ class _ChambresSectionState extends State<_ChambresSection> {
               FilterPanel(
                 filter: _filter,
                 onChanged: (f) => setState(() => _filter = f),
-                showEquipments: true,
-                showM2: true,
-                showPrix: true,
+                modules: const {
+                  FilterModule.localisation,
+                  FilterModule.bail,
+                  FilterModule.meuble,
+                  FilterModule.typeImmeuble,
+                  FilterModule.surface,
+                  FilterModule.prix,
+                  FilterModule.equipements,
+                },
               ),
               const SizedBox(height: AppSpacing.sm),
 
@@ -1042,7 +1051,7 @@ class _InteractionsSection extends StatefulWidget {
 }
 
 class _InteractionsSectionState extends State<_InteractionsSection>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, RealtimeRefreshMixin {
   late final TabController _tabCtrl;
   late Future<List<EtatDesLieuxModel>> _future;
 
@@ -1054,6 +1063,15 @@ class _InteractionsSectionState extends State<_InteractionsSection>
   }
 
   @override
+  Set<String> get watchedEntities => {'edl'};
+
+  @override
+  void onRealtimeChange() {
+    final f = _load();
+    setState(() => _future = f);
+  }
+
+  @override
   void dispose() {
     _tabCtrl.dispose();
     super.dispose();
@@ -1061,7 +1079,8 @@ class _InteractionsSectionState extends State<_InteractionsSection>
 
   Future<List<EtatDesLieuxModel>> _load() {
     final uid = AuthService.currentUser?.id ?? '';
-    return EtatDesLieuxDatasource.listByLocataire(uid);
+    // Inclui EDLs privatifs (locataire_id) + collectifs onde é preneur.
+    return EtatDesLieuxDatasource.listForLocataire(uid);
   }
 
   Future<void> _accepter(int edlId) async {
@@ -1121,7 +1140,66 @@ class _InteractionsSectionState extends State<_InteractionsSection>
               final sorties =
                   all.where((e) => e.typeEdl == 'sortie').toList();
 
-              void voirDetail(EtatDesLieuxModel edl) {
+              Future<void> voirDetail(EtatDesLieuxModel edl) async {
+                // EDL collectif (parties communes) → écran observations où le
+                // locataire ajoute/édite SES propres observations.
+                if (edl.partie == PartieEdl.commune) {
+                  final imm =
+                      await ImmeublesDatasource.byId(edl.immeubleId);
+                  if (!context.mounted || imm == null) return;
+                  await Navigator.of(context).push(MaterialPageRoute<void>(
+                    builder: (_) => Scaffold(
+                      body: SafeArea(
+                        child: EdlCollectifNonMeubleePage(
+                          immeuble: imm,
+                          typeEdl: edl.typeEdl,
+                          existingEdl: edl,
+                          isLocataire: true,
+                          meublee: imm.locationMeuble == true,
+                          onClose: (_) => Navigator.of(context).maybePop(),
+                        ),
+                      ),
+                    ),
+                  ));
+                  if (mounted) setState(() { _future = _load(); });
+                  return;
+                }
+                // EDL privatif individuel + meublée → écran chambre (le
+                // locataire ajoute/édite SES observations ; inventaire en lecture).
+                if (edl.partie == PartieEdl.privative &&
+                    edl.typeBail == 'individuel' &&
+                    edl.chambreId != null) {
+                  final imm = await ImmeublesDatasource.byId(edl.immeubleId);
+                  ChambreModel? chambre;
+                  try {
+                    final chambres = await ChambresDatasource.listByImmeubles(
+                        [edl.immeubleId]);
+                    chambre = chambres
+                        .where((c) => c.id == edl.chambreId)
+                        .firstOrNull;
+                  } catch (_) {}
+                  if (!context.mounted || imm == null || chambre == null) {
+                    return;
+                  }
+                  await Navigator.of(context).push(MaterialPageRoute<void>(
+                    builder: (_) => Scaffold(
+                      body: SafeArea(
+                        child: EdlIndividuelMeubleePage(
+                          immeuble: imm,
+                          chambre: chambre!,
+                          typeEdl: edl.typeEdl,
+                          existingEdl: edl,
+                          isLocataire: true,
+                          meublee: imm.locationMeuble == true,
+                          onClose: (_) => Navigator.of(context).maybePop(),
+                        ),
+                      ),
+                    ),
+                  ));
+                  if (mounted) setState(() { _future = _load(); });
+                  return;
+                }
+                // EDL privatif (single-room / legado) → vue détaillée existante.
                 Navigator.of(context).push(MaterialPageRoute<void>(
                   builder: (_) => _EdlDetailPage(
                     edl: edl,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:form_builder_validators/form_builder_validators.dart';
+import 'package:lacoloc_front/data/datasources/address_search.dart';
 import 'package:lacoloc_front/data/datasources/auth_service.dart';
 import 'package:lacoloc_front/data/datasources/commons_seeder.dart';
 import 'package:lacoloc_front/data/datasources/immeubles.dart';
@@ -13,9 +14,9 @@ import 'package:lacoloc_front/data/models/immeubles.dart';
 import 'package:lacoloc_front/presentation/widgets/address_autocomplete_field.dart';
 import 'package:lacoloc_front/presentation/widgets/form_page_header.dart';
 import 'package:lacoloc_front/presentation/widgets/photo_picker_field.dart';
+import 'package:lacoloc_front/presentation/widgets/unsaved_changes_dialog.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
-import 'package:lacoloc_front/theme/app_theme.dart';
 import 'package:lacoloc_front/theme/app_typography.dart';
 import 'package:lacoloc_front/utils/responsive_form_wrapper.dart';
 
@@ -36,6 +37,7 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
   late Future<List<ImmeubleTypeModel>> _typesFuture;
   ImmeubleTypeModel? _selectedType;
   String _address = '';
+  String? _codePostal;
   List<String> _photos = [];
   String? _mainPhoto;
   bool _isSubmitting = false;
@@ -57,6 +59,7 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
     final imm = widget.immeuble;
     if (imm != null) {
       _address = imm.address ?? '';
+      _codePostal = imm.codePostal;
       _photos = List.from(imm.commonPhotos);
       _mainPhoto = imm.mainPhoto;
       _isBailCollectif = imm.bailCollectif;
@@ -85,10 +88,44 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
   }
 
   void _onAddressSuggested(AddressSuggestion s) {
-    setState(() => _address = s.label);
+    setState(() {
+      _address = s.label;
+      if (s.postcode.isNotEmpty) _codePostal = s.postcode;
+    });
     _formKey.currentState?.fields['city']?.didChange(s.city);
     _formKey.currentState?.fields['department']?.didChange(s.department);
     _formKey.currentState?.fields['region']?.didChange(s.region);
+  }
+
+  /// Garante que département/région/code postal estejam preenchidos a partir
+  /// do endereço. Quando o usuário digita o endereço sem clicar numa sugestão,
+  /// esses campos ficam vazios; aqui fazemos um lookup na API BAN (code postal
+  /// do imóvel) e preenchemos antes de gravar. Idempotente: só busca se faltar
+  /// algum dos três e houver endereço.
+  Future<void> _ensureLocationData() async {
+    final state = _formKey.currentState;
+    if (state == null) return;
+    final dept = (state.fields['department']?.value as String?)?.trim() ?? '';
+    final region = (state.fields['region']?.value as String?)?.trim() ?? '';
+    final cp = _codePostal?.trim() ?? '';
+    final address = _address.trim();
+    if (address.isEmpty) return;
+    if (dept.isNotEmpty && region.isNotEmpty && cp.isNotEmpty) return;
+
+    final results = await AddressSearchService.search(address);
+    if (results.isEmpty || !mounted) return;
+    final s = results.first;
+    if (dept.isEmpty && s.department.isNotEmpty) {
+      state.fields['department']?.didChange(s.department);
+    }
+    if (region.isEmpty && s.region.isNotEmpty) {
+      state.fields['region']?.didChange(s.region);
+    }
+    if ((state.fields['city']?.value as String?)?.trim().isEmpty != false &&
+        s.city.isNotEmpty) {
+      state.fields['city']?.didChange(s.city);
+    }
+    if (cp.isEmpty && s.postcode.isNotEmpty) _codePostal = s.postcode;
   }
 
   Future<void> _handleBack() async {
@@ -97,35 +134,15 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
       widget.onBack?.call();
       return;
     }
-    final result = await showDialog<String>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Modifications non sauvegardées'),
-        content: const Text(
-          'Vous avez des modifications non sauvegardées. '
-          'Que souhaitez-vous faire ?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, 'cancel'),
-            child: const Text('Continuer'),
-          ),
-          OutlinedButton(
-            onPressed: () => Navigator.pop(context, 'discard'),
-            child: const Text('Quitter sans sauvegarder'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, 'save'),
-            child: const Text('Sauvegarder et quitter'),
-          ),
-        ],
-      ),
-    );
+    final choice = await showUnsavedChangesDialog(context);
     if (!mounted) return;
-    if (result == 'discard') {
-      widget.onBack?.call();
-    } else if (result == 'save') {
-      await _submit();
+    switch (choice) {
+      case UnsavedChoice.cancel:
+        return;
+      case UnsavedChoice.discard:
+        widget.onBack?.call();
+      case UnsavedChoice.save:
+        await _submit();
     }
   }
 
@@ -141,6 +158,7 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
       city: trimOrNull(values['city'] as String?),
       region: trimOrNull(values['region'] as String?),
       department: trimOrNull(values['department'] as String?),
+      codePostal: trimOrNull(_codePostal),
       totalM2: double.tryParse(
           ((values['total_m2'] as String?) ?? '').replaceAll(',', '.')),
       description: trimOrNull(values['description'] as String?),
@@ -171,7 +189,8 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
 
     setState(() => _isSubmitting = true);
     try {
-      final model = _buildModel(values, type);
+      await _ensureLocationData();
+      final model = _buildModel(_formKey.currentState!.value, type);
       _isEditing
           ? await ImmeublesDatasource.update(model)
           : await ImmeublesDatasource.create(model);
@@ -216,9 +235,10 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
 
     setState(() => _creatingCommunes = true);
     try {
+      await _ensureLocationData();
       // 1) Garantir l'existence de l'immeuble (id requis pour rattacher).
       var immeuble = _persistedImmeuble;
-      final model = _buildModel(values, type);
+      final model = _buildModel(state.value, type);
       if (immeuble == null) {
         immeuble = await ImmeublesDatasource.create(model);
         if (!mounted) return;
@@ -245,26 +265,12 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
       children: [
         FormPageHeader(
           title: _isEditing ? "Modifier l'immeuble" : "Nouvel immeuble",
-          leading: widget.onBack != null
-              ? IconButton.outlined(
-                  icon: const Icon(Icons.arrow_back),
-                  onPressed: _handleBack,
-                  tooltip: 'Retour',
-                )
-              : null,
-          trailing: FilledButton.icon(
-            onPressed: _isSubmitting ? null : _submit,
-            style: AppTheme.saveButtonStyle,
-            icon: _isSubmitting
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.check),
-            label: Text(_isEditing
-                ? 'Enregistrer les modifications'
-                : 'Enregistrer'),
+          trailing: FormHeaderActions(
+            onSave: _submit,
+            onClose: _handleBack,
+            isSaving: _isSubmitting,
+            saveLabel:
+                _isEditing ? 'Enregistrer les modifications' : 'Enregistrer',
           ),
         ),
         Expanded(child: ResponsiveFormWrapper(

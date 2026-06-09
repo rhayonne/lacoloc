@@ -15,6 +15,7 @@ class ImmeublesModel {
   final String? city;
   final String? region;
   final String? department;
+  final String? codePostal;
   final DateTime? createdAt;
   final bool bailCollectif;
   final bool bailIndividuel;
@@ -36,6 +37,7 @@ class ImmeublesModel {
     this.city,
     this.region,
     this.department,
+    this.codePostal,
     this.createdAt,
     this.bailCollectif = false,
     this.bailIndividuel = false,
@@ -70,6 +72,7 @@ class ImmeublesModel {
       city: map['city'] as String?,
       region: map['region'] as String?,
       department: map['department'] as String?,
+      codePostal: map['code_postal'] as String?,
       createdAt: map['created_at'] != null
           ? DateTime.parse(map['created_at'] as String)
           : null,
@@ -93,6 +96,7 @@ class ImmeublesModel {
         if (city != null) 'city': city,
         if (region != null) 'region': region,
         if (department != null) 'department': department,
+        if (codePostal != null) 'code_postal': codePostal,
         'bail_collectif': bailCollectif,
         'bail_individuel': bailIndividuel,
         if (prixLoyer != null) 'prix_loyer': prixLoyer,

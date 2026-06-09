@@ -10,6 +10,7 @@ import 'package:lacoloc_front/theme/app_radius.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
 import 'package:lacoloc_front/theme/app_typography.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:lacoloc_front/utils/auth_error.dart';
 
 /// Page de complétion de profil pour un locataire invité par un propriétaire.
 /// Pré-remplit les champs avec les données saisies par le propriétaire.
@@ -77,10 +78,8 @@ class _CompleterInscriptionPageState extends State<CompleterInscriptionPage> {
       if (mounted) {
         Navigator.of(context).pushReplacementNamed('/profile');
       }
-    } on AuthException catch (e) {
-      _showError(e.message);
     } catch (e) {
-      _showError(e.toString());
+      _showError(authErrorMessage(e));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -133,8 +132,8 @@ class _CompleterInscriptionPageState extends State<CompleterInscriptionPage> {
                     const SizedBox(height: AppSpacing.xl),
                     FilledButton(
                       onPressed: () =>
-                          Navigator.of(context).pushReplacementNamed('/login'),
-                      child: const Text('Se connecter'),
+                          Navigator.of(context).pushReplacementNamed('/'),
+                      child: const Text("Aller à l'accueil"),
                     ),
                   ],
                 ),

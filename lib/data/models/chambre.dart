@@ -20,6 +20,8 @@ class ChambreModel {
   final String? immeubleDepartment;
   final bool immeubleBailCollectif;
   final bool immeubleBailIndividuel;
+  final bool? immeubleLocationMeuble;
+  final int? immeubleTypeId;
 
   ChambreModel({
     required this.id,
@@ -41,6 +43,8 @@ class ChambreModel {
     this.immeubleDepartment,
     this.immeubleBailCollectif = false,
     this.immeubleBailIndividuel = false,
+    this.immeubleLocationMeuble,
+    this.immeubleTypeId,
   });
 
   String? get immeubleBailLabel {
@@ -78,6 +82,9 @@ class ChambreModel {
       immeubleBailIndividuel: immeuble is Map
           ? (immeuble['bail_individuel'] as bool?) ?? false
           : false,
+      immeubleLocationMeuble:
+          immeuble is Map ? immeuble['location_meuble'] as bool? : null,
+      immeubleTypeId: immeuble is Map ? immeuble['type_id'] as int? : null,
     );
   }
 

@@ -53,7 +53,7 @@ class _ConfirmationLocatairePageState
 
   Future<void> _goToLogin() async {
     if (AuthService.isLoggedIn) await AuthService.signOut();
-    if (mounted) Navigator.of(context).pushReplacementNamed('/login');
+    if (mounted) Navigator.of(context).pushReplacementNamed('/');
   }
 
   @override

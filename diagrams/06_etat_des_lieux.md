@@ -258,3 +258,43 @@ sequenceDiagram
 A senha temporária deixa de valer após a troca, então o **link não expira mas é
 naturalmente de uso único**. O e-mail real do compte nunca muda; em dev o e-mail
 é só **entregue** em `ADDR_MAIL_CONFIRMATION`.
+
+### Locataire visualiza/anota o EDL collectif
+
+- A aba "État des lieux" do locataire lista, em Vision générale / Entrée / Sortie,
+  os EDLs **privatifs** (`locataire_id`) **+** os **collectifs onde é preneur**
+  (`EtatDesLieuxDatasource.listForLocataire` = `listByLocataire` ∪ `listByPreneur`).
+- Abrir um EDL **collectif** → `EdlCollectifNonMeubleePage` em **modo locataire**
+  (`isLocataire: true`): Bien/Locataires/Dates **read-only**; o locataire só
+  **adiciona** observações próprias (gravadas com `author_role='locataire'`, selo
+  **"Ajouté par le locataire"**) e edita/exclui **apenas as suas**; as do
+  proprietário aparecem read-only.
+- **RLS**: função `is_edl_preneur(edl)` (SECURITY DEFINER) habilita o preneur a
+  **ler** o `etat_de_lieux`, suas `Pieces` e **todas** as observações; e a
+  **inserir/editar/excluir** só observações com `author_role='locataire'`
+  (políticas `preneur_*`). `can_access_edl` também passou a incluir o preneur.
+- A lista "OBSERVATIONS ENREGISTRÉES" usa 2 colunas (cada seção = metade da
+  largura) em telas ≥600px; empilha no mobile.
+
+### Collectif ouvert/finalisé, Avenant et table (atualização)
+
+- **Ligação individuel→collectif**: `etat_de_lieux.edl_collectif_id`. Ao criar um
+  EDL individuel, `EtatDesLieuxDatasource.ensureCollectif` reusa o collectif
+  **aberto** (`findOpenCollectif`: `partie=commune`, `situation != finalise`) ou
+  **cria um novo** — nunca reusa um collectif finalizado.
+- **Finalizar** o collectif é permitido mesmo com chambres livres.
+- **Avenant** (`is_avenant`, `avenant_date` no privatif): locataire que entra
+  depois da finalização do collectif.
+  - "Nouveau" numa chambre de imóvel com collectif finalizado → pergunta
+    **novo contrato** (cria novo collectif) **ou avenant** (liga ao collectif
+    finalizado existente).
+  - Botão **"Avenant"** → escolhe um collectif finalizado **com chambres livres**
+    (`listAmendableCollectifs` → `AmendableCollectif`, mostra date EDL + date do
+    1er contrat signé `firstSignedContractDate`) → chambre livre → privatif
+    `is_avenant`.
+  - O collectif (bail individuel) é read-only para locataires (vêm dos privatifs)
+    e exibe a seção **AVENANTS**. Apagar um privatif remove o preneur do collectif.
+- **Tabela "Tous les états des lieux"**: colunas LOCATAIRE · IMMEUBLE · **TYPE**
+  (Collectif/Individuel) · **SITUATION** (4ª) · **SENS** (Entrée/Sortie) · DATE EDL
+  · FINALISATION · ações. Filtros via `EdlFilterBar`
+  ([widgets/edl_filter_bar.dart](../lib/presentation/widgets/edl_filter_bar.dart)).

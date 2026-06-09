@@ -3,7 +3,7 @@ import 'package:lacoloc_front/data/datasources/auth_service.dart';
 import 'package:lacoloc_front/utils/session_guard.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:lacoloc_front/data/models/users_client.dart';
-import 'package:lacoloc_front/presentation/login_page.dart';
+import 'package:lacoloc_front/presentation/home_page.dart';
 import 'package:lacoloc_front/presentation/users/admin/super_admin_profil.dart';
 import 'package:lacoloc_front/presentation/users/locataires/completer_inscription_page.dart';
 import 'package:lacoloc_front/presentation/users/locataires/locataire_profil.dart';
@@ -25,7 +25,9 @@ class AuthGate extends StatelessWidget {
       builder: (context, _) {
         final user = AuthService.currentUser;
 
-        if (user == null) return const LoginPage();
+        // Pas de session : on affiche l'accueil public. La connexion se fait
+        // via le pop-up « Se connecter » (showConnexionDialog).
+        if (user == null) return const HomePage();
 
         // Locataire invité qui doit encore créer son mot de passe
         if (user.userMetadata?['needs_completion'] == true) {

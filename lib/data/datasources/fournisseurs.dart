@@ -1,3 +1,5 @@
+import 'package:lacoloc_front/data/cache/data_cache.dart';
+import 'package:lacoloc_front/data/cache/realtime_service.dart';
 import 'package:lacoloc_front/data/models/fournisseur.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -9,24 +11,36 @@ class FournisseursDatasource {
   static const String _facturesTable = 'Factures';
   static const String _paymentTypesTable = 'Payment_Types_Reference';
 
-  static Future<List<FournisseurModel>> listByOwner(String ownerId) async {
-    final rows = await _client
-        .from(_table)
-        .select()
-        .eq('owner_id', ownerId)
-        .order('nom', ascending: true);
-    return _map(rows);
+  static final _cache = DataCache.instance;
+  static void _invalidate() => _cache.invalidatePrefix(CacheKeys.fournisseurs);
+
+  static Future<List<FournisseurModel>> listByOwner(
+    String ownerId, {
+    bool refresh = false,
+  }) {
+    return _cache.get('${CacheKeys.fournisseurs}owner:$ownerId', () async {
+      final rows = await _client
+          .from(_table)
+          .select()
+          .eq('owner_id', ownerId)
+          .order('nom', ascending: true);
+      return _map(rows);
+    }, refresh: refresh);
   }
 
   static Future<List<FournisseurModel>> listActiveByOwner(
-      String ownerId) async {
-    final rows = await _client
-        .from(_table)
-        .select()
-        .eq('owner_id', ownerId)
-        .eq('is_active', true)
-        .order('nom', ascending: true);
-    return _map(rows);
+    String ownerId, {
+    bool refresh = false,
+  }) {
+    return _cache.get('${CacheKeys.fournisseurs}active:$ownerId', () async {
+      final rows = await _client
+          .from(_table)
+          .select()
+          .eq('owner_id', ownerId)
+          .eq('is_active', true)
+          .order('nom', ascending: true);
+      return _map(rows);
+    }, refresh: refresh);
   }
 
   static Future<List<PaymentTypeRef>> listPaymentTypes() async {
@@ -45,6 +59,7 @@ class FournisseursDatasource {
         .insert(input.toInsert())
         .select()
         .single();
+    _invalidate();
     return FournisseurModel.fromMap(inserted);
   }
 
@@ -55,6 +70,7 @@ class FournisseursDatasource {
         .eq('id', input.id)
         .select()
         .single();
+    _invalidate();
     return FournisseurModel.fromMap(updated);
   }
 
@@ -70,6 +86,7 @@ class FournisseursDatasource {
 
   static Future<void> delete(int id) async {
     await _client.from(_table).delete().eq('id', id);
+    _invalidate();
   }
 
   static List<FournisseurModel> _map(List rows) =>

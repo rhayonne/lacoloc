@@ -102,6 +102,16 @@ class EtatDesLieuxModel {
   // ── Document complet (modèles "partie commune" / "partie privée") ──────────
   final PartieEdl partie;
   final int? edlCollectifId;
+
+  /// Privatif créé **après** la finalisation du collectif (avenant). Le locataire
+  /// est entré plus tard ; le collectif l'affiche dans sa section « Avenants ».
+  final bool isAvenant;
+  final DateTime? avenantDate;
+
+  // ── Contrat de bail (privatif) — saisis à la finalisation ─────────────────
+  final DateTime? dateDebutBail;
+  final DateTime? dateFinBail;
+  final int? dureeBailMois;
   final double? surfaceM2;
   final int? nombrePiecesPrincipales;
   final String? designation;
@@ -120,8 +130,14 @@ class EtatDesLieuxModel {
   final DateTime? locataireInvitationSentAt;
   final String? immeubleNom;
   final String? immeubleAdresse;
+  /// Type de l'immeuble (Appartement, Maison, Studio…) via `Immeuble_Types_Reference`.
+  final String? immeubleTypeNom;
+  /// Immeuble loué meublé ? (`location_meuble`) — null traité comme non meublé.
+  final bool immeubleMeuble;
   final String? chambreNom;
   final String? proprietaireNom;
+  // Noms des preneurs (embed `preneurs` — EDL collectif). Vide pour un privatif.
+  final List<String> preneursNoms;
 
   static final _dateFmt = DateFormat('dd/MM/yyyy');
 
@@ -143,6 +159,11 @@ class EtatDesLieuxModel {
     required this.createdAt,
     this.partie = PartieEdl.commune,
     this.edlCollectifId,
+    this.isAvenant = false,
+    this.avenantDate,
+    this.dateDebutBail,
+    this.dateFinBail,
+    this.dureeBailMois,
     this.surfaceM2,
     this.nombrePiecesPrincipales,
     this.designation,
@@ -159,8 +180,11 @@ class EtatDesLieuxModel {
     this.locataireInvitationSentAt,
     this.immeubleNom,
     this.immeubleAdresse,
+    this.immeubleTypeNom,
+    this.immeubleMeuble = false,
     this.chambreNom,
     this.proprietaireNom,
+    this.preneursNoms = const [],
   });
 
   factory EtatDesLieuxModel.fromMap(Map<String, dynamic> map) {
@@ -200,6 +224,17 @@ class EtatDesLieuxModel {
           : DateTime.now(),
       partie: PartieEdl.fromRaw(map['partie'] as String?),
       edlCollectifId: map['edl_collectif_id'] as int?,
+      isAvenant: (map['is_avenant'] as bool?) ?? false,
+      avenantDate: map['avenant_date'] != null
+          ? DateTime.parse(map['avenant_date'] as String)
+          : null,
+      dateDebutBail: map['date_debut_bail'] != null
+          ? DateTime.parse(map['date_debut_bail'] as String)
+          : null,
+      dateFinBail: map['date_fin_bail'] != null
+          ? DateTime.parse(map['date_fin_bail'] as String)
+          : null,
+      dureeBailMois: map['duree_bail_mois'] as int?,
       surfaceM2: (map['surface_m2'] as num?)?.toDouble(),
       nombrePiecesPrincipales: map['nombre_pieces_principales'] as int?,
       designation: map['designation'] as String?,
@@ -219,8 +254,23 @@ class EtatDesLieuxModel {
           : null,
       immeubleNom: imm?['name'] as String?,
       immeubleAdresse: imm?['address'] as String?,
+      immeubleTypeNom:
+          (imm?['type'] as Map<String, dynamic>?)?['name'] as String?,
+      immeubleMeuble: (imm?['location_meuble'] as bool?) ?? false,
       chambreNom: chb?['room_name'] as String?,
       proprietaireNom: prop?['full_name'] as String?,
+      preneursNoms: () {
+        final raw = map['preneurs'];
+        if (raw is! List) return const <String>[];
+        final names = <String>[];
+        for (final p in raw) {
+          if (p is! Map) continue;
+          final loc = p['locataire'] as Map<String, dynamic>?;
+          final nom = (loc?['full_name'] as String?) ?? (p['nom'] as String?);
+          if (nom != null && nom.trim().isNotEmpty) names.add(nom.trim());
+        }
+        return names;
+      }(),
     );
   }
 
@@ -241,6 +291,14 @@ class EtatDesLieuxModel {
     'observations': observations.map((k, v) => MapEntry(k, v.toJson())),
     'partie': partie.raw,
     if (edlCollectifId != null) 'edl_collectif_id': edlCollectifId,
+    'is_avenant': isAvenant,
+    if (avenantDate != null)
+      'avenant_date': avenantDate!.toIso8601String().substring(0, 10),
+    if (dateDebutBail != null)
+      'date_debut_bail': dateDebutBail!.toIso8601String().substring(0, 10),
+    if (dateFinBail != null)
+      'date_fin_bail': dateFinBail!.toIso8601String().substring(0, 10),
+    if (dureeBailMois != null) 'duree_bail_mois': dureeBailMois,
     if (surfaceM2 != null) 'surface_m2': surfaceM2,
     if (nombrePiecesPrincipales != null)
       'nombre_pieces_principales': nombrePiecesPrincipales,
@@ -263,7 +321,46 @@ class EtatDesLieuxModel {
     return chb != null ? '$imm — $chb' : imm;
   }
 
+  /// Libellé du/des locataire(s) pour l'affichage : le locataire principal
+  /// (privatif) ou, à défaut, la liste des preneurs (collectif). « — » si vide.
+  String get displayLocataire {
+    final principal = locataireNom ?? locataireEmail;
+    if (principal != null && principal.isNotEmpty) return principal;
+    if (preneursNoms.isNotEmpty) return preneursNoms.join(', ');
+    return '—';
+  }
+
   String get dateEdlFormatted => _dateFmt.format(dateEtatLieux);
   String? get dateFinalisationFormatted =>
       dateFinalisation != null ? _dateFmt.format(dateFinalisation!) : null;
+
+  /// Type d'EDL pour l'affichage : « Collectif » (parties communes) ou
+  /// « Individuel » (privatif d'une chambre).
+  String get typeLabel =>
+      partie == PartieEdl.commune ? 'Collectif' : 'Individuel';
+
+  /// Sens de l'EDL : « Entrée » / « Sortie ».
+  String get sensLabel => typeEdl == 'sortie' ? 'Sortie' : 'Entrée';
+
+  /// Type de l'immeuble pour l'affichage (Appartement, Maison…) ; « — » si absent.
+  String get immeubleTypeLabel =>
+      (immeubleTypeNom != null && immeubleTypeNom!.isNotEmpty)
+          ? immeubleTypeNom!
+          : '—';
+
+  /// Meublé ? — « Meublée » / « Non meublée » pour la colonne TYPE.
+  String get meubleLabel => immeubleMeuble ? 'Meublée' : 'Non meublée';
+
+  String? get avenantDateFormatted =>
+      avenantDate != null ? _dateFmt.format(avenantDate!) : null;
+
+  String? get dateDebutBailFormatted =>
+      dateDebutBail != null ? _dateFmt.format(dateDebutBail!) : null;
+  String? get dateFinBailFormatted =>
+      dateFinBail != null ? _dateFmt.format(dateFinBail!) : null;
+
+  /// Identifiant du « contrat » qui regroupe un EDL collectif et ses privatifs :
+  /// l'id du collectif lui-même (partie commune) ou l'`edl_collectif_id` (privatif).
+  /// `null` pour un EDL sans lien collectif↔privatif (legado).
+  int? get contratId => partie == PartieEdl.commune ? id : edlCollectifId;
 }

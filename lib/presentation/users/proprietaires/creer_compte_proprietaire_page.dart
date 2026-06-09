@@ -9,7 +9,7 @@ import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_radius.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
 import 'package:lacoloc_front/theme/app_typography.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:lacoloc_front/utils/auth_error.dart';
 
 class CrierCompteProprietairePage extends StatefulWidget {
   const CrierCompteProprietairePage({super.key});
@@ -56,10 +56,8 @@ class _CrierCompteProprietairePageState
 
       if (!mounted) return;
       _showSuccessDialog();
-    } on AuthException catch (e) {
-      _showError(e.message);
     } catch (e) {
-      _showError(e.toString());
+      _showError(authErrorMessage(e));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -86,7 +84,7 @@ class _CrierCompteProprietairePageState
           FilledButton(
             onPressed: () {
               Navigator.of(context).pop();
-              Navigator.of(context).pushReplacementNamed('/login');
+              Navigator.of(context).pushReplacementNamed('/');
             },
             child: const Text('Se connecter'),
           ),

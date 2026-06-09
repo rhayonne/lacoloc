@@ -89,6 +89,9 @@ class ProprietaireProfilPage extends StatefulWidget {
 class _ProprietaireProfilPageState extends State<ProprietaireProfilPage>
     with SingleTickerProviderStateMixin {
   final _scaffoldKey = GlobalKey<ScaffoldState>();
+  // Clé stable du contenu : préserve l'état des pages de section (ex. un EDL
+  // ouvert) quand la mise en page change (drawer ↔ sidebar) au redimensionnement.
+  final _contentKey = GlobalKey();
   late final SidebarXController _navCtrl;
   late final TabController _gestionTabCtrl;
 
@@ -460,6 +463,10 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage>
   Widget build(BuildContext context) {
     final isNarrow = MediaQuery.sizeOf(context).width < 800;
     final sidebar = _buildSidebar(isNarrow: isNarrow);
+    // KeyedSubtree + GlobalKey stable : quand on passe drawer ↔ sidebar (resize),
+    // le contenu (et son State, ex. un EDL en cours d'édition) est déplacé sans
+    // être détruit → l'EDL ouvert n'est plus fermé sans prévenir.
+    final content = KeyedSubtree(key: _contentKey, child: _buildContent());
 
     if (isNarrow) {
       return Scaffold(
@@ -475,7 +482,7 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage>
           ),
           title: const Text('Super Coloc'),
         ),
-        body: _buildContent(),
+        body: content,
       );
     }
 
@@ -483,7 +490,7 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage>
       body: Row(
         children: [
           sidebar,
-          Expanded(child: _buildContent()),
+          Expanded(child: content),
         ],
       ),
     );
@@ -543,25 +550,13 @@ class _FactureFormWithBack extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-          child: Row(
-            children: [
-              IconButton.outlined(
-                icon: const Icon(Icons.arrow_back),
-                onPressed: onBack,
-                tooltip: 'Retour à la liste',
-              ),
-              const SizedBox(width: 16),
-              Text('Nouvelle facture', style: AppTypography.titleLg),
-            ],
-          ),
-        ),
+        // Header (titre + Enregistrer/Fermer) rendu par NouvelleFacturePage.
         Expanded(
           child: NouvelleFacturePage(
             prefilledImmeubleId: prefilledImmeubleId,
             prefilledImmeubleName: prefilledImmeubleName,
             onSaved: onSaved,
+            onClose: onBack,
           ),
         ),
       ],

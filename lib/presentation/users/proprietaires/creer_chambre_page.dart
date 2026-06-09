@@ -12,7 +12,6 @@ import 'package:lacoloc_front/data/models/reference.dart';
 import 'package:lacoloc_front/presentation/widgets/form_page_header.dart';
 import 'package:lacoloc_front/presentation/widgets/photo_picker_field.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
-import 'package:lacoloc_front/theme/app_theme.dart';
 import 'package:lacoloc_front/utils/currency.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
 import 'package:lacoloc_front/theme/app_typography.dart';
@@ -190,13 +189,13 @@ class _CreerChambrePageState extends State<CreerChambrePage> {
       children: [
         FormPageHeader(
           title: _isEditing ? 'Modifier la chambre' : 'Nouvelle chambre',
-          leading: widget.onBack != null
-              ? IconButton.outlined(
-                  icon: const Icon(Icons.arrow_back),
-                  onPressed: _handleBack,
-                  tooltip: 'Retour',
-                )
-              : null,
+          trailing: FormHeaderActions(
+            onSave: _submit,
+            onClose: _handleBack,
+            isSaving: _isSubmitting,
+            saveLabel:
+                _isEditing ? 'Enregistrer les modifications' : 'Créer la chambre',
+          ),
         ),
         Expanded(child: FutureBuilder<_FormBundle>(
           future: _bundleFuture,
@@ -398,22 +397,6 @@ class _CreerChambrePageState extends State<CreerChambrePage> {
                         ),
 
                         const SizedBox(height: AppSpacing.xl),
-                        FilledButton.icon(
-                          onPressed: _isSubmitting ? null : _submit,
-                          style: AppTheme.saveButtonStyle,
-                          icon: _isSubmitting
-                              ? const SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : const Icon(Icons.check),
-                          label: Text(_isEditing
-                              ? 'Enregistrer les modifications'
-                              : 'Créer la chambre'),
-                        ),
                       ],
                     ),
                   ),

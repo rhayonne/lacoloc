@@ -2,10 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:lacoloc_front/data/datasources/auth_service.dart';
 import 'package:lacoloc_front/data/datasources/chambres.dart';
 import 'package:lacoloc_front/data/datasources/demandes_contact.dart';
+import 'package:lacoloc_front/data/cache/realtime_refresh_mixin.dart';
 import 'package:lacoloc_front/data/datasources/immeubles.dart';
+import 'package:lacoloc_front/data/datasources/notifications.dart';
 import 'package:lacoloc_front/data/models/chambre.dart';
 import 'package:lacoloc_front/data/models/demande_contact.dart';
 import 'package:lacoloc_front/data/models/immeubles.dart';
+import 'package:lacoloc_front/data/models/notification_model.dart';
+import 'package:lacoloc_front/presentation/users/proprietaires/interactions_page.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_radius.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
@@ -18,13 +22,20 @@ class VueGeneralePage extends StatefulWidget {
   State<VueGeneralePage> createState() => _VueGeneralePageState();
 }
 
-class _VueGeneralePageState extends State<VueGeneralePage> {
+class _VueGeneralePageState extends State<VueGeneralePage>
+    with RealtimeRefreshMixin {
   late Future<_VueData> _future;
 
   @override
   void initState() {
     super.initState();
     _future = _load();
+  }
+
+  @override
+  void onRealtimeChange() {
+    final f = _load();
+    setState(() => _future = f);
   }
 
   Future<_VueData> _load() async {
@@ -40,10 +51,17 @@ class _VueGeneralePageState extends State<VueGeneralePage> {
     final pending = demandes.where((d) => !d.contactEtabli).toList()
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
+    List<NotificationModel> notifs = [];
+    try {
+      final all = await NotificationsDatasource.listByOwner(limit: 5);
+      notifs = all.where((n) => !n.isRead).toList();
+    } catch (_) {}
+
     return _VueData(
       immeubles: immeubles,
       chambres: chambres,
       pendingDemandes: pending,
+      notifications: notifs,
     );
   }
 
@@ -110,6 +128,12 @@ class _VueGeneralePageState extends State<VueGeneralePage> {
                         chambres: data.chambres,
                       ),
                       const SizedBox(height: AppSpacing.xl),
+                      if (data.notifications.isNotEmpty) ...[
+                        _NotificationsSection(
+                          notifications: data.notifications,
+                        ),
+                        const SizedBox(height: AppSpacing.xl),
+                      ],
                       _PendingDemandesSection(
                         demandes: data.pendingDemandes,
                       ),
@@ -354,15 +378,50 @@ class _PendingCard extends StatelessWidget {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
+class _NotificationsSection extends StatelessWidget {
+  final List<NotificationModel> notifications;
+  const _NotificationsSection({required this.notifications});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(Icons.notifications_active_outlined,
+                size: 20, color: AppColors.primary),
+            const SizedBox(width: AppSpacing.sm),
+            Text('Notifications récentes', style: AppTypography.titleLg),
+            const SizedBox(width: AppSpacing.sm),
+            Chip(
+              label: Text('${notifications.length}'),
+              visualDensity: VisualDensity.compact,
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.md),
+        for (final n in notifications)
+          Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+            child: NotificationCard(notification: n),
+          ),
+      ],
+    );
+  }
+}
+
 class _VueData {
   final List<ImmeublesModel> immeubles;
   final List<ChambreModel> chambres;
   final List<DemandeContactModel> pendingDemandes;
+  final List<NotificationModel> notifications;
 
   const _VueData({
     required this.immeubles,
     required this.chambres,
     required this.pendingDemandes,
+    this.notifications = const [],
   });
 
   factory _VueData.empty() => const _VueData(

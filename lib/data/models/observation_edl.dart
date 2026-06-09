@@ -1,3 +1,5 @@
+import 'package:intl/intl.dart';
+
 class ObservationEdl {
   final int? id;
   final int etatDesLieuxId;
@@ -7,6 +9,12 @@ class ObservationEdl {
   final String? description;
   final List<String> photos;
   final DateTime? createdAt;
+  // 'proprietaire' | 'locataire' (null = proprietaire/legado). Define o autor
+  // da observação — usado para o selo "Ajouté par le locataire".
+  final String? authorRole;
+  // Ajout (« addition ») fait APRÈS finalisation, dans la fenêtre d'1 mois.
+  // Sa date/heure (createdAt) est enregistrée automatiquement.
+  final bool isAddition;
 
   const ObservationEdl({
     this.id,
@@ -17,10 +25,20 @@ class ObservationEdl {
     this.description,
     this.photos = const [],
     this.createdAt,
+    this.authorRole,
+    this.isAddition = false,
   });
+
+  static final _stampFmt = DateFormat("dd/MM/yyyy 'à' HH:mm", 'fr');
 
   bool get hasContent =>
       (description != null && description!.isNotEmpty) || photos.isNotEmpty;
+
+  bool get isLocataire => authorRole == 'locataire';
+
+  /// Date + heure de l'ajout (« Ajouté le 06/06/2026 à 14:30 »).
+  String? get createdAtLabel =>
+      createdAt != null ? _stampFmt.format(createdAt!.toLocal()) : null;
 
   String get wallLabel => switch (wallKey) {
     'fond'    => 'Mur du fond',
@@ -43,6 +61,8 @@ class ObservationEdl {
     createdAt: map['created_at'] != null
         ? DateTime.parse(map['created_at'] as String)
         : null,
+    authorRole: map['author_role'] as String?,
+    isAddition: (map['is_addition'] as bool?) ?? false,
   );
 
   Map<String, dynamic> toInsert() => {
@@ -52,5 +72,7 @@ class ObservationEdl {
     if (chambreId != null) 'chambre_id': chambreId,
     if (description != null && description!.isNotEmpty) 'description': description,
     'photos': photos,
+    if (authorRole != null) 'author_role': authorRole,
+    'is_addition': isAddition,
   };
 }
