@@ -41,14 +41,22 @@ jobs:
           channel: stable
           cache: true
 
-      # 3. Recréer .env.prod depuis le secret GitHub.
-      #    Le secret ENV_PROD doit contenir UNIQUEMENT les variables client Flutter
-      #    (SUPA_URL, SUP_ANNON_KEY, URL_EMAIL_CONFIRMATION_*).
+      # 3. Écrire .env.prod ligne par ligne depuis des secrets individuels.
+      #    Secrets à créer : SUPA_URL, SUP_ANNON_KEY.
       #    Les credentials SMTP restent dans les secrets Supabase Edge Function.
       - name: Recreate .env.prod
         env:
-          ENV_PROD: ${{ secrets.ENV_PROD }}
-        run: printf '%s\n' "$ENV_PROD" > .env.prod
+          SUPA_URL: ${{ secrets.SUPA_URL }}
+          SUP_ANNON_KEY: ${{ secrets.SUP_ANNON_KEY }}
+        run: |
+          {
+            printf "SUPA_URL='%s'\n" "$SUPA_URL"
+            printf "SUP_ANNON_KEY='%s'\n" "$SUP_ANNON_KEY"
+            printf "URL_EMAIL_CONFIRMATION='https://rhayonne.github.io/lacoloc/'\n"
+            printf "URL_EMAIL_CONFIRMATION_DEV='http://localhost:44785/'\n"
+            printf "URL_EMAIL_CONFIRMATION_PROD='https://rhayonne.github.io/lacoloc/'\n"
+            printf "ADDR_MAIL_CONFIRMATION=''\n"
+          } > .env.prod
 
       # .env.dev doit exister pour que Flutter puisse bundler tous les assets
       # listés dans pubspec.yaml — il n'est pas chargé en prod (ENV=prod).
