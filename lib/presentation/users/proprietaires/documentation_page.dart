@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:lacoloc_front/data/datasources/signatures.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
-import 'package:lacoloc_front/theme/app_spacing.dart';
-import 'package:lacoloc_front/theme/app_typography.dart';
 import 'package:lacoloc_front/theme/app_radius.dart';
+import 'package:lacoloc_front/theme/app_spacing.dart';
+import 'package:lacoloc_front/theme/app_theme.dart';
+import 'package:lacoloc_front/theme/app_typography.dart';
+import 'package:lacoloc_front/utils/signature_pad.dart';
 
 class DocumentationPage extends StatefulWidget {
   const DocumentationPage({super.key});
@@ -18,7 +21,7 @@ class _DocumentationPageState extends State<DocumentationPage>
   @override
   void initState() {
     super.initState();
-    _tabCtrl = TabController(length: 2, vsync: this);
+    _tabCtrl = TabController(length: 3, vsync: this);
   }
 
   @override
@@ -47,12 +50,17 @@ class _DocumentationPageState extends State<DocumentationPage>
           tabs: const [
             Tab(text: 'Vision générale'),
             Tab(text: 'Baux'),
+            Tab(text: 'Ma signature'),
           ],
         ),
         Expanded(
           child: TabBarView(
             controller: _tabCtrl,
-            children: const [_VisionGeneralePage(), _BauxPage()],
+            children: const [
+              _VisionGeneralePage(),
+              _BauxPage(),
+              _SignaturePage(),
+            ],
           ),
         ),
       ],
@@ -206,6 +214,140 @@ class _TableCell extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tab : Ma Signature
+
+class _SignaturePage extends StatefulWidget {
+  const _SignaturePage();
+
+  @override
+  State<_SignaturePage> createState() => _SignaturePageState();
+}
+
+class _SignaturePageState extends State<_SignaturePage> {
+  late Future<String?> _future;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = SignaturesDatasource.getSavedUrl();
+  }
+
+  Future<void> _update() async {
+    final sig = await showSignatureDialog(context);
+    if (sig == null || !mounted) return;
+    setState(() => _saving = true);
+    try {
+      await SignaturesDatasource.saveUrl(sig.url);
+      if (mounted) setState(() { _future = SignaturesDatasource.getSavedUrl(); _saving = false; });
+    } catch (e) {
+      if (mounted) {
+        setState(() => _saving = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur : $e')));
+      }
+    }
+  }
+
+  Future<void> _delete(String url) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Supprimer la signature ?'),
+        content: const Text('La signature sauvegardée sera supprimée.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Annuler')),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: AppTheme.deleteButtonStyle,
+            child: const Text('Supprimer'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    setState(() => _saving = true);
+    try {
+      await SignaturesDatasource.deleteSignature();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur : $e')));
+    }
+    if (mounted) setState(() { _future = SignaturesDatasource.getSavedUrl(); _saving = false; });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<String?>(
+      future: _future,
+      builder: (context, snap) {
+        final url = snap.data;
+        return ListView(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          children: [
+            Text('Ma signature par défaut', style: AppTypography.titleLg),
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              'Cette signature sera proposée automatiquement lors de la finalisation ou de l\'acceptation d\'un état des lieux.',
+              style: AppTypography.bodyMd.copyWith(color: AppColors.onSurfaceVariant),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            if (snap.connectionState == ConnectionState.waiting)
+              const Center(child: CircularProgressIndicator())
+            else if (url != null && url.isNotEmpty) ...[
+              Container(
+                height: 120,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  border: Border.all(color: AppColors.outlineVariant),
+                  borderRadius: AppRadius.borderMd,
+                ),
+                child: Image.network(url, fit: BoxFit.contain),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              Row(
+                children: [
+                  FilledButton.icon(
+                    onPressed: _saving ? null : _update,
+                    icon: const Icon(Icons.edit_outlined, size: 18),
+                    label: const Text('Modifier'),
+                  ),
+                  const SizedBox(width: AppSpacing.md),
+                  OutlinedButton.icon(
+                    onPressed: _saving ? null : () => _delete(url),
+                    style: AppTheme.deleteButtonStyle,
+                    icon: const Icon(Icons.delete_outline, size: 18),
+                    label: const Text('Supprimer'),
+                  ),
+                ],
+              ),
+            ] else ...[
+              Container(
+                height: 80,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceContainerLow,
+                  border: Border.all(color: AppColors.outlineVariant),
+                  borderRadius: AppRadius.borderMd,
+                ),
+                child: Text(
+                  'Aucune signature sauvegardée',
+                  style: AppTypography.bodyMd.copyWith(color: AppColors.onSurfaceVariant),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              FilledButton.icon(
+                onPressed: _saving ? null : _update,
+                icon: const Icon(Icons.draw_outlined, size: 18),
+                label: const Text('Ajouter ma signature'),
+              ),
+            ],
+          ],
+        );
+      },
+    );
+  }
+}
 
 class _BauxPage extends StatelessWidget {
   const _BauxPage();

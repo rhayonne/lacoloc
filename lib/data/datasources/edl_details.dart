@@ -171,4 +171,104 @@ class EdlDetailsDatasource {
     return (await listSections(section.etatDesLieuxId))
         .firstWhere((s) => s.id == sid, orElse: () => created);
   }
+
+  // ── Copie (EDL de sortie créé à partir d'une entrée) ─────────────────────────
+  // Toutes idempotentes : ne copient que si la cible est vide.
+
+  /// Copie la STRUCTURE (sections + lignes : nom de l'équipement / nature) de
+  /// `fromEdlId` vers `toEdlId`. Les états d'usure / fonctionnement /
+  /// commentaires ne sont PAS copiés : le sortie consigne l'état de sortie.
+  static Future<void> copyStructure(int fromEdlId, int toEdlId) async {
+    if ((await listSections(toEdlId)).isNotEmpty) return;
+    final src = await listSections(fromEdlId);
+    for (var i = 0; i < src.length; i++) {
+      final s = src[i];
+      await createSectionWithLignes(
+        EdlSection(etatDesLieuxId: toEdlId, nom: s.nom, ordre: i),
+        s.lignes
+            .map((l) => EdlLigne(
+                  sectionId: 0,
+                  equipement: l.equipement,
+                  natureNombre: l.natureNombre,
+                  ordre: l.ordre,
+                ))
+            .toList(),
+      );
+    }
+  }
+
+  /// Copie les sections/lignes **avec leur état** (état d'usure, fonctionnement,
+  /// commentaires) de `fromEdlId` vers `toEdlId`. Contrairement à [copyStructure]
+  /// (qui repart d'un état vierge pour un sortie), on reprend ici l'état tel quel
+  /// — sert au modèle « chaque EDL individuel reprend les parties communes du
+  /// dernier EDL et reste modifiable indépendamment ». Idempotent.
+  static Future<void> copyStructureWithState(int fromEdlId, int toEdlId) async {
+    if ((await listSections(toEdlId)).isNotEmpty) return;
+    final src = await listSections(fromEdlId);
+    for (var i = 0; i < src.length; i++) {
+      final s = src[i];
+      await createSectionWithLignes(
+        EdlSection(
+          etatDesLieuxId: toEdlId,
+          nom: s.nom,
+          ordre: i,
+          commentaireGlobal: s.commentaireGlobal,
+        ),
+        s.lignes
+            .map((l) => EdlLigne(
+                  sectionId: 0,
+                  equipement: l.equipement,
+                  natureNombre: l.natureNombre,
+                  etatUsure: l.etatUsure,
+                  fonctionnement: l.fonctionnement,
+                  commentaires: l.commentaires,
+                  ordre: l.ordre,
+                ))
+            .toList(),
+      );
+    }
+  }
+
+  /// Copie les preneurs de `fromEdlId` vers `toEdlId`.
+  static Future<void> copyPreneurs(int fromEdlId, int toEdlId) async {
+    if ((await listPreneurs(toEdlId)).isNotEmpty) return;
+    for (final p in await listPreneurs(fromEdlId)) {
+      await createPreneur(EdlPreneur(
+        etatDesLieuxId: toEdlId,
+        locataireId: p.locataireId,
+        nom: p.nom,
+        adresse: p.adresse,
+        ordre: p.ordre,
+      ));
+    }
+  }
+
+  /// Copie les relevés (type/numéro de série/unité) ; l'index est relu à la
+  /// sortie → laissé vide.
+  static Future<void> copyReleves(int fromEdlId, int toEdlId) async {
+    if ((await listReleves(toEdlId)).isNotEmpty) return;
+    for (final r in await listReleves(fromEdlId)) {
+      await createReleve(EdlReleve(
+        etatDesLieuxId: toEdlId,
+        categorie: r.categorie,
+        type: r.type,
+        numeroSerie: r.numeroSerie,
+        unite: r.unite,
+        ordre: r.ordre,
+      ));
+    }
+  }
+
+  /// Copie la liste des clés (type/nombre) ; la remise est ressaisie à la sortie.
+  static Future<void> copyCles(int fromEdlId, int toEdlId) async {
+    if ((await listCles(toEdlId)).isNotEmpty) return;
+    for (final c in await listCles(fromEdlId)) {
+      await createCle(EdlCle(
+        etatDesLieuxId: toEdlId,
+        typeCle: c.typeCle,
+        nombre: c.nombre,
+        ordre: c.ordre,
+      ));
+    }
+  }
 }

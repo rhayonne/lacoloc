@@ -5,6 +5,8 @@ import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:lacoloc_front/data/datasources/auth_service.dart';
 import 'package:lacoloc_front/data/datasources/fournisseurs.dart';
 import 'package:lacoloc_front/data/datasources/visites.dart';
+import 'package:lacoloc_front/data/permissions/permissions_service.dart';
+import 'package:lacoloc_front/presentation/widgets/permission_gate.dart';
 import 'package:lacoloc_front/data/models/fournisseur.dart';
 import 'package:lacoloc_front/data/models/visite.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
@@ -135,10 +137,13 @@ class _AgendaVisitesPageState extends State<AgendaVisitesPage> {
                 ),
               ),
               const SizedBox(width: AppSpacing.md),
-              FilledButton.icon(
-                onPressed: _loading ? null : () => _openForm(),
-                icon: const Icon(Icons.add),
-                label: const Text('Nouvelle visite'),
+              PermissionGate(
+                permission: Perm.visitesCreate,
+                child: FilledButton.icon(
+                  onPressed: _loading ? null : () => _openForm(),
+                  icon: const Icon(Icons.add),
+                  label: const Text('Nouvelle visite'),
+                ),
               ),
             ],
           ),
@@ -314,16 +319,22 @@ class _AgendaVisitesPageState extends State<AgendaVisitesPage> {
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                IconButton(
-                  icon: const Icon(Icons.edit_outlined, size: 18),
-                  tooltip: 'Modifier',
-                  onPressed: () => _openForm(v),
+                PermissionGate(
+                  permission: Perm.visitesEdit,
+                  child: IconButton(
+                    icon: const Icon(Icons.edit_outlined, size: 18),
+                    tooltip: 'Modifier',
+                    onPressed: () => _openForm(v),
+                  ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.delete_outline, size: 18),
-                  tooltip: 'Supprimer',
-                  color: AppColors.error,
-                  onPressed: () => _delete(v),
+                PermissionGate(
+                  permission: Perm.visitesDelete,
+                  child: IconButton(
+                    icon: const Icon(Icons.delete_outline, size: 18),
+                    tooltip: 'Supprimer',
+                    color: AppColors.error,
+                    onPressed: () => _delete(v),
+                  ),
                 ),
               ],
             ),

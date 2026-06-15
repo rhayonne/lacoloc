@@ -212,4 +212,18 @@ class AppTheme {
     shape: RoundedRectangleBorder(borderRadius: AppRadius.borderMd),
     minimumSize: const Size(0, 48),
   );
+
+  /// Style bordé (couleur primaire) pour tous les boutons "Document" / impression
+  /// PDF de l'app. À utiliser via le widget [DocumentPdfButton].
+  static ButtonStyle get documentButtonStyle => OutlinedButton.styleFrom(
+    foregroundColor: AppColors.primary,
+    side: const BorderSide(color: AppColors.primary),
+    textStyle: AppTypography.labelMd,
+    padding: const EdgeInsets.symmetric(
+      horizontal: AppSpacing.lg,
+      vertical: AppSpacing.md,
+    ),
+    shape: RoundedRectangleBorder(borderRadius: AppRadius.borderMd),
+    minimumSize: const Size(0, 48),
+  );
 }

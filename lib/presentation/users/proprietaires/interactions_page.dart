@@ -3,6 +3,8 @@ import 'package:intl/intl.dart';
 import 'package:lacoloc_front/data/cache/realtime_refresh_mixin.dart';
 import 'package:lacoloc_front/data/datasources/demandes_contact.dart';
 import 'package:lacoloc_front/data/datasources/notifications.dart';
+import 'package:lacoloc_front/data/permissions/permissions_service.dart';
+import 'package:lacoloc_front/presentation/widgets/permission_gate.dart';
 import 'package:lacoloc_front/data/models/demande_contact.dart';
 import 'package:lacoloc_front/data/models/notification_model.dart';
 import 'package:lacoloc_front/presentation/chambres/chambre_detail_page.dart';
@@ -419,9 +421,13 @@ class _SortableDemandesTable extends StatelessWidget {
                   ),
                 )
               : Center(
-                  child: Switch(
-                    value: d.contactEtabli,
-                    onChanged: (v) => onToggle(d, v),
+                  child: PermissionGate(
+                    permission: Perm.demandesManage,
+                    fallback: Switch(value: d.contactEtabli, onChanged: null),
+                    child: Switch(
+                      value: d.contactEtabli,
+                      onChanged: (v) => onToggle(d, v),
+                    ),
                   ),
                 ),
         ),

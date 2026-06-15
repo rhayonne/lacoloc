@@ -3,6 +3,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:lacoloc_front/data/cache/realtime_service.dart';
+import 'package:lacoloc_front/data/datasources/immeubles.dart';
+import 'package:lacoloc_front/data/datasources/session_scope.dart';
+import 'package:lacoloc_front/data/permissions/permissions_service.dart';
 import 'package:lacoloc_front/presentation/auth_gate.dart';
 import 'package:lacoloc_front/presentation/chambres/chambre_detail_page.dart';
 import 'package:lacoloc_front/presentation/home_page.dart';
@@ -22,13 +25,25 @@ class MyApp extends StatefulWidget {
   State<MyApp> createState() => _MyAppState();
 }
 
-class _MyAppState extends State<MyApp> {
+class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   final _navigatorKey = GlobalKey<NavigatorState>();
   late final StreamSubscription<AuthState> _authSub;
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Au retour au premier plan, on recharge les permissions effectives :
+    // si le super admin les a modifiées entre-temps, l'UI se met à jour
+    // (gating) sans nécessiter une reconnexion.
+    if (state == AppLifecycleState.resumed &&
+        Supabase.instance.client.auth.currentSession != null) {
+      PermissionsService.instance.load();
+    }
+  }
+
+  @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _authSub = Supabase.instance.client.auth.onAuthStateChange.listen((state) {
       // `initialSession` é emitido quando a sessão é recuperada da URL/Storage
       // durante o boot (caso do link de convite na web). Tratamos junto com
@@ -36,13 +51,26 @@ class _MyAppState extends State<MyApp> {
       switch (state.event) {
         case AuthChangeEvent.initialSession:
         case AuthChangeEvent.signedIn:
-        case AuthChangeEvent.userUpdated:
           // Realtime + cache : démarre dès qu'une session est active.
-          if (state.session != null) RealtimeService.instance.start();
+          if (state.session != null) {
+            RealtimeService.instance.start();
+            PermissionsService.instance.load();
+            // Log de connexion : best-effort, ne bloque pas le flux principal.
+            _logConnection();
+          }
+          _maybeRedirectToCompletion(state.session);
+        case AuthChangeEvent.userUpdated:
+          if (state.session != null) {
+            RealtimeService.instance.start();
+            PermissionsService.instance.load();
+          }
           _maybeRedirectToCompletion(state.session);
         case AuthChangeEvent.signedOut:
           // Coupe les abonnements et vide le cache au logout.
           RealtimeService.instance.stop();
+          PermissionsService.instance.clear();
+          ImmeublesDatasource.clearEntrepriseCache();
+          SessionScope.clear();
         default:
           break;
       }
@@ -84,8 +112,20 @@ class _MyAppState extends State<MyApp> {
     });
   }
 
+  /// Enregistre la connexion dans `connection_logs` via la edge function.
+  /// Best-effort : les erreurs sont ignorées pour ne pas bloquer le flux.
+  Future<void> _logConnection() async {
+    try {
+      await Supabase.instance.client.functions.invoke(
+        'log-connection',
+        body: {'timezone': DateTime.now().timeZoneName},
+      );
+    } catch (_) {}
+  }
+
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _authSub.cancel();
     super.dispose();
   }

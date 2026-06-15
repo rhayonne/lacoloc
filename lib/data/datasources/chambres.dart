@@ -9,7 +9,7 @@ class ChambresDatasource {
   static final SupabaseClient _client = Supabase.instance.client;
   static const String _table = 'Chambres';
   static const String _selectWithImmeuble =
-      '*, Immeubles!immeuble_id(id, name, address, city, region, department, bail_collectif, bail_individuel, location_meuble, type_id)';
+      '*, Immeubles!immeuble_id(id, name, address, city, region, department, bail_location, bail_individuel, location_meuble, type_id)';
 
   static final _cache = DataCache.instance;
   static void _invalidate() => _cache.invalidatePrefix(CacheKeys.chambres);

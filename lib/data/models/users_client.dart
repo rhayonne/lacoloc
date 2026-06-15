@@ -3,11 +3,13 @@
 enum UserType {
   locataire,
   proprietaire,
+  adminGroupe,
   superAdmin;
 
   String get raw => switch (this) {
         UserType.locataire => 'locataire',
         UserType.proprietaire => 'proprietaire',
+        UserType.adminGroupe => 'admin_groupe',
         UserType.superAdmin => 'super_admin',
       };
 
@@ -16,6 +18,7 @@ enum UserType {
     return switch (raw) {
       'locataire' => UserType.locataire,
       'proprietaire' => UserType.proprietaire,
+      'admin_groupe' => UserType.adminGroupe,
       'super_admin' => UserType.superAdmin,
       _ => null,
     };
@@ -57,6 +60,8 @@ class UsersClient {
   final int? typeUserId;
   final UserTypeRef? typeUserRef;
   final bool active;
+  final int? groupId;
+  final int? entrepriseId;
 
   UsersClient({
     required this.id,
@@ -69,6 +74,8 @@ class UsersClient {
     this.typeUserId,
     this.typeUserRef,
     this.active = true,
+    this.groupId,
+    this.entrepriseId,
   });
 
   UserType? get resolvedType => typeUserRef?.userType;
@@ -92,6 +99,12 @@ class UsersClient {
           ? UserTypeRef.fromMap(Map<String, dynamic>.from(rawRef))
           : null,
       active: (json['active'] as bool?) ?? true,
+      groupId: json['group_id'] != null
+          ? (json['group_id'] as num).toInt()
+          : null,
+      entrepriseId: json['entreprise_id'] != null
+          ? (json['entreprise_id'] as num).toInt()
+          : null,
     );
   }
 

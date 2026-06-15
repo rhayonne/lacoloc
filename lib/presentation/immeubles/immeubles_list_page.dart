@@ -79,7 +79,7 @@ class _ImmeublesListPageState extends State<ImmeublesListPage> {
         return false;
       }
     }
-    if (f.bailType == BailTypeFilter.collectif && !imm.bailCollectif) {
+    if (f.bailType == BailTypeFilter.collectif && !imm.bailLocation) {
       return false;
     }
     if (f.bailType == BailTypeFilter.individuel && !imm.bailIndividuel) {

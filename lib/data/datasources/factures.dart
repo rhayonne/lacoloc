@@ -1,5 +1,6 @@
 import 'package:lacoloc_front/data/cache/data_cache.dart';
 import 'package:lacoloc_front/data/cache/realtime_service.dart';
+import 'package:lacoloc_front/data/datasources/session_scope.dart';
 import 'package:lacoloc_front/data/models/facture.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -19,11 +20,14 @@ class FacturesDatasource {
     bool refresh = false,
   }) {
     return _cache.get('${CacheKeys.factures}owner:$ownerId', () async {
-      final rows = await _client
-          .from(_table)
-          .select(_select)
-          .eq('owner_id', ownerId)
-          .order('created_at', ascending: false);
+      // Multi-tenant : membro d'une entreprise → toutes les factures de
+      // l'entreprise ; sinon, seulement les siennes.
+      final entrepriseId = await SessionScope.currentEntrepriseId();
+      final query = _client.from(_table).select(_select);
+      final filtered = entrepriseId != null
+          ? query.eq('entreprise_id', entrepriseId)
+          : query.eq('owner_id', ownerId);
+      final rows = await filtered.order('created_at', ascending: false);
       return _map(rows);
     }, refresh: refresh);
   }

@@ -44,6 +44,7 @@ async function sendActivationEmail(
   tempPassword: string,
   activationLink: string,
   phone?: string,
+  isResend = false,
 ): Promise<{ sent: boolean; smtpError?: string }> {
   const host = Deno.env.get('SMTP_HOST') ?? '';
   const port = parseInt(Deno.env.get('SMTP_PORT') ?? '587', 10);
@@ -56,6 +57,63 @@ async function sendActivationEmail(
     return { sent: false, smtpError: `Missing secrets — host="${host}" user="${user}" pass=${pass ? '***' : '(empty)'}` };
   }
 
+  const displayName = fullName || email;
+
+  // Corps et sujet différents selon création vs renvoi de mot de passe.
+  const subject = isResend
+    ? `Réinitialisation de votre accès — La Coloc`
+    : `Bienvenue sur La Coloc — Activez votre compte`;
+
+  const intro = isResend
+    ? `
+        <h2 style="color: #006685;">Réinitialisation de votre accès</h2>
+        <p>Bonjour <strong>${displayName}</strong>,</p>
+        <p>
+          Une réinitialisation de mot de passe a été demandée pour votre compte
+          <strong>La Coloc</strong> (<em>${email}</em>).
+        </p>
+      `
+    : `
+        <h2 style="color: #006685;">Bienvenue sur La Coloc, ${displayName} !</h2>
+        <p>Votre propriétaire vous a créé un compte sur <strong>La Coloc</strong>.</p>
+        ${phone ? `<p><strong>Téléphone enregistré :</strong> ${phone}</p>` : ''}
+      `;
+
+  const buttonLabel = isResend
+    ? 'Définir mon nouveau mot de passe'
+    : 'Activer mon compte et choisir mon mot de passe';
+
+  const footer = isResend
+    ? `Si vous n'avez pas demandé cette réinitialisation, ignorez cet e-mail — votre mot de passe actuel reste inchangé.`
+    : `Ce lien reste valable tant que vous n'avez pas changé votre mot de passe.<br>
+       Si vous n'attendiez pas cet e-mail, vous pouvez l'ignorer en toute sécurité.`;
+
+  const html = `
+    <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #1a1a2e;">
+      ${intro}
+      <p>Voici votre <strong>mot de passe temporaire</strong> :</p>
+      <div style="font-size: 20px; font-weight: 700; letter-spacing: 1px;
+                  background: #f0f6fa; border: 1px solid #cfe0e7; color: #006685;
+                  padding: 14px 18px; border-radius: 8px; text-align: center;
+                  margin: 12px 0;">
+        ${tempPassword}
+      </div>
+      <p>
+        Cliquez sur le bouton ci-dessous pour vous connecter. Vous serez
+        invité(e) à <strong>choisir votre propre mot de passe</strong>.
+      </p>
+      <a href="${activationLink}"
+         style="display: inline-block; background: #006685; color: white;
+                padding: 14px 28px; border-radius: 8px; text-decoration: none;
+                margin: 16px 0; font-weight: 600;">
+        ${buttonLabel}
+      </a>
+      <p style="color: #666; font-size: 13px; margin-top: 32px;">
+        ${footer}
+      </p>
+    </div>
+  `;
+
   try {
     const transporter = nodemailer.createTransport({
       host,
@@ -64,40 +122,10 @@ async function sendActivationEmail(
       auth: { user, pass },
     });
 
-    const html = `
-      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #1a1a2e;">
-        <h2 style="color: #006685;">Bienvenue sur La Coloc, ${fullName} !</h2>
-        <p>Votre propriétaire vous a créé un compte sur <strong>La Coloc</strong>.</p>
-        ${phone ? `<p><strong>Téléphone enregistré :</strong> ${phone}</p>` : ''}
-        <p>Voici votre <strong>mot de passe temporaire</strong> :</p>
-        <div style="font-size: 20px; font-weight: 700; letter-spacing: 1px;
-                    background: #f0f6fa; border: 1px solid #cfe0e7; color: #006685;
-                    padding: 14px 18px; border-radius: 8px; text-align: center;
-                    margin: 12px 0;">
-          ${tempPassword}
-        </div>
-        <p>
-          Cliquez sur le bouton ci-dessous pour activer votre compte. Vous serez
-          invité(e) à <strong>choisir votre propre mot de passe</strong> ; votre
-          compte ne sera actif qu'après ce changement.
-        </p>
-        <a href="${activationLink}"
-           style="display: inline-block; background: #006685; color: white;
-                  padding: 14px 28px; border-radius: 8px; text-decoration: none;
-                  margin: 16px 0; font-weight: 600;">
-          Activer mon compte et choisir mon mot de passe
-        </a>
-        <p style="color: #666; font-size: 13px; margin-top: 32px;">
-          Ce lien reste valable tant que vous n'avez pas changé votre mot de passe.<br>
-          Si vous n'attendiez pas cet e-mail, vous pouvez l'ignorer en toute sécurité.
-        </p>
-      </div>
-    `;
-
     await transporter.sendMail({
       from,
-      to: `${fullName} <${email}>`,
-      subject: 'Bienvenue sur La Coloc — Activez votre compte',
+      to: displayName !== email ? `${displayName} <${email}>` : email,
+      subject,
       html,
     });
     return { sent: true };
@@ -146,6 +174,7 @@ Deno.serve(async (req) => {
       redirectTo,
       mailTo,
       test,
+      emailType,
     } = body;
 
     // En dev, le client peut rediriger l'e-mail vers une boîte de test
@@ -160,36 +189,88 @@ Deno.serve(async (req) => {
       Deno.env.get('APP_URL') ||
       'https://votre-app.com';
 
-    // ── Test mode (diagnostic SMTP) ──────────────────────────────────────────
-    if (test === true) {
-      const to = recipient;
-      if (!to) return json({ error: 'email (ou mailTo) requis pour le test.' }, 400);
-      const { sent, smtpError } = await sendActivationEmail(
-        to,
-        fullName ?? 'Test La Coloc',
-        'MOT-DE-PASSE-TEST',
-        buildActivationLink(appUrl, to, 'TEST'),
-        phone,
-      );
-      return json({
-        test: true,
-        emailSent: sent,
-        recipient: to,
-        smtpConfigured: !!(Deno.env.get('SMTP_HOST') && Deno.env.get('SMTP_USER') && Deno.env.get('SMTP_PASS')),
-        ...(smtpError ? { smtpError } : {}),
-      });
-    }
-
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
     );
+
+    // ── Test mode (envoi d'e-mail de diagnostic — RÉSERVÉ AU SUPER ADMIN) ──────
+    // Auparavant ouvert sans authentification (`verify_jwt: false`), ce mode
+    // était abusé par des appels externes. Désormais on exige le JWT d'un
+    // compte **super_admin** (vérifié côté service role, non falsifiable).
+    if (test === true) {
+      const startedAt = Date.now();
+      const authHeader = req.headers.get('Authorization') ?? '';
+      const token = authHeader.replace(/^Bearer\s+/i, '').trim();
+      if (!token) {
+        return json({ ok: false, error: 'Authentification requise.' }, 401);
+      }
+      const { data: caller, error: authErr } = await supabase.auth.getUser(token);
+      if (authErr || !caller?.user) {
+        return json({ ok: false, error: 'Jeton invalide ou expiré.' }, 401);
+      }
+      const { data: profile } = await supabase
+        .from('Users_Client')
+        .select('User_Types_Reference(code)')
+        .eq('id', caller.user.id)
+        .maybeSingle();
+      // deno-lint-ignore no-explicit-any
+      const callerType = (profile as any)?.User_Types_Reference?.code;
+      if (callerType !== 'super_admin') {
+        return json({ ok: false, error: 'Réservé au super admin.' }, 403);
+      }
+
+      const to = recipient;
+      if (!to) return json({ ok: false, error: 'email (ou mailTo) requis pour le test.' }, 400);
+
+      // emailType : 'reset' → e-mail de réinitialisation ; sinon → activation.
+      const isResend = emailType === 'reset';
+      const tempPassword = 'MOT-DE-PASSE-TEST';
+      const link = buildActivationLink(appUrl, to, 'TEST');
+      const subject = isResend
+        ? 'Réinitialisation de votre accès — La Coloc'
+        : 'Bienvenue sur La Coloc — Activez votre compte';
+
+      const { sent, smtpError } = await sendActivationEmail(
+        to,
+        fullName ?? 'Test La Coloc',
+        tempPassword,
+        link,
+        phone,
+        isResend,
+      );
+
+      return json({
+        ok: sent,
+        test: true,
+        emailType: emailType ?? 'invite',
+        recipient: to,
+        subject,
+        activationLink: link,
+        smtpConfigured: !!(Deno.env.get('SMTP_HOST') && Deno.env.get('SMTP_USER') && Deno.env.get('SMTP_PASS')),
+        requestedBy: caller.user.email,
+        durationMs: Date.now() - startedAt,
+        timestamp: new Date().toISOString(),
+        ...(smtpError ? { smtpError } : {}),
+      }, sent ? 200 : 502);
+    }
 
     // ── Resend mode ──────────────────────────────────────────────────────────
     // Réinitialise un nouveau mot de passe temporaire et renvoie le lien.
     if (resend === true) {
       if (!existingUserId) return json({ error: 'userId est obligatoire.' }, 400);
       if (!email) return json({ error: 'email est obligatoire.' }, 400);
+
+      // Si le nom n'est pas fourni par le client, on le récupère depuis la BD.
+      let resolvedName: string = (typeof fullName === 'string' && fullName) ? fullName : '';
+      if (!resolvedName) {
+        const { data: userRow } = await supabase
+          .from('Users_Client')
+          .select('full_name')
+          .eq('id', existingUserId)
+          .maybeSingle();
+        resolvedName = (userRow as any)?.full_name ?? '';
+      }
 
       const tempPassword = genPassword();
       const { error: updErr } = await supabase.auth.admin.updateUserById(
@@ -203,7 +284,7 @@ Deno.serve(async (req) => {
 
       const link = buildActivationLink(appUrl, email, tempPassword);
       const { sent: emailSent, smtpError } = await sendActivationEmail(
-        recipient ?? '', fullName ?? '', tempPassword, link, phone,
+        recipient ?? '', resolvedName, tempPassword, link, phone, true,
       );
       if (emailSent) await markEmailStatus(supabase, existingUserId);
 

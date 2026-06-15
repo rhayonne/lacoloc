@@ -59,7 +59,11 @@ class AuthGate extends StatelessWidget {
 
             final type = profile?.resolvedType;
             final page = switch (type) {
-              UserType.proprietaire => const ProprietaireProfilPage(),
+              // L'admin de groupe fonctionne comme un propriétaire (+ config
+              // entreprise — phase 2).
+              UserType.proprietaire ||
+              UserType.adminGroupe =>
+                const ProprietaireProfilPage(),
               UserType.superAdmin => const SuperAdminProfilPage(),
               _ => const LocataireProfilPage(),
             };

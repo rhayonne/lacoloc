@@ -17,15 +17,20 @@ class ImmeublesModel {
   final String? department;
   final String? codePostal;
   final DateTime? createdAt;
-  final bool bailCollectif;
+  // Location simple : plusieurs preneurs, un seul contrat partagé (ex-« bail
+  // collectif »). À ne pas confondre avec le « collectif » = parties communes
+  // d'un bail individuel.
+  final bool bailLocation;
   final bool bailIndividuel;
   final double? prixLoyer;
   final bool? locationMeuble; // null = pas répondu ; true = meublée
+  final int? entrepriseId; // empresa dona do imóvel (multi-tenant)
 
   ImmeublesModel({
     required this.id,
     required this.name,
     this.ownerId,
+    this.entrepriseId,
     this.typeId,
     this.type,
     this.address,
@@ -39,15 +44,15 @@ class ImmeublesModel {
     this.department,
     this.codePostal,
     this.createdAt,
-    this.bailCollectif = false,
+    this.bailLocation = false,
     this.bailIndividuel = false,
     this.prixLoyer,
     this.locationMeuble,
   });
 
   String? get bailLabel {
-    if (bailCollectif) return 'Bail collectif';
-    if (bailIndividuel) return 'Bail individuel';
+    if (bailLocation) return 'Location';
+    if (bailIndividuel) return 'Bail individuel (Colocation)';
     return null;
   }
 
@@ -59,6 +64,7 @@ class ImmeublesModel {
       id: map['id'] as int,
       name: (map['name'] ?? map['nome'] ?? '') as String,
       ownerId: map['owner_id'] as String?,
+      entrepriseId: (map['entreprise_id'] as num?)?.toInt(),
       typeId: map['type_id'] as int?,
       type: rawType is Map
           ? ImmeubleTypeModel.fromMap(Map<String, dynamic>.from(rawType))
@@ -76,7 +82,7 @@ class ImmeublesModel {
       createdAt: map['created_at'] != null
           ? DateTime.parse(map['created_at'] as String)
           : null,
-      bailCollectif: (map['bail_collectif'] as bool?) ?? false,
+      bailLocation: (map['bail_location'] as bool?) ?? false,
       bailIndividuel: (map['bail_individuel'] as bool?) ?? false,
       prixLoyer: (map['prix_loyer'] as num?)?.toDouble(),
       locationMeuble: map['location_meuble'] as bool?,
@@ -85,6 +91,7 @@ class ImmeublesModel {
 
   Map<String, dynamic> toInsert() => {
         if (ownerId != null) 'owner_id': ownerId,
+        if (entrepriseId != null) 'entreprise_id': entrepriseId,
         if (typeId != null) 'type_id': typeId,
         'name': name,
         if (address != null) 'address': address,
@@ -97,7 +104,7 @@ class ImmeublesModel {
         if (region != null) 'region': region,
         if (department != null) 'department': department,
         if (codePostal != null) 'code_postal': codePostal,
-        'bail_collectif': bailCollectif,
+        'bail_location': bailLocation,
         'bail_individuel': bailIndividuel,
         if (prixLoyer != null) 'prix_loyer': prixLoyer,
         if (locationMeuble != null) 'location_meuble': locationMeuble,

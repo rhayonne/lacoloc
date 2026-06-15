@@ -90,7 +90,7 @@ class _ChambresListState extends State<ChambresList> {
       if (!match) return false;
     }
 
-    if (f.bailType == BailTypeFilter.collectif && !c.immeubleBailCollectif) {
+    if (f.bailType == BailTypeFilter.collectif && !c.immeubleBailLocation) {
       return false;
     }
     if (f.bailType == BailTypeFilter.individuel && !c.immeubleBailIndividuel) {

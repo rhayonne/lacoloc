@@ -1,5 +1,6 @@
 import 'package:lacoloc_front/data/cache/data_cache.dart';
 import 'package:lacoloc_front/data/cache/realtime_service.dart';
+import 'package:lacoloc_front/data/datasources/session_scope.dart';
 import 'package:lacoloc_front/data/models/fournisseur.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -19,11 +20,12 @@ class FournisseursDatasource {
     bool refresh = false,
   }) {
     return _cache.get('${CacheKeys.fournisseurs}owner:$ownerId', () async {
-      final rows = await _client
-          .from(_table)
-          .select()
-          .eq('owner_id', ownerId)
-          .order('nom', ascending: true);
+      final entrepriseId = await SessionScope.currentEntrepriseId();
+      final query = _client.from(_table).select();
+      final filtered = entrepriseId != null
+          ? query.eq('entreprise_id', entrepriseId)
+          : query.eq('owner_id', ownerId);
+      final rows = await filtered.order('nom', ascending: true);
       return _map(rows);
     }, refresh: refresh);
   }
@@ -33,12 +35,13 @@ class FournisseursDatasource {
     bool refresh = false,
   }) {
     return _cache.get('${CacheKeys.fournisseurs}active:$ownerId', () async {
-      final rows = await _client
-          .from(_table)
-          .select()
-          .eq('owner_id', ownerId)
-          .eq('is_active', true)
-          .order('nom', ascending: true);
+      final entrepriseId = await SessionScope.currentEntrepriseId();
+      final base = _client.from(_table).select();
+      final scoped = entrepriseId != null
+          ? base.eq('entreprise_id', entrepriseId)
+          : base.eq('owner_id', ownerId);
+      final rows =
+          await scoped.eq('is_active', true).order('nom', ascending: true);
       return _map(rows);
     }, refresh: refresh);
   }

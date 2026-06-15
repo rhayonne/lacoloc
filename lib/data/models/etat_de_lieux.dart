@@ -1,5 +1,9 @@
 import 'package:intl/intl.dart';
 
+/// Durée par défaut (en jours) de la fenêtre « avenant / additions » ouverte
+/// après la finalisation d'un EDL, quand aucune préférence n'est définie.
+const int kDefaultAvenantWindowDays = 30;
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Wall observation (plan 2D step of the EDL form)
 
@@ -108,6 +112,16 @@ class EtatDesLieuxModel {
   final bool isAvenant;
   final DateTime? avenantDate;
 
+  /// EDL d'**entrée** source auquel ce **sortie** est couplé (copie de structure
+  /// + contrepoint à l'impression). Null pour une entrée. Vaut pour le collectif
+  /// (commune) comme pour le privatif.
+  final int? edlEntreeId;
+
+  /// Durée (en jours) de la fenêtre « avenant / additions » ouverte après la
+  /// finalisation. Snapshot pris à la finalisation depuis la préférence du
+  /// propriétaire (Vision générale). Null = fallback [kDefaultAvenantWindowDays].
+  final int? avenantWindowDays;
+
   // ── Contrat de bail (privatif) — saisis à la finalisation ─────────────────
   final DateTime? dateDebutBail;
   final DateTime? dateFinBail;
@@ -121,6 +135,12 @@ class EtatDesLieuxModel {
   final String? nouvelleAdresse;
   final String? lieuRedaction;
   final String? nombreExemplaires;
+
+  // ── Signatures ─────────────────────────────────────────────────────────────
+  final DateTime? proprietaireSignedAt;
+  final String? proprietaireSignatureUrl;
+  final DateTime? locataireSignedAt;
+  final String? locataireSignatureUrl;
 
   // Champs enrichis via join
   final String? locataireNom;
@@ -161,6 +181,8 @@ class EtatDesLieuxModel {
     this.edlCollectifId,
     this.isAvenant = false,
     this.avenantDate,
+    this.edlEntreeId,
+    this.avenantWindowDays,
     this.dateDebutBail,
     this.dateFinBail,
     this.dureeBailMois,
@@ -185,6 +207,10 @@ class EtatDesLieuxModel {
     this.chambreNom,
     this.proprietaireNom,
     this.preneursNoms = const [],
+    this.proprietaireSignedAt,
+    this.proprietaireSignatureUrl,
+    this.locataireSignedAt,
+    this.locataireSignatureUrl,
   });
 
   factory EtatDesLieuxModel.fromMap(Map<String, dynamic> map) {
@@ -228,6 +254,8 @@ class EtatDesLieuxModel {
       avenantDate: map['avenant_date'] != null
           ? DateTime.parse(map['avenant_date'] as String)
           : null,
+      edlEntreeId: map['edl_entree_id'] as int?,
+      avenantWindowDays: map['avenant_window_days'] as int?,
       dateDebutBail: map['date_debut_bail'] != null
           ? DateTime.parse(map['date_debut_bail'] as String)
           : null,
@@ -259,6 +287,14 @@ class EtatDesLieuxModel {
       immeubleMeuble: (imm?['location_meuble'] as bool?) ?? false,
       chambreNom: chb?['room_name'] as String?,
       proprietaireNom: prop?['full_name'] as String?,
+      proprietaireSignedAt: map['proprietaire_signed_at'] != null
+          ? DateTime.parse(map['proprietaire_signed_at'] as String)
+          : null,
+      proprietaireSignatureUrl: map['proprietaire_signature_url'] as String?,
+      locataireSignedAt: map['locataire_signed_at'] != null
+          ? DateTime.parse(map['locataire_signed_at'] as String)
+          : null,
+      locataireSignatureUrl: map['locataire_signature_url'] as String?,
       preneursNoms: () {
         final raw = map['preneurs'];
         if (raw is! List) return const <String>[];
@@ -294,6 +330,7 @@ class EtatDesLieuxModel {
     'is_avenant': isAvenant,
     if (avenantDate != null)
       'avenant_date': avenantDate!.toIso8601String().substring(0, 10),
+    if (edlEntreeId != null) 'edl_entree_id': edlEntreeId,
     if (dateDebutBail != null)
       'date_debut_bail': dateDebutBail!.toIso8601String().substring(0, 10),
     if (dateFinBail != null)
@@ -334,13 +371,39 @@ class EtatDesLieuxModel {
   String? get dateFinalisationFormatted =>
       dateFinalisation != null ? _dateFmt.format(dateFinalisation!) : null;
 
-  /// Type d'EDL pour l'affichage : « Collectif » (parties communes) ou
-  /// « Individuel » (privatif d'une chambre).
-  String get typeLabel =>
-      partie == PartieEdl.commune ? 'Collectif' : 'Individuel';
+  /// Nombre de jours effectif de la fenêtre avenant/additions (fallback défaut).
+  int get avenantWindowDaysOrDefault =>
+      avenantWindowDays ?? kDefaultAvenantWindowDays;
+
+  /// La fenêtre « avenant / additions » est-elle encore ouverte ?
+  ///
+  /// Vraie seulement si l'EDL est **finalisé**. Si `date_finalisation` est null
+  /// (finalisé mais pas encore accepté/signé par le locataire), la fenêtre est
+  /// considérée ouverte. Sinon : `now < date_finalisation + windowDays`.
+  bool get isAvenantWindowOpen {
+    if (situation != SituationEdl.finalise) return false;
+    // 0 (ou moins) = « Sans avenant » : aucune fenêtre.
+    if (avenantWindowDaysOrDefault <= 0) return false;
+    final ref = dateFinalisation;
+    if (ref == null) return true;
+    return DateTime.now()
+        .isBefore(ref.add(Duration(days: avenantWindowDaysOrDefault)));
+  }
+
+  /// Type d'EDL pour l'affichage :
+  ///  • « Location » : bail simple (plusieurs preneurs, un contrat partagé) ;
+  ///  • « Collectif » : parties communes d'un bail individuel ;
+  ///  • « Individuel » : privatif d'une chambre (bail individuel).
+  String get typeLabel {
+    if (typeBail == 'location') return 'Location';
+    return partie == PartieEdl.commune ? 'Collectif' : 'Individuel';
+  }
 
   /// Sens de l'EDL : « Entrée » / « Sortie ».
   String get sensLabel => typeEdl == 'sortie' ? 'Sortie' : 'Entrée';
+
+  /// Vrai si c'est un EDL de sortie.
+  bool get isSortie => typeEdl == 'sortie';
 
   /// Type de l'immeuble pour l'affichage (Appartement, Maison…) ; « — » si absent.
   String get immeubleTypeLabel =>

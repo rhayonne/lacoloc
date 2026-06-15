@@ -291,34 +291,43 @@ class _LoginCardState extends State<LoginCard> {
             ),
           ),
           const SizedBox(height: AppSpacing.xl),
-          _label('IDENTIFIANT OU E-MAIL'),
-          FormBuilderTextField(
-            name: 'email',
-            keyboardType: TextInputType.emailAddress,
-            textInputAction: TextInputAction.next,
-            decoration: const InputDecoration(hintText: 'nom@exemple.fr'),
-            validator: FormBuilderValidators.required(),
-          ),
-          const SizedBox(height: AppSpacing.md),
-          _label('MOT DE PASSE'),
-          FormBuilderTextField(
-            name: 'password',
-            obscureText: true,
-            textInputAction: TextInputAction.done,
-            // No-op : empêche le unfocus automatique de « Entrée »
-            // (_finalizeEditing → unfocus) qui, sur Flutter web, déclenche un
-            // rebuild pendant lequel l'erreur de la requête est détournée et
-            // gèle l'UI. La soumission passe par onSubmitted (post-frame).
-            onEditingComplete: () {},
-            onSubmitted: (_) => _onEnterPressed(),
-            decoration: const InputDecoration(hintText: '••••••••'),
-            validator: FormBuilderValidators.compose([
-              FormBuilderValidators.required(),
-              FormBuilderValidators.minLength(
-                6,
-                errorText: '6 caractères minimum',
-              ),
-            ]),
+          AutofillGroup(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _label('IDENTIFIANT OU E-MAIL'),
+                FormBuilderTextField(
+                  name: 'email',
+                  keyboardType: TextInputType.emailAddress,
+                  autofillHints: const [AutofillHints.email],
+                  textInputAction: TextInputAction.next,
+                  decoration: const InputDecoration(hintText: 'nom@exemple.fr'),
+                  validator: FormBuilderValidators.required(),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                _label('MOT DE PASSE'),
+                FormBuilderTextField(
+                  name: 'password',
+                  obscureText: true,
+                  autofillHints: const [AutofillHints.password],
+                  textInputAction: TextInputAction.done,
+                  // No-op : empêche le unfocus automatique de « Entrée »
+                  // (_finalizeEditing → unfocus) qui, sur Flutter web, déclenche un
+                  // rebuild pendant lequel l'erreur de la requête est détournée et
+                  // gèle l'UI. La soumission passe par onSubmitted (post-frame).
+                  onEditingComplete: () {},
+                  onSubmitted: (_) => _onEnterPressed(),
+                  decoration: const InputDecoration(hintText: '••••••••'),
+                  validator: FormBuilderValidators.compose([
+                    FormBuilderValidators.required(),
+                    FormBuilderValidators.minLength(
+                      6,
+                      errorText: '6 caractères minimum',
+                    ),
+                  ]),
+                ),
+              ],
+            ),
           ),
           if (_error != null) ...[
             const SizedBox(height: AppSpacing.lg),

@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:lacoloc_front/data/datasources/auth_service.dart';
 import 'package:lacoloc_front/data/datasources/factures.dart';
 import 'package:lacoloc_front/data/models/facture.dart';
+import 'package:lacoloc_front/data/permissions/permissions_service.dart';
 import 'package:lacoloc_front/presentation/finances/nouvelle_facture_page.dart';
+import 'package:lacoloc_front/presentation/widgets/permission_gate.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_radius.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
@@ -165,10 +167,13 @@ class _FacturesListPageState extends State<FacturesListPage>
                 children: [
                   Text('Factures', style: AppTypography.titleLg),
                   const Spacer(),
-                  FilledButton.icon(
-                    onPressed: widget.onAjouter,
-                    icon: const Icon(Icons.add, size: 18),
-                    label: const Text('Ajouter une facture'),
+                  PermissionGate(
+                    permission: Perm.facturesCreate,
+                    child: FilledButton.icon(
+                      onPressed: widget.onAjouter,
+                      icon: const Icon(Icons.add, size: 18),
+                      label: const Text('Ajouter une facture'),
+                    ),
                   ),
                 ],
               ),
@@ -278,10 +283,13 @@ class _FacturesListPageState extends State<FacturesListPage>
                   children: [
                     Text('Recettes', style: AppTypography.titleLg),
                     const Spacer(),
-                    FilledButton.icon(
-                      onPressed: widget.onAjouterRecette,
-                      icon: const Icon(Icons.add, size: 18),
-                      label: const Text('Ajouter une recette'),
+                    PermissionGate(
+                      permission: Perm.facturesCreate,
+                      child: FilledButton.icon(
+                        onPressed: widget.onAjouterRecette,
+                        icon: const Icon(Icons.add, size: 18),
+                        label: const Text('Ajouter une recette'),
+                      ),
                     ),
                   ],
                 ),
@@ -473,15 +481,18 @@ class _FacturesTableState extends State<_FacturesTable> {
                                 onPressed: () => widget.onVoir(f),
                               ),
                             ),
-                            Tooltip(
-                              message: 'Modifier',
-                              child: IconButton(
-                                icon: const Icon(
-                                  Icons.edit_outlined,
-                                  size: 20,
+                            PermissionGate(
+                              permission: Perm.facturesEdit,
+                              child: Tooltip(
+                                message: 'Modifier',
+                                child: IconButton(
+                                  icon: const Icon(
+                                    Icons.edit_outlined,
+                                    size: 20,
+                                  ),
+                                  color: AppColors.onSurfaceVariant,
+                                  onPressed: () => widget.onModifier(f),
                                 ),
-                                color: AppColors.onSurfaceVariant,
-                                onPressed: () => widget.onModifier(f),
                               ),
                             ),
                           ],

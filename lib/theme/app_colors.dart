@@ -54,6 +54,15 @@ class AppColors {
   static const Color onTertiaryFixed = Color(0xFF0E2000);
   static const Color onTertiaryFixedVariant = Color(0xFF2C5000);
 
+  // Success (Green) — succès / validations. Calqué sur le Tertiary (vert)
+  // pour garder une sémantique « positive » cohérente dans toute l'app.
+  static const Color success = tertiary; // 0xFF3C6A00
+  static const Color onSuccess = onTertiary;
+  static const Color successContainer = tertiaryContainer;
+  static const Color onSuccessContainer = onTertiaryContainer;
+  static const Color successFixed = tertiaryFixed;
+  static const Color onSuccessFixed = onTertiaryFixed;
+
   // Error
   static const Color error = Color(0xFFBA1A1A);
   static const Color onError = Color(0xFFFFFFFF);

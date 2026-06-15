@@ -8,7 +8,9 @@ import 'package:lacoloc_front/data/models/facture.dart';
 import 'package:lacoloc_front/data/models/immeubles.dart';
 import 'package:lacoloc_front/data/models/inventaire.dart';
 import 'package:lacoloc_front/data/models/piece.dart';
+import 'package:lacoloc_front/data/permissions/permissions_service.dart';
 import 'package:lacoloc_front/presentation/users/proprietaires/creer_piece_page.dart';
+import 'package:lacoloc_front/presentation/widgets/permission_gate.dart';
 import 'package:lacoloc_front/presentation/users/proprietaires/inventaire_page.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
@@ -174,10 +176,13 @@ class _ImmeubleDetailPageState extends State<ImmeubleDetailPage> {
                   ],
                 ),
               ),
-              OutlinedButton.icon(
-                onPressed: widget.onModifierImmeuble,
-                icon: const Icon(Icons.edit_outlined, size: 16),
-                label: const Text('Modifier'),
+              PermissionGate(
+                permission: Perm.immeublesEdit,
+                child: OutlinedButton.icon(
+                  onPressed: widget.onModifierImmeuble,
+                  icon: const Icon(Icons.edit_outlined, size: 16),
+                  label: const Text('Modifier'),
+                ),
               ),
             ],
           ),
@@ -241,10 +246,13 @@ class _ImmeubleDetailPageState extends State<ImmeubleDetailPage> {
               Expanded(
                 child: Text('Pièces', style: AppTypography.titleLg),
               ),
-              FilledButton.icon(
-                onPressed: () => _navigerVersFormPiece(),
-                icon: const Icon(Icons.add, size: 16),
-                label: const Text('Ajouter pièce'),
+              PermissionGate(
+                permission: Perm.piecesCreate,
+                child: FilledButton.icon(
+                  onPressed: () => _navigerVersFormPiece(),
+                  icon: const Icon(Icons.add, size: 16),
+                  label: const Text('Ajouter pièce'),
+                ),
               ),
             ],
           ),
@@ -297,10 +305,13 @@ class _ImmeubleDetailPageState extends State<ImmeubleDetailPage> {
               Expanded(
                 child: Text('Factures', style: AppTypography.titleLg),
               ),
-              FilledButton.icon(
-                onPressed: widget.onAjouterFacture,
-                icon: const Icon(Icons.add, size: 16),
-                label: const Text('Ajouter facture'),
+              PermissionGate(
+                permission: Perm.facturesCreate,
+                child: FilledButton.icon(
+                  onPressed: widget.onAjouterFacture,
+                  icon: const Icon(Icons.add, size: 16),
+                  label: const Text('Ajouter facture'),
+                ),
               ),
             ],
           ),
@@ -527,16 +538,22 @@ class _PiecesTable extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              IconButton(
-                icon: const Icon(Icons.edit_outlined, size: 18),
-                tooltip: 'Modifier',
-                onPressed: () => onModifier(p),
+              PermissionGate(
+                permission: Perm.piecesEdit,
+                child: IconButton(
+                  icon: const Icon(Icons.edit_outlined, size: 18),
+                  tooltip: 'Modifier',
+                  onPressed: () => onModifier(p),
+                ),
               ),
-              IconButton(
-                icon: const Icon(Icons.delete_outline, size: 18),
-                tooltip: 'Supprimer',
-                color: AppColors.error,
-                onPressed: () => onSupprimer(p),
+              PermissionGate(
+                permission: Perm.piecesDelete,
+                child: IconButton(
+                  icon: const Icon(Icons.delete_outline, size: 18),
+                  tooltip: 'Supprimer',
+                  color: AppColors.error,
+                  onPressed: () => onSupprimer(p),
+                ),
               ),
             ],
           ),
@@ -623,10 +640,13 @@ class _ChambresTable extends StatelessWidget {
         ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
-          child: IconButton(
-            icon: const Icon(Icons.edit_outlined, size: 18),
-            tooltip: 'Modifier',
-            onPressed: () => onModifier(c),
+          child: PermissionGate(
+            permission: Perm.chambresEdit,
+            child: IconButton(
+              icon: const Icon(Icons.edit_outlined, size: 18),
+              tooltip: 'Modifier',
+              onPressed: () => onModifier(c),
+            ),
           ),
         ),
       ],

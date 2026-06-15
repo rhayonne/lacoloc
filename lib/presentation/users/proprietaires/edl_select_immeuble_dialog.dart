@@ -181,7 +181,7 @@ class _ImmeubleTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bailLabel =
-        immeuble.bailIndividuel ? 'Bail individuel' : 'Bail collectif';
+        immeuble.bailIndividuel ? 'Bail individuel (Colocation)' : 'Location';
     final meubleLabel = switch (immeuble.locationMeuble) {
       true => 'Meublée',
       false => 'Non meublée',

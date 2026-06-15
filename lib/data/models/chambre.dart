@@ -18,7 +18,7 @@ class ChambreModel {
   final String? immeubleCity;
   final String? immeubleRegion;
   final String? immeubleDepartment;
-  final bool immeubleBailCollectif;
+  final bool immeubleBailLocation;
   final bool immeubleBailIndividuel;
   final bool? immeubleLocationMeuble;
   final int? immeubleTypeId;
@@ -41,14 +41,14 @@ class ChambreModel {
     this.immeubleCity,
     this.immeubleRegion,
     this.immeubleDepartment,
-    this.immeubleBailCollectif = false,
+    this.immeubleBailLocation = false,
     this.immeubleBailIndividuel = false,
     this.immeubleLocationMeuble,
     this.immeubleTypeId,
   });
 
   String? get immeubleBailLabel {
-    if (immeubleBailCollectif) return 'Bail collectif';
+    if (immeubleBailLocation) return 'Location';
     if (immeubleBailIndividuel) return 'Bail individuel';
     return null;
   }
@@ -76,8 +76,8 @@ class ChambreModel {
       immeubleRegion: immeuble is Map ? immeuble['region'] as String? : null,
       immeubleDepartment:
           immeuble is Map ? immeuble['department'] as String? : null,
-      immeubleBailCollectif: immeuble is Map
-          ? (immeuble['bail_collectif'] as bool?) ?? false
+      immeubleBailLocation: immeuble is Map
+          ? (immeuble['bail_location'] as bool?) ?? false
           : false,
       immeubleBailIndividuel: immeuble is Map
           ? (immeuble['bail_individuel'] as bool?) ?? false

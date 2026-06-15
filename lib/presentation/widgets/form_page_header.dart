@@ -43,7 +43,7 @@ class FormPageHeader extends StatelessWidget {
         ],
       ),
       padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.lg,
+        horizontal: AppSpacing.barMargin,
         vertical: AppSpacing.md,
       ),
       child: LayoutBuilder(

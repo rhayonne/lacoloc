@@ -41,7 +41,7 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
   List<String> _photos = [];
   String? _mainPhoto;
   bool _isSubmitting = false;
-  bool _isBailCollectif = false;
+  bool _isBailLocation = false;
 
   // Parties communes
   ImmeublesModel? _createdImmeuble; // immeuble créé via le bouton (page neuve)
@@ -62,7 +62,7 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
       _codePostal = imm.codePostal;
       _photos = List.from(imm.commonPhotos);
       _mainPhoto = imm.mainPhoto;
-      _isBailCollectif = imm.bailCollectif;
+      _isBailLocation = imm.bailLocation;
       _typesFuture.then((types) {
         if (!mounted) return;
         final match = types.where((t) => t.id == imm.typeId).firstOrNull;
@@ -165,9 +165,9 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
       commonPhotos: _photos,
       isActive: !((values['desactiver'] as bool?) ?? false),
       mainPhoto: _mainPhoto,
-      bailCollectif: (values['bail_collectif'] as bool?) ?? false,
+      bailLocation: (values['bail_location'] as bool?) ?? false,
       bailIndividuel: (values['bail_individuel'] as bool?) ?? false,
-      prixLoyer: _isBailCollectif
+      prixLoyer: _isBailLocation
           ? double.tryParse(
               ((values['prix_loyer'] as String?) ?? '').replaceAll(',', '.'))
           : null,
@@ -389,15 +389,15 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 480),
                 child: FormBuilderCheckbox(
-                  name: 'bail_collectif',
-                  initialValue: widget.immeuble?.bailCollectif ?? false,
-                  title: const Text('Bail collectif'),
+                  name: 'bail_location',
+                  initialValue: widget.immeuble?.bailLocation ?? false,
+                  title: const Text('Location'),
                   subtitle: const Text(
                       'Un seul contrat pour toutes les chambres de l\'immeuble.'),
                   contentPadding: EdgeInsets.zero,
                   controlAffinity: ListTileControlAffinity.leading,
                   onChanged: (v) {
-                    setState(() => _isBailCollectif = v ?? false);
+                    setState(() => _isBailLocation = v ?? false);
                     if (v == true) {
                       _formKey.currentState?.fields['bail_individuel']
                           ?.didChange(false);
@@ -406,7 +406,7 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
                 ),
               ),
             ),
-            if (_isBailCollectif) ...[
+            if (_isBailLocation) ...[
               const SizedBox(height: AppSpacing.md),
               FormBuilderTextField(
                 name: 'prix_loyer',
@@ -427,14 +427,14 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
                 child: FormBuilderCheckbox(
                   name: 'bail_individuel',
                   initialValue: widget.immeuble?.bailIndividuel ?? false,
-                  title: const Text('Bail individuel'),
+                  title: const Text('Bail individuel (Colocation)'),
                   subtitle: const Text('Contrat séparé pour chaque chambre.'),
                   contentPadding: EdgeInsets.zero,
                   controlAffinity: ListTileControlAffinity.leading,
                   onChanged: (v) {
                     if (v == true) {
-                      setState(() => _isBailCollectif = false);
-                      _formKey.currentState?.fields['bail_collectif']
+                      setState(() => _isBailLocation = false);
+                      _formKey.currentState?.fields['bail_location']
                           ?.didChange(false);
                     }
                   },

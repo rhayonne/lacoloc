@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Manuel utilisateur · Super Coloc</title>
+  <style>
+    :root {
+      --primary: #006685;
+      --primary-light: #e0f2f7;
+      --border: #cfe0e7;
+      --text: #1a1a2e;
+      --text-muted: #5f6368;
+      --surface: #ffffff;
+      --surface-low: #f5f5f5;
+    }
+
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #f0f4f6;
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    .hero {
+      background: linear-gradient(135deg, #006685 0%, #004d63 100%);
+      color: #fff;
+      padding: 60px 40px;
+      text-align: center;
+    }
+
+    .hero h1 {
+      font-size: 32px;
+      font-weight: 800;
+      margin-bottom: 10px;
+    }
+
+    .hero p {
+      opacity: .85;
+      font-size: 16px;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 48px 24px;
+    }
+
+    .section-label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 16px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 16px;
+      margin-bottom: 40px;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      text-decoration: none;
+      color: var(--text);
+      display: block;
+      transition: box-shadow .15s, transform .15s;
+    }
+
+    .card:hover {
+      box-shadow: 0 6px 24px rgba(0, 0, 0, .12);
+      transform: translateY(-2px);
+    }
+
+    .card .icon {
+      font-size: 32px;
+      margin-bottom: 12px;
+    }
+
+    .card h3 {
+      font-size: 15px;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+
+    .card p {
+      font-size: 13px;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    .card .badge {
+      display: inline-block;
+      margin-top: 12px;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 10px;
+      border-radius: 20px;
+      background: var(--primary-light);
+      color: var(--primary);
+    }
+
+    .card.disabled {
+      opacity: .5;
+      cursor: not-allowed;
+    }
+
+    .card.disabled .badge {
+      background: #eee;
+      color: #999;
+    }
+
+    /* ─── Coming-soon toast ──────────────────────────────────────────────── */
+    .toast {
+      position: fixed;
+      bottom: 32px;
+      left: 50%;
+      transform: translateX(-50%) translateY(120px);
+      background: #fff;
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--primary);
+      border-radius: 12px;
+      padding: 16px 20px;
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      box-shadow: 0 8px 32px rgba(0,0,0,.16);
+      z-index: 1000;
+      transition: transform .35s cubic-bezier(.34,1.46,.64,1);
+      min-width: 300px;
+      max-width: 420px;
+    }
+    .toast.show {
+      transform: translateX(-50%) translateY(0);
+    }
+    .toast-icon { font-size: 26px; flex-shrink: 0; margin-top: 1px; }
+    .toast-body strong { display: block; font-size: 14px; margin-bottom: 4px; color: var(--text); }
+    .toast-body p { font-size: 13px; color: var(--text-muted); margin: 0; line-height: 1.5; }
+  </style>
+</head>
+
+<body>
+  <div class="hero">
+    <h1>📖 Manuel utilisateur</h1>
+    <p>Super Coloc — Guides pas à pas pour les propriétaires et administrateurs</p>
+  </div>
+
+  <div class="container">
+    <div class="section-label">👤 Guides Propriétaire</div>
+    <div class="grid">
+      <a class="card" href="enregistrer-immeuble.html">
+        <div class="icon">🏠</div>
+        <h3>Enregistrer un immeuble</h3>
+        <p>Créer et configurer un nouveau bien : type, adresse, bail, photos et pièces communes.</p>
+        <span class="badge">✅ Disponible</span>
+      </a>
+      <div class="card disabled">
+        <div class="icon">🚪</div>
+        <h3>Enregistrer une chambre</h3>
+        <p>Ajouter une chambre à un immeuble existant avec ses équipements et photos.</p>
+        <span class="badge">🔜 À venir</span>
+      </div>
+      <div class="card disabled">
+        <div class="icon">📋</div>
+        <h3>État des lieux</h3>
+        <p>Créer, remplir et finaliser un état des lieux d'entrée ou de sortie.</p>
+        <span class="badge">🔜 À venir</span>
+      </div>
+      <div class="card disabled">
+        <div class="icon">💶</div>
+        <h3>Factures &amp; finances</h3>
+        <p>Enregistrer et suivre les factures, fournisseurs et recettes.</p>
+        <span class="badge">🔜 À venir</span>
+      </div>
+      <div class="card disabled">
+        <div class="icon">👤</div>
+        <h3>Inviter un locataire</h3>
+        <p>Créer un compte locataire et envoyer l'e-mail d'activation.</p>
+        <span class="badge">🔜 À venir</span>
+      </div>
+      <div class="card disabled">
+        <div class="icon">📦</div>
+        <h3>Inventaire</h3>
+        <p>Cataloguer les meubles des chambres et des pièces communes.</p>
+        <span class="badge">🔜 À venir</span>
+      </div>
+    </div>
+
+    <div class="section-label">🔧 Guides Super Admin</div>
+    <div class="grid">
+      <div class="card disabled">
+        <div class="icon">👥</div>
+        <h3>Gérer les utilisateurs</h3>
+        <p>Créer, modifier et désactiver des comptes propriétaires et locataires.</p>
+        <span class="badge">🔜 À venir</span>
+      </div>
+      <div class="card disabled">
+        <div class="icon">🔌</div>
+        <h3>Maintenance &amp; services</h3>
+        <p>Tester l'envoi d'e-mails, consulter les journaux de connexions.</p>
+        <span class="badge">🔜 À venir</span>
+      </div>
+    </div>
+
+    <div
+      style="text-align:center;color:var(--text-muted);font-size:12px;margin-top:40px;padding-top:24px;border-top:1px solid var(--border)">
+      Super Coloc · Manuel utilisateur · Version 1.0 · Juin 2026
+    </div>
+  </div>
+
+  <!-- Coming-soon toast -->
+  <div id="toast" class="toast" role="status" aria-live="polite">
+    <div class="toast-icon">🚧</div>
+    <div class="toast-body">
+      <strong>Guide en cours de préparation</strong>
+      <p>Ce guide n'est pas encore disponible. Il sera publié prochainement.</p>
+    </div>
+  </div>
+
+  <script>
+    // Disabled cards — show coming-soon toast on click
+    let toastTimer;
+    document.querySelectorAll('.card.disabled').forEach(card => {
+      card.addEventListener('click', e => {
+        e.preventDefault();
+        const toast = document.getElementById('toast');
+        clearTimeout(toastTimer);
+        toast.classList.add('show');
+        toastTimer = setTimeout(() => toast.classList.remove('show'), 3500);
+      });
+    });
+  </script>
+</body>
+
+</html>

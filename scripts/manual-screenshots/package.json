@@ -1,0 +1,11 @@
+{
+  "name": "manual-screenshots",
+  "version": "1.0.0",
+  "description": "Génère les screenshots du manuel utilisateur Super Coloc",
+  "scripts": {
+    "screenshots": "node take.js"
+  },
+  "dependencies": {
+    "puppeteer": "^22.0.0"
+  }
+}

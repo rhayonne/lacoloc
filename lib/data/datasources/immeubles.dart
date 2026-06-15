@@ -33,6 +33,10 @@ class ImmeublesDatasource {
   }
 
   /// Lista do proprietário: todos os imóveis (ativos e inativos).
+  ///
+  /// **Multi-tenant**: se o usuário pertence a uma empresa (`entreprise_id`),
+  /// retorna **todos os imóveis da empresa** (todos os membros veem tudo); caso
+  /// contrário, apenas os imóveis cujo `owner_id` é o usuário.
   static Future<List<ImmeublesModel>> listByOwner(
     String ownerId, {
     bool refresh = false,
@@ -40,16 +44,35 @@ class ImmeublesDatasource {
     return _cache.get(
       '${CacheKeys.immeubles}owner:$ownerId',
       () async {
-        final rows = await _client
-            .from(_table)
-            .select(_selectWithType)
-            .eq('owner_id', ownerId)
-            .order('created_at', ascending: false);
+        final entrepriseId = await _entrepriseIdOf(ownerId);
+        final query = _client.from(_table).select(_selectWithType);
+        final filtered = entrepriseId != null
+            ? query.eq('entreprise_id', entrepriseId)
+            : query.eq('owner_id', ownerId);
+        final rows = await filtered.order('created_at', ascending: false);
         return _map(rows);
       },
       refresh: refresh,
     );
   }
+
+  /// `entreprise_id` do usuário (cache em memória). RLS permite ler a própria
+  /// linha (`id = auth.uid()`), que é o caso aqui (ownerId = usuário atual).
+  static final Map<String, int?> _entrepriseCache = {};
+  static Future<int?> _entrepriseIdOf(String userId) async {
+    if (_entrepriseCache.containsKey(userId)) return _entrepriseCache[userId];
+    final row = await _client
+        .from('Users_Client')
+        .select('entreprise_id')
+        .eq('id', userId)
+        .maybeSingle();
+    final id = (row?['entreprise_id'] as num?)?.toInt();
+    _entrepriseCache[userId] = id;
+    return id;
+  }
+
+  /// Limpa o cache de empresa (ex.: no logout).
+  static void clearEntrepriseCache() => _entrepriseCache.clear();
 
   static Future<ImmeublesModel?> byId(int id, {bool refresh = false}) {
     return _cache.get(

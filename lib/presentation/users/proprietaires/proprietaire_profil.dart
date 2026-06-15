@@ -5,6 +5,8 @@ import 'package:lacoloc_front/data/datasources/immeubles.dart';
 import 'package:lacoloc_front/data/models/chambre.dart';
 import 'package:lacoloc_front/data/models/facture.dart';
 import 'package:lacoloc_front/data/models/immeubles.dart';
+import 'package:lacoloc_front/data/models/users_client.dart';
+import 'package:lacoloc_front/presentation/users/proprietaires/entreprise_config_page.dart';
 import 'package:lacoloc_front/presentation/finances/factures_list_page.dart';
 import 'package:lacoloc_front/presentation/finances/fournisseurs_page.dart';
 import 'package:lacoloc_front/presentation/finances/nouvelle_facture_page.dart';
@@ -123,9 +125,16 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage>
   // Evita loop ao sincronizar secção ↔ controlador
   bool _syncingNav = false;
 
+  // Perfil do usuário atual (para detectar admin de groupe → config entreprise).
+  UsersClient? _profile;
+
+  // Configuration entreprise (admin de groupe) — renderiza no frame principal.
+  bool _showEntrepriseConfig = false;
+
   @override
   void initState() {
     super.initState();
+    _loadProfile();
     _gestionTabCtrl = TabController(length: 4, vsync: this);
     _navCtrl = SidebarXController(
       selectedIndex: _idxVueGenerale,
@@ -146,6 +155,13 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage>
     super.dispose();
   }
 
+  Future<void> _loadProfile() async {
+    try {
+      final p = await AuthService.loadCurrentProfile();
+      if (mounted) setState(() => _profile = p);
+    } catch (_) {}
+  }
+
   // ── Navegação ──────────────────────────────────────────────────────────────
 
   void _onNavChanged() {
@@ -156,6 +172,7 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage>
   void _changeSection(_Section s) {
     setState(() {
       _section = s;
+      _showEntrepriseConfig = false;
       _showImmeubleForm = false;
       _showImmeubleDetail = false;
       _showChambreForm = false;
@@ -331,6 +348,9 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage>
         onBack: _closeChambreForm,
       );
     }
+    if (_showEntrepriseConfig && _profile?.entrepriseId != null) {
+      return EntrepriseConfigPage(entrepriseId: _profile!.entrepriseId!);
+    }
     if (_showImmeubleDetail && _detailImmeuble != null) {
       return ImmeubleDetailPage(
         immeuble: _detailImmeuble!,
@@ -436,6 +456,24 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage>
       footerBuilder: (ctx, extended) => Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          // Admin de groupe : accès à la configuration de son entreprise.
+          if (_profile?.resolvedType == UserType.adminGroupe &&
+              _profile?.entrepriseId != null)
+            SidebarActionButton(
+              extended: extended,
+              icon: Icons.business_outlined,
+              label: 'Configuration entreprise',
+              onTap: () {
+                if (isNarrow) Navigator.of(ctx).pop();
+                setState(() {
+                  _showEntrepriseConfig = true;
+                  _showImmeubleForm = false;
+                  _showImmeubleDetail = false;
+                  _showChambreForm = false;
+                  _showFactureForm = false;
+                });
+              },
+            ),
           SidebarActionButton(
             extended: extended,
             icon: Icons.home_outlined,

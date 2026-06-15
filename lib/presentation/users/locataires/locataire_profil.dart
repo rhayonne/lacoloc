@@ -10,12 +10,17 @@ import 'package:lacoloc_front/data/datasources/immeubles.dart';
 import 'package:lacoloc_front/data/models/chambre.dart';
 import 'package:lacoloc_front/data/models/etat_de_lieux.dart';
 import 'package:lacoloc_front/data/models/users_client.dart';
+import 'package:lacoloc_front/data/permissions/permissions_service.dart';
 import 'package:lacoloc_front/presentation/chambres/chambre_card.dart';
+import 'package:lacoloc_front/presentation/widgets/permission_gate.dart';
+import 'package:lacoloc_front/presentation/widgets/edl_filter_bar.dart';
 import 'package:lacoloc_front/presentation/users/proprietaires/etat_de_lieux_page.dart';
 import 'package:lacoloc_front/presentation/chambres/chambre_detail_page.dart';
 import 'package:lacoloc_front/presentation/nav/app_sidebar.dart';
 import 'package:lacoloc_front/presentation/widgets/filter_panel.dart';
 import 'package:lacoloc_front/utils/phone_field.dart';
+import 'package:lacoloc_front/data/datasources/signatures.dart';
+import 'package:lacoloc_front/utils/signature_pad.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_radius.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
@@ -31,6 +36,7 @@ class LocataireProfilPage extends StatefulWidget {
 
 class _LocataireProfilPageState extends State<LocataireProfilPage> {
   final _scaffoldKey = GlobalKey<ScaffoldState>();
+  final _contentKey = GlobalKey();
   late final SidebarXController _navCtrl;
   late Future<_LocBundle> _bundleFuture;
   int? _selectedChambreId;
@@ -163,29 +169,27 @@ class _LocataireProfilPageState extends State<LocataireProfilPage> {
     final sidebar = _buildSidebar(isNarrow: isNarrow);
     final body = _buildBody();
 
-    if (isNarrow) {
-      return Scaffold(
-        key: _scaffoldKey,
-        drawer: sidebar,
-        appBar: AppBar(
-          leading: IconButton(
-            icon: const Icon(Icons.menu),
-            onPressed: () {
-              if (!_navCtrl.extended) _navCtrl.setExtended(true);
-              _scaffoldKey.currentState?.openDrawer();
-            },
-          ),
-          title: const Text('Mon Espace'),
-        ),
-        body: body,
-      );
-    }
-
     return Scaffold(
+      key: _scaffoldKey,
+      drawer: isNarrow ? sidebar : null,
+      appBar: isNarrow
+          ? AppBar(
+              leading: IconButton(
+                icon: const Icon(Icons.menu),
+                onPressed: () {
+                  if (!_navCtrl.extended) _navCtrl.setExtended(true);
+                  _scaffoldKey.currentState?.openDrawer();
+                },
+              ),
+              title: const Text('Mon Espace'),
+            )
+          : null,
       body: Row(
         children: [
-          sidebar,
-          Expanded(child: body),
+          if (!isNarrow) sidebar,
+          Expanded(
+            child: KeyedSubtree(key: _contentKey, child: body),
+          ),
         ],
       ),
     );
@@ -208,6 +212,40 @@ class _LocBundle {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
+/// Barre de titre standard des pages du locataire (même style que « Mon Profil »).
+/// [title] = nom de la page ; [actions] = boutons optionnels à droite (ex. Modifier/
+/// Sauvegarder du profil). Hauteur constante pour rester identique sur toutes les pages.
+class _LocataireSectionBar extends StatelessWidget {
+  final String title;
+  final List<Widget> actions;
+  const _LocataireSectionBar({required this.title, this.actions = const []});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        AppSpacing.sm,
+        AppSpacing.sm,
+        AppSpacing.sm,
+      ),
+      decoration: const BoxDecoration(
+        color: AppColors.surfaceContainerLowest,
+        border: Border(bottom: BorderSide(color: AppColors.outlineVariant)),
+      ),
+      child: SizedBox(
+        height: 48,
+        child: Row(
+          children: [
+            Expanded(child: Text(title, style: AppTypography.titleLg)),
+            ...actions,
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _DashboardSection extends StatelessWidget {
   final _LocBundle bundle;
   final VoidCallback onVoirChambres;
@@ -229,11 +267,16 @@ class _DashboardSection extends StatelessWidget {
     final count = bundle.available.length;
     final featured = bundle.available.take(6).toList();
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 960),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const _LocataireSectionBar(title: 'Tableau de bord'),
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 960),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -373,6 +416,9 @@ class _DashboardSection extends StatelessWidget {
           ),
         ),
       ),
+            ),
+          ),
+      ],
     );
   }
 }
@@ -425,7 +471,7 @@ class _ChambresSectionState extends State<_ChambresSection> {
               false)) {
         return false;
       }
-      if (f.bailType == BailTypeFilter.collectif && !c.immeubleBailCollectif) {
+      if (f.bailType == BailTypeFilter.collectif && !c.immeubleBailLocation) {
         return false;
       }
       if (f.bailType == BailTypeFilter.individuel && !c.immeubleBailIndividuel) {
@@ -453,18 +499,20 @@ class _ChambresSectionState extends State<_ChambresSection> {
   Widget build(BuildContext context) {
     final filtered = _filtered;
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1100),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Chambres disponibles', style: AppTypography.headlineMd),
-              const SizedBox(height: AppSpacing.md),
-
-              // Barre de recherche
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const _LocataireSectionBar(title: 'Chambres disponibles'),
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1100),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Barre de recherche
               Container(
                 height: 44,
                 decoration: BoxDecoration(
@@ -580,6 +628,9 @@ class _ChambresSectionState extends State<_ChambresSection> {
           ),
         ),
       ),
+            ),
+          ),
+      ],
     );
   }
 }
@@ -761,49 +812,32 @@ class _ProfilSectionState extends State<_ProfilSection> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         // ── Barre de titre ──────────────────────────────────────────────
-        Container(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.lg,
-            AppSpacing.sm,
-            AppSpacing.sm,
-            AppSpacing.sm,
-          ),
-          decoration: BoxDecoration(
-            color: AppColors.surfaceContainerLowest,
-            border: Border(
-              bottom: BorderSide(color: AppColors.outlineVariant),
+        _LocataireSectionBar(
+          title: 'Mon Profil',
+          actions: [
+            IconButton(
+              icon: Icon(_isEditing ? Icons.close : Icons.edit_outlined),
+              tooltip: _isEditing ? 'Annuler' : 'Modifier',
+              color: _isEditing ? AppColors.error : null,
+              onPressed: _toggleEdit,
             ),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text('Mon Profil', style: AppTypography.titleLg),
-              ),
-              IconButton(
-                icon: Icon(_isEditing ? Icons.close : Icons.edit_outlined),
-                tooltip: _isEditing ? 'Annuler' : 'Modifier',
-                color: _isEditing ? AppColors.error : null,
-                onPressed: _toggleEdit,
-              ),
-              IconButton(
-                icon: _isSaving
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : Icon(
-                        Icons.save_outlined,
-                        color: _isEditing
-                            ? AppColors.primary
-                            : AppColors.onSurfaceVariant
-                                .withValues(alpha: 0.35),
-                      ),
-                tooltip: 'Sauvegarder',
-                onPressed: _isEditing && !_isSaving ? _save : null,
-              ),
-            ],
-          ),
+            IconButton(
+              icon: _isSaving
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Icon(
+                      Icons.save_outlined,
+                      color: _isEditing
+                          ? AppColors.primary
+                          : AppColors.onSurfaceVariant.withValues(alpha: 0.35),
+                    ),
+              tooltip: 'Sauvegarder',
+              onPressed: _isEditing && !_isSaving ? _save : null,
+            ),
+          ],
         ),
 
         // ── Corps ────────────────────────────────────────────────────────
@@ -995,6 +1029,12 @@ class _ProfilSectionState extends State<_ProfilSection> {
                       ),
                     ),
 
+                    // ── Ma signature ──────────────────────────────────────
+                    const SizedBox(height: AppSpacing.xl),
+                    const Divider(),
+                    const SizedBox(height: AppSpacing.lg),
+                    const _LocataireSignatureSection(),
+
                     // ── Zone dangereuse ───────────────────────────────────
                     const SizedBox(height: AppSpacing.xl),
                     const Divider(),
@@ -1055,11 +1095,76 @@ class _InteractionsSectionState extends State<_InteractionsSection>
   late final TabController _tabCtrl;
   late Future<List<EtatDesLieuxModel>> _future;
 
+  /// Fiche d'EDL affichée **dans le cadre** de la page (pas une nouvelle route).
+  /// Null = on montre la liste/onglets.
+  Widget? _detailView;
+
   @override
   void initState() {
     super.initState();
     _tabCtrl = TabController(length: 3, vsync: this);
     _future = _load();
+  }
+
+  /// Ouvre une fiche d'EDL en **plein cadre** (in-frame). [edl] détermine la page :
+  /// collectif (parties communes) ou privatif individuel. La fermeture restaure la
+  /// liste et recharge. Le mode locataire restreint déjà l'édition à ses propres
+  /// observations (lecture seule une fois finalisé).
+  Future<void> _openDetail(EtatDesLieuxModel edl) async {
+    void close([bool _ = false]) {
+      if (!mounted) return;
+      setState(() {
+        _detailView = null;
+        _future = _load();
+      });
+    }
+
+    if (edl.partie == PartieEdl.commune) {
+      final imm = await ImmeublesDatasource.byId(edl.immeubleId);
+      if (!mounted || imm == null) return;
+      setState(() {
+        _detailView = EdlCollectifNonMeubleePage(
+          immeuble: imm,
+          typeEdl: edl.typeEdl,
+          existingEdl: edl,
+          isLocataire: true,
+          meublee: imm.locationMeuble == true,
+          onClose: close,
+        );
+      });
+      return;
+    }
+    if (edl.partie == PartieEdl.privative &&
+        edl.typeBail == 'individuel' &&
+        edl.chambreId != null) {
+      final imm = await ImmeublesDatasource.byId(edl.immeubleId);
+      ChambreModel? chambre;
+      try {
+        final chambres =
+            await ChambresDatasource.listByImmeubles([edl.immeubleId]);
+        chambre = chambres.where((c) => c.id == edl.chambreId).firstOrNull;
+      } catch (_) {}
+      if (!mounted || imm == null || chambre == null) return;
+      setState(() {
+        _detailView = EdlIndividuelMeubleePage(
+          immeuble: imm,
+          chambre: chambre!,
+          typeEdl: edl.typeEdl,
+          existingEdl: edl,
+          isLocataire: true,
+          meublee: imm.locationMeuble == true,
+          onClose: close,
+        );
+      });
+      return;
+    }
+    // EDL privatif (single-room / legado) → vue détaillée (route dédiée).
+    Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => _EdlDetailPage(
+        edl: edl,
+        onAccepter: () => _accepter(edl.id),
+      ),
+    ));
   }
 
   @override
@@ -1084,35 +1189,77 @@ class _InteractionsSectionState extends State<_InteractionsSection>
   }
 
   Future<void> _accepter(int edlId) async {
-    await EtatDesLieuxDatasource.locataireAccepter(edlId);
+    final sig = await showSignatureDialog(context);
+    if (sig == null || !mounted) return;
+    await EtatDesLieuxDatasource.locataireAccepter(
+      edlId,
+      locataireSignatureUrl: sig.url,
+    );
+    if (mounted) setState(() { _future = _load(); });
+  }
+
+  /// `true` se o EDL está dentro da janela de additions de 30 dias.
+  static bool _isAdditionsOpen(EtatDesLieuxModel edl) {
+    if (edl.situation != SituationEdl.finalise) return false;
+    if (edl.partie != PartieEdl.privative) return false;
+    if (edl.chambreId == null) return false;
+    final ref = edl.dateFinalisation;
+    if (ref == null) return true; // finalizado mas não aceito → janela aberta
+    return DateTime.now()
+        .isBefore(DateTime(ref.year, ref.month + 1, ref.day));
+  }
+
+  /// Abre a `EdlIndividuelMeubleePage` diretamente na aba Additions (índice 4).
+  Future<void> _openAddition(EtatDesLieuxModel edl) async {
+    if (edl.chambreId == null) return;
+    final imm = await ImmeublesDatasource.byId(edl.immeubleId);
+    ChambreModel? chambre;
+    try {
+      final chambres =
+          await ChambresDatasource.listByImmeubles([edl.immeubleId]);
+      chambre = chambres.where((c) => c.id == edl.chambreId).firstOrNull;
+    } catch (_) {}
+    if (!mounted || imm == null || chambre == null) return;
+    await Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => Scaffold(
+        body: SafeArea(
+          child: EdlIndividuelMeubleePage(
+            immeuble: imm,
+            chambre: chambre!,
+            typeEdl: edl.typeEdl,
+            existingEdl: edl,
+            isLocataire: true,
+            meublee: imm.locationMeuble == true,
+            initialTabIndex: 4,
+            onClose: (_) => Navigator.of(context).maybePop(),
+          ),
+        ),
+      ),
+    ));
     if (mounted) setState(() { _future = _load(); });
   }
 
   @override
   Widget build(BuildContext context) {
+    // Fiche ouverte in-frame → on l'affiche à la place de la liste/onglets.
+    if (_detailView != null) return _detailView!;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        const _LocataireSectionBar(title: 'État des lieux'),
         Padding(
           padding: const EdgeInsets.fromLTRB(
             AppSpacing.lg,
-            AppSpacing.lg,
+            AppSpacing.md,
             AppSpacing.lg,
             0,
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('État des lieux', style: AppTypography.headlineMd),
-              const SizedBox(height: AppSpacing.lg),
-              TabBar(
-                controller: _tabCtrl,
-                tabs: const [
-                  Tab(text: 'Vision générale'),
-                  Tab(text: 'Entrée'),
-                  Tab(text: 'Sortie'),
-                ],
-              ),
+          child: TabBar(
+            controller: _tabCtrl,
+            tabs: const [
+              Tab(text: 'Vision générale'),
+              Tab(text: 'Entrée'),
+              Tab(text: 'Sortie'),
             ],
           ),
         ),
@@ -1140,73 +1287,8 @@ class _InteractionsSectionState extends State<_InteractionsSection>
               final sorties =
                   all.where((e) => e.typeEdl == 'sortie').toList();
 
-              Future<void> voirDetail(EtatDesLieuxModel edl) async {
-                // EDL collectif (parties communes) → écran observations où le
-                // locataire ajoute/édite SES propres observations.
-                if (edl.partie == PartieEdl.commune) {
-                  final imm =
-                      await ImmeublesDatasource.byId(edl.immeubleId);
-                  if (!context.mounted || imm == null) return;
-                  await Navigator.of(context).push(MaterialPageRoute<void>(
-                    builder: (_) => Scaffold(
-                      body: SafeArea(
-                        child: EdlCollectifNonMeubleePage(
-                          immeuble: imm,
-                          typeEdl: edl.typeEdl,
-                          existingEdl: edl,
-                          isLocataire: true,
-                          meublee: imm.locationMeuble == true,
-                          onClose: (_) => Navigator.of(context).maybePop(),
-                        ),
-                      ),
-                    ),
-                  ));
-                  if (mounted) setState(() { _future = _load(); });
-                  return;
-                }
-                // EDL privatif individuel + meublée → écran chambre (le
-                // locataire ajoute/édite SES observations ; inventaire en lecture).
-                if (edl.partie == PartieEdl.privative &&
-                    edl.typeBail == 'individuel' &&
-                    edl.chambreId != null) {
-                  final imm = await ImmeublesDatasource.byId(edl.immeubleId);
-                  ChambreModel? chambre;
-                  try {
-                    final chambres = await ChambresDatasource.listByImmeubles(
-                        [edl.immeubleId]);
-                    chambre = chambres
-                        .where((c) => c.id == edl.chambreId)
-                        .firstOrNull;
-                  } catch (_) {}
-                  if (!context.mounted || imm == null || chambre == null) {
-                    return;
-                  }
-                  await Navigator.of(context).push(MaterialPageRoute<void>(
-                    builder: (_) => Scaffold(
-                      body: SafeArea(
-                        child: EdlIndividuelMeubleePage(
-                          immeuble: imm,
-                          chambre: chambre!,
-                          typeEdl: edl.typeEdl,
-                          existingEdl: edl,
-                          isLocataire: true,
-                          meublee: imm.locationMeuble == true,
-                          onClose: (_) => Navigator.of(context).maybePop(),
-                        ),
-                      ),
-                    ),
-                  ));
-                  if (mounted) setState(() { _future = _load(); });
-                  return;
-                }
-                // EDL privatif (single-room / legado) → vue détaillée existante.
-                Navigator.of(context).push(MaterialPageRoute<void>(
-                  builder: (_) => _EdlDetailPage(
-                    edl: edl,
-                    onAccepter: () => _accepter(edl.id),
-                  ),
-                ));
-              }
+              final additionable =
+                  all.where(_isAdditionsOpen).toList();
 
               return TabBarView(
                 controller: _tabCtrl,
@@ -1215,18 +1297,23 @@ class _InteractionsSectionState extends State<_InteractionsSection>
                   _EdlVisionGeneraleTab(
                     all: all,
                     pending: pending,
+                    additionable: additionable,
                     onAccepter: _accepter,
-                    onVoir: voirDetail,
+                    onVoir: _openDetail,
+                    onVisualiser: _openDetail,
+                    onAddition: _openAddition,
                   ),
                   _EdlListTab(
                     edls: entrees,
                     emptyMessage: "Aucun état des lieux d'entrée.",
-                    onVoir: voirDetail,
+                    onVoir: _openDetail,
+                    onVisualiser: _openDetail,
                   ),
                   _EdlListTab(
                     edls: sorties,
                     emptyMessage: 'Aucun état des lieux de sortie.',
-                    onVoir: voirDetail,
+                    onVoir: _openDetail,
+                    onVisualiser: _openDetail,
                   ),
                 ],
               );
@@ -1243,14 +1330,20 @@ class _InteractionsSectionState extends State<_InteractionsSection>
 class _EdlVisionGeneraleTab extends StatelessWidget {
   final List<EtatDesLieuxModel> all;
   final List<EtatDesLieuxModel> pending;
+  final List<EtatDesLieuxModel> additionable;
   final Future<void> Function(int) onAccepter;
   final void Function(EtatDesLieuxModel) onVoir;
+  final void Function(EtatDesLieuxModel) onVisualiser;
+  final Future<void> Function(EtatDesLieuxModel) onAddition;
 
   const _EdlVisionGeneraleTab({
     required this.all,
     required this.pending,
+    required this.additionable,
     required this.onAccepter,
     required this.onVoir,
+    required this.onVisualiser,
+    required this.onAddition,
   });
 
   @override
@@ -1291,6 +1384,32 @@ class _EdlVisionGeneraleTab extends StatelessWidget {
             const Divider(),
             const SizedBox(height: AppSpacing.md),
           ],
+          // ── Bouton Faire une addition (fenêtre ouverte) ─────────────
+          if (additionable.isNotEmpty)
+            PermissionGate(
+              permission: Perm.edlAddition,
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.lg),
+                child: FilledButton.icon(
+                  onPressed: () async {
+                    EtatDesLieuxModel? selected;
+                    if (additionable.length == 1) {
+                      selected = additionable.first;
+                    } else {
+                      selected = await showDialog<EtatDesLieuxModel>(
+                        // ignore: use_build_context_synchronously
+                        context: context,
+                        builder: (_) =>
+                            _SelectAdditionDialog(edls: additionable),
+                      );
+                    }
+                    if (selected != null) onAddition(selected);
+                  },
+                  icon: const Icon(Icons.note_add_outlined, size: 16),
+                  label: const Text('Faire une addition'),
+                ),
+              ),
+            ),
           Text('Tous les états des lieux', style: AppTypography.titleLg),
           const SizedBox(height: AppSpacing.md),
           if (all.isEmpty)
@@ -1316,9 +1435,69 @@ class _EdlVisionGeneraleTab extends StatelessWidget {
               ),
             )
           else
-            _EdlLocataireTable(edls: all, onVoir: onVoir),
+            _EdlLocataireTable(
+              edls: all,
+              onVoir: onVoir,
+              onVisualiser: onVisualiser,
+            ),
         ],
       ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Dialog de seleção de EDL para additions
+
+class _SelectAdditionDialog extends StatelessWidget {
+  final List<EtatDesLieuxModel> edls;
+  const _SelectAdditionDialog({required this.edls});
+
+  static final _fmt = DateFormat('dd/MM/yyyy');
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Choisir un état des lieux'),
+      content: SizedBox(
+        width: 440,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Sélectionnez le contrat pour lequel vous souhaitez ajouter une addition :',
+              style: AppTypography.bodyMd.copyWith(
+                  color: AppColors.onSurfaceVariant),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            ...edls.map(
+              (edl) => ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.description_outlined),
+                title: Text(
+                  edl.immeubleNom ?? '—',
+                  style: AppTypography.bodyMd
+                      .copyWith(fontWeight: FontWeight.w600),
+                ),
+                subtitle: Text(
+                  '${edl.chambreNom ?? '—'} · Finalisé le '
+                  '${edl.dateFinalisation != null ? _fmt.format(edl.dateFinalisation!) : '—'}',
+                  style: AppTypography.labelSm
+                      .copyWith(color: AppColors.onSurfaceVariant),
+                ),
+                onTap: () => Navigator.pop(context, edl),
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        OutlinedButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Annuler'),
+        ),
+      ],
     );
   }
 }
@@ -1329,11 +1508,13 @@ class _EdlListTab extends StatelessWidget {
   final List<EtatDesLieuxModel> edls;
   final String emptyMessage;
   final void Function(EtatDesLieuxModel) onVoir;
+  final void Function(EtatDesLieuxModel) onVisualiser;
 
   const _EdlListTab({
     required this.edls,
     required this.emptyMessage,
     required this.onVoir,
+    required this.onVisualiser,
   });
 
   @override
@@ -1361,84 +1542,336 @@ class _EdlListTab extends StatelessWidget {
     }
     return SingleChildScrollView(
       padding: const EdgeInsets.all(AppSpacing.lg),
-      child: _EdlLocataireTable(edls: edls, onVoir: onVoir),
+      child: _EdlLocataireTable(
+        edls: edls,
+        onVoir: onVoir,
+        onVisualiser: onVisualiser,
+      ),
     );
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _EdlLocataireTable extends StatelessWidget {
+/// Jours restants avant la fermeture de la fenêtre d'avenant/additions, ou null
+/// s'il n'y a aucune fenêtre ouverte (EDL non finalisé, ou « Sans avenant »
+/// configuré côté propriétaire), ou si la finalisation n'a pas encore de date.
+int? _avenantJoursRestants(EtatDesLieuxModel e) {
+  if (!e.isAvenantWindowOpen) return null;
+  final ref = e.dateFinalisation;
+  if (ref == null) return null; // finalisé non signé : pas encore de compteur
+  final end = ref.add(Duration(days: e.avenantWindowDaysOrDefault));
+  final days = end.difference(DateTime.now()).inDays;
+  return days < 0 ? 0 : days;
+}
+
+/// Tableau des états des lieux du locataire — même présentation que côté
+/// propriétaire : barre de filtres ([EdlFilterBar]) + lignes (large) ou cartes
+/// (étroit). Le locataire ne voit que les EDL qui le concernent (filtrés en
+/// amont par `listForLocataire`).
+class _EdlLocataireTable extends StatefulWidget {
   final List<EtatDesLieuxModel> edls;
   final void Function(EtatDesLieuxModel) onVoir;
+  final void Function(EtatDesLieuxModel) onVisualiser;
 
-  const _EdlLocataireTable({required this.edls, required this.onVoir});
+  const _EdlLocataireTable({
+    required this.edls,
+    required this.onVoir,
+    required this.onVisualiser,
+  });
+
+  @override
+  State<_EdlLocataireTable> createState() => _EdlLocataireTableState();
+}
+
+class _EdlLocataireTableState extends State<_EdlLocataireTable> {
+  EdlTableFilter _filter = EdlTableFilter.empty;
+
+  List<EtatDesLieuxModel> get _filtered =>
+      widget.edls.where(_filter.matches).toList();
+
+  @override
+  Widget build(BuildContext context) {
+    final filtered = _filtered;
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surfaceContainerLowest,
+        borderRadius: AppRadius.borderLg,
+        border: Border.all(color: AppColors.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            child: EdlFilterBar(
+              filter: _filter,
+              edls: widget.edls,
+              onChanged: (f) => setState(() => _filter = f),
+              modules: const {
+                EdlFilterModule.recherche,
+                EdlFilterModule.situation,
+                EdlFilterModule.typeEdl,
+                EdlFilterModule.dateCreation,
+                EdlFilterModule.dateFinalisation,
+              },
+            ),
+          ),
+          const Divider(height: 1),
+          if (filtered.isEmpty)
+            Padding(
+              padding: const EdgeInsets.all(AppSpacing.xl),
+              child: Center(
+                child: Text(
+                  widget.edls.isEmpty
+                      ? 'Aucun état des lieux.'
+                      : 'Aucun résultat pour ces filtres.',
+                  style: AppTypography.bodyMd
+                      .copyWith(color: AppColors.onSurfaceVariant),
+                ),
+              ),
+            )
+          else
+            LayoutBuilder(
+              builder: (context, constraints) {
+                if (constraints.maxWidth < 900) {
+                  return Padding(
+                    padding: const EdgeInsets.all(AppSpacing.md),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        for (final e in filtered) ...[
+                          _EdlLocataireCard(
+                            edl: e,
+                            onVoir: () => widget.onVoir(e),
+                            onVisualiser: () => widget.onVisualiser(e),
+                          ),
+                          const SizedBox(height: AppSpacing.md),
+                        ],
+                      ],
+                    ),
+                  );
+                }
+                return Column(
+                  children: [
+                    const _EdlLocataireHeaderRow(),
+                    const Divider(height: 1),
+                    for (int i = 0; i < filtered.length; i++) ...[
+                      if (i > 0) const Divider(height: 1),
+                      _EdlLocataireRow(
+                        edl: filtered[i],
+                        onVoir: () => widget.onVoir(filtered[i]),
+                        onVisualiser: () => widget.onVisualiser(filtered[i]),
+                      ),
+                    ],
+                  ],
+                );
+              },
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+// Largeurs des colonnes fixes (header + lignes alignés).
+const double _kColType = 90;
+const double _kColSens = 70;
+const double _kColSit = 96;
+const double _kColDate = 92;
+const double _kColAvenant = 124;
+const double _kColAction = 96;
+
+class _EdlLocataireHeaderRow extends StatelessWidget {
+  const _EdlLocataireHeaderRow();
+
+  Widget _h(String s,
+      {double? width, int? flex, TextAlign align = TextAlign.start}) {
+    final t = Text(
+      s,
+      textAlign: align,
+      style: AppTypography.labelSm.copyWith(
+        color: AppColors.onSurfaceVariant,
+        letterSpacing: 0.6,
+        fontWeight: FontWeight.w600,
+        fontSize: 10,
+      ),
+    );
+    if (flex != null) return Expanded(flex: flex, child: t);
+    return SizedBox(width: width, child: t);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding:
+          const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 6),
+      child: Row(
+        children: [
+          _h('IMMEUBLE / CHAMBRE', flex: 3),
+          const SizedBox(width: AppSpacing.sm),
+          _h('PROPRIÉTAIRE', flex: 2),
+          const SizedBox(width: AppSpacing.sm),
+          _h('TYPE', width: _kColType, align: TextAlign.center),
+          _h('SENS', width: _kColSens, align: TextAlign.center),
+          _h('SITUATION', width: _kColSit, align: TextAlign.center),
+          _h('DATE EDL', width: _kColDate, align: TextAlign.center),
+          _h('AVENANT', width: _kColAvenant, align: TextAlign.center),
+          const SizedBox(width: _kColAction),
+        ],
+      ),
+    );
+  }
+}
+
+class _EdlLocataireRow extends StatelessWidget {
+  final EtatDesLieuxModel edl;
+  final VoidCallback onVoir;
+  final VoidCallback onVisualiser;
+
+  const _EdlLocataireRow({
+    required this.edl,
+    required this.onVoir,
+    required this.onVisualiser,
+  });
 
   static final _fmt = DateFormat('dd/MM/yyyy');
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        if (constraints.maxWidth < 900) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              for (final e in edls) ...[
-                _EdlLocataireCard(edl: e, onVoir: () => onVoir(e)),
-                const SizedBox(height: AppSpacing.md),
+    final jours = _avenantJoursRestants(edl);
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 3,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  edl.immeubleNom ?? edl.lieuLabel,
+                  style:
+                      AppTypography.bodyMd.copyWith(fontWeight: FontWeight.w600),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if (edl.chambreNom != null)
+                  Text(
+                    edl.chambreNom!,
+                    style: AppTypography.labelSm
+                        .copyWith(color: AppColors.onSurfaceVariant),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
               ],
-            ],
-          );
-        }
-        return _buildTable();
-      },
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            flex: 2,
+            child: Text(
+              edl.proprietaireNom ?? '—',
+              style: AppTypography.bodyMd,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          SizedBox(
+            width: _kColType,
+            child: Text(edl.typeLabel,
+                textAlign: TextAlign.center, style: AppTypography.labelSm),
+          ),
+          SizedBox(
+            width: _kColSens,
+            child: Text(edl.sensLabel,
+                textAlign: TextAlign.center, style: AppTypography.labelSm),
+          ),
+          SizedBox(
+            width: _kColSit,
+            child: Center(child: _EdlSituationBadge(situation: edl.situation)),
+          ),
+          SizedBox(
+            width: _kColDate,
+            child: Text(_fmt.format(edl.dateEtatLieux),
+                textAlign: TextAlign.center, style: AppTypography.labelSm),
+          ),
+          SizedBox(
+            width: _kColAvenant,
+            child: Center(
+              child: jours != null
+                  ? _AvenantInfoChip(jours: jours)
+                  : Text('—',
+                      style: AppTypography.labelSm
+                          .copyWith(color: AppColors.onSurfaceVariant)),
+            ),
+          ),
+          SizedBox(
+            width: _kColAction,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                IconButton(
+                  onPressed: onVisualiser,
+                  tooltip: 'Visualiser',
+                  visualDensity: VisualDensity.compact,
+                  constraints:
+                      const BoxConstraints(minWidth: 36, minHeight: 36),
+                  padding: EdgeInsets.zero,
+                  icon: const Icon(Icons.visibility_outlined, size: 18),
+                ),
+                IconButton(
+                  onPressed: onVoir,
+                  tooltip: 'Éditer',
+                  visualDensity: VisualDensity.compact,
+                  constraints:
+                      const BoxConstraints(minWidth: 36, minHeight: 36),
+                  padding: EdgeInsets.zero,
+                  color: AppColors.primary,
+                  icon: const Icon(Icons.edit_outlined, size: 18),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
+}
 
-  Widget _buildTable() {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: DataTable(
-        headingRowColor: WidgetStatePropertyAll(AppColors.surfaceContainerLow),
-        columns: const [
-          DataColumn(label: Text('Propriétaire')),
-          DataColumn(label: Text('Immeuble / Chambre')),
-          DataColumn(label: Text('Type')),
-          DataColumn(label: Text('Situation')),
-          DataColumn(label: Text('Date état')),
-          DataColumn(label: Text('Finalisation')),
-          DataColumn(label: Text('')),
+/// Pastille « Avenant : N j » indiquant le nombre de jours restants pour faire
+/// un avenant/une addition (rouge si urgent ≤ 3 jours).
+class _AvenantInfoChip extends StatelessWidget {
+  final int jours;
+  const _AvenantInfoChip({required this.jours});
+
+  @override
+  Widget build(BuildContext context) {
+    final urgent = jours <= 3;
+    final color = urgent ? AppColors.error : AppColors.primary;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: AppRadius.borderFull,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.timelapse, size: 13, color: color),
+          const SizedBox(width: 4),
+          Flexible(
+            child: Text(
+              'Avenant : $jours j',
+              style: AppTypography.labelSm
+                  .copyWith(color: color, fontWeight: FontWeight.w600),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
         ],
-        rows: edls
-            .map(
-              (e) => DataRow(
-                cells: [
-                  DataCell(Text(e.proprietaireNom ?? '—')),
-                  DataCell(Text(e.lieuLabel)),
-                  DataCell(
-                    Text(e.typeEdl == 'entree' ? 'Entrée' : 'Sortie'),
-                  ),
-                  DataCell(_EdlSituationBadge(situation: e.situation)),
-                  DataCell(Text(_fmt.format(e.dateEtatLieux))),
-                  DataCell(
-                    Text(
-                      e.dateFinalisation != null
-                          ? _fmt.format(e.dateFinalisation!)
-                          : '—',
-                    ),
-                  ),
-                  DataCell(
-                    TextButton.icon(
-                      icon: const Icon(Icons.open_in_new, size: 16),
-                      label: const Text('Voir'),
-                      onPressed: () => onVoir(e),
-                    ),
-                  ),
-                ],
-              ),
-            )
-            .toList(),
       ),
     );
   }
@@ -1449,8 +1882,13 @@ class _EdlLocataireTable extends StatelessWidget {
 class _EdlLocataireCard extends StatelessWidget {
   final EtatDesLieuxModel edl;
   final VoidCallback onVoir;
+  final VoidCallback onVisualiser;
 
-  const _EdlLocataireCard({required this.edl, required this.onVoir});
+  const _EdlLocataireCard({
+    required this.edl,
+    required this.onVoir,
+    required this.onVisualiser,
+  });
 
   static final _fmt = DateFormat('dd/MM/yyyy');
 
@@ -1458,8 +1896,7 @@ class _EdlLocataireCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final nom = edl.proprietaireNom ?? '—';
     final initial = nom.isNotEmpty ? nom.substring(0, 1).toUpperCase() : '?';
-    final typeBailLabel =
-        edl.typeBail == 'collectif' ? 'Colocation' : 'Individuel';
+    final typeBailLabel = edl.typeLabel;
 
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
@@ -1611,14 +2048,30 @@ class _EdlLocataireCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: AppSpacing.sm),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              onPressed: onVoir,
-              icon: const Icon(Icons.play_arrow, size: 16),
-              label: const Text('Continuer'),
+          if (_avenantJoursRestants(edl) case final j?) ...[
+            const SizedBox(height: AppSpacing.sm),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: _AvenantInfoChip(jours: j),
             ),
+          ],
+          const SizedBox(height: AppSpacing.sm),
+          Row(
+            children: [
+              OutlinedButton.icon(
+                onPressed: onVisualiser,
+                icon: const Icon(Icons.visibility_outlined, size: 16),
+                label: const Text('Voir'),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: onVoir,
+                  icon: const Icon(Icons.edit_outlined, size: 16),
+                  label: const Text('Continuer'),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -1689,6 +2142,37 @@ class _PendingEdlCardState extends State<_PendingEdlCard> {
           _row('Date', _fmt.format(edl.dateEtatLieux)),
           if (edl.montant != null)
             _row('Montant', '€ ${edl.montant!.toStringAsFixed(2)}'),
+          const SizedBox(height: AppSpacing.sm),
+          Container(
+            padding: const EdgeInsets.all(AppSpacing.sm),
+            decoration: BoxDecoration(
+              color: AppColors.surface.withValues(alpha: 0.6),
+              borderRadius: AppRadius.borderSm,
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.verified_outlined,
+                  size: 18,
+                  color: AppColors.tertiary,
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Text(
+                    edl.proprietaireSignedAt != null
+                        ? 'Le propriétaire a finalisé et signé le '
+                              '${_fmt.format(edl.proprietaireSignedAt!)}. '
+                              'Il ne reste que votre signature.'
+                        : 'Le propriétaire a finalisé et signé ce document. '
+                              'Il ne reste que votre signature.',
+                    style: AppTypography.bodyMd.copyWith(
+                      color: AppColors.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
           const SizedBox(height: AppSpacing.md),
           SizedBox(
             width: double.infinity,
@@ -1901,10 +2385,7 @@ class _EdlDetailPageState extends State<_EdlDetailPage> {
                 // ── Détails ───────────────────────────────────────────────
                 _sectionTitle('DÉTAILS'),
                 _infoCard([
-                  _infoRow(
-                    'Type de bail',
-                    edl.typeBail == 'collectif' ? 'Collectif' : 'Individuel',
-                  ),
+                  _infoRow('Type de bail', edl.typeLabel),
                   _infoRow(
                     'Date état des lieux',
                     _fmt.format(edl.dateEtatLieux),
@@ -2081,6 +2562,129 @@ class _EdlDetailPageState extends State<_EdlDetailPage> {
           ),
         ),
       ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Gestion de la signature du locataire (profil)
+
+class _LocataireSignatureSection extends StatefulWidget {
+  const _LocataireSignatureSection();
+
+  @override
+  State<_LocataireSignatureSection> createState() => _LocataireSignatureSectionState();
+}
+
+class _LocataireSignatureSectionState extends State<_LocataireSignatureSection> {
+  late Future<String?> _future;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = SignaturesDatasource.getSavedUrl();
+  }
+
+  Future<void> _update() async {
+    final sig = await showSignatureDialog(context);
+    if (sig == null || !mounted) return;
+    setState(() => _saving = true);
+    try {
+      await SignaturesDatasource.saveUrl(sig.url);
+      if (mounted) setState(() { _future = SignaturesDatasource.getSavedUrl(); _saving = false; });
+    } catch (e) {
+      if (mounted) {
+        setState(() => _saving = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur : $e')));
+      }
+    }
+  }
+
+  Future<void> _delete() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Supprimer la signature ?'),
+        content: const Text('La signature sauvegardée sera supprimée.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Annuler')),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: AppTheme.deleteButtonStyle,
+            child: const Text('Supprimer'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    setState(() => _saving = true);
+    try {
+      await SignaturesDatasource.deleteSignature();
+    } catch (_) {}
+    if (mounted) setState(() { _future = SignaturesDatasource.getSavedUrl(); _saving = false; });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Ma signature', style: AppTypography.titleLg),
+        const SizedBox(height: AppSpacing.xs),
+        Text(
+          'Signature utilisée lors de l\'acceptation des états des lieux.',
+          style: AppTypography.bodyMd.copyWith(color: AppColors.onSurfaceVariant),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        FutureBuilder<String?>(
+          future: _future,
+          builder: (context, snap) {
+            if (snap.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            final url = snap.data;
+            if (url != null && url.isNotEmpty) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    height: 80,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      border: Border.all(color: AppColors.outlineVariant),
+                      borderRadius: AppRadius.borderMd,
+                    ),
+                    child: Image.network(url, fit: BoxFit.contain),
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  Row(
+                    children: [
+                      FilledButton.icon(
+                        onPressed: _saving ? null : _update,
+                        icon: const Icon(Icons.edit_outlined, size: 16),
+                        label: const Text('Modifier'),
+                      ),
+                      const SizedBox(width: AppSpacing.sm),
+                      OutlinedButton.icon(
+                        onPressed: _saving ? null : _delete,
+                        style: AppTheme.deleteButtonStyle,
+                        icon: const Icon(Icons.delete_outline, size: 16),
+                        label: const Text('Supprimer'),
+                      ),
+                    ],
+                  ),
+                ],
+              );
+            }
+            return FilledButton.icon(
+              onPressed: _saving ? null : _update,
+              icon: const Icon(Icons.draw_outlined, size: 16),
+              label: const Text('Ajouter ma signature'),
+            );
+          },
+        ),
+      ],
     );
   }
 }

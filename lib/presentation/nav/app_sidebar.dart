@@ -1,9 +1,12 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_radius.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
 import 'package:lacoloc_front/theme/app_typography.dart';
 import 'package:sidebarx/sidebarx.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 export 'package:sidebarx/sidebarx.dart' show SidebarXController, SidebarXItem;
 
@@ -153,30 +156,40 @@ class _SidebarHeader extends StatelessWidget {
               0,
             ),
             child: _CollapseClip(
-              minWidth: 44, // avatar (36) + écart (8) ; masqué en deçà
+              minWidth: 44,
               child: Row(
-              children: [
-                CircleAvatar(
-                  radius: 18,
-                  backgroundColor: AppColors.primaryFixed,
-                  child: const Icon(
-                    Icons.person,
-                    color: AppColors.primary,
-                    size: 18,
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.sm),
-                Expanded(
-                  child: Text(
-                    email!,
-                    style: AppTypography.labelSm.copyWith(
-                      color: AppColors.onSurfaceVariant,
+                children: [
+                  CircleAvatar(
+                    radius: 18,
+                    backgroundColor: AppColors.primaryFixed,
+                    child: const Icon(
+                      Icons.person,
+                      color: AppColors.primary,
+                      size: 18,
                     ),
-                    overflow: TextOverflow.ellipsis,
                   ),
-                ),
-              ],
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: Text(
+                      email!,
+                      style: AppTypography.labelSm.copyWith(
+                        color: AppColors.onSurfaceVariant,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
               ),
+            ),
+          ),
+        // Botão do manual — shimmer na primeira abertura
+        if (extended)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+                AppSpacing.md, AppSpacing.sm, AppSpacing.md, AppSpacing.sm),
+            child: _CollapseClip(
+              minWidth: 80,
+              child: _ManualButton(),
             ),
           ),
         // Barra de pesquisa (apenas expandido + controller presente)
@@ -189,44 +202,44 @@ class _SidebarHeader extends StatelessWidget {
               AppSpacing.sm,
             ),
             child: _CollapseClip(
-              minWidth: 60, // champ + icône d'aide ; masqué en deçà
+              minWidth: 60,
               child: Row(
-              children: [
-                Expanded(
-                  child: AnimatedBuilder(
-                    animation: searchCtrl!,
-                    builder: (_, _) => TextField(
-                      controller: searchCtrl,
-                      decoration: InputDecoration(
-                        hintText: 'Rechercher…',
-                        prefixIcon: const Icon(Icons.search, size: 18),
-                        suffixIcon: searchCtrl!.text.isNotEmpty
-                            ? IconButton(
-                                icon: const Icon(Icons.close, size: 16),
-                                onPressed: searchCtrl!.clear,
-                              )
-                            : null,
-                        isDense: true,
-                        contentPadding: const EdgeInsets.symmetric(
-                          vertical: AppSpacing.sm,
+                children: [
+                  Expanded(
+                    child: AnimatedBuilder(
+                      animation: searchCtrl!,
+                      builder: (_, _) => TextField(
+                        controller: searchCtrl,
+                        decoration: InputDecoration(
+                          hintText: 'Rechercher…',
+                          prefixIcon: const Icon(Icons.search, size: 18),
+                          suffixIcon: searchCtrl!.text.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(Icons.close, size: 16),
+                                  onPressed: searchCtrl!.clear,
+                                )
+                              : null,
+                          isDense: true,
+                          contentPadding: const EdgeInsets.symmetric(
+                            vertical: AppSpacing.sm,
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(width: AppSpacing.xs),
-                Tooltip(
-                  message:
-                      'Recherchez dans tout votre espace :\nimmeubles, chambres, locataires…',
-                  triggerMode: TooltipTriggerMode.tap,
-                  preferBelow: false,
-                  child: Icon(
-                    Icons.help_outline,
-                    size: 18,
-                    color: AppColors.onSurfaceVariant,
+                  const SizedBox(width: AppSpacing.xs),
+                  Tooltip(
+                    message:
+                        'Recherchez dans tout votre espace :\nimmeubles, chambres, locataires…',
+                    triggerMode: TooltipTriggerMode.tap,
+                    preferBelow: false,
+                    child: Icon(
+                      Icons.help_outline,
+                      size: 18,
+                      color: AppColors.onSurfaceVariant,
+                    ),
                   ),
-                ),
-              ],
+                ],
               ),
             ),
           )
@@ -235,6 +248,160 @@ class _SidebarHeader extends StatelessWidget {
       ],
     );
   }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Botão « Manuel utilisateur » com animação shimmer na primeira vez que a
+/// sidebar é expandida (uma única passagem branca da esquerda para a direita).
+class _ManualButton extends StatefulWidget {
+  const _ManualButton();
+
+  @override
+  State<_ManualButton> createState() => _ManualButtonState();
+}
+
+class _ManualButtonState extends State<_ManualButton>
+    with SingleTickerProviderStateMixin {
+  // Flag de sessão: o shimmer só toca uma vez por sessão de app.
+  static bool _shimmerPlayed = false;
+
+  late final AnimationController _ctrl;
+  late final Animation<double> _shimmer;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    );
+    // Valor vai de -1 (fora à esquerda) a 2 (fora à direita).
+    _shimmer = Tween<double>(begin: -1, end: 2).animate(
+      CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut),
+    );
+
+    if (!_shimmerPlayed) {
+      // Pequeno atraso para a sidebar terminar de abrir antes do shimmer.
+      Future.delayed(const Duration(milliseconds: 280), () {
+        if (mounted) {
+          _ctrl.forward().whenComplete(() {
+            _shimmerPlayed = true;
+          });
+        }
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  void _open() {
+    // Em web: abre /manual/index.html numa nova aba.
+    final base = Uri.base;
+    final url = base.replace(
+      path: '/manual/index.html',
+      query: '',
+      fragment: '',
+    );
+    launchUrl(url, mode: LaunchMode.externalApplication);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: 'Manuel utilisateur',
+      child: InkWell(
+        onTap: _open,
+        borderRadius: AppRadius.borderMd,
+        child: AnimatedBuilder(
+          animation: _shimmer,
+          builder: (context, child) {
+            return ClipRRect(
+              borderRadius: AppRadius.borderMd,
+              child: CustomPaint(
+                foregroundPainter: _shimmerPlayed
+                    ? null
+                    : _ShimmerPainter(progress: _shimmer.value),
+                child: child,
+              ),
+            );
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.sm, vertical: 8),
+            decoration: BoxDecoration(
+              color: AppColors.primaryFixed.withValues(alpha: 0.35),
+              borderRadius: AppRadius.borderMd,
+              border: Border.all(
+                color: AppColors.primary.withValues(alpha: 0.25),
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.menu_book_outlined,
+                    size: 16, color: AppColors.primary),
+                const SizedBox(width: AppSpacing.sm),
+                Flexible(
+                  child: Text(
+                    'Manuel utilisateur',
+                    style: AppTypography.labelSm.copyWith(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.xs),
+                Icon(Icons.open_in_new,
+                    size: 12,
+                    color: AppColors.primary.withValues(alpha: 0.6)),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Pinta o efeito shimmer: um feixe branco semi-transparente que varre da
+/// esquerda para a direita uma única vez. [progress] vai de -1 a 2.
+class _ShimmerPainter extends CustomPainter {
+  final double progress;
+  const _ShimmerPainter({required this.progress});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (progress < -0.5 || progress > 1.5) return;
+    final w = size.width;
+    final center = progress * w;
+    const beamW = 60.0;
+    final rect = Rect.fromLTWH(0, 0, w, size.height);
+    final gradient = LinearGradient(
+      begin: Alignment.centerLeft,
+      end: Alignment.centerRight,
+      colors: [
+        Colors.white.withValues(alpha: 0),
+        Colors.white.withValues(alpha: 0.55),
+        Colors.white.withValues(alpha: 0),
+      ],
+      stops: [
+        math.max(0, (center - beamW / 2) / w),
+        (center / w).clamp(0.0, 1.0),
+        math.min(1, (center + beamW / 2) / w),
+      ],
+    );
+    canvas.drawRect(rect, Paint()..shader = gradient.createShader(rect));
+  }
+
+  @override
+  bool shouldRepaint(_ShimmerPainter old) => old.progress != progress;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

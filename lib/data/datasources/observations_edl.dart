@@ -16,6 +16,35 @@ class ObservationsEdlDatasource {
     return rows.map(ObservationEdl.fromMap).toList();
   }
 
+  /// Copie les observations des **parties communes** (celles rattachées à une
+  /// `piece_id`) de `fromEdlId` vers `toEdlId`, photos comprises. Sert au modèle
+  /// « chaque EDL individuel porte sa propre copie des parties communes » : à la
+  /// création d'un nouvel EDL, on reprend les observations des communs du dernier
+  /// EDL (ex. « problème à l'évier de la cuisine » + photo). Les observations de
+  /// la **chambre** (chambre_id) et les **additions** ne sont jamais copiées.
+  /// Idempotent : ne copie rien si `toEdlId` a déjà des observations de communs.
+  static Future<void> copyCommonObservations(
+    int fromEdlId,
+    int toEdlId,
+  ) async {
+    final existing = await listByEdl(toEdlId);
+    if (existing.any((o) => o.pieceId != null && !o.isAddition)) return;
+    final src = await listByEdl(fromEdlId);
+    for (final o in src) {
+      if (o.pieceId == null || o.isAddition) continue; // communs uniquement
+      await _db.from(_table).insert(
+            ObservationEdl(
+              etatDesLieuxId: toEdlId,
+              wallKey: o.wallKey,
+              pieceId: o.pieceId,
+              description: o.description,
+              photos: o.photos,
+              authorRole: o.authorRole,
+            ).toInsert(),
+          );
+    }
+  }
+
   /// Insère une nouvelle observation pour un mur (plusieurs obs par mur possibles).
   static Future<ObservationEdl> insertWall(ObservationEdl obs) async {
     final row = await _db

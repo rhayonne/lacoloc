@@ -6,7 +6,9 @@ import 'package:form_builder_validators/form_builder_validators.dart';
 import 'package:lacoloc_front/data/datasources/auth_service.dart';
 import 'package:lacoloc_front/data/datasources/fournisseurs.dart';
 import 'package:lacoloc_front/data/models/fournisseur.dart';
+import 'package:lacoloc_front/data/permissions/permissions_service.dart';
 import 'package:lacoloc_front/presentation/widgets/form_page_header.dart';
+import 'package:lacoloc_front/presentation/widgets/permission_gate.dart';
 import 'package:lacoloc_front/utils/email_field.dart';
 import 'package:lacoloc_front/utils/phone_field.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
@@ -135,10 +137,13 @@ class _FournisseursPageState extends State<FournisseursPage> {
           children: [
             FormPageHeader(
               title: 'Fournisseurs',
-              trailing: FilledButton.icon(
-                onPressed: _openCreation,
-                icon: const Icon(Icons.add, size: 18),
-                label: const Text('Ajouter'),
+              trailing: PermissionGate(
+                permission: Perm.fournisseursCreate,
+                child: FilledButton.icon(
+                  onPressed: _openCreation,
+                  icon: const Icon(Icons.add, size: 18),
+                  label: const Text('Ajouter'),
+                ),
               ),
             ),
             if (isLoading)
@@ -162,10 +167,13 @@ class _FournisseursPageState extends State<FournisseursPage> {
                               .copyWith(color: AppColors.onSurfaceVariant),
                         ),
                         const SizedBox(height: AppSpacing.md),
-                        FilledButton.icon(
-                          onPressed: _openCreation,
-                          icon: const Icon(Icons.add, size: 18),
-                          label: const Text('Ajouter un fournisseur'),
+                        PermissionGate(
+                          permission: Perm.fournisseursCreate,
+                          child: FilledButton.icon(
+                            onPressed: _openCreation,
+                            icon: const Icon(Icons.add, size: 18),
+                            label: const Text('Ajouter un fournisseur'),
+                          ),
                         ),
                       ],
                     ),
@@ -232,16 +240,22 @@ class _FournisseursTable extends StatelessWidget {
           DataCell(Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              IconButton(
-                icon: const Icon(Icons.edit_outlined, size: 18),
-                tooltip: 'Modifier',
-                onPressed: () => onEdit(f),
+              PermissionGate(
+                permission: Perm.fournisseursEdit,
+                child: IconButton(
+                  icon: const Icon(Icons.edit_outlined, size: 18),
+                  tooltip: 'Modifier',
+                  onPressed: () => onEdit(f),
+                ),
               ),
-              IconButton(
-                icon: Icon(Icons.delete_outline,
-                    size: 18, color: AppColors.error),
-                tooltip: 'Supprimer',
-                onPressed: () => onDelete(f),
+              PermissionGate(
+                permission: Perm.fournisseursDelete,
+                child: IconButton(
+                  icon: Icon(Icons.delete_outline,
+                      size: 18, color: AppColors.error),
+                  tooltip: 'Supprimer',
+                  onPressed: () => onDelete(f),
+                ),
               ),
             ],
           )),

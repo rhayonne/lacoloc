@@ -9,6 +9,8 @@ import 'package:lacoloc_front/data/models/chambre.dart';
 import 'package:lacoloc_front/data/models/immeubles.dart';
 import 'package:lacoloc_front/data/models/inventaire.dart';
 import 'package:lacoloc_front/data/models/piece.dart';
+import 'package:lacoloc_front/data/permissions/permissions_service.dart';
+import 'package:lacoloc_front/presentation/widgets/permission_gate.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_radius.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
@@ -123,13 +125,16 @@ class _InventairePageState extends State<InventairePage> {
                   Expanded(
                     child: Text('Inventaire', style: AppTypography.titleLg),
                   ),
-                  FilledButton.icon(
-                    onPressed: () => setState(() {
-                      _editing = null;
-                      _showForm = true;
-                    }),
-                    icon: const Icon(Icons.add, size: 18),
-                    label: const Text('Ajouter'),
+                  PermissionGate(
+                    permission: Perm.inventaireCreate,
+                    child: FilledButton.icon(
+                      onPressed: () => setState(() {
+                        _editing = null;
+                        _showForm = true;
+                      }),
+                      icon: const Icon(Icons.add, size: 18),
+                      label: const Text('Ajouter'),
+                    ),
                   ),
                   const SizedBox(width: AppSpacing.sm),
                   IconButton.outlined(
@@ -482,16 +487,22 @@ class _InventaireRow extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                IconButton(
-                  icon: const Icon(Icons.edit_outlined, size: 18),
-                  tooltip: 'Modifier',
-                  onPressed: onEdit,
+                PermissionGate(
+                  permission: Perm.inventaireEdit,
+                  child: IconButton(
+                    icon: const Icon(Icons.edit_outlined, size: 18),
+                    tooltip: 'Modifier',
+                    onPressed: onEdit,
+                  ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.delete_outline, size: 18),
-                  tooltip: 'Supprimer',
-                  color: AppColors.error,
-                  onPressed: onDelete,
+                PermissionGate(
+                  permission: Perm.inventaireDelete,
+                  child: IconButton(
+                    icon: const Icon(Icons.delete_outline, size: 18),
+                    tooltip: 'Supprimer',
+                    color: AppColors.error,
+                    onPressed: onDelete,
+                  ),
                 ),
               ],
             ),

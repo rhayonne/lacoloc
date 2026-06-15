@@ -7,6 +7,8 @@ import 'package:lacoloc_front/data/datasources/chambres.dart';
 import 'package:lacoloc_front/data/datasources/immeubles.dart';
 import 'package:lacoloc_front/data/models/chambre.dart';
 import 'package:lacoloc_front/data/models/immeubles.dart';
+import 'package:lacoloc_front/data/permissions/permissions_service.dart';
+import 'package:lacoloc_front/presentation/widgets/permission_gate.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_radius.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
@@ -93,10 +95,13 @@ class _MesChambresPageState extends State<MesChambresPage>
                       style: AppTypography.headlineMd,
                     ),
                   ),
-                  FilledButton.icon(
-                    onPressed: widget.onCreerChambre,
-                    icon: const Icon(Icons.add, size: 18),
-                    label: const Text('Ajouter'),
+                  PermissionGate(
+                    permission: Perm.chambresCreate,
+                    child: FilledButton.icon(
+                      onPressed: widget.onCreerChambre,
+                      icon: const Icon(Icons.add, size: 18),
+                      label: const Text('Ajouter'),
+                    ),
                   ),
                   const SizedBox(width: AppSpacing.sm),
                 ],
@@ -424,15 +429,18 @@ class _ChambreCardState extends State<_ChambreCard> {
                     ),
                   ),
                 const SizedBox(height: AppSpacing.xs),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: widget.onModifier,
-                    icon: const Icon(Icons.edit_outlined, size: 14),
-                    label: const Text('Modifier'),
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 4),
-                      textStyle: AppTypography.labelSm,
+                PermissionGate(
+                  permission: Perm.chambresEdit,
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: widget.onModifier,
+                      icon: const Icon(Icons.edit_outlined, size: 14),
+                      label: const Text('Modifier'),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        textStyle: AppTypography.labelSm,
+                      ),
                     ),
                   ),
                 ),

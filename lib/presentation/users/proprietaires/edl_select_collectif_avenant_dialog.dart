@@ -6,11 +6,11 @@ import 'package:lacoloc_front/theme/app_radius.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
 import 'package:lacoloc_front/theme/app_typography.dart';
 
-/// Dialogue de sélection du contrat collectif (finalisé) à amender (avenant).
+/// Dialogue de sélection du contrat à amender (avenant).
 ///
-/// Reçoit la liste des [AmendableCollectif] (collectifs finalisés ayant encore
-/// des chambres libres). Pour chacun, affiche l'immeuble, la **date de l'EDL**,
-/// la **date du premier contrat signé** et le nombre de chambres libres.
+/// Reçoit la liste des [AmendableCollectif] (contrats bail individuel finalisés
+/// ayant encore des chambres libres). Pour chacun, affiche l'immeuble, les
+/// **locataires actuels** (EDLs individuels) et le nombre de chambres libres.
 /// Retourne l'option choisie (ou null si annulé).
 Future<AmendableCollectif?> showSelectCollectifAvenantDialog(
   BuildContext context,
@@ -33,7 +33,7 @@ Future<AmendableCollectif?> showSelectCollectifAvenantDialog(
                 AppSpacing.lg,
                 AppSpacing.sm,
               ),
-              child: Text('Avenant — choisir le contrat collectif',
+              child: Text('Avenant — choisir le contrat',
                   style: AppTypography.titleLg),
             ),
             const Divider(height: 1),
@@ -46,9 +46,22 @@ Future<AmendableCollectif?> showSelectCollectifAvenantDialog(
                 itemBuilder: (_, i) {
                   final o = options[i];
                   final c = o.collectif;
+
+                  // Nomes dos locataires actuels (EDLs privatifs).
+                  final noms = o.privatifs
+                      .map((p) =>
+                          p.locataireNom ??
+                          p.chambreNom ??
+                          'Locataire')
+                      .toList();
+                  final locatairesLabel = noms.isEmpty
+                      ? 'Aucun locataire'
+                      : noms.join(' · ');
+
                   final firstSigned = o.firstSignedDate != null
-                      ? dateFmt.format(o.firstSignedDate!)
-                      : '—';
+                      ? '1er contrat : ${dateFmt.format(o.firstSignedDate!)}'
+                      : null;
+
                   return InkWell(
                     onTap: () => Navigator.pop(ctx, o),
                     child: Padding(
@@ -74,12 +87,22 @@ Future<AmendableCollectif?> showSelectCollectifAvenantDialog(
                                 ),
                                 const SizedBox(height: 2),
                                 Text(
-                                  'EDL du ${dateFmt.format(c.dateEtatLieux)} · '
-                                  '1er contrat signé : $firstSigned',
+                                  locatairesLabel,
                                   style: AppTypography.labelSm.copyWith(
                                     color: AppColors.onSurfaceVariant,
                                   ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
+                                if (firstSigned != null) ...[
+                                  const SizedBox(height: 1),
+                                  Text(
+                                    firstSigned,
+                                    style: AppTypography.labelSm.copyWith(
+                                      color: AppColors.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ],
                               ],
                             ),
                           ),
@@ -92,8 +115,10 @@ Future<AmendableCollectif?> showSelectCollectifAvenantDialog(
                               borderRadius: AppRadius.borderFull,
                             ),
                             child: Text(
-                              '${o.freeChambres.length} libre'
-                              '${o.freeChambres.length > 1 ? 's' : ''}',
+                              c.typeBail == 'location'
+                                  ? 'Location'
+                                  : '${o.freeChambres.length} libre'
+                                      '${o.freeChambres.length > 1 ? 's' : ''}',
                               style: AppTypography.labelSm.copyWith(
                                 color: AppColors.onPrimaryFixedVariant,
                                 fontWeight: FontWeight.w600,

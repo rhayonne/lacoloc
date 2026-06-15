@@ -1,0 +1,140 @@
+name: 📝 Notes de mise à jour
+
+# ─── Déclencheurs ──────────────────────────────────────────────────────────────
+on:
+  push:
+    branches: [main]
+
+# ─── Permissions ───────────────────────────────────────────────────────────────
+permissions:
+  contents: write
+
+# ─── Job ───────────────────────────────────────────────────────────────────────
+jobs:
+  release-notes:
+    name: Générer les notes de version
+    runs-on: ubuntu-latest
+    # Ne s'exécute pas si c'est le bot lui-même qui a poussé (évite la boucle).
+    # GITHUB_TOKEN commits ne redéclenchent pas les workflows, mais ce garde
+    # s'assure que les commits [skip ci] n'entrent pas dans une boucle.
+    if: github.actor != 'github-actions[bot]'
+
+    steps:
+      # 1. Checkout complet (fetch-depth 0 → accès à tout l'historique + tags)
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # 2. Lire et parser la version depuis pubspec.yaml
+      #    Format : "X.Y.Z+build" → on ignore le build number
+      - name: Parser la version
+        id: ver
+        run: |
+          RAW=$(grep '^version:' pubspec.yaml | awk '{print $2}' | cut -d'+' -f1)
+          MAJOR=$(echo "$RAW" | cut -d. -f1)
+          MINOR=$(echo "$RAW" | cut -d. -f2)
+          PATCH=$(echo "$RAW" | cut -d. -f3)
+          echo "raw=$RAW"                                    >> "$GITHUB_OUTPUT"
+          echo "major=$MAJOR"                                >> "$GITHUB_OUTPUT"
+          echo "minor=$MINOR"                                >> "$GITHUB_OUTPUT"
+          echo "patch=$PATCH"                                >> "$GITHUB_OUTPUT"
+          echo "folder=changelogs/v${MAJOR}"                 >> "$GITHUB_OUTPUT"
+          echo "file=changelogs/v${MAJOR}/${MAJOR}.${MINOR}.md" >> "$GITHUB_OUTPUT"
+          echo "Parsed version: $RAW (major=$MAJOR minor=$MINOR patch=$PATCH)"
+
+      # 3. Vérifier si cette version exacte (X.Y.Z) est déjà documentée
+      #    → idempotent : un re-déploiement de la même version ne crée pas de doublon
+      - name: Vérifier l'existence de la version
+        id: check
+        run: |
+          FILE="${{ steps.ver.outputs.file }}"
+          VERSION="${{ steps.ver.outputs.raw }}"
+          if [ -f "$FILE" ] && grep -qF "## ${VERSION}" "$FILE"; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Version $VERSION déjà présente dans $FILE — aucune action."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "Version $VERSION absente — génération du changelog."
+          fi
+
+      # 4. Récupérer la liste des commits depuis le dernier tag de version
+      - name: Récupérer les commits récents
+        id: commits
+        if: steps.check.outputs.skip == 'false'
+        run: |
+          LAST_TAG=$(git tag --sort=-version:refname 2>/dev/null | head -n1)
+          if [ -n "$LAST_TAG" ]; then
+            echo "Commits depuis le tag $LAST_TAG"
+            LIST=$(git log "${LAST_TAG}..HEAD" --no-merges \
+                     --pretty=format:"- %s (%h)" | head -25)
+          else
+            echo "Aucun tag — prise des 25 derniers commits"
+            LIST=$(git log HEAD --no-merges \
+                     --pretty=format:"- %s (%h)" | head -25)
+          fi
+          [ -z "$LIST" ] && LIST="- (aucun commit listé)"
+          # Export multiline safe
+          {
+            echo "list<<COMMITS_EOF"
+            echo "$LIST"
+            echo "COMMITS_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      # 5. Créer ou mettre à jour le fichier changelog
+      #    - Nouvelle version majeure.mineure → nouveau fichier avec en-tête
+      #    - Patch sur une version existante  → section ajoutée au fichier existant
+      - name: Créer / mettre à jour le changelog
+        if: steps.check.outputs.skip == 'false'
+        env:
+          VERSION: ${{ steps.ver.outputs.raw }}
+          MAJOR:   ${{ steps.ver.outputs.major }}
+          MINOR:   ${{ steps.ver.outputs.minor }}
+          FOLDER:  ${{ steps.ver.outputs.folder }}
+          FILE:    ${{ steps.ver.outputs.file }}
+          COMMITS: ${{ steps.commits.outputs.list }}
+        run: |
+          DATE=$(date -u +%Y-%m-%d)
+          mkdir -p "$FOLDER"
+
+          if [ ! -f "$FILE" ]; then
+            # ── Nouveau fichier (nouveau major.minor) ─────────────────────────
+            {
+              printf "# v%s.%s — Notes de mise à jour\n\n" "$MAJOR" "$MINOR"
+              printf "> Généré automatiquement à chaque merge sur \`main\`"
+              printf " · Modifiable manuellement\n\n"
+              printf -- "---\n\n"
+              printf "## %s — %s\n\n" "$VERSION" "$DATE"
+              printf "### Commits\n\n%s\n\n" "$COMMITS"
+              printf "### Notes\n\n"
+              printf "_Ajoutez ici un résumé des changements après le merge._\n\n"
+              printf -- "---\n"
+            } > "$FILE"
+            echo "Fichier créé : $FILE"
+          else
+            # ── Patch : section ajoutée au fichier existant ───────────────────
+            {
+              printf "\n## %s — %s\n\n" "$VERSION" "$DATE"
+              printf "### Commits\n\n%s\n\n" "$COMMITS"
+              printf "### Notes\n\n"
+              printf "_Ajoutez ici un résumé des changements après le merge._\n\n"
+              printf -- "---\n"
+            } >> "$FILE"
+            echo "Section ajoutée dans : $FILE"
+          fi
+
+      # 6. Commiter et pousser le changelog
+      #    Le commit [skip ci] + l'acteur github-actions[bot] empêchent
+      #    de redéclencher ce workflow ou le deploy.
+      - name: Commiter le changelog
+        if: steps.check.outputs.skip == 'false'
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add changelogs/
+          if git diff --cached --quiet; then
+            echo "Aucun changement à committer."
+          else
+            git commit -m "docs(changelog): v${{ steps.ver.outputs.raw }} [skip ci]"
+            git push
+          fi

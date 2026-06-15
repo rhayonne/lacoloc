@@ -6,6 +6,8 @@ import 'package:lacoloc_front/data/datasources/chambres.dart';
 import 'package:lacoloc_front/data/datasources/immeubles.dart';
 import 'package:lacoloc_front/data/models/chambre.dart';
 import 'package:lacoloc_front/data/models/immeubles.dart';
+import 'package:lacoloc_front/data/permissions/permissions_service.dart';
+import 'package:lacoloc_front/presentation/widgets/permission_gate.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_radius.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
@@ -84,10 +86,13 @@ class _MesImmeublesPageState extends State<MesImmeublesPage>
                       style: AppTypography.headlineMd,
                     ),
                   ),
-                  FilledButton.icon(
-                    onPressed: widget.onAjouter,
-                    icon: const Icon(Icons.add, size: 18),
-                    label: const Text('Ajouter'),
+                  PermissionGate(
+                    permission: Perm.immeublesCreate,
+                    child: FilledButton.icon(
+                      onPressed: widget.onAjouter,
+                      icon: const Icon(Icons.add, size: 18),
+                      label: const Text('Ajouter'),
+                    ),
                   ),
                   const SizedBox(width: AppSpacing.sm),
                 ],
@@ -254,10 +259,11 @@ class _ImmeubleCard extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Container(),
-                        if (immeuble.bailCollectif == true)
-                          Text('Bail collectif', style: AppTypography.labelMd)
+                        if (immeuble.bailLocation == true)
+                          Text('Location', style: AppTypography.labelMd)
                         else if (immeuble.bailIndividuel == true)
-                          Text('Bail individuel', style: AppTypography.labelMd)
+                          Text('Bail individuel (Colocation)',
+                              style: AppTypography.labelMd)
                         else
                           Text('Type de bail non définit.'),
                       ],
@@ -334,15 +340,18 @@ class _ImmeubleCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: AppSpacing.sm),
-              OutlinedButton(
-                onPressed: onModifier,
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.sm,
-                    vertical: 0,
+              PermissionGate(
+                permission: Perm.immeublesEdit,
+                child: OutlinedButton(
+                  onPressed: onModifier,
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.sm,
+                      vertical: 0,
+                    ),
                   ),
+                  child: const Icon(Icons.edit_outlined, size: 16),
                 ),
-                child: const Icon(Icons.edit_outlined, size: 16),
               ),
             ],
           ),
@@ -429,10 +438,13 @@ class _EmptyState extends StatelessWidget {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: AppSpacing.xl),
-            FilledButton.icon(
-              onPressed: onAjouter,
-              icon: const Icon(Icons.add),
-              label: const Text('Ajouter un immeuble'),
+            PermissionGate(
+              permission: Perm.immeublesCreate,
+              child: FilledButton.icon(
+                onPressed: onAjouter,
+                icon: const Icon(Icons.add),
+                label: const Text('Ajouter un immeuble'),
+              ),
             ),
           ],
         ),

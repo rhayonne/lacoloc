@@ -4,6 +4,7 @@ import 'package:lacoloc_front/data/cache/data_cache.dart';
 import 'package:lacoloc_front/data/cache/realtime_service.dart';
 import 'package:lacoloc_front/data/datasources/chambres.dart';
 import 'package:lacoloc_front/data/datasources/edl_details.dart';
+import 'package:lacoloc_front/data/datasources/session_scope.dart';
 import 'package:lacoloc_front/data/models/chambre.dart';
 import 'package:lacoloc_front/data/models/etat_de_lieux.dart';
 import 'package:lacoloc_front/data/models/users_client.dart';
@@ -48,11 +49,14 @@ class EtatDesLieuxDatasource {
     bool refresh = false,
   }) {
     return _cache.get('${CacheKeys.edl}prop:$proprietaireId', () async {
-      final rows = await _db
-          .from(_table)
-          .select(_select)
-          .eq('proprietaire_id', proprietaireId)
-          .order('date_etat_lieux', ascending: false);
+      // Multi-tenant : membro d'une entreprise → tous les EDL de l'entreprise.
+      final entrepriseId = await SessionScope.currentEntrepriseId();
+      final query = _db.from(_table).select(_select);
+      final filtered = entrepriseId != null
+          ? query.eq('entreprise_id', entrepriseId)
+          : query.eq('proprietaire_id', proprietaireId);
+      final rows =
+          await filtered.order('date_etat_lieux', ascending: false);
       return rows.map((r) => EtatDesLieuxModel.fromMap(r)).toList();
     }, refresh: refresh);
   }
@@ -90,8 +94,16 @@ class EtatDesLieuxDatasource {
     }, refresh: refresh);
   }
 
-  /// União dos EDLs do locataire: privatifs (`locataire_id`) + collectifs onde
-  /// é preneur. Deduplicado por id.
+  /// EDLs visibles par le locataire dans SA liste :
+  ///  • **bail individuel** → son EDL **privatif** (partie=privative, lié à sa
+  ///    chambre). Le collectif (parties communes) n'apparaît PAS dans la liste —
+  ///    le locataire le consulte depuis sa fiche privative (observations communes).
+  ///  • **bail location** → l'EDL **commune** complet où il est preneur (il n'y a
+  ///    pas de privatif dans ce cas).
+  ///
+  /// Concrètement : union de `listByLocataire` (privatifs) + `listByPreneur`
+  /// (collectifs/communes), en **excluant** les collectifs d'un bail individuel
+  /// (`partie==commune && type_bail=='individuel'`). Déduplicado por id.
   static Future<List<EtatDesLieuxModel>> listForLocataire(
     String locataireId,
   ) async {
@@ -102,6 +114,11 @@ class EtatDesLieuxDatasource {
     final byId = <int, EtatDesLieuxModel>{};
     for (final list in results) {
       for (final edl in list) {
+        // Cache le collectif d'un bail individuel : c'est juste le miroir des
+        // privatifs ; le locataire voit son privatif, pas le collectif.
+        final estCollectifIndividuel =
+            edl.partie == PartieEdl.commune && edl.typeBail == 'individuel';
+        if (estCollectifIndividuel) continue;
         byId[edl.id] = edl;
       }
     }
@@ -118,6 +135,15 @@ class EtatDesLieuxDatasource {
         .single();
     invalidate();
     return EtatDesLieuxModel.fromMap(row);
+  }
+
+  static Future<EtatDesLieuxModel?> findById(int id) async {
+    final row = await _db
+        .from(_table)
+        .select(_select)
+        .eq('id', id)
+        .maybeSingle();
+    return row != null ? EtatDesLieuxModel.fromMap(row) : null;
   }
 
   /// EDL `partie = commune` (collectif) de um imóvel para um dado `type_edl`.
@@ -137,6 +163,22 @@ class EtatDesLieuxDatasource {
         .limit(1)
         .maybeSingle();
     return row == null ? null : EtatDesLieuxModel.fromMap(row);
+  }
+
+  /// Todos os EDLs collectif (partie=commune) de um imóvel, ordenados do mais
+  /// recente ao mais antigo. Usado para o diálogo de seleção de ano letivo.
+  static Future<List<EtatDesLieuxModel>> listAllCollectifs({
+    required int immeubleId,
+    required String typeEdl,
+  }) async {
+    final rows = await _db
+        .from(_table)
+        .select(_select)
+        .eq('immeuble_id', immeubleId)
+        .eq('partie', 'commune')
+        .eq('type_edl', typeEdl)
+        .order('created_at', ascending: false);
+    return rows.map((r) => EtatDesLieuxModel.fromMap(r)).toList();
   }
 
   /// EDL collectif **ouvert** (non finalisé) du `partie='commune'` d'un imóvel
@@ -277,6 +319,142 @@ class EtatDesLieuxDatasource {
     return rows.map((r) => EtatDesLieuxModel.fromMap(r)).toList();
   }
 
+  // ── EDL de sortie (couplé à une entrée finalisée) ───────────────────────────
+
+  /// Le sortie déjà créé pour un EDL d'entrée donné (par `edl_entree_id`), ou
+  /// null. Sert à l'idempotence de [createSortieFromEntree].
+  static Future<EtatDesLieuxModel?> findSortieForEntree(int entreeId) async {
+    final row = await _db
+        .from(_table)
+        .select(_select)
+        .eq('edl_entree_id', entreeId)
+        .eq('type_edl', 'sortie')
+        .order('created_at')
+        .limit(1)
+        .maybeSingle();
+    return row == null ? null : EtatDesLieuxModel.fromMap(row);
+  }
+
+  /// Entrées **finalisées** du proprietaire éligibles à un EDL de sortie, et qui
+  /// n'ont pas encore de sortie : location (commune) + privatifs (individuel,
+  /// une chambre). Triées par date décroissante.
+  static Future<List<EtatDesLieuxModel>> listFinalizedEntreesForSortie(
+    String proprietaireId,
+  ) async {
+    final rows = await _db
+        .from(_table)
+        .select(_select)
+        .eq('proprietaire_id', proprietaireId)
+        .eq('type_edl', 'entree')
+        .eq('situation', 'finalise')
+        .order('date_etat_lieux', ascending: false);
+    final entrees = rows.map((r) => EtatDesLieuxModel.fromMap(r)).toList();
+    final candidates = entrees.where((e) =>
+        (e.typeBail == 'location' && e.partie == PartieEdl.commune) ||
+        e.partie == PartieEdl.privative).toList();
+    // Exclure les entrées qui ont déjà un sortie.
+    final sortieRows = await _db
+        .from(_table)
+        .select('edl_entree_id')
+        .eq('proprietaire_id', proprietaireId)
+        .eq('type_edl', 'sortie')
+        .not('edl_entree_id', 'is', null);
+    final done = {
+      for (final r in sortieRows)
+        if (r['edl_entree_id'] != null) r['edl_entree_id'] as int,
+    };
+    return candidates.where((e) => !done.contains(e.id)).toList();
+  }
+
+  /// Crée (idempotent) l'EDL de sortie couplé à une entrée finalisée, en copiant
+  /// la structure (sections + lignes), les preneurs et les relevés/clés depuis
+  /// l'entrée. **N'altère jamais l'entrée.** Retourne le sortie principal
+  /// (privatif pour un bail individuel, commune pour une location).
+  static Future<EtatDesLieuxModel> createSortieFromEntree(
+    EtatDesLieuxModel entree,
+  ) async {
+    final uid = entree.proprietaireId;
+    final now = DateTime.now();
+    final situation = SituationEdl.fromDate(now);
+
+    // Bail location → un seul EDL sortie « commune ».
+    if (entree.partie == PartieEdl.commune) {
+      final existing = await findSortieForEntree(entree.id);
+      if (existing != null) return existing;
+      final sortie = await create(EtatDesLieuxModel(
+        id: 0,
+        proprietaireId: uid,
+        immeubleId: entree.immeubleId,
+        locataireId: entree.locataireId,
+        typeBail: entree.typeBail,
+        typeEdl: 'sortie',
+        dateEtatLieux: now,
+        situation: situation,
+        createdAt: now,
+        partie: PartieEdl.commune,
+        edlEntreeId: entree.id,
+      ));
+      await EdlDetailsDatasource.copyStructure(entree.id, sortie.id);
+      await EdlDetailsDatasource.copyPreneurs(entree.id, sortie.id);
+      await EdlDetailsDatasource.copyReleves(entree.id, sortie.id);
+      return sortie;
+    }
+
+    // Bail individuel : `entree` est un privatif.
+    // 1) Sortie collectif (parties communes), lié au collectif d'entrée.
+    int? sortieCollectifId;
+    final entreeCollectifId = entree.edlCollectifId;
+    if (entreeCollectifId != null) {
+      final existingColl = await findSortieForEntree(entreeCollectifId);
+      if (existingColl != null) {
+        sortieCollectifId = existingColl.id;
+      } else {
+        final sortieColl = await create(EtatDesLieuxModel(
+          id: 0,
+          proprietaireId: uid,
+          immeubleId: entree.immeubleId,
+          typeBail: 'individuel',
+          typeEdl: 'sortie',
+          dateEtatLieux: now,
+          situation: situation,
+          createdAt: now,
+          partie: PartieEdl.commune,
+          edlEntreeId: entreeCollectifId,
+        ));
+        sortieCollectifId = sortieColl.id;
+        await EdlDetailsDatasource.copyStructure(
+            entreeCollectifId, sortieColl.id);
+        await EdlDetailsDatasource.copyPreneurs(
+            entreeCollectifId, sortieColl.id);
+        await EdlDetailsDatasource.copyReleves(
+            entreeCollectifId, sortieColl.id);
+      }
+    }
+
+    // 2) Sortie privatif de la chambre.
+    final existingPriv = await findSortieForEntree(entree.id);
+    if (existingPriv != null) return existingPriv;
+    final sortiePriv = await create(EtatDesLieuxModel(
+      id: 0,
+      proprietaireId: uid,
+      immeubleId: entree.immeubleId,
+      chambreId: entree.chambreId,
+      locataireId: entree.locataireId,
+      typeBail: 'individuel',
+      typeEdl: 'sortie',
+      dateEtatLieux: now,
+      situation: situation,
+      createdAt: now,
+      partie: PartieEdl.privative,
+      edlCollectifId: sortieCollectifId,
+      edlEntreeId: entree.id,
+    ));
+    await EdlDetailsDatasource.copyStructure(entree.id, sortiePriv.id);
+    await EdlDetailsDatasource.copyPreneurs(entree.id, sortiePriv.id);
+    await EdlDetailsDatasource.copyCles(entree.id, sortiePriv.id);
+    return sortiePriv;
+  }
+
   static Future<EtatDesLieuxModel> update(
     int id,
     Map<String, dynamic> updates,
@@ -292,25 +470,59 @@ class EtatDesLieuxDatasource {
   }
 
   /// Finalise le privatif et enregistre les données du contrat de bail.
-  /// Après la mise à jour de l'EDL, marque la chambre comme occupée (`est_loue`).
+  /// Après la mise à jour de l'EDL et selon le sens :
+  ///  • une **entrée** finalisée marque la chambre comme **occupée** ;
+  ///  • une **sortie** finalisée **libère** la chambre (fin du contrat).
+  /// Préférence du propriétaire connecté : durée (en jours) de la fenêtre
+  /// « avenant / additions » ouverte après la finalisation d'un EDL.
+  static Future<int> getAvenantWindowDays() async {
+    final uid = _db.auth.currentUser?.id;
+    if (uid == null) return kDefaultAvenantWindowDays;
+    final row = await _db
+        .from('Users_Client')
+        .select('avenant_window_days')
+        .eq('id', uid)
+        .maybeSingle();
+    return (row?['avenant_window_days'] as int?) ?? kDefaultAvenantWindowDays;
+  }
+
+  /// Met à jour la préférence de fenêtre « avenant / additions » du propriétaire.
+  static Future<void> setAvenantWindowDays(int days) async {
+    final uid = _db.auth.currentUser?.id;
+    if (uid == null) return;
+    await _db
+        .from('Users_Client')
+        .update({'avenant_window_days': days}).eq('id', uid);
+  }
+
   static Future<void> finaliser(
     int id, {
     DateTime? dateDebutBail,
     DateTime? dateFinBail,
     int? dureeBailMois,
     int? chambreId,
+    String typeEdl = 'entree',
+    String? proprietaireSignatureUrl,
   }) async {
+    final now = DateTime.now();
+    // Snapshot de la fenêtre avenant/additions depuis la préférence du
+    // propriétaire (Vision générale) — fixée à la finalisation pour rester
+    // stable même si la préférence change ensuite.
+    final windowDays = await getAvenantWindowDays();
     final updates = <String, dynamic>{
       'situation': SituationEdl.finalise.raw,
+      'avenant_window_days': windowDays,
       if (dateDebutBail != null)
         'date_debut_bail': dateDebutBail.toIso8601String().substring(0, 10),
       if (dateFinBail != null)
         'date_fin_bail': dateFinBail.toIso8601String().substring(0, 10),
       'duree_bail_mois': ?dureeBailMois,
+      'proprietaire_signed_at': now.toIso8601String(),
+      'proprietaire_signature_url': ?proprietaireSignatureUrl,
     };
     await _db.from(_table).update(updates).eq('id', id);
     if (chambreId case final id?) {
-      await ChambresDatasource.setOccupied(id, occupied: true);
+      await ChambresDatasource.setOccupied(id, occupied: typeEdl != 'sortie');
     }
     invalidate();
   }
@@ -356,41 +568,82 @@ class EtatDesLieuxDatasource {
   /// Collectifs **finalisés** dont l'immeuble a encore des chambres libres
   /// (sans privatif lié au collectif) — éligibles à un **avenant**. Pour chacun,
   /// renvoie le collectif, les chambres libres et la date du 1er contrat signé.
+  /// Retorna os contratos que podem receber um avenant :
+  /// — bail individuel : ao menos 1 privatif finalisé + ≥1 chambre sem privatif.
+  /// — bail location : EDL commune finalisé + ≥1 chambre ativa !estLoue.
+  /// O collectif (individuel) não precisa estar finalisé — o privatif qualifica.
   static Future<List<AmendableCollectif>> listAmendableCollectifs(
     String proprietaireId, {
     String typeEdl = 'entree',
   }) async {
     final all = await listByProprietaire(proprietaireId, refresh: true);
-    final collectifs = all.where((e) =>
-        e.partie == PartieEdl.commune &&
+    final out = <AmendableCollectif>[];
+
+    // ── Bail individuel : privatifs finalisés, dédupliqués par collectif ──────
+    final finalisedPrivatifs = all.where((e) =>
+        e.partie == PartieEdl.privative &&
         e.typeBail == 'individuel' &&
         e.typeEdl == typeEdl &&
         e.situation == SituationEdl.finalise);
 
-    final out = <AmendableCollectif>[];
-    for (final c in collectifs) {
-      final chambres = await ChambresDatasource.listByImmeuble(c.immeubleId);
-      final privatifs = await listPrivativesByCollectif(c.id);
+    final seen = <int>{};
+    for (final p in finalisedPrivatifs) {
+      final collectifId = p.edlCollectifId;
+      if (collectifId == null || seen.contains(collectifId)) continue;
+      seen.add(collectifId);
+
+      final collectif = all.where((e) => e.id == collectifId).firstOrNull;
+      if (collectif == null) continue;
+
+      final chambres =
+          await ChambresDatasource.listByImmeuble(collectif.immeubleId);
+      final allPrivatifs = await listPrivativesByCollectif(collectifId);
       final usedChambreIds =
-          privatifs.map((p) => p.chambreId).whereType<int>().toSet();
+          allPrivatifs.map((p) => p.chambreId).whereType<int>().toSet();
       final free = chambres
           .where((ch) => ch.isActive && !usedChambreIds.contains(ch.id))
           .toList();
       if (free.isEmpty) continue;
+
       out.add(AmendableCollectif(
-        collectif: c,
+        collectif: collectif,
+        privatifs: allPrivatifs,
         freeChambres: free,
-        firstSignedDate: await firstSignedContractDate(c.id),
+        firstSignedDate: await firstSignedContractDate(collectifId),
       ));
     }
+
+    // ── Bail location : tout EDL commune finalisé est éligible (le bien entier
+    // est loué en un seul contrat, pas de suivi par chambre individuelle).
+    final finalisedLocation = all.where((e) =>
+        e.partie == PartieEdl.commune &&
+        e.typeBail == 'location' &&
+        e.typeEdl == typeEdl &&
+        e.situation == SituationEdl.finalise);
+
+    for (final c in finalisedLocation) {
+      out.add(AmendableCollectif(
+        collectif: c,
+        privatifs: const [],
+        freeChambres: const [],
+        firstSignedDate: c.dateFinalisation,
+      ));
+    }
+
     return out;
   }
 
-  static Future<void> locataireAccepter(int id) async {
-    final today = DateTime.now().toIso8601String().substring(0, 10);
+  static Future<void> locataireAccepter(
+    int id, {
+    String? locataireSignatureUrl,
+  }) async {
+    final now = DateTime.now();
+    final today = now.toIso8601String().substring(0, 10);
     await _db.from(_table).update({
       'locataire_accepte': true,
       'date_finalisation': today,
+      'locataire_signed_at': now.toIso8601String(),
+      'locataire_signature_url': ?locataireSignatureUrl,
     }).eq('id', id);
     invalidate();
   }
@@ -506,21 +759,27 @@ class EtatDesLieuxDatasource {
     return addr.isEmpty ? null : addr;
   }
 
-  /// Teste de diagnostic SMTP — envoie **uniquement** un e-mail de test
-  /// (aucun compte créé). Retourne la réponse brute de la fonction edge :
-  /// `{ emailSent, recipient, smtpConfigured, smtpError? }`.
-  ///
-  /// Exemple :
-  /// ```dart
-  /// final r = await EtatDesLieuxDatasource.testInviteEmail('moi@exemple.com');
-  /// debugPrint('$r'); // emailSent: true/false + smtpError éventuel
-  /// ```
-  static Future<Map<String, dynamic>> testInviteEmail(String to) async {
+  /// Service de **test d'envoi d'e-mail** (réservé au super admin — la fonction
+  /// edge vérifie le JWT). Envoie un e-mail de diagnostic du type demandé
+  /// ([emailType] = `invite` pour création/activation, `reset` pour
+  /// réinitialisation) à [to], **sans créer de compte**. Retourne la réponse
+  /// complète de la fonction edge (objet affiché tel quel dans l'UI).
+  static Future<Map<String, dynamic>> sendServiceTestEmail({
+    required String to,
+    String emailType = 'invite',
+  }) async {
     final res = await Supabase.instance.client.functions.invoke(
       'invite-locataire',
-      body: {'test': true, 'fullName': 'Test La Coloc', 'email': to},
+      body: {
+        'test': true,
+        'email': to,
+        'emailType': emailType,
+        'redirectTo': _confirmationUrl,
+      },
     );
-    return Map<String, dynamic>.from(res.data as Map);
+    final data = res.data;
+    if (data is Map) return Map<String, dynamic>.from(data);
+    return {'ok': false, 'error': 'Réponse inattendue : $data'};
   }
 
   static Future<String> inviteLocataire({
@@ -554,9 +813,11 @@ class EtatDesLieuxDatasource {
   /// Renvoie l'invitation à un locataire déjà créé : la fonction edge génère
   /// une **nouvelle** mot de passe temporaire (valide) et réexpédie le lien
   /// d'activation. En dev, l'e-mail est livré dans `ADDR_MAIL_CONFIRMATION`.
+  /// [fullName] est optionnel : la fonction edge le récupère en BD si absent.
   static Future<void> resendInvitation({
     required String userId,
     required String email,
+    String? fullName,
   }) async {
     final mailTo = _devMailOverride;
     final res = await Supabase.instance.client.functions.invoke(
@@ -567,6 +828,7 @@ class EtatDesLieuxDatasource {
         'email': email,
         'redirectTo': _confirmationUrl,
         'mailTo': ?mailTo,
+        if (fullName != null && fullName.isNotEmpty) 'fullName': fullName,
       },
     );
     final data = res.data;
@@ -577,15 +839,17 @@ class EtatDesLieuxDatasource {
 }
 
 /// Résultat de [EtatDesLieuxDatasource.listAmendableCollectifs] : un collectif
-/// finalisé qui peut encore recevoir un avenant, ses chambres libres et la date
-/// du premier contrat signé.
+/// finalisé qui peut encore recevoir un avenant.  [privatifs] = EDLs individuels
+/// (partie=privative) existants dans ce contrat (pour afficher les locataires).
 class AmendableCollectif {
   final EtatDesLieuxModel collectif;
+  final List<EtatDesLieuxModel> privatifs;
   final List<ChambreModel> freeChambres;
   final DateTime? firstSignedDate;
 
   const AmendableCollectif({
     required this.collectif,
+    required this.privatifs,
     required this.freeChambres,
     this.firstSignedDate,
   });

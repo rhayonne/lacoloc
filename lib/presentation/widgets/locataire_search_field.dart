@@ -34,7 +34,10 @@ class LocataireSearchField extends StatefulWidget {
   final bool multiSelect;
   final Set<String> selectedIds;
   final ValueChanged<UsersClient> onSelect;
-  final VoidCallback onCreateNew;
+
+  /// Convidar um novo locataire. `null` esconde a opção « Enregistrer un
+  /// nouveau locataire » (ex.: usuário sem a permissão `locataires.invite`).
+  final VoidCallback? onCreateNew;
   final Future<List<UsersClient>> Function(String query)? search;
   final String hintText;
   final bool enabled;
@@ -42,7 +45,7 @@ class LocataireSearchField extends StatefulWidget {
   const LocataireSearchField({
     super.key,
     required this.onSelect,
-    required this.onCreateNew,
+    this.onCreateNew,
     this.multiSelect = true,
     this.selectedIds = const {},
     this.search,
@@ -208,15 +211,18 @@ class _LocataireSearchFieldState extends State<LocataireSearchField> {
                 onTap: already ? null : () => _pick(u),
               );
             }),
-          const Divider(height: 1),
-          ListTile(
-            dense: true,
-            leading: const Icon(Icons.person_add_outlined,
-                size: 20, color: AppColors.primary),
-            title: Text('Enregistrer un nouveau locataire',
-                style: AppTypography.labelMd.copyWith(color: AppColors.primary)),
-            onTap: widget.onCreateNew,
-          ),
+          if (widget.onCreateNew != null) ...[
+            const Divider(height: 1),
+            ListTile(
+              dense: true,
+              leading: const Icon(Icons.person_add_outlined,
+                  size: 20, color: AppColors.primary),
+              title: Text('Enregistrer un nouveau locataire',
+                  style:
+                      AppTypography.labelMd.copyWith(color: AppColors.primary)),
+              onTap: widget.onCreateNew,
+            ),
+          ],
         ],
       ),
     );

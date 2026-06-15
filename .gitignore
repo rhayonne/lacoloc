@@ -1,3 +1,14 @@
+# Ficheiro local de credenciais (nunca enviar ao GitHub)
+CREDENCIAIS.md
+
+# Screenshots du manuel (générés localement, pas versionnés)
+docs/manual/screenshots/*.png
+web/manual/screenshots/*.png
+
+# Credenciais do script de screenshots
+scripts/manual-screenshots/.env.screenshots
+scripts/manual-screenshots/node_modules/
+
 # Miscellaneous
 *.class
 *.lock

@@ -463,13 +463,13 @@ class _FilterPanelState extends State<FilterPanel> {
           runSpacing: AppSpacing.xs,
           children: [
             _chip(
-              label: 'Bail collectif',
+              label: 'Location',
               selected: widget.filter.bailType == BailTypeFilter.collectif,
               onSelected: (v) => widget.onChanged(widget.filter
                   .copyWith(bailType: v ? BailTypeFilter.collectif : null)),
             ),
             _chip(
-              label: 'Bail individuel',
+              label: 'Bail individuel (Colocation)',
               selected: widget.filter.bailType == BailTypeFilter.individuel,
               onSelected: (v) => widget.onChanged(widget.filter
                   .copyWith(bailType: v ? BailTypeFilter.individuel : null)),

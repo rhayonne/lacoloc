@@ -12,6 +12,8 @@ import 'package:lacoloc_front/theme/app_typography.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:lacoloc_front/utils/auth_error.dart';
 
+final _dateFmt = DateFormat('dd/MM/yyyy');
+
 /// Page de complétion de profil pour un locataire invité par un propriétaire.
 /// Pré-remplit les champs avec les données saisies par le propriétaire.
 /// Le locataire doit choisir un mot de passe pour finaliser son compte.
@@ -29,7 +31,10 @@ class _CompleterInscriptionPageState extends State<CompleterInscriptionPage> {
   bool _isLoading = false;
   bool _obscurePwd = true;
   bool _obscureConfirm = true;
-  int? _previewAge;
+  DateTime? _selectedDob;
+
+  int? get _previewAge =>
+      _selectedDob != null ? _computeAge(_selectedDob!) : null;
 
   @override
   void initState() {
@@ -47,6 +52,18 @@ class _CompleterInscriptionPageState extends State<CompleterInscriptionPage> {
     return age;
   }
 
+  Future<void> _pickDob() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDob ?? DateTime(now.year - 25),
+      firstDate: DateTime(1920),
+      lastDate: DateTime(now.year - 16, now.month, now.day),
+      locale: const Locale('fr'),
+    );
+    if (picked != null && mounted) setState(() => _selectedDob = picked);
+  }
+
   Future<void> _submit(UsersClient profile) async {
     if (!(_formKey.currentState?.saveAndValidate() ?? false)) return;
     final values = _formKey.currentState!.value;
@@ -57,7 +74,7 @@ class _CompleterInscriptionPageState extends State<CompleterInscriptionPage> {
       final fullName = (values['full_name'] as String).trim();
       final rawPhone = (values['phone'] as String?)?.trim();
       final phone = (rawPhone?.isEmpty ?? true) ? null : rawPhone;
-      final dob = values['date_of_birth'] as DateTime?;
+      final dob = _selectedDob;
 
       // Définit le mot de passe et retire le flag needs_completion
       await Supabase.instance.client.auth.updateUser(
@@ -90,9 +107,6 @@ class _CompleterInscriptionPageState extends State<CompleterInscriptionPage> {
 
   @override
   Widget build(BuildContext context) {
-    final now = DateTime.now();
-    final lastDateAllowed = DateTime(now.year - 16, now.month, now.day);
-
     return FutureBuilder<UsersClient?>(
       future: _profileFuture,
       builder: (context, snapshot) {
@@ -227,20 +241,42 @@ class _CompleterInscriptionPageState extends State<CompleterInscriptionPage> {
 
                         // ── Date de naissance ────────────────────────────
                         _label('DATE DE NAISSANCE'),
-                        FormBuilderDateTimePicker(
-                          name: 'date_of_birth',
-                          inputType: InputType.date,
-                          locale: const Locale('fr'),
-                          format: DateFormat('dd/MM/yyyy'),
-                          firstDate: DateTime(1920),
-                          lastDate: lastDateAllowed,
-                          decoration: const InputDecoration(
-                            hintText: 'JJ/MM/AAAA',
-                            prefixIcon: Icon(Icons.calendar_today_outlined),
-                          ),
-                          onChanged: (v) => setState(
-                            () => _previewAge =
-                                v != null ? _computeAge(v) : null,
+                        InkWell(
+                          onTap: _pickDob,
+                          borderRadius: AppRadius.borderSm,
+                          child: Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: AppSpacing.md,
+                              vertical: 14,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.surfaceContainerLowest,
+                              borderRadius: AppRadius.borderSm,
+                              border: Border.all(color: AppColors.primary),
+                            ),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    _selectedDob != null
+                                        ? _dateFmt.format(_selectedDob!)
+                                        : 'Sélectionner une date',
+                                    style: AppTypography.bodyMd.copyWith(
+                                      color: _selectedDob == null
+                                          ? AppColors.onSurfaceVariant
+                                              .withValues(alpha: 0.5)
+                                          : null,
+                                    ),
+                                  ),
+                                ),
+                                const Icon(
+                                  Icons.calendar_today_outlined,
+                                  size: 18,
+                                  color: AppColors.primary,
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                         if (_previewAge != null) ...[

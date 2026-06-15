@@ -327,11 +327,11 @@ class _EdlFilterBarState extends State<EdlFilterBar> {
         ),
       ];
 
-  /// MODULE `bail` — Collectif / Individuel (exclusif).
+  /// MODULE `bail` — Location / Individuel (exclusif).
   List<Widget> _bailChips() => [
-        for (final b in const ['collectif', 'individuel'])
+        for (final b in const ['location', 'individuel'])
           _Chip(
-            label: b == 'collectif' ? 'Collectif' : 'Individuel',
+            label: b == 'location' ? 'Location' : 'Individuel',
             count: _countBail(b),
             selected: _f.typeBail == b,
             onTap: () => widget.onChanged(
