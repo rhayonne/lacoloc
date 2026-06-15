@@ -8973,8 +8973,9 @@ class _EdlIndividuelMeubleePageState extends State<EdlIndividuelMeubleePage>
   }
 
   Widget _buildRelevesTab() {
-    // Relevés (compteurs/chauffage) au niveau de l'immeuble → collectif.
-    if (_collectifId == null) return _emptyTab('—');
+    // Compteurs de l'immeuble (partagés) → collectif ;
+    // relevé d'entrée individuel (index à l'entrée de CE locataire) → privatif.
+    if (_collectifId == null || _privatifId == null) return _emptyTab('—');
     if (_isLocataire) {
       return _emptyTab('Les relevés sont gérés par le propriétaire.');
     }
@@ -8983,8 +8984,47 @@ class _EdlIndividuelMeubleePageState extends State<EdlIndividuelMeubleePage>
         'État des lieux finalisé — les relevés sont verrouillés.',
       );
     }
-    return EdlRelevesSection(edlId: _collectifId!);
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _relevesHeader(
+            "Compteurs de l'immeuble",
+            'Partagés entre les colocataires (eau, gaz, électricité, chauffage…).',
+          ),
+          EdlRelevesSection(edlId: _collectifId!),
+          const SizedBox(height: AppSpacing.lg),
+          const Divider(),
+          const SizedBox(height: AppSpacing.md),
+          _relevesHeader(
+            "Relevé d'entrée individuel",
+            "Index des compteurs à l'entrée de ce locataire — peut différer d'un "
+                'colocataire entré à une autre date.',
+          ),
+          EdlRelevesSection(edlId: _privatifId!),
+        ],
+      ),
+    );
   }
+
+  Widget _relevesHeader(String title, String subtitle) => Padding(
+        padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title,
+                style:
+                    AppTypography.bodyMd.copyWith(fontWeight: FontWeight.w700)),
+            const SizedBox(height: 2),
+            Text(
+              subtitle,
+              style: AppTypography.labelSm
+                  .copyWith(color: AppColors.onSurfaceVariant),
+            ),
+          ],
+        ),
+      );
 
   Widget _buildClesTab() {
     // Remise des clés → privatif (la chambre louée).

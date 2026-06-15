@@ -121,6 +121,8 @@ class EdlPdfData {
       EdlDetailsDatasource.listSections(privatifId),
       ObservationsEdlDatasource.listByEdl(collectifId),
       ObservationsEdlDatasource.listByEdl(privatifId),
+      // Relevé d'entrée individuel (index propres à ce locataire) → privatif.
+      EdlDetailsDatasource.listReleves(privatifId),
     ]);
 
     final edl = await edlFuture;
@@ -155,7 +157,11 @@ class EdlPdfData {
     var data = EdlPdfData(
       edl: edl,
       preneurs: scopedPreneurs,
-      releves: subResults[1] as List<EdlReleve>,
+      // Compteurs de l'immeuble (collectif) + relevé d'entrée individuel (privatif).
+      releves: [
+        ...(subResults[1] as List<EdlReleve>),
+        ...(subResults[7] as List<EdlReleve>),
+      ],
       cles: subResults[2] as List<EdlCle>,
       sections: [...collectifSections, ...privatifSections],
       observations: allObs.where((o) => !o.isAddition).toList(),
