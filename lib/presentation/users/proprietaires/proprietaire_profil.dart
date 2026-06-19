@@ -106,6 +106,7 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage>
   // Formulário immeuble
   bool _showImmeubleForm = false;
   ImmeublesModel? _editingImmeuble;
+  bool _tourImmeuble = false; // démarrer le tour guidé à l'ouverture du form
 
   // Detalhe immeuble
   bool _showImmeubleDetail = false;
@@ -176,6 +177,13 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage>
     _searchCtrl.addListener(
       () => setState(() => _searchQuery = _searchCtrl.text.trim()),
     );
+    // Deep-link depuis le manuel (« Tour guidé ») : ?tour=immeuble ouvre le
+    // formulaire de création d'immeuble avec le tour guidé automatiquement.
+    if (Uri.base.queryParameters['tour'] == 'immeuble') {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _openImmeubleCreation(tour: true);
+      });
+    }
   }
 
   @override
@@ -243,13 +251,35 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage>
     }
   }
 
-  void _openImmeubleCreation() => setState(() {
+  void _openImmeubleCreation({bool tour = false}) => setState(() {
     _editingImmeuble = null;
+    _tourImmeuble = tour;
     _showImmeubleForm = true;
     _showImmeubleDetail = false;
     _showChambreForm = false;
     _showFactureForm = false;
   });
+
+  /// Demande à l'utilisateur s'il veut le tour guidé pour créer un immeuble,
+  /// puis ouvre le formulaire en conséquence (déclenché par le bouton « ? »).
+  Future<void> _askImmeubleTour() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        icon: const Icon(Icons.school_outlined, color: AppColors.primary, size: 34),
+        title: const Text('Tour guidé'),
+        content: const Text(
+          "Souhaitez-vous être guidé pas à pas pour créer un immeuble ?\n\n"
+          "À la fin, vous pourrez conserver l'immeuble créé ou le supprimer.",
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Non merci')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Oui, me guider')),
+        ],
+      ),
+    );
+    _openImmeubleCreation(tour: ok == true);
+  }
 
   void _openImmeubleEdition(ImmeublesModel imm) => setState(() {
     _editingImmeuble = imm;
@@ -307,6 +337,7 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage>
 
   void _closeForm() => setState(() {
     _showImmeubleForm = false;
+    _tourImmeuble = false;
     _showImmeubleDetail = false;
     _showChambreForm = false;
     _showFactureForm = false;
@@ -326,6 +357,7 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage>
 
   void _closeImmeubleForm() => setState(() {
     _showImmeubleForm = false;
+    _tourImmeuble = false;
     _editingImmeuble = null;
   });
 
@@ -387,6 +419,7 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage>
     if (_showImmeubleForm) {
       return NouveauImmeublePage(
         immeuble: _editingImmeuble,
+        startTour: _tourImmeuble,
         onSaved: _closeForm,
         onBack: _closeImmeubleForm,
       );
@@ -458,6 +491,7 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage>
                   onAjouter: _openImmeubleCreation,
                   onModifier: _openImmeubleEdition,
                   onVoirDetail: _openImmeubleDetail,
+                  onTourGuide: _askImmeubleTour,
                 ),
               ),
               _GestionCard(

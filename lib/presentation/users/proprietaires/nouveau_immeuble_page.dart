@@ -20,6 +20,8 @@ import 'package:lacoloc_front/presentation/widgets/charges_selector.dart';
 import 'package:lacoloc_front/presentation/widgets/form_page_header.dart';
 import 'package:lacoloc_front/presentation/widgets/photo_picker_field.dart';
 import 'package:lacoloc_front/presentation/widgets/unsaved_changes_dialog.dart';
+import 'package:lacoloc_front/presentation/tour/guided_tours.dart';
+import 'package:tutorial_coach_mark/tutorial_coach_mark.dart' show ContentAlign;
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
 import 'package:lacoloc_front/theme/app_typography.dart';
@@ -29,7 +31,17 @@ class NouveauImmeublePage extends StatefulWidget {
   final VoidCallback? onSaved;
   final VoidCallback? onBack;
 
-  const NouveauImmeublePage({super.key, this.immeuble, this.onSaved, this.onBack});
+  /// Démarre automatiquement le **tour guidé** à l'ouverture (lien du manuel
+  /// `?tour=immeuble` ou bouton « Oui » de la boîte de dialogue d'accueil).
+  final bool startTour;
+
+  const NouveauImmeublePage({
+    super.key,
+    this.immeuble,
+    this.onSaved,
+    this.onBack,
+    this.startTour = false,
+  });
 
   @override
   State<NouveauImmeublePage> createState() => _NouveauImmeublePageState();
@@ -60,6 +72,15 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
   ImmeublesModel? get _persistedImmeuble => widget.immeuble ?? _createdImmeuble;
   bool get _isEditing => _persistedImmeuble != null;
 
+  // ── Tour guidé ─────────────────────────────────────────────────────────────
+  bool _tourActive = false;
+  final _kHeader = GlobalKey();
+  final _kType = GlobalKey();
+  final _kAddress = GlobalKey();
+  final _kBail = GlobalKey();
+  final _kPhotos = GlobalKey();
+  final _kCommunes = GlobalKey();
+
   @override
   void initState() {
     super.initState();
@@ -83,6 +104,124 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
         }
       });
       _checkCommunesExistantes(imm.id);
+    }
+    // Démarrage automatique du tour guidé (lien manuel / dialogue d'accueil).
+    if (widget.startTour) {
+      _tourActive = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        // Petit délai : laisse les FutureBuilder (types, charges) se rendre.
+        Future.delayed(const Duration(milliseconds: 450), () {
+          if (mounted) _startTour();
+        });
+      });
+    }
+  }
+
+  // ── Tour guidé ─────────────────────────────────────────────────────────────
+
+  /// Demande à l'utilisateur s'il veut suivre le tour guidé, puis le lance.
+  Future<void> _askStartTour() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        icon: const Icon(Icons.school_outlined, color: AppColors.primary, size: 34),
+        title: const Text('Tour guidé'),
+        content: const Text(
+          "Voulez-vous être guidé pas à pas pour créer votre premier immeuble ?\n\n"
+          "Nous mettrons en surbrillance chaque étape. À la fin, vous pourrez "
+          "conserver l'immeuble créé ou le supprimer.",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Non merci'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Oui, me guider'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) {
+      _tourActive = true;
+      _startTour();
+    }
+  }
+
+  void _startTour() {
+    GuidedTour.show(
+      context,
+      [
+        TourStep(
+          key: _kType,
+          title: "Type & nom",
+          text: "Choisissez le type d'immeuble (appartement, maison…) et donnez-lui un nom reconnaissable.",
+        ),
+        TourStep(
+          key: _kAddress,
+          title: "Adresse",
+          text: "Saisissez l'adresse : la ville, le département et la région se remplissent automatiquement.",
+        ),
+        TourStep(
+          key: _kBail,
+          title: "Type de bail",
+          text: "« Location » = un seul contrat pour tout l'immeuble. « Bail individuel » = un contrat par chambre (colocation).",
+        ),
+        TourStep(
+          key: _kPhotos,
+          title: "Photos",
+          text: "Ajoutez des photos des espaces communs. L'étoile définit la photo principale de l'annonce.",
+        ),
+        TourStep(
+          key: _kCommunes,
+          title: "Parties communes",
+          text: "Optionnel : générez automatiquement les pièces communes (et leur inventaire si la location est meublée).",
+        ),
+        TourStep(
+          key: _kHeader,
+          title: "Enregistrer",
+          text: "Quand tout est prêt, cliquez sur « Enregistrer » ici en haut pour créer l'immeuble.",
+          align: ContentAlign.bottom,
+        ),
+      ],
+    );
+  }
+
+  /// Après une création **pendant le tour**, propose de conserver ou supprimer
+  /// l'immeuble d'essai. Retourne true si on doit poursuivre la fermeture.
+  Future<void> _askKeepOrDeleteAfterTour(int immeubleId) async {
+    final choix = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        icon: const Icon(Icons.celebration_outlined, color: AppColors.primary, size: 34),
+        title: const Text('Immeuble créé 🎉'),
+        content: const Text(
+          "Vous avez créé cet immeuble pendant le tour guidé.\n\n"
+          "• « Conserver » : il restera dans votre liste comme un immeuble réel.\n"
+          "• « Supprimer » : il sera effacé (ainsi que les pièces/inventaire créés pendant l'essai).\n\n"
+          "Que souhaitez-vous faire ?",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, 'delete'),
+            child: const Text('Supprimer l\'essai'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, 'keep'),
+            child: const Text('Conserver'),
+          ),
+        ],
+      ),
+    );
+    if (choix == 'delete') {
+      try {
+        await ImmeublesDatasource.delete(immeubleId);
+        _snack('Immeuble d\'essai supprimé.');
+      } catch (e) {
+        _snack('Suppression impossible : $e');
+      }
     }
   }
 
@@ -227,6 +366,11 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(_isEditing ? 'Immeuble modifié avec succès' : 'Immeuble créé avec succès'),
       ));
+      // Création pendant le tour guidé → proposer de conserver ou supprimer.
+      if (_tourActive && widget.immeuble == null) {
+        await _askKeepOrDeleteAfterTour(saved.id);
+        _tourActive = false;
+      }
       widget.onSaved?.call();
     } catch (e) {
       if (!mounted) return;
@@ -314,13 +458,16 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        FormPageHeader(
-          title: _isEditing ? "Modifier l'immeuble" : "Nouvel immeuble",
-          trailing: FormHeaderActions(
-            onSave: _submit,
-            onClose: _handleBack,
-            isSaving: _isSubmitting,
-            saveLabel: _isEditing ? 'Enregistrer les modifications' : 'Enregistrer',
+        KeyedSubtree(
+          key: _kHeader,
+          child: FormPageHeader(
+            title: _isEditing ? "Modifier l'immeuble" : "Nouvel immeuble",
+            trailing: FormHeaderActions(
+              onSave: _submit,
+              onClose: _handleBack,
+              isSaving: _isSubmitting,
+              saveLabel: _isEditing ? 'Enregistrer les modifications' : 'Enregistrer',
+            ),
           ),
         ),
         Expanded(
@@ -344,9 +491,24 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
 
+                                // Accès au tour guidé (aide pas à pas).
+                                if (!_isEditing)
+                                  Align(
+                                    alignment: Alignment.centerLeft,
+                                    child: OutlinedButton.icon(
+                                      onPressed: _askStartTour,
+                                      icon: const Icon(Icons.school_outlined, size: 18),
+                                      label: const Text('Tour guidé'),
+                                    ),
+                                  ),
+                                if (!_isEditing)
+                                  const SizedBox(height: AppSpacing.md),
+
                                 // ══ 1 — Identification ══════════════════════
                                 _sectionLabel("Identification"),
-                                _twoColumns(
+                                KeyedSubtree(
+                                  key: _kType,
+                                  child: _twoColumns(
                                   wide: wide, flexLeft: 1, flexRight: 2,
                                   FutureBuilder<List<ImmeubleTypeModel>>(
                                     future: _typesFuture,
@@ -369,16 +531,20 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
                                     validator: FormBuilderValidators.required(),
                                   ),
                                 ),
+                                ),
                                 const SizedBox(height: AppSpacing.lg),
                                 const Divider(),
                                 const SizedBox(height: AppSpacing.md),
 
                                 // ══ 2 — Localisation ════════════════════════
                                 _sectionLabel("Localisation"),
-                                AddressAutocompleteField(
-                                  initialValue: _address,
-                                  onChanged: (v) => _address = v,
-                                  onSuggestionSelected: _onAddressSuggested,
+                                KeyedSubtree(
+                                  key: _kAddress,
+                                  child: AddressAutocompleteField(
+                                    initialValue: _address,
+                                    onChanged: (v) => _address = v,
+                                    onSuggestionSelected: _onAddressSuggested,
+                                  ),
                                 ),
                                 const SizedBox(height: AppSpacing.md),
                                 wide
@@ -433,12 +599,15 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
 
                                 // ══ 4 — Photos ══════════════════════════════
                                 _sectionLabel("Photos des espaces communs"),
-                                PhotoPickerField(
-                                  folder: 'immeubles',
-                                  initialPhotos: _photos,
-                                  initialMainPhoto: _mainPhoto,
-                                  onChanged: (urls) => setState(() => _photos = urls),
-                                  onMainPhotoChanged: (url) => setState(() => _mainPhoto = url),
+                                KeyedSubtree(
+                                  key: _kPhotos,
+                                  child: PhotoPickerField(
+                                    folder: 'immeubles',
+                                    initialPhotos: _photos,
+                                    initialMainPhoto: _mainPhoto,
+                                    onChanged: (urls) => setState(() => _photos = urls),
+                                    onMainPhotoChanged: (url) => setState(() => _mainPhoto = url),
+                                  ),
                                 ),
                                 const SizedBox(height: AppSpacing.lg),
                                 const Divider(),
@@ -446,7 +615,9 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
 
                                 // ══ 5 — Type de bail ════════════════════════
                                 _sectionLabel("Type de bail"),
-                                _twoColumns(
+                                KeyedSubtree(
+                                  key: _kBail,
+                                  child: _twoColumns(
                                   wide: wide,
                                   ConstrainedBox(
                                     constraints: const BoxConstraints(maxWidth: 360),
@@ -480,6 +651,7 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
                                       },
                                     ),
                                   ),
+                                ),
                                 ),
                                 if (_isBailLocation) ...[
                                   const SizedBox(height: AppSpacing.md),
@@ -595,12 +767,15 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
                                         ],
                                       ),
                                 const SizedBox(height: AppSpacing.md),
-                                OutlinedButton.icon(
-                                  onPressed: (_communesCreated || _creatingCommunes) ? null : _creerCommunes,
-                                  icon: _creatingCommunes
-                                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                                      : const Icon(Icons.meeting_room_outlined),
-                                  label: const Text('Ajouter les pièces communes et inventaire'),
+                                KeyedSubtree(
+                                  key: _kCommunes,
+                                  child: OutlinedButton.icon(
+                                    onPressed: (_communesCreated || _creatingCommunes) ? null : _creerCommunes,
+                                    icon: _creatingCommunes
+                                        ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                                        : const Icon(Icons.meeting_room_outlined),
+                                    label: const Text('Ajouter les pièces communes et inventaire'),
+                                  ),
                                 ),
                                 if (_communesCreated) ...[
                                   const SizedBox(height: AppSpacing.xs),

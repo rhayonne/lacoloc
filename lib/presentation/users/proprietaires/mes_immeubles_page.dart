@@ -19,11 +19,15 @@ class MesImmeublesPage extends StatefulWidget {
   final void Function(ImmeublesModel immeuble, List<ChambreModel> chambres)
   onVoirDetail;
 
+  /// Optionnel : lance la boîte de dialogue du tour guidé (bouton « ? »).
+  final VoidCallback? onTourGuide;
+
   const MesImmeublesPage({
     super.key,
     required this.onAjouter,
     required this.onModifier,
     required this.onVoirDetail,
+    this.onTourGuide,
   });
 
   @override
@@ -86,6 +90,12 @@ class _MesImmeublesPageState extends State<MesImmeublesPage>
                       style: AppTypography.headlineMd,
                     ),
                   ),
+                  if (widget.onTourGuide != null)
+                    IconButton(
+                      onPressed: widget.onTourGuide,
+                      icon: const Icon(Icons.help_outline),
+                      tooltip: 'Tour guidé — créer un immeuble',
+                    ),
                   PermissionGate(
                     permission: Perm.immeublesCreate,
                     child: FilledButton.icon(

@@ -110,6 +110,36 @@ class ImmeublesDatasource {
     return ImmeublesModel.fromMap(updated);
   }
 
+  /// Supprime un immeuble et son contenu directement rattaché (inventaire,
+  /// pièces, chambres, charges). **Bloqué** s'il existe des états des lieux liés
+  /// (un immeuble avec contrats ne doit pas être supprimé). Utilisé notamment à
+  /// la fin du **tour guidé** (« supprimer l'immeuble d'essai »).
+  static Future<void> delete(int id) async {
+    // Garde : pas de suppression si des EDL référencent l'immeuble.
+    final edl = await _client
+        .from('etat_de_lieux')
+        .select('id')
+        .eq('immeuble_id', id)
+        .limit(1);
+    if ((edl as List).isNotEmpty) {
+      throw Exception(
+        "Impossible de supprimer : cet immeuble a des états des lieux liés.",
+      );
+    }
+    // Contenu rattaché — enfants d'abord pour respecter les FK.
+    await _client.from('Inventaire').delete().eq('immeuble_id', id);
+    await _client.from('Pieces').delete().eq('immeuble_id', id);
+    await _client.from('Chambres').delete().eq('immeuble_id', id);
+    await _client.from('Immeuble_Charges').delete().eq('immeuble_id', id);
+    await _client.from(_table).delete().eq('id', id);
+    // Invalide les caches impactés.
+    _cache.invalidatePrefix(CacheKeys.immeubles);
+    _cache.invalidatePrefix(CacheKeys.chambres);
+    _cache.invalidatePrefix(CacheKeys.pieces);
+    _cache.invalidatePrefix(CacheKeys.inventaire);
+    _cache.invalidatePrefix(CacheKeys.immeubleCharges);
+  }
+
   static List<ImmeublesModel> _map(List rows) =>
       rows.map((r) => ImmeublesModel.fromMap(r as Map<String, dynamic>)).toList();
 }
