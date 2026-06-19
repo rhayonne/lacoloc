@@ -29,10 +29,11 @@
 >
 > **`mailTo`** (override de dev): em **dev**, `inviteLocataire` envia `mailTo =`
 > `ADDR_MAIL_CONFIRMATION` (`.env.dev`) como **destinatário do e-mail** — o compte é sempre
-> criado com o e-mail real. **Gate de segurança:** nos modos `create`/`resend` o override só
-> é honrado se o secret de servidor **`ALLOW_CLIENT_MAIL_OVERRIDE=true`** estiver definido;
-> caso contrário (prod, ou projeto único sem o secret) o link de ativação vai **sempre** ao
-> e-mail real — impede desviar o link (com a senha temp) para um endereço arbitrário.
+> criado com o e-mail real. **Gate de segurança:** nos modos `create`/`resend` o `mailTo` só
+> é honrado se for **exatamente igual** ao endereço de teste configurado no servidor via secret
+> **`DEV_TEST_EMAIL`**; caso contrário (prod, ou valor diferente) o link de ativação vai
+> **sempre** ao e-mail real — impede desviar o link (com a senha temp) para um endereço
+> arbitrário. Para ativar em dev: `supabase secrets set DEV_TEST_EMAIL=<endereço de teste>`.
 
 ---
 

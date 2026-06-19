@@ -219,16 +219,17 @@ Deno.serve(async (req) => {
       emailType,
     } = body;
 
-    // Redirection d'e-mail (mailTo) — uniquement honorée si le serveur l'autorise
-    // explicitement via le secret `ALLOW_CLIENT_MAIL_OVERRIDE=true` (réservé au
-    // DEV pour livrer dans une boîte de test). En PROD ce secret est absent →
-    // le lien d'activation part TOUJOURS vers l'e-mail réel du compte. Sans ce
-    // garde-fou, un appelant pouvait rediriger le lien (mot de passe temporaire)
-    // vers une adresse arbitraire → prise de contrôle de compte.
-    const overrideAllowed =
-      (Deno.env.get('ALLOW_CLIENT_MAIL_OVERRIDE') ?? '').toLowerCase() === 'true';
-    const rawMailTo = (typeof mailTo === 'string' && mailTo) ? mailTo : '';
-    const recipient = (overrideAllowed && rawMailTo) ? rawMailTo : email;
+    // Redirection d'e-mail (mailTo) — en DEV, le client envoie l'adresse de la
+    // boîte de test (ADDR_MAIL_CONFIRMATION) pour ne pas écrire aux locataires
+    // réels. Pour éviter qu'un appelant détourne le lien (mot de passe temp)
+    // vers une adresse arbitraire, le serveur n'honore `mailTo` QUE s'il
+    // correspond EXACTEMENT à l'adresse de test configurée côté serveur
+    // (secret `DEV_TEST_EMAIL`). En PROD ce secret est absent / le client
+    // n'envoie pas de mailTo → le lien part toujours vers l'e-mail réel.
+    const devTestEmail = (Deno.env.get('DEV_TEST_EMAIL') ?? '').trim().toLowerCase();
+    const rawMailTo = (typeof mailTo === 'string' && mailTo) ? mailTo.trim() : '';
+    const overrideOk = devTestEmail !== '' && rawMailTo.toLowerCase() === devTestEmail;
+    const recipient = overrideOk ? rawMailTo : email;
 
     // Racine de l'app (page qui détecte ?email&?temp). Fournie par le client
     // (.env URL_EMAIL_CONFIRMATION_*), avec repli sur le secret APP_URL.

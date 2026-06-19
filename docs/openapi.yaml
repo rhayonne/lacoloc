@@ -666,8 +666,8 @@ paths:
         envia e-mail SMTP e marca `invitation_email_sent`.
         **resend** (`resend: true` + `userId`): define nova senha temp e reenvia o link.
         **test** (`test: true`, super_admin): e-mail de diagnóstico sem criar conta.
-        **`mailTo`** (override de teste) só honrado se o secret `ALLOW_CLIENT_MAIL_OVERRIDE=true`
-        (modos create/resend); em prod fica desligado → link sempre ao e-mail real.
+        **`mailTo`** (override de teste, modos create/resend) só honrado se for igual ao
+        secret `DEV_TEST_EMAIL`; em prod o build não envia mailTo → link sempre ao e-mail real.
       requestBody:
         required: true
         content:
@@ -688,7 +688,7 @@ paths:
         cliente do chamador (RLS)** — se não pode ver o EDL, 403. Os destinatários são
         resolvidos server-side (service role) a partir do EDL. Campos de texto
         (`locataireNom`, `comodo`, `texte`) passam por escape HTML (anti-injeção).
-        `mailTo` só honrado com `ALLOW_CLIENT_MAIL_OVERRIDE=true`.
+        `mailTo` só honrado se for igual ao secret `DEV_TEST_EMAIL`.
       requestBody:
         content:
           application/json:

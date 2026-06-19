@@ -129,14 +129,15 @@ Deno.serve(async (req) => {
     // ── Événement « à signer » : e-mail au(x) locataire(s) après finalisation.
     // Destinataires résolus côté serveur depuis l'EDL (non falsifiable) :
     // privatif → locataire_id ; commune → preneurs.
-    // Redirection mailTo honorée uniquement si le serveur l'autorise (DEV).
-    const overrideAllowed =
-      (Deno.env.get('ALLOW_CLIENT_MAIL_OVERRIDE') ?? '').toLowerCase() === 'true';
-    const rawMailTo = (typeof mailTo === 'string' && mailTo) ? mailTo : '';
+    // Redirection mailTo (DEV) honorée uniquement si elle correspond EXACTEMENT
+    // à l'adresse de test configurée côté serveur (secret DEV_TEST_EMAIL).
+    const devTestEmail = (Deno.env.get('DEV_TEST_EMAIL') ?? '').trim().toLowerCase();
+    const rawMailTo = (typeof mailTo === 'string' && mailTo) ? mailTo.trim() : '';
+    const overrideOk = devTestEmail !== '' && rawMailTo.toLowerCase() === devTestEmail;
 
     if (event === 'a_signer') {
       let emails: string[] = [];
-      if (overrideAllowed && rawMailTo) {
+      if (overrideOk) {
         emails = [rawMailTo];
       } else if (edl.partie === 'commune') {
         const { data: preneurs } = await supabase
@@ -188,9 +189,8 @@ Deno.serve(async (req) => {
       return json({ sent, ...(smtpError ? { smtpError } : {}) });
     }
 
-    // En dev (override autorisé), le client peut rediriger vers une boîte de test.
-    const recipient =
-      (overrideAllowed && rawMailTo) ? rawMailTo : owner?.email;
+    // En dev (mailTo == adresse de test configurée), redirige vers la boîte de test.
+    const recipient = overrideOk ? rawMailTo : owner?.email;
     if (!recipient) return json({ error: 'e-mail propriétaire introuvable.' }, 404);
 
     const typeLabel = edl.type_edl === 'sortie' ? 'de sortie' : "d'entrée";

@@ -24,8 +24,8 @@ Arquitetura de Storage e correções de segurança aplicadas (sessão de jun/202
 - `invite-locataire` **create/resend** e `notify-edl`: agora exigem **JWT + autorização** (gestor/super_admin; `notify-edl` valida `can_access_edl` lendo o EDL com o cliente do chamador). Antes eram abertos → roubo de conta / spam por enumeração de `edlId`.
 - `notify-edl`: escape HTML em `locataireNom`/`comodo`/`texte` (+ nomes).
 - `search_locataires`, `list_invited_locataires`, `notify_edl_*`: `EXECUTE` revogado de `anon`/`PUBLIC` + guarda interna de papel.
-- `mailTo` (override de e-mail de teste) só honrado com secret de servidor **`ALLOW_CLIENT_MAIL_OVERRIDE=true`**. Projeto Supabase é **único** (dev=prod) → secret não definido; em dev convidar com e-mail próprio.
+- `mailTo` (override de e-mail de teste) só honrado se **igual** ao secret de servidor **`DEV_TEST_EMAIL`** (= `ADDR_MAIL_CONFIRMATION` do `.env.dev`). Projeto Supabase é **único** (dev=prod); definir o secret `DEV_TEST_EMAIL` faz os convites de **dev** irem para a caixa de teste, sem reabrir o desvio de link (prod não envia mailTo).
 
-**Pendências conhecidas:** as edge functions `invite-locataire`/`notify-edl` precisam de **deploy** (o CI `deploy.yml` só faz deploy do web/GitHub Pages). 1 assinatura legada continua no bucket `photos` (referenciada por um EDL finalizado); será migrada quando re-assinada.
+**Deploy:** o CI `deploy.yml` só faz deploy do **web** (GitHub Pages). As **edge functions** têm de ser deployadas à parte (via MCP `deploy_edge_function` ou `supabase functions deploy`) — já feito para `invite-locataire` (v23) e `notify-edl` (v6). 1 assinatura legada continua no bucket `photos` (referenciada por um EDL finalizado); será migrada quando re-assinada.
 
 Ver convenções em [[ui-conventions]].
