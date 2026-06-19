@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Journal des mises à jour · Super Loc</title>
+  <style>
+    :root {
+      --primary: #006685;
+      --primary-light: #e0f2f7;
+      --border: #cfe0e7;
+      --text: #1a1a2e;
+      --text-muted: #5f6368;
+      --surface: #ffffff;
+      --surface-low: #f5f5f5;
+      --accent: #f59e0b;
+    }
+
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #f0f4f6;
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    .hero {
+      background: linear-gradient(135deg, #006685 0%, #004d63 100%);
+      color: #fff;
+      padding: 48px 40px;
+      text-align: center;
+    }
+
+    .hero h1 {
+      font-size: 30px;
+      font-weight: 800;
+      margin-bottom: 10px;
+    }
+
+    .hero p {
+      opacity: .85;
+      font-size: 15px;
+    }
+
+    .container {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 40px 24px 64px;
+    }
+
+    .back {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--primary);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 28px;
+    }
+
+    .back:hover { text-decoration: underline; }
+
+    .intro {
+      font-size: 14px;
+      color: var(--text-muted);
+      line-height: 1.6;
+      margin-bottom: 28px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--primary);
+      border-radius: 10px;
+      padding: 16px 18px;
+    }
+
+    /* ─── Arborescence ───────────────────────────────────────────────────── */
+    .tree { list-style: none; }
+
+    /* Dossier "majeur" (V1, V2…) */
+    .major {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      margin-bottom: 16px;
+      overflow: hidden;
+    }
+
+    .major > summary {
+      cursor: pointer;
+      list-style: none;
+      padding: 16px 20px;
+      font-size: 17px;
+      font-weight: 800;
+      color: var(--primary);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      user-select: none;
+    }
+
+    .major > summary::-webkit-details-marker { display: none; }
+
+    .major > summary .chev {
+      margin-left: auto;
+      transition: transform .2s;
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .major[open] > summary .chev { transform: rotate(90deg); }
+
+    .major > summary .tag {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 9px;
+      border-radius: 20px;
+      background: var(--primary-light);
+      color: var(--primary);
+    }
+
+    .major-body { padding: 4px 14px 14px 22px; }
+
+    /* Feuille "version" (1.0, 1.0.1…) */
+    .version {
+      border-left: 2px solid var(--border);
+      margin: 4px 0 4px 6px;
+      padding-left: 14px;
+    }
+
+    .version > summary {
+      cursor: pointer;
+      list-style: none;
+      padding: 10px 6px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      user-select: none;
+      border-radius: 8px;
+    }
+
+    .version > summary:hover { background: var(--surface-low); }
+    .version > summary::-webkit-details-marker { display: none; }
+
+    .version .vnum {
+      font-weight: 700;
+      font-size: 15px;
+    }
+
+    .version .vdate {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .version .vtitle {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-left: auto;
+      text-align: right;
+    }
+
+    .version-body {
+      padding: 6px 6px 16px 30px;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .version-body h4 {
+      font-size: 13px;
+      font-weight: 800;
+      margin: 16px 0 8px;
+      color: var(--text);
+    }
+
+    .version-body h4:first-child { margin-top: 6px; }
+
+    .version-body ul { margin: 0 0 4px 18px; }
+    .version-body li { margin-bottom: 5px; color: var(--text); }
+    .version-body li b { color: var(--text); }
+
+    .pill {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 20px;
+      vertical-align: middle;
+    }
+    .pill.sec { background: #fde8e8; color: #c0392b; }
+    .pill.new { background: #e6f4ea; color: #1e7e34; }
+    .pill.soon { background: #eee; color: #999; }
+
+    .footer {
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 12px;
+      margin-top: 40px;
+      padding-top: 24px;
+      border-top: 1px solid var(--border);
+    }
+  </style>
+</head>
+
+<body>
+  <div class="hero">
+    <h1>🗒️ Journal des mises à jour</h1>
+    <p>Super Loc — Historique des versions, classé par version majeure</p>
+  </div>
+
+  <div class="container">
+    <a class="back" href="index.html">← Retour au manuel</a>
+
+    <div class="intro">
+      Chaque <b>version majeure</b> (V1, V2…) regroupe ses versions mineures et correctifs.
+      Cliquez sur une version pour déplier le détail des changements.
+      🔒 = sécurité · ✨ = nouveauté.
+    </div>
+
+    <div class="tree">
+
+      <!-- ═══════════════ V1 ═══════════════ -->
+      <details class="major" open>
+        <summary>
+          <span>📂</span> V1 <span class="tag">Version actuelle</span>
+          <span class="chev">▶</span>
+        </summary>
+        <div class="major-body">
+
+          <!-- 1.0.2 -->
+          <details class="version" open>
+            <summary>
+              <span>📄</span>
+              <span class="vnum">v1.0.2</span>
+              <span class="vdate">19 juin 2026</span>
+              <span class="vtitle">Manuel — journal des mises à jour</span>
+            </summary>
+            <div class="version-body">
+              <h4>📖 Manuel utilisateur</h4>
+              <ul>
+                <li>Ajout de cette page <b>« Journal des mises à jour »</b> : l'historique des versions est désormais consultable en arborescence, chaque version dépliable avec son détail.</li>
+              </ul>
+            </div>
+          </details>
+
+          <!-- 1.0.1 -->
+          <details class="version">
+            <summary>
+              <span>📄</span>
+              <span class="vnum">v1.0.1</span>
+              <span class="vdate">19 juin 2026</span>
+              <span class="vtitle">Sécurité &amp; stockage</span>
+            </summary>
+            <div class="version-body">
+              <p>Mise à jour de durcissement (pas de nouvelle fonctionnalité visible),
+                avec migration du contenu sensible vers un stockage privé.</p>
+
+              <h4>🔒 Sécurité</h4>
+              <ul>
+                <li>Création / réinitialisation de comptes locataires : <b>réservée aux gestionnaires authentifiés</b> (propriétaire, admin entreprise, super admin).</li>
+                <li>Notifications par e-mail d'un état des lieux : envoyées uniquement aux personnes ayant accès à cet EDL.</li>
+                <li>Protection contre l'injection de contenu dans les e-mails.</li>
+                <li>Données personnelles des locataires (nom, e-mail, téléphone) : accès fermé aux requêtes non authentifiées.</li>
+                <li>Redirection des e-mails de test verrouillée à une adresse de test configurée.</li>
+              </ul>
+
+              <h4>📦 Stockage</h4>
+              <ul>
+                <li>Nouveau coffre <b>privé</b> pour les <b>signatures</b> et les <b>photos d'états des lieux</b> : visibles uniquement par les parties concernées (propriétaire et locataire du contrat).</li>
+                <li>Les photos d'annonces (immeubles, chambres, pièces) restent publiques mais ne peuvent plus être listées.</li>
+                <li>Affichage du contenu privé via liens sécurisés temporaires.</li>
+              </ul>
+
+              <h4>🛠 Divers</h4>
+              <ul>
+                <li>Documentation technique et tests mis à jour.</li>
+              </ul>
+            </div>
+          </details>
+
+          <!-- 1.0.0 -->
+          <details class="version">
+            <summary>
+              <span>📄</span>
+              <span class="vnum">v1.0.0</span>
+              <span class="vdate">12 juin 2026</span>
+              <span class="vtitle">Lancement initial</span>
+            </summary>
+            <div class="version-body">
+              <p>Première version de Super Loc.</p>
+
+              <h4>🏠 Gestion immobilière</h4>
+              <ul>
+                <li>Immeubles : création, édition, photos, types de bail, pièces communes, inventaire automatique.</li>
+                <li>Chambres : création, options, photos, prix de loyer.</li>
+                <li>Agenda des visites.</li>
+              </ul>
+
+              <h4>📋 États des lieux</h4>
+              <ul>
+                <li>EDL d'entrée et de sortie (bail location et bail individuel).</li>
+                <li>Parties communes (collectif) et parties privatives (individuel).</li>
+                <li>Observations par mur (plan 2D cliquable), relevés de compteurs, clés.</li>
+                <li>Finalisation + acceptation/signature du locataire.</li>
+                <li>Avenants et génération PDF (contrepoint sortie/entrée).</li>
+              </ul>
+
+              <h4>👤 Locataires</h4>
+              <ul>
+                <li>Invitation par e-mail avec mot de passe temporaire et lien d'activation.</li>
+                <li>Tableau de bord : voir et accepter ses EDL, faire des additions.</li>
+              </ul>
+
+              <h4>💶 Finances</h4>
+              <ul>
+                <li>Factures (HT, TVA, statut) et fournisseurs (IBAN, moyens de paiement).</li>
+              </ul>
+
+              <h4>🔧 Super Admin</h4>
+              <ul>
+                <li>Gestion des utilisateurs et permissions.</li>
+                <li>Maintenance : journaux de connexions, test d'envoi d'e-mail.</li>
+              </ul>
+            </div>
+          </details>
+
+        </div>
+      </details>
+
+      <!-- ═══════════════ V2 (à venir) ═══════════════ -->
+      <details class="major">
+        <summary>
+          <span>📁</span> V2 <span class="tag" style="background:#eee;color:#999">À venir</span>
+          <span class="chev">▶</span>
+        </summary>
+        <div class="major-body">
+          <p style="font-size:13px;color:var(--text-muted);padding:8px 6px">
+            La prochaine version majeure apparaîtra ici lorsqu'elle sera publiée.
+          </p>
+        </div>
+      </details>
+
+    </div>
+
+    <div class="footer">
+      Super Loc · Journal des mises à jour · Mis à jour en juin 2026
+    </div>
+  </div>
+</body>
+
+</html>
