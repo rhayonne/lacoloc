@@ -2,14 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:form_builder_validators/form_builder_validators.dart';
 import 'package:lacoloc_front/data/datasources/inventaire.dart';
+import 'package:lacoloc_front/data/datasources/meuble_categories.dart';
 import 'package:lacoloc_front/data/models/inventaire.dart';
+import 'package:lacoloc_front/presentation/widgets/app_list_search_field.dart';
+import 'package:lacoloc_front/presentation/widgets/unsaved_changes_dialog.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
 import 'package:lacoloc_front/theme/app_theme.dart';
 import 'package:lacoloc_front/theme/app_typography.dart';
 
 class MeubleTypesPage extends StatefulWidget {
-  const MeubleTypesPage({super.key});
+  /// Appelé quand l'état du formulaire (ouvert/fermé) change.
+  final ValueChanged<bool>? onFormOpenChanged;
+
+  const MeubleTypesPage({super.key, this.onFormOpenChanged});
 
   @override
   State<MeubleTypesPage> createState() => _MeubleTypesPageState();
@@ -17,34 +23,37 @@ class MeubleTypesPage extends StatefulWidget {
 
 class _MeubleTypesPageState extends State<MeubleTypesPage> {
   late Future<List<MeubleReferenceModel>> _future;
+  late Future<List<MeubleCategoryModel>> _categoriesFuture;
   MeubleReferenceModel? _editing;
   bool _showForm = false;
   String _search = '';
+  String? _selectedCategory; // null = toutes les catégories
 
   @override
   void initState() {
     super.initState();
     _reload();
+    _categoriesFuture = MeubleCategoriesDatasource.listAll();
   }
 
   void _reload() => setState(() {
         _future = InventaireDatasource.listMeubleReferences();
       });
 
-  void _openCreation() => setState(() {
-        _editing = null;
-        _showForm = true;
-      });
+  void _openCreation() {
+    widget.onFormOpenChanged?.call(true);
+    setState(() { _editing = null; _showForm = true; });
+  }
 
-  void _openEdition(MeubleReferenceModel mt) => setState(() {
-        _editing = mt;
-        _showForm = true;
-      });
+  void _openEdition(MeubleReferenceModel mt) {
+    widget.onFormOpenChanged?.call(true);
+    setState(() { _editing = mt; _showForm = true; });
+  }
 
-  void _closeForm() => setState(() {
-        _showForm = false;
-        _editing = null;
-      });
+  void _closeForm() {
+    widget.onFormOpenChanged?.call(false);
+    setState(() { _showForm = false; _editing = null; });
+  }
 
   void _onSaved() {
     _closeForm();
@@ -58,7 +67,7 @@ class _MeubleTypesPageState extends State<MeubleTypesPage> {
         title: const Text('Supprimer ce type de meuble ?'),
         content: Text(
           'Voulez-vous vraiment supprimer « ${mt.nom} » ?\n'
-          'Les articles de l\'inventaire référençant ce type ne seront pas supprimés.',
+          "Les articles de l'inventaire référençant ce type ne seront pas supprimés.",
         ),
         actions: [
           TextButton(
@@ -89,102 +98,224 @@ class _MeubleTypesPageState extends State<MeubleTypesPage> {
     if (_showForm) {
       return _MeubleTypeFormWithBack(
         meubleType: _editing,
+        categoriesFuture: _categoriesFuture,
         onBack: _closeForm,
         onSaved: _onSaved,
       );
     }
 
-    return Padding(
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // ── En-tête ──────────────────────────────────────────────────────────
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+              AppSpacing.xl, AppSpacing.xl, AppSpacing.xl, AppSpacing.md),
+          child: Row(
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Types de meuble', style: AppTypography.headlineMd),
-                  const SizedBox(height: 2),
-                  Text(
-                    'Gérez les types d\'articles disponibles dans l\'inventaire.',
-                    style: AppTypography.bodyMd
-                        .copyWith(color: AppColors.onSurfaceVariant),
-                  ),
-                ],
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Types de meuble', style: AppTypography.headlineLg),
+                    const SizedBox(height: AppSpacing.xs),
+                    Text(
+                      "Gérez les types d'articles disponibles dans l'inventaire.",
+                      style: AppTypography.bodyMd
+                          .copyWith(color: AppColors.onSurfaceVariant),
+                    ),
+                  ],
+                ),
               ),
-              const Spacer(),
+              const SizedBox(width: AppSpacing.md),
               FilledButton.icon(
                 onPressed: _openCreation,
-                icon: const Icon(Icons.add, size: 18),
-                label: const Text('Ajouter'),
+                icon: const Icon(Icons.add),
+                label: const Text('Nouveau type'),
               ),
             ],
           ),
-          const SizedBox(height: AppSpacing.md),
-          TextField(
-            decoration: const InputDecoration(
-              hintText: 'Rechercher par nom ou catégorie…',
-              prefixIcon: Icon(Icons.search),
-              isDense: true,
-            ),
-            onChanged: (v) => setState(() => _search = v.toLowerCase()),
-          ),
-          const SizedBox(height: AppSpacing.md),
-          const Divider(height: 1),
-          const SizedBox(height: AppSpacing.lg),
-          Expanded(
-            child: FutureBuilder<List<MeubleReferenceModel>>(
-              future: _future,
-              builder: (context, snap) {
-                if (snap.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (snap.hasError) {
-                  return Center(child: Text('Erreur : ${snap.error}'));
-                }
-                final all = snap.data ?? [];
-                final list = _search.isEmpty
-                    ? all
-                    : all
-                        .where((m) =>
-                            m.nom.toLowerCase().contains(_search) ||
-                            (m.categorie?.toLowerCase().contains(_search) ??
-                                false))
-                        .toList();
-                if (list.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.chair_outlined,
-                            size: 48, color: AppColors.onSurfaceVariant),
-                        const SizedBox(height: AppSpacing.md),
-                        Text(
-                          'Aucun type de meuble enregistré',
-                          style: AppTypography.bodyMd
-                              .copyWith(color: AppColors.onSurfaceVariant),
-                        ),
-                        const SizedBox(height: AppSpacing.md),
-                        FilledButton.icon(
-                          onPressed: _openCreation,
-                          icon: const Icon(Icons.add, size: 18),
-                          label: const Text('Ajouter un type'),
-                        ),
-                      ],
+        ),
+
+        // ── Recherche ─────────────────────────────────────────────────────────
+        AppListSearchField(
+          hint: 'Rechercher par nom ou catégorie…',
+          onChanged: (q) => setState(() => _search = q),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+
+        // ── Filtres par catégorie (chips) ─────────────────────────────────────
+        FutureBuilder<List<MeubleCategoryModel>>(
+          future: _categoriesFuture,
+          builder: (ctx, snap) {
+            final cats = snap.data ?? [];
+            if (cats.isEmpty) return const SizedBox.shrink();
+            return SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
+              child: Row(
+                children: [
+                  // Chip "Toutes"
+                  Padding(
+                    padding: const EdgeInsets.only(right: AppSpacing.xs),
+                    child: FilterChip(
+                      label: const Text('Toutes'),
+                      selected: _selectedCategory == null,
+                      onSelected: (_) =>
+                          setState(() => _selectedCategory = null),
                     ),
-                  );
-                }
-                return SingleChildScrollView(
-                  child: _MeubleTypesTable(
-                    types: list,
-                    onEdit: _openEdition,
-                    onDelete: _confirmDelete,
+                  ),
+                  ...cats.map((cat) => Padding(
+                        padding: const EdgeInsets.only(right: AppSpacing.xs),
+                        child: FilterChip(
+                          label: Text(cat.nom),
+                          selected: _selectedCategory == cat.nom,
+                          onSelected: (_) => setState(() =>
+                              _selectedCategory = _selectedCategory == cat.nom
+                                  ? null
+                                  : cat.nom),
+                        ),
+                      )),
+                ],
+              ),
+            );
+          },
+        ),
+        const SizedBox(height: AppSpacing.sm),
+
+        // ── En-tête de colonnes ───────────────────────────────────────────────
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
+          child: Row(
+            children: [
+              Expanded(
+                flex: 3,
+                child: Text('Nom',
+                    style: AppTypography.labelSm
+                        .copyWith(color: AppColors.onSurfaceVariant)),
+              ),
+              Expanded(
+                flex: 2,
+                child: Text('Catégorie',
+                    textAlign: TextAlign.center,
+                    style: AppTypography.labelSm
+                        .copyWith(color: AppColors.onSurfaceVariant)),
+              ),
+              const SizedBox(width: 96),
+            ],
+          ),
+        ),
+        const Divider(height: 8),
+
+        // ── Liste ─────────────────────────────────────────────────────────────
+        Expanded(
+          child: FutureBuilder<List<MeubleReferenceModel>>(
+            future: _future,
+            builder: (context, snap) {
+              if (snap.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (snap.hasError) {
+                return Center(child: Text('Erreur : ${snap.error}'));
+              }
+              final all = snap.data ?? [];
+              final items = all.where((m) {
+                final matchSearch = _search.isEmpty ||
+                    m.nom.toLowerCase().contains(_search) ||
+                    (m.categorie?.toLowerCase().contains(_search) ?? false);
+                final matchCat = _selectedCategory == null ||
+                    m.categorie == _selectedCategory;
+                return matchSearch && matchCat;
+              }).toList();
+
+              if (items.isEmpty) {
+                return Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.chair_outlined,
+                          size: 48, color: AppColors.onSurfaceVariant),
+                      const SizedBox(height: AppSpacing.md),
+                      Text(
+                        'Aucun type de meuble trouvé',
+                        style: AppTypography.bodyMd
+                            .copyWith(color: AppColors.onSurfaceVariant),
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      FilledButton.icon(
+                        onPressed: _openCreation,
+                        icon: const Icon(Icons.add),
+                        label: const Text('Ajouter un type'),
+                      ),
+                    ],
                   ),
                 );
-              },
+              }
+              return ListView.separated(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.xl,
+                    vertical: AppSpacing.sm),
+                itemCount: items.length,
+                separatorBuilder: (_, _) => const Divider(height: 1),
+                itemBuilder: (_, i) => _MeubleRow(
+                  meuble: items[i],
+                  onEdit: () => _openEdition(items[i]),
+                  onDelete: () => _confirmDelete(items[i]),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _MeubleRow extends StatelessWidget {
+  final MeubleReferenceModel meuble;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  const _MeubleRow({
+    required this.meuble,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 56),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Expanded(
+            flex: 3,
+            child: Text(meuble.nom, style: AppTypography.bodyMd),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              meuble.categorie ?? '—',
+              textAlign: TextAlign.center,
+              style: AppTypography.bodyMd.copyWith(
+                color: meuble.categorie != null
+                    ? AppColors.onSurface
+                    : AppColors.onSurfaceVariant,
+              ),
             ),
           ),
+          IconButton(
+              icon: const Icon(Icons.edit_outlined),
+              tooltip: 'Modifier',
+              onPressed: onEdit),
+          IconButton(
+              icon: const Icon(Icons.delete_outline),
+              tooltip: 'Supprimer',
+              color: AppColors.error,
+              onPressed: onDelete),
         ],
       ),
     );
@@ -193,91 +324,37 @@ class _MeubleTypesPageState extends State<MeubleTypesPage> {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _MeubleTypesTable extends StatelessWidget {
-  final List<MeubleReferenceModel> types;
-  final ValueChanged<MeubleReferenceModel> onEdit;
-  final ValueChanged<MeubleReferenceModel> onDelete;
-
-  const _MeubleTypesTable({
-    required this.types,
-    required this.onEdit,
-    required this.onDelete,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return DataTable(
-      columnSpacing: 24,
-      headingRowColor: WidgetStateProperty.all(AppColors.surfaceContainerLow),
-      columns: const [
-        DataColumn(label: Text('#')),
-        DataColumn(label: Text('Nom')),
-        DataColumn(label: Text('Catégorie')),
-        DataColumn(label: Text('Actions')),
-      ],
-      rows: types.map((mt) {
-        return DataRow(cells: [
-          DataCell(Text(
-            mt.id.toString(),
-            style: AppTypography.labelSm
-                .copyWith(color: AppColors.onSurfaceVariant),
-          )),
-          DataCell(Text(mt.nom, style: AppTypography.bodyMd)),
-          DataCell(
-            mt.categorie != null
-                ? Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: AppColors.primaryFixed.withValues(alpha: 0.18),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      mt.categorie!,
-                      style: AppTypography.labelSm
-                          .copyWith(color: AppColors.primary),
-                    ),
-                  )
-                : Text(
-                    '—',
-                    style: AppTypography.bodyMd
-                        .copyWith(color: AppColors.onSurfaceVariant),
-                  ),
-          ),
-          DataCell(Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              IconButton(
-                icon: const Icon(Icons.edit_outlined, size: 18),
-                tooltip: 'Modifier',
-                onPressed: () => onEdit(mt),
-              ),
-              IconButton(
-                icon: Icon(Icons.delete_outline,
-                    size: 18, color: AppColors.error),
-                tooltip: 'Supprimer',
-                onPressed: () => onDelete(mt),
-              ),
-            ],
-          )),
-        ]);
-      }).toList(),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _MeubleTypeFormWithBack extends StatelessWidget {
+class _MeubleTypeFormWithBack extends StatefulWidget {
   final MeubleReferenceModel? meubleType;
+  final Future<List<MeubleCategoryModel>> categoriesFuture;
   final VoidCallback onBack;
   final VoidCallback onSaved;
 
   const _MeubleTypeFormWithBack({
     required this.onBack,
     required this.onSaved,
+    required this.categoriesFuture,
     this.meubleType,
   });
+
+  @override
+  State<_MeubleTypeFormWithBack> createState() =>
+      _MeubleTypeFormWithBackState();
+}
+
+class _MeubleTypeFormWithBackState extends State<_MeubleTypeFormWithBack> {
+  final _contentKey = GlobalKey<_MeubleTypeFormState>();
+
+  Future<void> _handleBack() async {
+    final choice = await showUnsavedChangesDialog(context);
+    if (!mounted) return;
+    if (choice == UnsavedChoice.cancel) return;
+    if (choice == UnsavedChoice.save) {
+      await _contentKey.currentState?.trySubmit();
+      return;
+    }
+    widget.onBack();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -290,12 +367,12 @@ class _MeubleTypeFormWithBack extends StatelessWidget {
             children: [
               IconButton.outlined(
                 icon: const Icon(Icons.arrow_back),
-                onPressed: onBack,
+                onPressed: _handleBack,
                 tooltip: 'Retour à la liste',
               ),
               const SizedBox(width: 16),
               Text(
-                meubleType == null
+                widget.meubleType == null
                     ? 'Nouveau type de meuble'
                     : 'Modifier le type de meuble',
                 style: AppTypography.titleLg,
@@ -305,8 +382,10 @@ class _MeubleTypeFormWithBack extends StatelessWidget {
         ),
         Expanded(
           child: _MeubleTypeForm(
-            meubleType: meubleType,
-            onSaved: onSaved,
+            key: _contentKey,
+            meubleType: widget.meubleType,
+            categoriesFuture: widget.categoriesFuture,
+            onSaved: widget.onSaved,
           ),
         ),
       ],
@@ -318,9 +397,15 @@ class _MeubleTypeFormWithBack extends StatelessWidget {
 
 class _MeubleTypeForm extends StatefulWidget {
   final MeubleReferenceModel? meubleType;
+  final Future<List<MeubleCategoryModel>> categoriesFuture;
   final VoidCallback onSaved;
 
-  const _MeubleTypeForm({this.meubleType, required this.onSaved});
+  const _MeubleTypeForm({
+    super.key,
+    this.meubleType,
+    required this.categoriesFuture,
+    required this.onSaved,
+  });
 
   @override
   State<_MeubleTypeForm> createState() => _MeubleTypeFormState();
@@ -329,25 +414,34 @@ class _MeubleTypeForm extends StatefulWidget {
 class _MeubleTypeFormState extends State<_MeubleTypeForm> {
   final _formKey = GlobalKey<FormBuilderState>();
   bool _isSubmitting = false;
+  List<MeubleCategoryModel> _categories = [];
 
   bool get _isEditing => widget.meubleType != null;
 
-  Future<void> _submit() async {
+  @override
+  void initState() {
+    super.initState();
+    widget.categoriesFuture.then((cats) {
+      if (mounted) setState(() => _categories = cats);
+    });
+  }
+
+  Future<void> trySubmit() async {
     if (!(_formKey.currentState?.saveAndValidate() ?? false)) return;
     final values = _formKey.currentState!.value;
     setState(() => _isSubmitting = true);
     try {
       final nom = (values['nom'] as String).trim();
-      final categorie = (values['categorie'] as String?)?.trim();
-      final cat = (categorie?.isEmpty ?? true) ? null : categorie;
+      final cat = values['categorie'] as String?;
+      final categorie = (cat?.isEmpty ?? true) ? null : cat;
       if (_isEditing) {
         await InventaireDatasource.updateRef(
           widget.meubleType!.id,
           nom: nom,
-          categorie: cat,
+          categorie: categorie,
         );
       } else {
-        await InventaireDatasource.createRef(nom: nom, categorie: cat);
+        await InventaireDatasource.createRef(nom: nom, categorie: categorie);
       }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -368,49 +462,73 @@ class _MeubleTypeFormState extends State<_MeubleTypeForm> {
   Widget build(BuildContext context) {
     final mt = widget.meubleType;
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      child: FormBuilder(
-        key: _formKey,
+      padding: const EdgeInsets.all(AppSpacing.xl),
+      child: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 560),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              FormBuilderTextField(
-                name: 'nom',
-                initialValue: mt?.nom,
-                decoration: const InputDecoration(
-                  labelText: 'Nom *',
-                  hintText: 'ex: Chaise, Bureau, Armoire',
+          constraints: const BoxConstraints(maxWidth: 480),
+          child: FormBuilder(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                FormBuilderTextField(
+                  name: 'nom',
+                  initialValue: mt?.nom,
+                  decoration: const InputDecoration(
+                    labelText: 'Nom *',
+                    hintText: 'ex: Chaise, Bureau, Armoire',
+                  ),
+                  validator: FormBuilderValidators.required(),
                 ),
-                validator: FormBuilderValidators.required(),
-              ),
-              const SizedBox(height: AppSpacing.md),
-              FormBuilderTextField(
-                name: 'categorie',
-                initialValue: mt?.categorie,
-                decoration: const InputDecoration(
-                  labelText: 'Catégorie',
-                  hintText: 'ex: Mobilier, Électroménager, Literie',
-                  helperText:
-                      'Optionnel — permet de regrouper les types similaires.',
+                const SizedBox(height: AppSpacing.md),
+                // Dropdown catégorie depuis la DB
+                if (_categories.isNotEmpty)
+                  FormBuilderDropdown<String>(
+                    name: 'categorie',
+                    initialValue: mt?.categorie,
+                    decoration: const InputDecoration(
+                      labelText: 'Catégorie',
+                    ),
+                    items: [
+                      const DropdownMenuItem(
+                        value: '',
+                        child: Text('— Aucune catégorie —'),
+                      ),
+                      ..._categories.map((cat) => DropdownMenuItem(
+                            value: cat.nom,
+                            child: Text(cat.nom),
+                          )),
+                    ],
+                  )
+                else
+                  FormBuilderTextField(
+                    name: 'categorie',
+                    initialValue: mt?.categorie,
+                    decoration: const InputDecoration(
+                      labelText: 'Catégorie',
+                      hintText: 'ex: Mobilier, Électroménager',
+                    ),
+                  ),
+                const SizedBox(height: AppSpacing.xl),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    FilledButton.icon(
+                      onPressed: _isSubmitting ? null : trySubmit,
+                      icon: _isSubmitting
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: Colors.white),
+                            )
+                          : const Icon(Icons.save_outlined),
+                      label: Text(_isEditing ? 'Enregistrer' : 'Créer le type'),
+                    ),
+                  ],
                 ),
-              ),
-              const SizedBox(height: AppSpacing.xl),
-              ElevatedButton.icon(
-                onPressed: _isSubmitting ? null : _submit,
-                icon: _isSubmitting
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.check),
-                label: Text(_isEditing
-                    ? 'Enregistrer les modifications'
-                    : 'Créer le type de meuble'),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

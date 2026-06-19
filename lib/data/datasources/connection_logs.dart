@@ -20,10 +20,14 @@ class ConnectionLogsDatasource {
     var query = _db.from(_table).select();
 
     if (search != null && search.isNotEmpty) {
-      final s = search.trim();
-      query = query.or(
-        'user_email.ilike.%$s%,user_name.ilike.%$s%,ip_address.ilike.%$s%',
-      );
+      // On retire les caractères significatifs de la grammaire de filtre PostgREST
+      // (',' '(' ')' ':' '*') pour empêcher toute manipulation/casse du filtre `.or()`.
+      final s = search.trim().replaceAll(RegExp(r'[,()*:]'), '');
+      if (s.isNotEmpty) {
+        query = query.or(
+          'user_email.ilike.%$s%,user_name.ilike.%$s%,ip_address.ilike.%$s%',
+        );
+      }
     }
     if (userType != null && userType.isNotEmpty) {
       query = query.eq('user_type', userType);

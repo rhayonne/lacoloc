@@ -1,7 +1,7 @@
 {
   "name": "manual-screenshots",
   "version": "1.0.0",
-  "description": "Génère les screenshots du manuel utilisateur Super Coloc",
+  "description": "Génère les screenshots du manuel utilisateur Super Loc",
   "scripts": {
     "screenshots": "node take.js"
   },

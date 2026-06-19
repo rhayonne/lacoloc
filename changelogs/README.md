@@ -1,4 +1,4 @@
-# Changelogs — Super Coloc
+# Changelogs — Super Loc
 
 Notes de mise à jour générées automatiquement à chaque merge sur `main`.
 

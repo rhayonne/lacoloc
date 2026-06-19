@@ -10,6 +10,7 @@ import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_radius.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
 import 'package:lacoloc_front/theme/app_typography.dart';
+import 'package:lacoloc_front/presentation/widgets/app_list_search_field.dart';
 import 'package:lacoloc_front/utils/email_field.dart';
 import 'package:lacoloc_front/utils/phone_field.dart';
 
@@ -229,13 +230,10 @@ class _UsersTabState extends State<_UsersTab> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        TextField(
-          decoration: const InputDecoration(
-            hintText: 'Rechercher par nom ou e-mail…',
-            prefixIcon: Icon(Icons.search),
-            isDense: true,
-          ),
-          onChanged: (v) => setState(() => _search = v.toLowerCase()),
+        AppListSearchField(
+          hint: 'Rechercher par nom ou e-mail…',
+          onChanged: (q) => setState(() => _search = q),
+          padding: EdgeInsets.zero,
         ),
         const SizedBox(height: AppSpacing.sm),
         // Filtros
@@ -515,9 +513,12 @@ class _UserCardState extends State<_UserCard> {
                   ),
                 ),
                 const SizedBox(width: AppSpacing.sm),
-                Switch(
-                  value: user.active,
-                  onChanged: (_) => widget.onToggleActive(),
+                Tooltip(
+                  message: user.active ? 'Désactiver' : 'Activer',
+                  child: Switch(
+                    value: user.active,
+                    onChanged: (_) => widget.onToggleActive(),
+                  ),
                 ),
               ],
             ),

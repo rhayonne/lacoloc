@@ -240,6 +240,18 @@ pw.Widget _header(EdlPdfData data) {
                 '$bail · $partie · $meuble',
                 style: pw.TextStyle(color: _primaryLight, fontSize: 10),
               ),
+              if (edl.code != null && edl.code!.isNotEmpty) ...[
+                pw.SizedBox(height: 4),
+                pw.Text(
+                  'Réf. : ${edl.code}',
+                  style: pw.TextStyle(
+                    color: _white,
+                    fontSize: 10,
+                    fontWeight: pw.FontWeight.bold,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -780,7 +792,7 @@ List<pw.Widget> _sectionAdditions(List<ObservationEdl> additions) {
   }
 
   return [
-    _titleBar('ADDITIONS (après finalisation)', color: _red),
+    _titleBar('AVENANTS (après finalisation)', color: _red),
     pw.SizedBox(height: 4),
     for (final entry in byComodo.entries) ...[
       pw.Container(

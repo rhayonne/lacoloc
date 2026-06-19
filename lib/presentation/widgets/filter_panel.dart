@@ -60,6 +60,9 @@ enum FilterModule {
 
   /// Équipements (options des chambres).
   equipements,
+
+  /// Charges locatives incluses (tout inclus / avec charges / sans charges).
+  charges,
 }
 
 /// Painel de filtros reutilizável (catálogo de módulos).
@@ -226,6 +229,8 @@ class _FilterPanelState extends State<FilterPanel> {
         return _buildPrix();
       case FilterModule.equipements:
         return _buildEquipements();
+      case FilterModule.charges:
+        return _buildCharges();
     }
   }
 
@@ -634,6 +639,40 @@ class _FilterPanelState extends State<FilterPanel> {
               }).toList(),
             );
           },
+        ),
+      ],
+    );
+  }
+
+  /// MODULE `charges` — Charges locatives (tout inclus / avec montant fixe / sans charges).
+  /// Quand l'utiliser : listing public de chambres pour indiquer si les charges sont incluses.
+  /// Émet `avecCharges` (true = au moins une charge incluse, false = aucune charge, null = indifférent).
+  Widget _buildCharges() {
+    final v = widget.filter.avecCharges;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Charges locatives', style: AppTypography.labelMd),
+        const SizedBox(height: AppSpacing.sm),
+        Wrap(
+          spacing: AppSpacing.sm,
+          runSpacing: AppSpacing.xs,
+          children: [
+            _chip(
+              label: 'Charges incluses',
+              selected: v == true,
+              onSelected: (sel) => widget.onChanged(
+                widget.filter.copyWith(avecCharges: sel ? true : null),
+              ),
+            ),
+            _chip(
+              label: 'Sans charges',
+              selected: v == false,
+              onSelected: (sel) => widget.onChanged(
+                widget.filter.copyWith(avecCharges: sel ? false : null),
+              ),
+            ),
+          ],
         ),
       ],
     );

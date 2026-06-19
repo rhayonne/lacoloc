@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:lacoloc_front/data/datasources/auth_service.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_radius.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
@@ -9,6 +10,38 @@ import 'package:sidebarx/sidebarx.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 export 'package:sidebarx/sidebarx.dart' show SidebarXController, SidebarXItem;
+
+/// Crée un [SidebarXItem] standard du menu :
+/// - pastille (badge) avec [count] quand `count > 0` (« nouveau / à traiter ») ;
+/// - **tooltip** avec le libellé quand la barre est repliée ([extended] = false),
+///   pour que le nom de chaque menu reste accessible une fois la barre réduite.
+/// Réutilise `iconBuilder` du paquet sidebarx pour personnaliser l'icône.
+SidebarXItem badgedSidebarItem({
+  required IconData icon,
+  required String label,
+  int count = 0,
+  bool extended = true,
+}) {
+  return SidebarXItem(
+    label: label,
+    iconBuilder: (selected, hovered) {
+      final color = selected ? AppColors.primary : AppColors.onSurfaceVariant;
+      Widget child = Icon(icon, size: 20, color: color);
+      if (count > 0) {
+        child = Badge(
+          label: Text(count > 99 ? '99+' : '$count'),
+          backgroundColor: AppColors.error,
+          textColor: Colors.white,
+          child: child,
+        );
+      }
+      // Tooltip seulement quand replié (sinon le libellé est déjà visible).
+      // On évite un Tooltip à message vide (déplié) qui peut boucler l'overlay.
+      if (extended) return child;
+      return Tooltip(message: label, child: child);
+    },
+  );
+}
 
 /// Sidebar compartilhada do app, baseada no pacote sidebarx.
 ///
@@ -25,6 +58,9 @@ class AppSidebar extends StatelessWidget {
   final SidebarXController controller;
   final List<SidebarXItem> items;
   final String? userEmail;
+  /// Libellé du type d'utilisateur affiché sous l'e-mail (ex. « Propriétaire »,
+  /// « Admin entreprise »). Null = non affiché.
+  final String? userTypeLabel;
   final TextEditingController? searchController;
   final Widget Function(BuildContext, bool extended)? footerBuilder;
   final bool showToggleButton;
@@ -34,6 +70,7 @@ class AppSidebar extends StatelessWidget {
     required this.controller,
     required this.items,
     this.userEmail,
+    this.userTypeLabel,
     this.searchController,
     this.footerBuilder,
     this.showToggleButton = true,
@@ -43,7 +80,9 @@ class AppSidebar extends StatelessWidget {
   Widget build(BuildContext context) {
     return SidebarX(
       controller: controller,
-      showToggleButton: showToggleButton,
+      // Bouton de repli natif désactivé : on en rend un personnalisé (libellé +
+      // bordure) dans le footer pour mieux le signaler.
+      showToggleButton: false,
       animationDuration: const Duration(milliseconds: 220),
       // Tema compacto (ícones apenas, 64 px)
       theme: SidebarXTheme(
@@ -86,13 +125,85 @@ class AppSidebar extends StatelessWidget {
       headerBuilder: (context, extended) => _SidebarHeader(
         extended: extended,
         email: userEmail,
+        typeLabel: userTypeLabel,
         searchCtrl: searchController,
       ),
       headerDivider: const Divider(height: 1),
-      footerDivider: footerBuilder != null ? const Divider(height: 1) : null,
-      footerBuilder: footerBuilder,
+      footerDivider: const Divider(height: 1),
+      footerBuilder: (context, extended) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (footerBuilder != null) footerBuilder!(context, extended),
+          if (showToggleButton) ...[
+            const Divider(height: 1, indent: 12, endIndent: 12),
+            const SizedBox(height: 4),
+            _SidebarCollapseButton(controller: controller, extended: extended),
+            const SizedBox(height: 4),
+          ],
+        ],
+      ),
       items: items,
     );
+  }
+}
+
+/// Bouton de repli/agrandissement de la barre latérale (remplace le toggle natif
+/// de sidebarx). Étendu : libellé « Réduire le menu » + chevron, dans un cadre
+/// bordé ; replié : chevron centré bordé. Tooltip quand replié.
+class _SidebarCollapseButton extends StatelessWidget {
+  final SidebarXController controller;
+  final bool extended;
+  const _SidebarCollapseButton({required this.controller, required this.extended});
+
+  @override
+  Widget build(BuildContext context) {
+    final btn = Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: AppRadius.borderMd,
+          child: InkWell(
+            onTap: () => controller.setExtended(!extended),
+            borderRadius: AppRadius.borderMd,
+            hoverColor: AppColors.surfaceContainerLow,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+              decoration: BoxDecoration(
+                borderRadius: AppRadius.borderMd,
+                border: Border.all(color: AppColors.outlineVariant),
+              ),
+              child: extended
+                  ? _CollapseClip(
+                      minWidth: 100,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.chevron_left,
+                              size: 20, color: AppColors.onSurfaceVariant),
+                          const SizedBox(width: 12),
+                          Flexible(
+                            child: Text(
+                              'Réduire le menu',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTypography.bodyMd
+                                  .copyWith(color: AppColors.onSurfaceVariant),
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  : const Center(
+                      child: Icon(Icons.chevron_right,
+                          size: 20, color: AppColors.onSurfaceVariant),
+                    ),
+            ),
+          ),
+        ),
+      );
+    // Tooltip seulement quand replié (évite un Tooltip à message vide).
+    if (extended) return btn;
+    return Tooltip(message: 'Agrandir le menu', child: btn);
   }
 }
 
@@ -127,9 +238,15 @@ class _CollapseClip extends StatelessWidget {
 class _SidebarHeader extends StatelessWidget {
   final bool extended;
   final String? email;
+  final String? typeLabel;
   final TextEditingController? searchCtrl;
 
-  const _SidebarHeader({required this.extended, this.email, this.searchCtrl});
+  const _SidebarHeader({
+    required this.extended,
+    this.email,
+    this.typeLabel,
+    this.searchCtrl,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -170,20 +287,40 @@ class _SidebarHeader extends StatelessWidget {
                   ),
                   const SizedBox(width: AppSpacing.sm),
                   Expanded(
-                    child: Text(
-                      email!,
-                      style: AppTypography.labelSm.copyWith(
-                        color: AppColors.onSurfaceVariant,
-                      ),
-                      overflow: TextOverflow.ellipsis,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          email!,
+                          style: AppTypography.labelSm.copyWith(
+                            color: AppColors.onSurfaceVariant,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        // Type d'utilisateur sous l'e-mail (badge discret).
+                        if (typeLabel != null && typeLabel!.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2),
+                            child: Text(
+                              typeLabel!,
+                              style: AppTypography.labelSm.copyWith(
+                                color: AppColors.primary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                      ],
                     ),
                   ),
                 ],
               ),
             ),
           ),
-        // Botão do manual — shimmer na primeira abertura
-        if (extended)
+        // Botão do manual — só para utilizador autenticado (não aparece na
+        // home pública / detalhe de chambre quando deslogado).
+        if (extended && AuthService.isLoggedIn)
           Padding(
             padding: const EdgeInsets.fromLTRB(
                 AppSpacing.md, AppSpacing.sm, AppSpacing.md, AppSpacing.sm),
@@ -421,7 +558,7 @@ class _AppLogoFull extends StatelessWidget {
         const SizedBox(width: AppSpacing.sm),
         Flexible(
           child: Text(
-            'Super Coloc',
+            'Super Loc',
             style: AppTypography.titleLg.copyWith(color: AppColors.primary),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -473,37 +610,57 @@ class SidebarActionButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = color ?? AppColors.onSurfaceVariant;
-    return Tooltip(
-      message: extended ? '' : label,
-      child: InkWell(
-        onTap: onTap,
+    final btn = Padding(
+      // Même marge que les items de menu pour aligner le hover.
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      child: Material(
+        color: Colors.transparent,
         borderRadius: AppRadius.borderMd,
-        child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-          child: extended
-              ? Row(
-                  mainAxisSize: MainAxisSize.min,
-                  mainAxisAlignment: MainAxisAlignment.start,
-                  children: [
-                    Icon(icon, color: c, size: 20),
-                    const SizedBox(width: 12),
-                    // Flexible + ellipsis : le libellé rétrécit pendant l'animation
-                    // de fermeture au lieu de provoquer un overflow.
-                    Flexible(
-                      child: Text(
-                        label,
-                        maxLines: 1,
-                        softWrap: false,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTypography.bodyMd.copyWith(color: c),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: AppRadius.borderMd,
+          hoverColor: AppColors.surfaceContainerLow,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+            child: extended
+                // _CollapseClip masque la ligne pendant l'animation de
+                // fermeture (largeur < minWidth) → pas d'overflow de 1 px.
+                ? _CollapseClip(
+                    minWidth: 100,
+                    // Center → le groupe (icône + libellé) reste centré
+                    // horizontalement, cohérent avec « Accueil ».
+                    child: Center(
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Icon(icon, color: c, size: 20),
+                          const SizedBox(width: 12),
+                          // Largeur bornée → le libellé peut passer sur 2 lignes
+                          // (ex. « Configuration entreprise ») sans pousser
+                          // l'icône hors de l'écran.
+                          ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 150),
+                            child: Text(
+                              label,
+                              maxLines: 2,
+                              softWrap: true,
+                              textAlign: TextAlign.center,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTypography.bodyMd.copyWith(color: c),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  ],
-                )
-              : Center(child: Icon(icon, color: c, size: 20)),
+                  )
+                : Center(child: Icon(icon, color: c, size: 20)),
+          ),
         ),
       ),
     );
+    // Tooltip seulement quand replié (évite un Tooltip à message vide).
+    if (extended) return btn;
+    return Tooltip(message: label, child: btn);
   }
 }

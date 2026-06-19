@@ -1,4 +1,4 @@
-# docs/ — La Coloc
+# docs/ — Super Loc
 
 ## `openapi.yaml`
 

@@ -19,6 +19,9 @@ class ChambreFilter {
   final double? prixMin;
   final double? prixMax;
 
+  /// Charges incluses : true = au moins une charge incluse ; false = sans charges ; null = indifférent.
+  final bool? avecCharges;
+
   const ChambreFilter({
     this.optionIds = const {},
     this.city = '',
@@ -31,6 +34,7 @@ class ChambreFilter {
     this.m2Max,
     this.prixMin,
     this.prixMax,
+    this.avecCharges,
   });
 
   bool get isEmpty =>
@@ -44,7 +48,8 @@ class ChambreFilter {
       m2Min == null &&
       m2Max == null &&
       prixMin == null &&
-      prixMax == null;
+      prixMax == null &&
+      avecCharges == null;
 
   int get activeCount =>
       (optionIds.isNotEmpty ? 1 : 0) +
@@ -55,7 +60,8 @@ class ChambreFilter {
       (meuble != null ? 1 : 0) +
       (immeubleTypeId != null ? 1 : 0) +
       (m2Min != null || m2Max != null ? 1 : 0) +
-      (prixMin != null || prixMax != null ? 1 : 0);
+      (prixMin != null || prixMax != null ? 1 : 0) +
+      (avecCharges != null ? 1 : 0);
 
   ChambreFilter copyWith({
     Set<int>? optionIds,
@@ -69,6 +75,7 @@ class ChambreFilter {
     Object? m2Max = _sentinel,
     Object? prixMin = _sentinel,
     Object? prixMax = _sentinel,
+    Object? avecCharges = _sentinel,
   }) =>
       ChambreFilter(
         optionIds: optionIds ?? this.optionIds,
@@ -86,6 +93,9 @@ class ChambreFilter {
         m2Max: m2Max == _sentinel ? this.m2Max : m2Max as double?,
         prixMin: prixMin == _sentinel ? this.prixMin : prixMin as double?,
         prixMax: prixMax == _sentinel ? this.prixMax : prixMax as double?,
+        avecCharges: avecCharges == _sentinel
+            ? this.avecCharges
+            : avecCharges as bool?,
       );
 
   static const empty = ChambreFilter();

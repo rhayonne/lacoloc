@@ -1,4 +1,4 @@
-# Diagramas de Casos de Uso — La Coloc
+# Diagramas de Casos de Uso — Super Loc
 
 ## Visão Geral do Sistema
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:lacoloc_front/data/datasources/auth_service.dart';
 import 'package:lacoloc_front/data/models/chambre.dart';
 import 'package:lacoloc_front/presentation/app_search_bar.dart';
+import 'package:lacoloc_front/presentation/chambres/chambre_detail_page.dart';
 import 'package:lacoloc_front/presentation/chambres/chambres_list.dart';
 import 'package:lacoloc_front/presentation/immeubles/immeubles_list_page.dart';
 import 'package:lacoloc_front/presentation/login_dialog.dart';
@@ -29,6 +30,7 @@ class _HomePageState extends State<HomePage> {
   bool _isExpanded = false;
   String _searchQuery = '';
   ChambreFilter _chambreFilter = ChambreFilter.empty;
+  int? _detailChambreId;
 
   static const _idxChambres = 0;
   static const _idxImmeubles = 1;
@@ -124,6 +126,12 @@ class _HomePageState extends State<HomePage> {
     if (_section == _idxImmeubles) {
       return const ImmeublesListPage();
     }
+    if (_detailChambreId != null) {
+      return ChambreDetailView(
+        chambreId: _detailChambreId!,
+        onBack: () => setState(() => _detailChambreId = null),
+      );
+    }
     // No telefone (estreito) o bandeau de texto some; o botão « Voir les
     // immeubles » fica ao lado do botão Filtres (via `trailing`).
     final isPhone = MediaQuery.sizeOf(context).width < 600;
@@ -146,6 +154,7 @@ class _HomePageState extends State<HomePage> {
             FilterModule.surface,
             FilterModule.prix,
             FilterModule.equipements,
+            FilterModule.charges,
           },
           trailing: isPhone
               ? OutlinedButton.icon(
@@ -167,6 +176,7 @@ class _HomePageState extends State<HomePage> {
               filter: _searchQuery,
               chambreFilter: _chambreFilter,
               onDataLoaded: (data) => _listCache = data,
+              onTapChambre: (id) => setState(() => _detailChambreId = id),
             ),
           ),
         ),

@@ -80,6 +80,18 @@ class UsersClient {
 
   UserType? get resolvedType => typeUserRef?.userType;
 
+  /// Libellé lisible du type d'utilisateur pour l'affichage (carte sidebar, etc.).
+  /// « Propriétaire entreprise » = un propriétaire rattaché à une entreprise
+  /// (sous l'admin d'entreprise) ; « Propriétaire » = indépendant.
+  String get typeDisplayLabel => switch (resolvedType) {
+        UserType.locataire => 'Locataire',
+        UserType.proprietaire =>
+          entrepriseId != null ? 'Propriétaire entreprise' : 'Propriétaire',
+        UserType.adminGroupe => 'Admin entreprise',
+        UserType.superAdmin => 'Super Admin',
+        null => typeUserRef?.label ?? 'Utilisateur',
+      };
+
   factory UsersClient.fromJson(Map<String, dynamic> json) {
     final rawRef = json['User_Types_Reference'];
     return UsersClient(

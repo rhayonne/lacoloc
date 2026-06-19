@@ -64,7 +64,7 @@ void main() {
       },
       body: jsonEncode({
         'test': true,
-        'fullName': 'Teste La Coloc',
+        'fullName': 'Teste Super Loc',
         'email': to,
       }),
     );

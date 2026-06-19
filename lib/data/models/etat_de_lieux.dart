@@ -88,6 +88,9 @@ enum SituationEdl {
 
 class EtatDesLieuxModel {
   final int id;
+  /// Code de référence lisible (ex. « EDL-E-CAEN-NL-260605-7F3K »). Généré côté
+  /// base à la création ; sert à localiser l'EDL (recherche locataire/proprio).
+  final String? code;
   final String proprietaireId;
   final String? locataireId;
   final int immeubleId;
@@ -163,6 +166,7 @@ class EtatDesLieuxModel {
 
   const EtatDesLieuxModel({
     required this.id,
+    this.code,
     required this.proprietaireId,
     this.locataireId,
     required this.immeubleId,
@@ -221,6 +225,7 @@ class EtatDesLieuxModel {
 
     return EtatDesLieuxModel(
       id: map['id'] as int,
+      code: map['code'] as String?,
       proprietaireId: map['proprietaire_id'] as String,
       locataireId: map['locataire_id'] as String?,
       immeubleId: map['immeuble_id'] as int,

@@ -96,4 +96,11 @@ class CacheKeys {
   static const edl = 'edl:';
   static const notifications = 'notifications:';
   static const visites = 'visites:';
+  static const recettes = 'recettes:';
+  static const garants = 'garants:';
+  static const chambreCharges = 'chambre_charges:';
+  static const immeubleCharges = 'immeuble_charges:';
+  static const chargesRef = 'charges_ref:';
+  static const paymentTypes = 'payment_types:';
+  static const meubleCategories = 'meuble_categories:';
 }

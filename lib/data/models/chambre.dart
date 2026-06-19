@@ -23,6 +23,10 @@ class ChambreModel {
   final bool? immeubleLocationMeuble;
   final int? immeubleTypeId;
 
+  // Champs contrat / bail (spécifiques à la chambre en colocation)
+  final double? depotGarantieMois;
+  final int? dureeBailMois;
+
   ChambreModel({
     required this.id,
     required this.immeubleId,
@@ -45,6 +49,8 @@ class ChambreModel {
     this.immeubleBailIndividuel = false,
     this.immeubleLocationMeuble,
     this.immeubleTypeId,
+    this.depotGarantieMois,
+    this.dureeBailMois,
   });
 
   String? get immeubleBailLabel {
@@ -52,6 +58,9 @@ class ChambreModel {
     if (immeubleBailIndividuel) return 'Bail individuel';
     return null;
   }
+
+  int get depotGarantieLegalMax => (immeubleLocationMeuble == true) ? 2 : 1;
+  int get dureeLegaleDefaut => (immeubleLocationMeuble == true) ? 12 : 36;
 
   factory ChambreModel.fromMap(Map<String, dynamic> map) {
     final immeuble = map['Immeubles'];
@@ -85,6 +94,8 @@ class ChambreModel {
       immeubleLocationMeuble:
           immeuble is Map ? immeuble['location_meuble'] as bool? : null,
       immeubleTypeId: immeuble is Map ? immeuble['type_id'] as int? : null,
+      depotGarantieMois: (map['depot_garantie_mois'] as num?)?.toDouble(),
+      dureeBailMois: (map['duree_bail_mois'] as num?)?.toInt(),
     );
   }
 
@@ -99,6 +110,8 @@ class ChambreModel {
         if (prixLoyer != null) 'prix_loyer': prixLoyer,
         'est_loue': estLoue,
         'main_photo': mainPhoto,
+        'depot_garantie_mois': depotGarantieMois,
+        if (dureeBailMois != null) 'duree_bail_mois': dureeBailMois,
       };
 
   static List<String> _photosFromAny(dynamic raw) {

@@ -1,5 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:lacoloc_front/data/datasources/auth_service.dart';
+import 'package:lacoloc_front/data/datasources/etat_de_lieux.dart';
 import 'package:lacoloc_front/data/datasources/signatures.dart';
+import 'package:lacoloc_front/data/models/etat_de_lieux.dart';
+import 'package:lacoloc_front/presentation/users/proprietaires/bail_pdf_preview_page.dart';
+import 'package:lacoloc_front/presentation/widgets/app_list_search_field.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_radius.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
@@ -39,19 +45,17 @@ class _DocumentationPageState extends State<DocumentationPage>
           padding: const EdgeInsets.fromLTRB(
             AppSpacing.lg,
             AppSpacing.lg,
-            AppSpacing.sm,
-            AppSpacing.md,
+            AppSpacing.lg,
+            0,
           ),
-          child: Text('Documentation', style: AppTypography.headlineMd),
-        ),
-        const Divider(height: 1),
-        TabBar(
-          controller: _tabCtrl,
-          tabs: const [
-            Tab(text: 'Vision générale'),
-            Tab(text: 'Baux'),
-            Tab(text: 'Ma signature'),
-          ],
+          child: TabBar(
+            controller: _tabCtrl,
+            tabs: const [
+              Tab(text: 'Vue générale'),
+              Tab(text: 'Baux'),
+              Tab(text: 'Ma signature'),
+            ],
+          ),
         ),
         Expanded(
           child: TabBarView(
@@ -69,6 +73,7 @@ class _DocumentationPageState extends State<DocumentationPage>
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Tab : Vue générale
 
 class _VisionGeneralePage extends StatelessWidget {
   const _VisionGeneralePage();
@@ -78,105 +83,380 @@ class _VisionGeneralePage extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.lg),
       children: [
-        // Section Important
         Container(
           padding: const EdgeInsets.all(AppSpacing.md),
           decoration: BoxDecoration(
-            color: AppColors.errorContainer.withValues(alpha: 0.35),
+            color: AppColors.primaryFixed.withValues(alpha: 0.35),
             borderRadius: AppRadius.borderLg,
-            border: Border.all(color: AppColors.error.withValues(alpha: 0.4)),
+            border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
-                  Icon(
-                    Icons.warning_amber_rounded,
-                    color: AppColors.error,
-                    size: 20,
-                  ),
+                  const Icon(Icons.info_outline, color: AppColors.primary, size: 20),
                   const SizedBox(width: AppSpacing.sm),
                   Text(
-                    'Important',
-                    style: AppTypography.titleLg.copyWith(
-                      color: AppColors.error,
-                    ),
+                    'Gestion documentaire',
+                    style: AppTypography.titleLg.copyWith(color: AppColors.primary),
                   ),
                 ],
               ),
               const SizedBox(height: AppSpacing.sm),
               Text(
-                'Cette section contiendra les informations importantes concernant la gestion des baux et des propriétés.',
-                style: AppTypography.bodyMd.copyWith(
-                  color: AppColors.onErrorContainer,
-                ),
+                'Gérez vos contrats de location (baux) et votre signature électronique. '
+                "Un bail est généré automatiquement après signature de l'état des lieux par le locataire.",
+                style: AppTypography.bodyMd
+                    .copyWith(color: AppColors.onSurface),
               ),
             ],
           ),
         ),
         const SizedBox(height: AppSpacing.xl),
-        // Section Lista Baux
-        Text('Baux actifs', style: AppTypography.titleLg),
+        Text('Raccourcis', style: AppTypography.titleLg),
         const SizedBox(height: AppSpacing.md),
-        _ListaBauxTable(),
+        _QuickTile(
+          icon: Icons.description_outlined,
+          title: 'Baux',
+          subtitle: 'Consulter et télécharger vos contrats de location.',
+          onTap: () {},
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        _QuickTile(
+          icon: Icons.draw_outlined,
+          title: 'Ma signature',
+          subtitle: 'Configurer la signature utilisée dans les documents.',
+          onTap: () {},
+        ),
       ],
     );
   }
 }
 
-class _ListaBauxTable extends StatelessWidget {
-  const _ListaBauxTable();
+class _QuickTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  const _QuickTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        border: Border.all(color: AppColors.outlineVariant),
-        borderRadius: AppRadius.borderMd,
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md, vertical: AppSpacing.xs),
+      leading: CircleAvatar(
+        backgroundColor: AppColors.primaryFixed,
+        child: Icon(icon, color: AppColors.primary, size: 20),
       ),
-      clipBehavior: Clip.antiAlias,
-      child: Table(
-        columnWidths: const {
-          0: FlexColumnWidth(2),
-          1: FlexColumnWidth(2),
-          2: FlexColumnWidth(1.5),
-          3: FlexColumnWidth(1.5),
-          4: FlexColumnWidth(1),
-        },
-        children: [
-          TableRow(
-            decoration: BoxDecoration(color: AppColors.surfaceContainerLow),
+      title: Text(title, style: AppTypography.bodyMd),
+      subtitle: Text(subtitle,
+          style:
+              AppTypography.bodyMd.copyWith(color: AppColors.onSurfaceVariant)),
+      trailing: const Icon(Icons.arrow_forward_ios, size: 14),
+      onTap: onTap,
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tab : Baux
+
+class _BauxPage extends StatefulWidget {
+  const _BauxPage();
+
+  @override
+  State<_BauxPage> createState() => _BauxPageState();
+}
+
+class _BauxPageState extends State<_BauxPage> {
+  late Future<List<EtatDesLieuxModel>> _future;
+  String _search = '';
+
+  static final _dateFmt = DateFormat('dd/MM/yyyy');
+
+  @override
+  void initState() {
+    super.initState();
+    _reload();
+  }
+
+  void _reload() {
+    final uid = AuthService.currentUser?.id;
+    if (uid == null) return;
+    setState(() {
+      _future = EtatDesLieuxDatasource.listByProprietaire(uid).then(
+        // Garder uniquement les EDL d'entrée acceptés par le locataire
+        (list) => list
+            .where((e) =>
+                e.typeEdl == 'entree' &&
+                e.locataireAccepte &&
+                // Un bail porte sur un EDL privatif (individuel) ou commune (location)
+                (e.partie == PartieEdl.privative ||
+                    (e.partie == PartieEdl.commune &&
+                        e.typeBail == 'location')))
+            .toList()
+          ..sort((a, b) =>
+              (b.dateDebutBail ?? b.dateEtatLieux)
+                  .compareTo(a.dateDebutBail ?? a.dateEtatLieux)),
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // ── En-tête ─────────────────────────────────────────────────────────
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+              AppSpacing.xl, AppSpacing.xl, AppSpacing.xl, AppSpacing.md),
+          child: Row(
             children: [
-              _TableHeader('Locataire'),
-              _TableHeader('Chambre'),
-              _TableHeader('Début'),
-              _TableHeader('Fin'),
-              _TableHeader('Statut'),
-            ],
-          ),
-          // Linha placeholder enquanto não há dados
-          TableRow(
-            children: [
-              _TableCell(
-                colspan: 5,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: AppSpacing.xl),
-                  child: Center(
-                    child: Text(
-                      'Aucun bail enregistré',
-                      style: AppTypography.bodyMd.copyWith(
-                        color: AppColors.onSurfaceVariant,
-                      ),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Contrats de location', style: AppTypography.headlineLg),
+                    const SizedBox(height: AppSpacing.xs),
+                    Text(
+                      "Un bail est généré après l'acceptation de l'état des lieux "
+                      "par le locataire. Le bail est valable tant que l'état des "
+                      "lieux de sortie n'est pas finalisé.",
+                      style: AppTypography.bodyMd
+                          .copyWith(color: AppColors.onSurfaceVariant),
                     ),
-                  ),
+                  ],
                 ),
               ),
-              _TableCell(child: const SizedBox.shrink()),
-              _TableCell(child: const SizedBox.shrink()),
-              _TableCell(child: const SizedBox.shrink()),
-              _TableCell(child: const SizedBox.shrink()),
             ],
+          ),
+        ),
+
+        // ── Recherche ────────────────────────────────────────────────────────
+        AppListSearchField(
+          hint: 'Rechercher par locataire, immeuble ou chambre…',
+          onChanged: (q) => setState(() => _search = q),
+        ),
+        const SizedBox(height: AppSpacing.md),
+
+        // ── Liste ────────────────────────────────────────────────────────────
+        Expanded(
+          child: FutureBuilder<List<EtatDesLieuxModel>>(
+            future: _future,
+            builder: (context, snap) {
+              if (snap.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (snap.hasError) {
+                return Center(child: Text('Erreur : ${snap.error}'));
+              }
+              final all = snap.data ?? [];
+              final items = _search.isEmpty
+                  ? all
+                  : all.where((e) {
+                      final q = _search;
+                      return (e.locataireNom?.toLowerCase().contains(q) ??
+                              false) ||
+                          (e.immeubleNom?.toLowerCase().contains(q) ?? false) ||
+                          (e.chambreNom?.toLowerCase().contains(q) ?? false);
+                    }).toList();
+
+              if (items.isEmpty) {
+                return Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.description_outlined,
+                          size: 56, color: AppColors.outline),
+                      const SizedBox(height: AppSpacing.md),
+                      Text('Aucun bail enregistré',
+                          style: AppTypography.titleLg),
+                      const SizedBox(height: AppSpacing.xs),
+                      Text(
+                        'Les baux apparaissent ici après que le locataire\n'
+                        "a accepté et signé l'état des lieux d'entrée.",
+                        style: AppTypography.bodyMd.copyWith(
+                            color: AppColors.onSurfaceVariant),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                );
+              }
+
+              return LayoutBuilder(
+                builder: (context, constraints) {
+                  final wide = constraints.maxWidth >= 700;
+                  return ListView.separated(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.xl, vertical: AppSpacing.sm),
+                    itemCount: items.length,
+                    separatorBuilder: (_, _) => const Divider(height: 1),
+                    itemBuilder: (_, i) => _BailRow(
+                      edl: items[i],
+                      wide: wide,
+                      dateFmt: _dateFmt,
+                      onViewPdf: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => BailPdfPreviewPage(edl: items[i]),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _BailRow extends StatelessWidget {
+  final EtatDesLieuxModel edl;
+  final bool wide;
+  final DateFormat dateFmt;
+  final VoidCallback onViewPdf;
+
+  const _BailRow({
+    required this.edl,
+    required this.wide,
+    required this.dateFmt,
+    required this.onViewPdf,
+  });
+
+  /// Statut du bail : En cours / Résilié
+  String get _statut {
+    // Un bail de sortie finalisé = résilié
+    return 'En cours';
+  }
+
+  Color get _statutColor => AppColors.success;
+
+  String _fmtDate(DateTime? d) => d != null ? dateFmt.format(d) : '—';
+
+  @override
+  Widget build(BuildContext context) {
+    final debut = edl.dateDebutBail ?? edl.dateEtatLieux;
+    final fin = edl.dateFinBail;
+    final locataire = edl.locataireNom ??
+        edl.preneursNoms.firstOrNull ??
+        '—';
+    final lieu = edl.chambreNom != null
+        ? '${edl.immeubleNom ?? ''} · ${edl.chambreNom}'
+        : (edl.immeubleNom ?? '—');
+
+    if (!wide) {
+      // Mode compact (carte)
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const CircleAvatar(
+              backgroundColor: AppColors.primaryFixed,
+              child: Icon(Icons.description_outlined,
+                  color: AppColors.primary, size: 18),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(locataire, style: AppTypography.labelMd),
+                  Text(lieu,
+                      style: AppTypography.bodyMd
+                          .copyWith(color: AppColors.onSurfaceVariant),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis),
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(
+                    '${_fmtDate(debut)}  →  ${_fmtDate(fin)}',
+                    style: AppTypography.labelSm
+                        .copyWith(color: AppColors.onSurfaceVariant),
+                  ),
+                ],
+              ),
+            ),
+            OutlinedButton.icon(
+              onPressed: onViewPdf,
+              icon: const Icon(Icons.open_in_new, size: 14),
+              label: const Text('Bail'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 56),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          const CircleAvatar(
+            backgroundColor: AppColors.primaryFixed,
+            child: Icon(Icons.description_outlined,
+                color: AppColors.primary, size: 18),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          // Locataire
+          Expanded(
+            flex: 2,
+            child: Text(locataire,
+                style: AppTypography.bodyMd,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis),
+          ),
+          // Lieu
+          Expanded(
+            flex: 2,
+            child: Text(lieu,
+                style: AppTypography.bodyMd
+                    .copyWith(color: AppColors.onSurfaceVariant),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis),
+          ),
+          // Début
+          SizedBox(
+            width: 100,
+            child: Text(_fmtDate(debut),
+                style: AppTypography.bodyMd,
+                textAlign: TextAlign.center),
+          ),
+          // Fin
+          SizedBox(
+            width: 100,
+            child: Text(_fmtDate(fin),
+                style: AppTypography.bodyMd
+                    .copyWith(color: AppColors.onSurfaceVariant),
+                textAlign: TextAlign.center),
+          ),
+          // Statut
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: _statutColor.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(_statut,
+                style: AppTypography.labelSm.copyWith(color: _statutColor)),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          // Bouton Bail
+          OutlinedButton.icon(
+            onPressed: onViewPdf,
+            icon: const Icon(Icons.open_in_new, size: 14),
+            label: const Text('Bail'),
           ),
         ],
       ),
@@ -184,39 +464,8 @@ class _ListaBauxTable extends StatelessWidget {
   }
 }
 
-class _TableHeader extends StatelessWidget {
-  final String label;
-  const _TableHeader(this.label);
-
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(
-      horizontal: AppSpacing.md,
-      vertical: AppSpacing.sm,
-    ),
-    child: Text(label, style: AppTypography.labelMd),
-  );
-}
-
-class _TableCell extends StatelessWidget {
-  final Widget child;
-  final int colspan;
-  const _TableCell({required this.child, this.colspan = 1});
-
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(
-      horizontal: AppSpacing.md,
-      vertical: AppSpacing.sm,
-    ),
-    child: child,
-  );
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Tab : Ma Signature
+// Tab : Ma signature
 
 class _SignaturePage extends StatefulWidget {
   const _SignaturePage();
@@ -241,11 +490,17 @@ class _SignaturePageState extends State<_SignaturePage> {
     setState(() => _saving = true);
     try {
       await SignaturesDatasource.saveUrl(sig.url);
-      if (mounted) setState(() { _future = SignaturesDatasource.getSavedUrl(); _saving = false; });
+      if (mounted) {
+        setState(() {
+          _future = SignaturesDatasource.getSavedUrl();
+          _saving = false;
+        });
+      }
     } catch (e) {
       if (mounted) {
         setState(() => _saving = false);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur : $e')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Erreur : $e')));
       }
     }
   }
@@ -257,7 +512,9 @@ class _SignaturePageState extends State<_SignaturePage> {
         title: const Text('Supprimer la signature ?'),
         content: const Text('La signature sauvegardée sera supprimée.'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Annuler')),
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Annuler')),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
             style: AppTheme.deleteButtonStyle,
@@ -271,9 +528,17 @@ class _SignaturePageState extends State<_SignaturePage> {
     try {
       await SignaturesDatasource.deleteSignature();
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur : $e')));
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Erreur : $e')));
+      }
     }
-    if (mounted) setState(() { _future = SignaturesDatasource.getSavedUrl(); _saving = false; });
+    if (mounted) {
+      setState(() {
+        _future = SignaturesDatasource.getSavedUrl();
+        _saving = false;
+      });
+    }
   }
 
   @override
@@ -288,8 +553,10 @@ class _SignaturePageState extends State<_SignaturePage> {
             Text('Ma signature par défaut', style: AppTypography.titleLg),
             const SizedBox(height: AppSpacing.sm),
             Text(
-              'Cette signature sera proposée automatiquement lors de la finalisation ou de l\'acceptation d\'un état des lieux.',
-              style: AppTypography.bodyMd.copyWith(color: AppColors.onSurfaceVariant),
+              'Cette signature sera proposée automatiquement lors de la '
+              "finalisation ou de l'acceptation d'un état des lieux.",
+              style: AppTypography.bodyMd
+                  .copyWith(color: AppColors.onSurfaceVariant),
             ),
             const SizedBox(height: AppSpacing.lg),
             if (snap.connectionState == ConnectionState.waiting)
@@ -332,7 +599,8 @@ class _SignaturePageState extends State<_SignaturePage> {
                 ),
                 child: Text(
                   'Aucune signature sauvegardée',
-                  style: AppTypography.bodyMd.copyWith(color: AppColors.onSurfaceVariant),
+                  style: AppTypography.bodyMd
+                      .copyWith(color: AppColors.onSurfaceVariant),
                 ),
               ),
               const SizedBox(height: AppSpacing.md),
@@ -345,67 +613,6 @@ class _SignaturePageState extends State<_SignaturePage> {
           ],
         );
       },
-    );
-  }
-}
-
-class _BauxPage extends StatelessWidget {
-  const _BauxPage();
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.lg,
-            AppSpacing.lg,
-            AppSpacing.lg,
-            AppSpacing.md,
-          ),
-          child: Row(
-            children: [
-              Expanded(child: Text('Baux', style: AppTypography.titleLg)),
-              FilledButton.icon(
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Fonctionnalité Nouveau Bail à venir.'),
-                    ),
-                  );
-                },
-                icon: const Icon(Icons.add, size: 18),
-                label: const Text('Nouveau Bail'),
-              ),
-            ],
-          ),
-        ),
-        const Divider(height: 1),
-        Expanded(
-          child: Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(
-                  Icons.description_outlined,
-                  size: 64,
-                  color: AppColors.outline,
-                ),
-                const SizedBox(height: AppSpacing.md),
-                Text('Gestion des baux', style: AppTypography.titleLg),
-                const SizedBox(height: AppSpacing.sm),
-                Text(
-                  'Cette fonctionnalité sera disponible prochainement.',
-                  style: AppTypography.bodyMd.copyWith(
-                    color: AppColors.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
     );
   }
 }

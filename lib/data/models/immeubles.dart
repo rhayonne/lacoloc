@@ -17,14 +17,17 @@ class ImmeublesModel {
   final String? department;
   final String? codePostal;
   final DateTime? createdAt;
-  // Location simple : plusieurs preneurs, un seul contrat partagé (ex-« bail
-  // collectif »). À ne pas confondre avec le « collectif » = parties communes
-  // d'un bail individuel.
   final bool bailLocation;
   final bool bailIndividuel;
   final double? prixLoyer;
-  final bool? locationMeuble; // null = pas répondu ; true = meublée
-  final int? entrepriseId; // empresa dona do imóvel (multi-tenant)
+  final bool? locationMeuble;
+  final int? entrepriseId;
+
+  // Champs contrat / bail
+  final double? depotGarantieMois; // nb de mois (1 ou 2 selon meublé)
+  final String? dpeClasse;         // A–G
+  final String? irlReference;      // ex. "T3 2025 — 145.56"
+  final int? dureeBailMois;        // durée en mois (12 ou 36 selon type)
 
   ImmeublesModel({
     required this.id,
@@ -48,6 +51,10 @@ class ImmeublesModel {
     this.bailIndividuel = false,
     this.prixLoyer,
     this.locationMeuble,
+    this.depotGarantieMois,
+    this.dpeClasse,
+    this.irlReference,
+    this.dureeBailMois,
   });
 
   String? get bailLabel {
@@ -57,6 +64,12 @@ class ImmeublesModel {
   }
 
   String get nome => name;
+
+  /// Durée légale minimale en mois selon le type de bail.
+  int get dureeLegaleDefaut => (locationMeuble == true) ? 12 : 36;
+
+  /// Dépôt de garantie légal maximum en mois.
+  int get depotGarantieLegalMax => (locationMeuble == true) ? 2 : 1;
 
   factory ImmeublesModel.fromMap(Map<String, dynamic> map) {
     final rawType = map['Immeuble_Types_Reference'];
@@ -86,6 +99,10 @@ class ImmeublesModel {
       bailIndividuel: (map['bail_individuel'] as bool?) ?? false,
       prixLoyer: (map['prix_loyer'] as num?)?.toDouble(),
       locationMeuble: map['location_meuble'] as bool?,
+      depotGarantieMois: (map['depot_garantie_mois'] as num?)?.toDouble(),
+      dpeClasse: map['dpe_classe'] as String?,
+      irlReference: map['irl_reference'] as String?,
+      dureeBailMois: (map['duree_bail_mois'] as num?)?.toInt(),
     );
   }
 
@@ -108,6 +125,10 @@ class ImmeublesModel {
         'bail_individuel': bailIndividuel,
         if (prixLoyer != null) 'prix_loyer': prixLoyer,
         if (locationMeuble != null) 'location_meuble': locationMeuble,
+        'depot_garantie_mois': depotGarantieMois,
+        if (dpeClasse != null) 'dpe_classe': dpeClasse,
+        if (irlReference != null) 'irl_reference': irlReference,
+        if (dureeBailMois != null) 'duree_bail_mois': dureeBailMois,
       };
 
   static List<String> _photosFromAny(dynamic raw) {

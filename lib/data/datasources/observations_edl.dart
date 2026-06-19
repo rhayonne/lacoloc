@@ -1,3 +1,5 @@
+import 'package:lacoloc_front/data/cache/data_cache.dart';
+import 'package:lacoloc_front/data/cache/realtime_service.dart';
 import 'package:lacoloc_front/data/models/observation_edl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -5,15 +7,21 @@ class ObservationsEdlDatasource {
   ObservationsEdlDatasource._();
 
   static final _db = Supabase.instance.client;
+  static final _cache = DataCache.instance;
   static const _table = 'etat_de_lieux_observations';
 
-  static Future<List<ObservationEdl>> listByEdl(int edlId) async {
-    final rows = await _db
-        .from(_table)
-        .select()
-        .eq('etat_de_lieux_id', edlId)
-        .order('created_at');
-    return rows.map(ObservationEdl.fromMap).toList();
+  static void _invalidate(int edlId) =>
+      _cache.invalidate('${CacheKeys.edl}obs:$edlId');
+
+  static Future<List<ObservationEdl>> listByEdl(int edlId) {
+    return _cache.get('${CacheKeys.edl}obs:$edlId', () async {
+      final rows = await _db
+          .from(_table)
+          .select()
+          .eq('etat_de_lieux_id', edlId)
+          .order('created_at');
+      return rows.map(ObservationEdl.fromMap).toList();
+    });
   }
 
   /// Copie les observations des **parties communes** (celles rattachées à une
@@ -43,6 +51,7 @@ class ObservationsEdlDatasource {
             ).toInsert(),
           );
     }
+    _invalidate(toEdlId);
   }
 
   /// Insère une nouvelle observation pour un mur (plusieurs obs par mur possibles).
@@ -52,6 +61,7 @@ class ObservationsEdlDatasource {
         .insert(obs.toInsert())
         .select()
         .single();
+    _invalidate(obs.etatDesLieuxId);
     return ObservationEdl.fromMap(row);
   }
 
@@ -61,6 +71,7 @@ class ObservationsEdlDatasource {
         .insert(obs.toInsert())
         .select()
         .single();
+    _invalidate(obs.etatDesLieuxId);
     return ObservationEdl.fromMap(row);
   }
 
@@ -71,11 +82,14 @@ class ObservationsEdlDatasource {
         .eq('id', id)
         .select()
         .single();
+    _invalidate(obs.etatDesLieuxId);
     return ObservationEdl.fromMap(row);
   }
 
   static Future<void> deleteById(int id) async {
+    // edlId unavailable — invalide tout le préfixe edl:obs pour être sûr
     await _db.from(_table).delete().eq('id', id);
+    _cache.invalidatePrefix('${CacheKeys.edl}obs:');
   }
 
   /// Insère un **ajout** (« addition ») fait après finalisation. `created_at`
@@ -87,6 +101,7 @@ class ObservationsEdlDatasource {
         .insert(obs.toInsert())
         .select()
         .single();
+    _invalidate(obs.etatDesLieuxId);
     return ObservationEdl.fromMap(row);
   }
 }

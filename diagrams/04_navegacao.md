@@ -1,4 +1,4 @@
-# Fluxo de Navegação — La Coloc
+# Fluxo de Navegação — Super Loc
 
 ## Rotas Nomeadas + Rotas Dinâmicas
 

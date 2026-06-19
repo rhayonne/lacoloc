@@ -4,6 +4,7 @@ import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:form_builder_validators/form_builder_validators.dart';
 import 'package:lacoloc_front/data/datasources/payment_types.dart';
 import 'package:lacoloc_front/data/models/fournisseur.dart';
+import 'package:lacoloc_front/presentation/widgets/app_list_search_field.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
 import 'package:lacoloc_front/theme/app_theme.dart';
@@ -22,6 +23,7 @@ class _PaymentTypesPageState extends State<PaymentTypesPage> {
   late Future<List<PaymentTypeRef>> _future;
   PaymentTypeRef? _editing;
   bool _showForm = false;
+  String _search = '';
 
   @override
   void initState() {
@@ -97,150 +99,175 @@ class _PaymentTypesPageState extends State<PaymentTypesPage> {
       );
     }
 
-    return Padding(
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // ── En-tête ──────────────────────────────────────────────────────────
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+              AppSpacing.xl, AppSpacing.xl, AppSpacing.xl, AppSpacing.md),
+          child: Row(
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Types de paiement', style: AppTypography.headlineMd),
-                  const SizedBox(height: 2),
-                  Text(
-                    'Gérez les moyens de paiement disponibles sur la plateforme.',
-                    style: AppTypography.bodyMd
-                        .copyWith(color: AppColors.onSurfaceVariant),
-                  ),
-                ],
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Types de paiement', style: AppTypography.headlineLg),
+                    const SizedBox(height: AppSpacing.xs),
+                    Text(
+                      'Gérez les moyens de paiement disponibles sur la plateforme.',
+                      style: AppTypography.bodyMd
+                          .copyWith(color: AppColors.onSurfaceVariant),
+                    ),
+                  ],
+                ),
               ),
-              const Spacer(),
+              const SizedBox(width: AppSpacing.md),
               FilledButton.icon(
                 onPressed: _openCreation,
-                icon: const Icon(Icons.add, size: 18),
-                label: const Text('Ajouter'),
+                icon: const Icon(Icons.add),
+                label: const Text('Nouveau type'),
               ),
             ],
           ),
-          const SizedBox(height: AppSpacing.lg),
-          const Divider(height: 1),
-          const SizedBox(height: AppSpacing.lg),
-          Expanded(
-            child: FutureBuilder<List<PaymentTypeRef>>(
-              future: _future,
-              builder: (context, snap) {
-                if (snap.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (snap.hasError) {
-                  return Center(child: Text('Erreur : ${snap.error}'));
-                }
-                final list = snap.data ?? [];
-                if (list.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.payment_outlined,
-                            size: 48, color: AppColors.onSurfaceVariant),
-                        const SizedBox(height: AppSpacing.md),
-                        Text(
-                          'Aucun type de paiement enregistré',
-                          style: AppTypography.bodyMd
-                              .copyWith(color: AppColors.onSurfaceVariant),
-                        ),
-                        const SizedBox(height: AppSpacing.md),
-                        FilledButton.icon(
-                          onPressed: _openCreation,
-                          icon: const Icon(Icons.add, size: 18),
-                          label: const Text('Ajouter un type'),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-                return SingleChildScrollView(
-                  child: _PaymentTypesTable(
-                    types: list,
-                    onEdit: _openEdition,
-                    onDelete: _confirmDelete,
+        ),
+
+        // ── Recherche ─────────────────────────────────────────────────────────
+        AppListSearchField(
+          hint: 'Rechercher par libellé, code ou description…',
+          onChanged: (q) => setState(() => _search = q),
+        ),
+        const SizedBox(height: AppSpacing.md),
+
+        // ── Liste ─────────────────────────────────────────────────────────────
+        Expanded(
+          child: FutureBuilder<List<PaymentTypeRef>>(
+            future: _future,
+            builder: (context, snap) {
+              if (snap.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (snap.hasError) {
+                return Center(child: Text('Erreur : ${snap.error}'));
+              }
+              final all = snap.data ?? [];
+              final list = _search.isEmpty
+                  ? all
+                  : all.where((p) =>
+                      p.label.toLowerCase().contains(_search) ||
+                      p.code.toLowerCase().contains(_search) ||
+                      (p.description?.toLowerCase().contains(_search) ?? false))
+                  .toList();
+              if (list.isEmpty) {
+                return Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.payment_outlined,
+                          size: 48, color: AppColors.onSurfaceVariant),
+                      const SizedBox(height: AppSpacing.md),
+                      Text(
+                        'Aucun type de paiement enregistré',
+                        style: AppTypography.bodyMd
+                            .copyWith(color: AppColors.onSurfaceVariant),
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      FilledButton.icon(
+                        onPressed: _openCreation,
+                        icon: const Icon(Icons.add),
+                        label: const Text('Ajouter un type'),
+                      ),
+                    ],
                   ),
                 );
-              },
-            ),
+              }
+              return ListView.separated(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.xl, vertical: AppSpacing.sm),
+                itemCount: list.length,
+                separatorBuilder: (_, _) => const Divider(height: 1),
+                itemBuilder: (_, i) => _PaymentRow(
+                  paymentType: list[i],
+                  onEdit: () => _openEdition(list[i]),
+                  onDelete: () => _confirmDelete(list[i]),
+                ),
+              );
+            },
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _PaymentTypesTable extends StatelessWidget {
-  final List<PaymentTypeRef> types;
-  final ValueChanged<PaymentTypeRef> onEdit;
-  final ValueChanged<PaymentTypeRef> onDelete;
+class _PaymentRow extends StatelessWidget {
+  final PaymentTypeRef paymentType;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
 
-  const _PaymentTypesTable({
-    required this.types,
+  const _PaymentRow({
+    required this.paymentType,
     required this.onEdit,
     required this.onDelete,
   });
 
   @override
   Widget build(BuildContext context) {
-    return DataTable(
-      columnSpacing: 24,
-      headingRowColor: WidgetStateProperty.all(AppColors.surfaceContainerLow),
-      columns: const [
-        DataColumn(label: Text('#')),
-        DataColumn(label: Text('Code')),
-        DataColumn(label: Text('Libellé')),
-        DataColumn(label: Text('Description')),
-        DataColumn(label: Text('Actions')),
-      ],
-      rows: types.map((pt) {
-        return DataRow(cells: [
-          DataCell(Text(pt.id.toString(),
-              style: AppTypography.labelSm
-                  .copyWith(color: AppColors.onSurfaceVariant))),
-          DataCell(
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(
-                color: AppColors.primaryFixed.withValues(alpha: 0.18),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Text(pt.code,
-                  style: AppTypography.labelSm.copyWith(
-                      fontFamily: 'monospace', color: AppColors.primary)),
+    return ListTile(
+      contentPadding:
+          const EdgeInsets.symmetric(horizontal: 0, vertical: AppSpacing.xs),
+      leading: CircleAvatar(
+        backgroundColor: AppColors.primaryFixed,
+        child: Icon(
+          Icons.payment_outlined,
+          color: AppColors.primary,
+          size: 20,
+        ),
+      ),
+      title: Row(
+        children: [
+          Text(paymentType.label, style: AppTypography.bodyMd),
+          const SizedBox(width: AppSpacing.sm),
+          Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: AppColors.primaryFixed.withValues(alpha: 0.45),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(
+              paymentType.code,
+              style: AppTypography.labelSm.copyWith(
+                  color: AppColors.primary, fontFamily: 'monospace'),
             ),
           ),
-          DataCell(Text(pt.label, style: AppTypography.bodyMd)),
-          DataCell(Text(pt.description ?? '—',
+        ],
+      ),
+      subtitle: paymentType.description != null
+          ? Text(
+              paymentType.description!,
               style: AppTypography.bodyMd
-                  .copyWith(color: AppColors.onSurfaceVariant))),
-          DataCell(Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              IconButton(
-                icon: const Icon(Icons.edit_outlined, size: 18),
-                tooltip: 'Modifier',
-                onPressed: () => onEdit(pt),
-              ),
-              IconButton(
-                icon: Icon(Icons.delete_outline,
-                    size: 18, color: AppColors.error),
-                tooltip: 'Supprimer',
-                onPressed: () => onDelete(pt),
-              ),
-            ],
-          )),
-        ]);
-      }).toList(),
+                  .copyWith(color: AppColors.onSurfaceVariant),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            )
+          : null,
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+              icon: const Icon(Icons.edit_outlined),
+              tooltip: 'Modifier',
+              onPressed: onEdit),
+          IconButton(
+              icon: const Icon(Icons.delete_outline),
+              tooltip: 'Supprimer',
+              color: AppColors.error,
+              onPressed: onDelete),
+        ],
+      ),
     );
   }
 }
@@ -350,78 +377,81 @@ class _PaymentTypeFormState extends State<_PaymentTypeForm> {
   Widget build(BuildContext context) {
     final pt = widget.paymentType;
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      child: FormBuilder(
-        key: _formKey,
+      padding: const EdgeInsets.all(AppSpacing.xl),
+      child: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 560),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              FormBuilderTextField(
-                name: 'code',
-                initialValue: pt?.code,
-                decoration: const InputDecoration(
-                  labelText: 'Code (identifiant unique) *',
-                  hintText: 'ex: virement, cheque, wero',
-                  helperText:
-                      'Minuscules, sans accents, underscores autorisés.',
+          constraints: const BoxConstraints(maxWidth: 480),
+          child: FormBuilder(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                FormBuilderTextField(
+                  name: 'code',
+                  initialValue: pt?.code,
+                  decoration: const InputDecoration(
+                    labelText: 'Code (identifiant unique) *',
+                    hintText: 'ex: virement, cheque, wero',
+                    helperText:
+                        'Minuscules, sans accents, underscores autorisés.',
+                  ),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r'[a-z0-9_]')),
+                    LengthLimitingTextInputFormatter(40),
+                  ],
+                  validator: FormBuilderValidators.compose([
+                    FormBuilderValidators.required(),
+                    (v) {
+                      if (v != null &&
+                          v.isNotEmpty &&
+                          !RegExp(r'^[a-z0-9_]+$').hasMatch(v.trim())) {
+                        return 'Minuscules, chiffres et _ uniquement';
+                      }
+                      return null;
+                    },
+                  ]),
                 ),
-                inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp(r'[a-z0-9_]')),
-                  LengthLimitingTextInputFormatter(40),
-                ],
-                validator: FormBuilderValidators.compose([
-                  FormBuilderValidators.required(),
-                  (v) {
-                    if (v != null &&
-                        v.isNotEmpty &&
-                        !RegExp(r'^[a-z0-9_]+$').hasMatch(v.trim())) {
-                      return 'Minuscules, chiffres et _ uniquement';
-                    }
-                    return null;
-                  },
-                ]),
-              ),
-              const SizedBox(height: AppSpacing.md),
-
-              FormBuilderTextField(
-                name: 'label',
-                initialValue: pt?.label,
-                decoration: const InputDecoration(
-                  labelText: 'Libellé *',
-                  hintText: 'ex: Virement bancaire',
+                const SizedBox(height: AppSpacing.md),
+                FormBuilderTextField(
+                  name: 'label',
+                  initialValue: pt?.label,
+                  decoration: const InputDecoration(
+                    labelText: 'Libellé *',
+                    hintText: 'ex: Virement bancaire',
+                  ),
+                  validator: FormBuilderValidators.required(),
                 ),
-                validator: FormBuilderValidators.required(),
-              ),
-              const SizedBox(height: AppSpacing.md),
-
-              FormBuilderTextField(
-                name: 'description',
-                initialValue: pt?.description,
-                decoration: const InputDecoration(
-                  labelText: 'Description',
-                  hintText: 'Courte description du moyen de paiement',
-                  alignLabelWithHint: true,
+                const SizedBox(height: AppSpacing.md),
+                FormBuilderTextField(
+                  name: 'description',
+                  initialValue: pt?.description,
+                  decoration: const InputDecoration(
+                    labelText: 'Description',
+                    hintText: 'Courte description du moyen de paiement',
+                    alignLabelWithHint: true,
+                  ),
+                  maxLines: 3,
                 ),
-                maxLines: 3,
-              ),
-              const SizedBox(height: AppSpacing.xl),
-
-              ElevatedButton.icon(
-                onPressed: _isSubmitting ? null : _submit,
-                icon: _isSubmitting
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.check),
-                label: Text(_isEditing
-                    ? 'Enregistrer les modifications'
-                    : 'Créer le type de paiement'),
-              ),
-            ],
+                const SizedBox(height: AppSpacing.xl),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    FilledButton.icon(
+                      onPressed: _isSubmitting ? null : _submit,
+                      icon: _isSubmitting
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: Colors.white),
+                            )
+                          : const Icon(Icons.save_outlined),
+                      label: Text(_isEditing ? 'Enregistrer' : 'Créer'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),

@@ -8,6 +8,7 @@ import 'package:lacoloc_front/presentation/widgets/permission_gate.dart';
 import 'package:lacoloc_front/data/models/demande_contact.dart';
 import 'package:lacoloc_front/data/models/notification_model.dart';
 import 'package:lacoloc_front/presentation/chambres/chambre_detail_page.dart';
+import 'package:lacoloc_front/theme/app_breakpoints.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_radius.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
@@ -323,6 +324,34 @@ class _SortableDemandesTable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Tablette/mobile : la DataTable dense devient une liste de cartes lisibles
+    // et tactiles ; au-dessus du seuil, on garde le tableau triable.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < AppBreakpoints.tableToCards) {
+          return _buildCards(context);
+        }
+        return _buildTable(context);
+      },
+    );
+  }
+
+  Widget _buildCards(BuildContext context) {
+    return ListView.separated(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+      itemCount: demandes.length,
+      separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.sm),
+      itemBuilder: (_, i) => _DemandeCard(
+        demande: demandes[i],
+        isToggling: toggling.contains(demandes[i].id),
+        onToggle: onToggle,
+        onVoirDetails: onVoirDetails,
+        formatDate: formatDate,
+      ),
+    );
+  }
+
+  Widget _buildTable(BuildContext context) {
     return SingleChildScrollView(
       scrollDirection: Axis.vertical,
       child: SingleChildScrollView(
@@ -434,6 +463,129 @@ class _SortableDemandesTable extends StatelessWidget {
       ],
     );
   }
+}
+
+/// Carte d'une demande de contact (tablette/mobile) — équivalent d'une ligne du
+/// tableau, mais empilée et tactile.
+class _DemandeCard extends StatelessWidget {
+  final DemandeContactModel demande;
+  final bool isToggling;
+  final void Function(DemandeContactModel, bool) onToggle;
+  final void Function(DemandeContactModel) onVoirDetails;
+  final String Function(DateTime) formatDate;
+
+  const _DemandeCard({
+    required this.demande,
+    required this.isToggling,
+    required this.onToggle,
+    required this.onVoirDetails,
+    required this.formatDate,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final d = demande;
+    final bien = [d.chambreName, d.immeubleName]
+        .where((s) => s != null && s.isNotEmpty)
+        .join(' — ');
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: d.contactEtabli
+            ? AppColors.primaryContainer.withValues(alpha: 0.25)
+            : AppColors.surfaceContainerLowest,
+        borderRadius: AppRadius.borderLg,
+        border: Border.all(color: AppColors.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  d.locataireFullName ?? '—',
+                  style:
+                      AppTypography.titleLg.copyWith(fontWeight: FontWeight.w600),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              if (d.calculatedAge != null)
+                Text('${d.calculatedAge} ans',
+                    style: AppTypography.labelSm
+                        .copyWith(color: AppColors.onSurfaceVariant)),
+            ],
+          ),
+          if (bien.isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Text(bien,
+                style: AppTypography.bodyMd
+                    .copyWith(color: AppColors.onSurfaceVariant),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis),
+          ],
+          const SizedBox(height: AppSpacing.sm),
+          if (d.locatairePhone != null)
+            _line(Icons.phone_outlined, d.locatairePhone!),
+          if (d.locataireEmail != null)
+            _line(Icons.mail_outline, d.locataireEmail!),
+          _line(Icons.event_outlined, formatDate(d.createdAt)),
+          const SizedBox(height: AppSpacing.sm),
+          const Divider(height: 1),
+          const SizedBox(height: AppSpacing.xs),
+          Row(
+            children: [
+              if (d.chambreId != null)
+                TextButton.icon(
+                  icon: const Icon(Icons.open_in_new, size: 16),
+                  label: const Text('Voir Annonce'),
+                  onPressed: () => onVoirDetails(d),
+                ),
+              const Spacer(),
+              Text('Contact établi',
+                  style: AppTypography.labelSm
+                      .copyWith(color: AppColors.onSurfaceVariant)),
+              isToggling
+                  ? const Padding(
+                      padding: EdgeInsets.all(AppSpacing.sm),
+                      child: SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    )
+                  : PermissionGate(
+                      permission: Perm.demandesManage,
+                      fallback:
+                          Switch(value: d.contactEtabli, onChanged: null),
+                      child: Switch(
+                        value: d.contactEtabli,
+                        onChanged: (v) => onToggle(d, v),
+                      ),
+                    ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _line(IconData icon, String text) => Padding(
+        padding: const EdgeInsets.only(bottom: 4),
+        child: Row(
+          children: [
+            Icon(icon, size: 15, color: AppColors.onSurfaceVariant),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Text(text,
+                  style: AppTypography.bodyMd,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis),
+            ),
+          ],
+        ),
+      );
 }
 
 // ═════════════════════════════════════════════════════════════════════════════

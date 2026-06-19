@@ -4,6 +4,8 @@ import 'package:lacoloc_front/data/cache/data_cache.dart';
 import 'package:lacoloc_front/data/cache/realtime_service.dart';
 import 'package:lacoloc_front/data/datasources/chambres.dart';
 import 'package:lacoloc_front/data/datasources/edl_details.dart';
+import 'package:lacoloc_front/data/datasources/notifications.dart';
+import 'package:lacoloc_front/data/datasources/recettes.dart';
 import 'package:lacoloc_front/data/datasources/session_scope.dart';
 import 'package:lacoloc_front/data/models/chambre.dart';
 import 'package:lacoloc_front/data/models/etat_de_lieux.dart';
@@ -524,6 +526,36 @@ class EtatDesLieuxDatasource {
     if (chambreId case final id?) {
       await ChambresDatasource.setOccupied(id, occupied: typeEdl != 'sortie');
     }
+
+    if (typeEdl == 'entree') {
+      // Génère les échéances mensuelles (idempotent — ignoré si déjà créées).
+      await RecettesDatasource.generateFromBail(id);
+    } else if (typeEdl == 'sortie') {
+      // Supprime les échéances futures de l'entrée couplée : le locataire
+      // paye le mois entier du départ, mais pas les mois suivants.
+      final sortieRow = await _db
+          .from(_table)
+          .select('edl_entree_id, date_etat_lieux')
+          .eq('id', id)
+          .maybeSingle();
+      if (sortieRow != null && sortieRow['edl_entree_id'] != null) {
+        final entreeId = sortieRow['edl_entree_id'] as int;
+        final departureDate =
+            DateTime.parse(sortieRow['date_etat_lieux'] as String);
+        await RecettesDatasource.deleteFutureInstallments(
+            entreeId, departureDate);
+      }
+    }
+
+    // Prévient le(s) locataire(s) qu'un état des lieux est à signer :
+    // notification in-app/realtime + e-mail (best-effort, n'interrompt pas).
+    await NotificationsDatasource.notifyEdlLocataire(
+      edlId: id,
+      type: 'edl_a_signer',
+      title: 'État des lieux à signer',
+      body: "Un état des lieux finalisé attend votre signature.",
+    );
+    await notifyASigner(edlId: id);
     invalidate();
   }
 
@@ -670,6 +702,25 @@ class EtatDesLieuxDatasource {
     }
   }
 
+  /// E-mail au(x) **locataire(s)** quand le propriétaire **finalise** l'EDL :
+  /// il reste à le signer. Le(s) destinataire(s) sont résolus côté serveur à
+  /// partir de l'EDL (privatif → locataire ; commune → preneurs). Best-effort.
+  static Future<void> notifyASigner({required int edlId}) async {
+    try {
+      final mailTo = _devMailOverride;
+      await Supabase.instance.client.functions.invoke(
+        'notify-edl',
+        body: {
+          'edlId': edlId,
+          'event': 'a_signer',
+          'mailTo': ?mailTo,
+        },
+      );
+    } catch (_) {
+      // best-effort
+    }
+  }
+
   /// E-mail au propriétaire quand le **locataire** ajoute une addition après
   /// finalisation (comodo + texte de l'observation).
   static Future<void> notifyAddition({
@@ -714,12 +765,13 @@ class EtatDesLieuxDatasource {
   }
 
   static Future<bool> emailExists(String email) async {
-    final row = await _db
+    // Insensible à la casse (cohérent avec l'index unique users_client_email_unique_ci).
+    final rows = await _db
         .from('Users_Client')
         .select('id')
-        .eq('email', email)
-        .maybeSingle();
-    return row != null;
+        .ilike('email', email.trim())
+        .limit(1);
+    return (rows as List).isNotEmpty;
   }
 
   static Future<bool> phoneExists(String phone) async {

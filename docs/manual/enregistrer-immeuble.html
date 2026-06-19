@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Manuel — Enregistrer un immeuble · Super Coloc</title>
+  <title>Manuel — Enregistrer un immeuble · Super Loc</title>
   <style>
     /* ─── Variables ──────────────────────────────────────────────────────────── */
     :root {
@@ -670,14 +670,17 @@
       text-decoration: none;
       transition: background .15s;
     }
+
     .back-link:hover {
       background: #cde9f3;
       text-decoration: none;
     }
+
     .back-link .arrow {
       font-size: 16px;
       line-height: 1;
     }
+
     .mobile-back {
       display: none;
       padding: 10px 20px;
@@ -685,6 +688,7 @@
       border-bottom: 1px solid var(--border);
       font-size: 13.5px;
     }
+
     .mobile-back a {
       font-weight: 600;
       display: inline-flex;
@@ -700,6 +704,7 @@
       border: 1px solid var(--border);
       box-shadow: var(--shadow);
     }
+
     .screenshot-caption {
       display: flex;
       align-items: center;
@@ -711,6 +716,7 @@
       font-weight: 600;
       color: var(--primary-dark);
     }
+
     .screenshot-img {
       display: block;
       width: 100%;
@@ -719,7 +725,11 @@
       object-fit: contain;
       background: #fff;
     }
-    .screenshot-img.short { max-height: 280px; }
+
+    .screenshot-img.short {
+      max-height: 280px;
+    }
+
     .screenshot-missing {
       height: 180px;
       display: flex;
@@ -731,7 +741,12 @@
       color: var(--text-muted);
       font-size: 13px;
     }
-    .screenshot-missing .miss-icon { font-size: 32px; opacity: .35; }
+
+    .screenshot-missing .miss-icon {
+      font-size: 32px;
+      opacity: .35;
+    }
+
     .screenshot-missing code {
       font-size: 12px;
       background: var(--surface);
@@ -743,18 +758,42 @@
 
     /* ─── Print ──────────────────────────────────────────────────────────────── */
     @media print {
-      .sidebar { display: none; }
-      .mobile-back { display: none; }
-      .main { max-width: 100%; padding: 20px; }
-      .screenshot-missing { height: auto; min-height: 80px; }
-      .step-card { break-inside: avoid; }
+      .sidebar {
+        display: none;
+      }
+
+      .mobile-back {
+        display: none;
+      }
+
+      .main {
+        max-width: 100%;
+        padding: 20px;
+      }
+
+      .screenshot-missing {
+        height: auto;
+        min-height: 80px;
+      }
+
+      .step-card {
+        break-inside: avoid;
+      }
     }
 
     /* ─── Responsive ─────────────────────────────────────────────────────────── */
     @media (max-width: 800px) {
-      .sidebar { display: none; }
-      .mobile-back { display: block; }
-      .main { padding: 20px; }
+      .sidebar {
+        display: none;
+      }
+
+      .mobile-back {
+        display: block;
+      }
+
+      .main {
+        padding: 20px;
+      }
     }
   </style>
 </head>
@@ -769,7 +808,7 @@
         <div class="logo">
           <div class="logo-icon">🏠</div>
           <div>
-            <h2>Super Coloc</h2>
+            <h2>Super Loc</h2>
             <div class="subtitle">Manuel utilisateur</div>
           </div>
         </div>
@@ -833,7 +872,7 @@
       <div class="hero" id="intro">
         <div class="badge">📖 GUIDE PROPRIETAIRE</div>
         <h1>Enregistrer un immeuble</h1>
-        <p>Ce guide explique comment créer et configurer un nouvel immeuble dans Super Coloc : type de bien, adresse,
+        <p>Ce guide explique comment créer et configurer un nouvel immeuble dans Super Loc : type de bien, adresse,
           photos, type de bail et pièces communes.</p>
         <div class="meta">
           <span>⏱ ~5 minutes</span>
@@ -896,8 +935,8 @@
             <div class="screenshot-box">
               <div class="screenshot-caption">📸 Section « Mes Propriétés » avec le bouton + Nouveau</div>
               <img class="screenshot-img" src="screenshots/step1-mes-proprietes.png"
-                   alt="Section Mes Propriétés avec le bouton + Nouveau"
-                   onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
+                alt="Section Mes Propriétés avec le bouton + Nouveau"
+                onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
               <div class="screenshot-missing" style="display:none">
                 <div class="miss-icon">📷</div>
                 <div>Screenshot non encore généré</div>
@@ -949,8 +988,8 @@
             <div class="screenshot-box">
               <div class="screenshot-caption">📸 Menu déroulant « Type d'immeuble » avec les options disponibles</div>
               <img class="screenshot-img short" src="screenshots/step2-type-dropdown.png"
-                   alt="Menu déroulant Type d'immeuble ouvert"
-                   onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
+                alt="Menu déroulant Type d'immeuble ouvert"
+                onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
               <div class="screenshot-missing" style="display:none">
                 <div class="miss-icon">📷</div>
                 <div>Screenshot non encore généré</div>
@@ -1099,8 +1138,8 @@
             <div class="screenshot-box">
               <div class="screenshot-caption">📸 Champ adresse avec liste de suggestions déroulée</div>
               <img class="screenshot-img short" src="screenshots/step4-adresse-autocomplete.png"
-                   alt="Champ adresse avec suggestions"
-                   onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
+                alt="Champ adresse avec suggestions"
+                onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
               <div class="screenshot-missing" style="display:none">
                 <div class="miss-icon">📷</div>
                 <div>Screenshot non encore généré</div>
@@ -1200,9 +1239,8 @@
 
             <div class="screenshot-box">
               <div class="screenshot-caption">📸 Zone de téléchargement avec photos ajoutées</div>
-              <img class="screenshot-img" src="screenshots/step6-photos.png"
-                   alt="Zone de téléchargement de photos"
-                   onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
+              <img class="screenshot-img" src="screenshots/step6-photos.png" alt="Zone de téléchargement de photos"
+                onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
               <div class="screenshot-missing" style="display:none">
                 <div class="miss-icon">📷</div>
                 <div>Screenshot non encore généré</div>
@@ -1241,7 +1279,7 @@
                   <div>
                     <div style="font-weight:600;font-size:14px">Location</div>
                     <div style="font-size:12px;color:var(--text-muted);margin-top:2px">
-                      Un seul contrat pour toutes les chambres de l'immeuble.
+                      Un seul contrat pour toute l'immeuble. (Contrat de location classique)
                     </div>
                   </div>
                 </div>
@@ -1298,10 +1336,11 @@
             </div>
 
             <div class="screenshot-box">
-              <div class="screenshot-caption">📸 Section « Type de bail » avec « Location » cochée et le champ loyer</div>
+              <div class="screenshot-caption">📸 Section « Type de bail » avec « Location » cochée et le champ loyer
+              </div>
               <img class="screenshot-img short" src="screenshots/step7-bail-type.png"
-                   alt="Section Type de bail avec Location cochée"
-                   onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
+                alt="Section Type de bail avec Location cochée"
+                onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
               <div class="screenshot-missing" style="display:none">
                 <div class="miss-icon">📷</div>
                 <div>Screenshot non encore généré</div>
@@ -1383,10 +1422,10 @@
             </div>
 
             <div class="screenshot-box">
-              <div class="screenshot-caption">📸 Section « Parties communes » avec le sélecteur meublée et le bouton</div>
-              <img class="screenshot-img" src="screenshots/step8-pieces-communes.png"
-                   alt="Section Parties communes"
-                   onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
+              <div class="screenshot-caption">📸 Section « Parties communes » avec le sélecteur meublée et le bouton
+              </div>
+              <img class="screenshot-img" src="screenshots/step8-pieces-communes.png" alt="Section Parties communes"
+                onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
               <div class="screenshot-missing" style="display:none">
                 <div class="miss-icon">📷</div>
                 <div>Screenshot non encore généré</div>
@@ -1466,8 +1505,8 @@
             <div class="screenshot-box">
               <div class="screenshot-caption">📸 Message de confirmation « Immeuble créé avec succès »</div>
               <img class="screenshot-img short" src="screenshots/step9-confirmation.png"
-                   alt="Message de confirmation snackbar"
-                   onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
+                alt="Message de confirmation snackbar"
+                onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
               <div class="screenshot-missing" style="display:none">
                 <div class="miss-icon">📷</div>
                 <div>Screenshot non encore généré</div>
@@ -1548,7 +1587,7 @@
       <!-- Footer -->
       <div
         style="text-align:center;padding:32px 0;color:var(--text-muted);font-size:12px;border-top:1px solid var(--border)">
-        <strong>Super Coloc</strong> · Manuel utilisateur · Version 1.0 · Juin 2026
+        <strong>Super Loc</strong> · Manuel utilisateur · Version 1.0 · Juin 2026
       </div>
 
     </main>

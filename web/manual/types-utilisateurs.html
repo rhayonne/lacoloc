@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Manuel — Types d'utilisateurs · Super Loc</title>
+  <style>
+    :root {
+      --primary: #006685;
+      --primary-light: #e0f2f7;
+      --primary-dark: #004d63;
+      --surface: #ffffff;
+      --surface-low: #f5f5f5;
+      --border: #cfe0e7;
+      --text: #1a1a2e;
+      --text-muted: #5f6368;
+      --radius-md: 10px;
+      --radius-lg: 16px;
+      --shadow: 0 2px 8px rgba(0, 0, 0, .10);
+    }
+
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: var(--text);
+      background: var(--surface-low);
+      line-height: 1.55;
+    }
+
+    .hero {
+      background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+      color: #fff;
+      padding: 40px 24px;
+      text-align: center;
+    }
+
+    .hero h1 {
+      font-size: 1.9rem;
+      margin-bottom: 8px;
+    }
+
+    .hero p {
+      opacity: .9;
+      max-width: 640px;
+      margin: 0 auto;
+    }
+
+    .container {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    .back-link {
+      display: inline-block;
+      margin-bottom: 20px;
+      color: var(--primary);
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    .back-link:hover {
+      text-decoration: underline;
+    }
+
+    .note {
+      background: var(--primary-light);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 14px 16px;
+      margin-bottom: 24px;
+      color: var(--primary-dark);
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow);
+      padding: 20px;
+      margin-bottom: 18px;
+    }
+
+    .card-head {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 6px;
+    }
+
+    .card-head .icon {
+      font-size: 1.6rem;
+    }
+
+    .card-head h2 {
+      font-size: 1.25rem;
+      color: var(--primary-dark);
+    }
+
+    .card .resume {
+      color: var(--text-muted);
+      margin-bottom: 12px;
+    }
+
+    .card ul {
+      list-style: none;
+    }
+
+    .card li {
+      position: relative;
+      padding-left: 26px;
+      margin-bottom: 6px;
+    }
+
+    .card li::before {
+      content: "✓";
+      position: absolute;
+      left: 0;
+      color: var(--primary);
+      font-weight: 700;
+    }
+
+    footer {
+      text-align: center;
+      color: var(--text-muted);
+      padding: 24px;
+      font-size: .85rem;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="hero">
+    <h1>👥 Types d'utilisateurs</h1>
+    <p>Chaque compte a un rôle qui détermine ce qu'il peut faire sur Super Loc.
+      Un même e-mail ne peut appartenir qu'à un seul compte, quel que soit le type.</p>
+  </div>
+
+  <div class="container">
+    <a href="index.html" class="back-link">← Retour au menu principal</a>
+
+    <div class="note">
+      ℹ️ Le type d'un compte est défini par le Super Admin (ou l'admin d'entreprise
+      pour ses membres). Seul un compte <strong>Locataire</strong> peut être associé
+      à un état des lieux.
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <span class="icon">🧑</span>
+        <h2>Locataire</h2>
+      </div>
+      <p class="resume">Personne qui loue une chambre ou un logement. Le compte est
+        créé par invitation du propriétaire (e-mail d'activation).</p>
+      <ul>
+        <li>Parcourir les chambres disponibles et demander un contact</li>
+        <li>Consulter ses propres états des lieux (entrée / sortie)</li>
+        <li>Ajouter ses observations sur l'EDL avant la finalisation</li>
+        <li>Accepter et signer l'état des lieux</li>
+        <li>Ajouter une « addition » pendant la fenêtre après finalisation</li>
+        <li>Gérer son profil</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <span class="icon">🏠</span>
+        <h2>Propriétaire</h2>
+      </div>
+      <p class="resume">Propriétaire indépendant : gère ses propres immeubles,
+        chambres, baux et finances.</p>
+      <ul>
+        <li>Gérer immeubles, chambres, pièces et inventaire</li>
+        <li>Créer et finaliser les états des lieux (entrée / sortie)</li>
+        <li>Inviter des locataires</li>
+        <li>Gérer factures, fournisseurs et agenda de visites</li>
+        <li>Suivre les demandes de contact et les notifications</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <span class="icon">🏢</span>
+        <h2>Propriétaire entreprise</h2>
+      </div>
+      <p class="resume">Propriétaire rattaché à une entreprise (sous un admin
+        d'entreprise). Mêmes outils qu'un propriétaire, mais dans le périmètre de
+        l'entreprise et selon ses permissions.</p>
+      <ul>
+        <li>Gérer les biens et baux de l'entreprise selon ses permissions</li>
+        <li>Créer et finaliser les états des lieux</li>
+        <li>Inviter des locataires</li>
+        <li>Ne gère pas les comptes de l'entreprise (réservé à l'admin entreprise)</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <span class="icon">🪪</span>
+        <h2>Admin entreprise</h2>
+      </div>
+      <p class="resume">Administrateur d'une entreprise : pilote les comptes et les
+        biens de son entreprise.</p>
+      <ul>
+        <li>Gérer les comptes (propriétaires) de son entreprise et leurs permissions</li>
+        <li>Accéder à la gestion immobilière et aux EDL de l'entreprise</li>
+        <li>Configurer l'entreprise</li>
+        <li>Activer / désactiver les comptes de son périmètre</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <span class="icon">🛡️</span>
+        <h2>Super Admin</h2>
+      </div>
+      <p class="resume">Administrateur de la plateforme, accès total. Gère les
+        utilisateurs, les permissions et les tables de référence.</p>
+      <ul>
+        <li>Gérer tous les utilisateurs (type, activation, permissions, mot de passe)</li>
+        <li>Gérer les entreprises et les tables de référence (paiements, meubles…)</li>
+        <li>Accéder à la maintenance (journaux de connexion, tests d'e-mail)</li>
+      </ul>
+    </div>
+  </div>
+
+  <footer>Super Loc — Manuel utilisateur</footer>
+</body>
+
+</html>

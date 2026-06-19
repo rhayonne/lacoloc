@@ -125,19 +125,21 @@ class FormHeaderActions extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        FilledButton.icon(
-          onPressed: isSaving ? null : onSave,
-          style: AppTheme.saveButtonStyle,
-          icon: isSaving
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.save_outlined, size: 18),
-          label: Text(saveLabel),
-        ),
-        const SizedBox(width: AppSpacing.sm),
+        if (onSave != null) ...[
+          FilledButton.icon(
+            onPressed: isSaving ? null : onSave,
+            style: AppTheme.saveButtonStyle,
+            icon: isSaving
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.save_outlined, size: 18),
+            label: Text(saveLabel),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+        ],
         OutlinedButton.icon(
           onPressed: isSaving ? null : onClose,
           style: AppTheme.cancelButtonStyle,

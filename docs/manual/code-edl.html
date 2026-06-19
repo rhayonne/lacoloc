@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Manuel — Code de référence d'un état des lieux · Super Loc</title>
+  <style>
+    :root {
+      --primary: #006685;
+      --primary-light: #e0f2f7;
+      --primary-dark: #004d63;
+      --surface: #ffffff;
+      --surface-low: #f5f5f5;
+      --surface-var: #ecf4f7;
+      --border: #cfe0e7;
+      --text: #1a1a2e;
+      --text-muted: #5f6368;
+      --radius-md: 10px;
+      --radius-lg: 16px;
+      --shadow: 0 2px 8px rgba(0, 0, 0, .10);
+    }
+
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: var(--text);
+      background: var(--surface-low);
+      line-height: 1.55;
+    }
+
+    .hero {
+      background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+      color: #fff;
+      padding: 40px 24px;
+      text-align: center;
+    }
+
+    .hero h1 {
+      font-size: 1.8rem;
+      margin-bottom: 8px;
+    }
+
+    .hero p {
+      opacity: .9;
+      max-width: 640px;
+      margin: 0 auto;
+    }
+
+    .container {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    .back-link {
+      display: inline-block;
+      margin-bottom: 20px;
+      color: var(--primary);
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    .back-link:hover {
+      text-decoration: underline;
+    }
+
+    h2 {
+      color: var(--primary-dark);
+      font-size: 1.3rem;
+      margin: 28px 0 12px;
+    }
+
+    p.lead {
+      margin-bottom: 12px;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow);
+      padding: 20px;
+      margin-bottom: 18px;
+    }
+
+    .mono {
+      font-family: 'SF Mono', 'Roboto Mono', Menlo, Consolas, monospace;
+    }
+
+    /* Anatomie du code */
+    .code-anatomy {
+      text-align: center;
+      padding: 8px 0 4px;
+    }
+
+    .code-big {
+      font-size: 1.5rem;
+      font-weight: 700;
+      letter-spacing: 1px;
+      color: var(--primary-dark);
+      display: inline-flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .seg {
+      padding: 4px 8px;
+      border-radius: 8px;
+      background: var(--surface-var);
+      border: 1px solid var(--border);
+    }
+
+    .seg.c1 { background: #e3f2fd; }
+    .seg.c2 { background: #e8f5e9; }
+    .seg.c3 { background: #fff3e0; }
+    .seg.c4 { background: #f3e5f5; }
+    .seg.c5 { background: #fce4ec; }
+    .seg.c6 { background: #eceff1; }
+
+    .legend {
+      list-style: none;
+      margin-top: 16px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 8px;
+      text-align: left;
+    }
+
+    .legend li {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      font-size: .92rem;
+    }
+
+    .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 3px;
+      flex: 0 0 auto;
+      border: 1px solid var(--border);
+    }
+
+    .dot.c1 { background: #e3f2fd; }
+    .dot.c2 { background: #e8f5e9; }
+    .dot.c3 { background: #fff3e0; }
+    .dot.c4 { background: #f3e5f5; }
+    .dot.c5 { background: #fce4ec; }
+    .dot.c6 { background: #eceff1; }
+
+    .figure {
+      margin: 12px 0;
+    }
+
+    .figure .cap {
+      font-size: .82rem;
+      color: var(--text-muted);
+      margin-top: 6px;
+      text-align: center;
+    }
+
+    /* Mockup ligne de tableau */
+    .mock-table {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      background: var(--surface);
+    }
+
+    .mock-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .mock-row:last-child { border-bottom: 0; }
+
+    .mock-row .avatar {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      background: var(--primary-light);
+      color: var(--primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      flex: 0 0 auto;
+    }
+
+    .mock-row .title {
+      font-weight: 600;
+    }
+
+    .mock-row .sub {
+      font-size: .82rem;
+      color: var(--text-muted);
+    }
+
+    .mock-row .code-badge {
+      font-size: .8rem;
+      color: var(--text-muted);
+      letter-spacing: .5px;
+    }
+
+    .mock-search {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 8px 14px;
+      color: var(--text-muted);
+      background: var(--surface);
+      max-width: 360px;
+      margin-bottom: 10px;
+    }
+
+    /* Mockup en-tête PDF */
+    .mock-pdf {
+      background: var(--primary);
+      color: #fff;
+      border-radius: var(--radius-md);
+      padding: 14px 16px;
+    }
+
+    .mock-pdf .big { font-size: 1.1rem; font-weight: 700; }
+    .mock-pdf .light { color: var(--primary-light); font-size: .85rem; }
+    .mock-pdf .ref { font-weight: 700; letter-spacing: .5px; margin-top: 6px; }
+
+    .note {
+      background: var(--primary-light);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 14px 16px;
+      margin: 16px 0;
+      color: var(--primary-dark);
+    }
+  </style>
+</head>
+
+<body>
+  <div class="hero">
+    <h1>🔖 Code de référence d'un état des lieux</h1>
+    <p>Chaque état des lieux possède un code unique qui permet de le retrouver
+      facilement, côté locataire comme côté propriétaire.</p>
+  </div>
+
+  <div class="container">
+    <a href="index.html" class="back-link">← Retour au menu principal</a>
+
+    <h2>À quoi ça sert ?</h2>
+    <p class="lead">Le code est généré automatiquement à la création de l'état des
+      lieux. Il est <strong>unique</strong>, affiché sur les fiches, dans les
+      tableaux et sur le PDF, et il est <strong>recherchable</strong> : il suffit
+      de le taper dans la barre de recherche pour retrouver l'EDL.</p>
+
+    <h2>Comment lire le code</h2>
+    <div class="card">
+      <div class="code-anatomy">
+        <div class="code-big mono">
+          <span class="seg c1">EDL</span>
+          <span class="seg c2">E</span>
+          <span class="seg c3">CAEN</span>
+          <span class="seg c4">NL</span>
+          <span class="seg c5">260605</span>
+          <span class="seg c6">7F3K</span>
+        </div>
+        <ul class="legend">
+          <li><span class="dot c1"></span><span><strong>EDL</strong> — préfixe fixe</span></li>
+          <li><span class="dot c2"></span><span><strong>E / S</strong> — Entrée ou Sortie</span></li>
+          <li><span class="dot c3"></span><span><strong>CAEN</strong> — l'immeuble (ville/nom)</span></li>
+          <li><span class="dot c4"></span><span><strong>NL</strong> — initiales du locataire</span></li>
+          <li><span class="dot c5"></span><span><strong>260605</strong> — date de l'EDL (AAMMJJ)</span></li>
+          <li><span class="dot c6"></span><span><strong>7F3K</strong> — partie aléatoire (unicité)</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="note">
+      ℹ️ Sans locataire nominatif (bail location), les initiales sont remplacées
+      par <span class="mono">LOC</span>. Le code reste unique grâce à la partie
+      aléatoire finale.
+    </div>
+
+    <h2>Où le trouver</h2>
+
+    <p class="lead">Dans le tableau des états des lieux (locataire et propriétaire),
+      le code apparaît sous le nom de l'immeuble / de la chambre :</p>
+    <div class="figure">
+      <div class="mock-table">
+        <div class="mock-row">
+          <div class="avatar">NL</div>
+          <div>
+            <div class="title">Maison Test inventaire</div>
+            <div class="sub">Chambre 2 Test · Individuel</div>
+            <div class="code-badge mono">EDL-E-LAVA-NL-260605-HFHE</div>
+          </div>
+        </div>
+      </div>
+      <div class="cap">Illustration — ligne du tableau avec le code de référence</div>
+    </div>
+
+    <p class="lead">Pour le retrouver, tapez le code (ou un extrait) dans la barre
+      de recherche des états des lieux :</p>
+    <div class="figure">
+      <div class="mock-search mono">🔍 EDL-E-LAVA-NL…</div>
+      <div class="cap">Illustration — recherche par code</div>
+    </div>
+
+    <p class="lead">Sur le document PDF, le code est rappelé dans l'en-tête
+      (« Réf. ») :</p>
+    <div class="figure">
+      <div class="mock-pdf">
+        <div class="big">ÉTAT DES LIEUX — ENTRÉE</div>
+        <div class="light">Maison Test inventaire — Chambre 2 Test</div>
+        <div class="ref mono">Réf. : EDL-E-LAVA-NL-260605-HFHE</div>
+      </div>
+      <div class="cap">Illustration — en-tête du PDF avec la référence</div>
+    </div>
+
+    <div class="note">
+      📸 Les visuels ci-dessus sont des illustrations. Pour des captures d'écran
+      réelles, déposez-les dans <span class="mono">manual/screenshots/</span>
+      (ex. <span class="mono">edl-code-liste.png</span>,
+      <span class="mono">edl-code-pdf.png</span>) — elles pourront remplacer les
+      maquettes.
+    </div>
+  </div>
+
+  <footer style="text-align:center;color:#5f6368;padding:24px;font-size:.85rem;">
+    Super Loc — Manuel utilisateur
+  </footer>
+</body>
+
+</html>

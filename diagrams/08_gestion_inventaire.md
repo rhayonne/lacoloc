@@ -1,4 +1,4 @@
-# Gestion Immobilière & Inventaire — La Coloc
+# Gestion Immobilière & Inventaire — Super Loc
 
 A seção **Gestion Immobilière** (índice 1 do dashboard do propriétaire) é um `TabBar`
 com 4 abas. O imóvel (`Immeuble`) é o container; o quarto (`Chambre`) é o produto

@@ -18,13 +18,15 @@ class InventaireDatasource {
   static final _cache = DataCache.instance;
   static void _invalidate() => _cache.invalidatePrefix(CacheKeys.inventaire);
 
-  static Future<List<MeubleReferenceModel>> listMeubleReferences() async {
-    final rows = await _db
-        .from(_refTable)
-        .select()
-        .order('categorie')
-        .order('nom');
-    return rows.map(MeubleReferenceModel.fromMap).toList();
+  static Future<List<MeubleReferenceModel>> listMeubleReferences() {
+    return _cache.get('${CacheKeys.inventaire}meuble_refs', () async {
+      final rows = await _db
+          .from(_refTable)
+          .select()
+          .order('categorie')
+          .order('nom');
+      return rows.map(MeubleReferenceModel.fromMap).toList();
+    }, ttl: const Duration(minutes: 30));
   }
 
   static Future<List<InventaireModel>> listByImmeuble(
@@ -106,6 +108,7 @@ class InventaireDatasource {
         })
         .select()
         .single();
+    _invalidate();
     return MeubleReferenceModel.fromMap(row);
   }
 
@@ -123,10 +126,12 @@ class InventaireDatasource {
         .eq('id', id)
         .select()
         .single();
+    _invalidate();
     return MeubleReferenceModel.fromMap(row);
   }
 
   static Future<void> deleteRef(int id) async {
     await _db.from(_refTable).delete().eq('id', id);
+    _invalidate();
   }
 }

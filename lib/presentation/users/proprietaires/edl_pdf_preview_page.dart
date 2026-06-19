@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:printing/printing.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
+import 'package:lacoloc_front/theme/app_spacing.dart';
 import 'edl_pdf_data.dart';
 import 'edl_pdf_builder.dart';
 
@@ -10,17 +11,21 @@ import 'edl_pdf_builder.dart';
 // Point d'entrée public — ouvre la page de prévisualisation PDF.
 
 /// Ouvre la prévisualisation pour un EDL **individuel** (collectif + privatif).
-Future<void> openEdlIndividuelPdfPreview({
+/// Si [enableSign] est vrai, un bouton « Signer » est affiché et la page renvoie
+/// `true` quand l'utilisateur le presse (pour enchaîner l'acceptation).
+Future<bool?> openEdlIndividuelPdfPreview({
   required BuildContext context,
   required int collectifId,
   required int privatifId,
+  bool enableSign = false,
 }) {
-  return Navigator.push<void>(
+  return Navigator.push<bool>(
     context,
     MaterialPageRoute(
       builder: (_) => EdlPdfPreviewPage.individuel(
         collectifId: collectifId,
         privatifId: privatifId,
+        enableSign: enableSign,
       ),
       fullscreenDialog: true,
     ),
@@ -28,14 +33,15 @@ Future<void> openEdlIndividuelPdfPreview({
 }
 
 /// Ouvre la prévisualisation pour un EDL **collectif** (parties communes).
-Future<void> openEdlCollectifPdfPreview({
+Future<bool?> openEdlCollectifPdfPreview({
   required BuildContext context,
   required int edlId,
+  bool enableSign = false,
 }) {
-  return Navigator.push<void>(
+  return Navigator.push<bool>(
     context,
     MaterialPageRoute(
-      builder: (_) => EdlPdfPreviewPage.collectif(edlId: edlId),
+      builder: (_) => EdlPdfPreviewPage.collectif(edlId: edlId, enableSign: enableSign),
       fullscreenDialog: true,
     ),
   );
@@ -47,15 +53,20 @@ class EdlPdfPreviewPage extends StatefulWidget {
   final int? collectifId;
   final int? privatifId;
 
+  /// Affiche un bouton « Signer » en bas ; la page se ferme en renvoyant `true`.
+  final bool enableSign;
+
   const EdlPdfPreviewPage.individuel({
     super.key,
     required int this.collectifId,
     required int this.privatifId,
+    this.enableSign = false,
   });
 
   const EdlPdfPreviewPage.collectif({
     super.key,
     required int edlId,
+    this.enableSign = false,
   })  : collectifId = edlId,
         privatifId = null;
 
@@ -66,9 +77,7 @@ class EdlPdfPreviewPage extends StatefulWidget {
 class _EdlPdfPreviewPageState extends State<EdlPdfPreviewPage> {
   late final Future<EdlPdfData> _futurePdfData;
   static final _dateFmt = DateFormat('dd/MM/yyyy');
-  // Mode d'impression d'un sortie : seul ou en contrepoint avec l'entrée.
   EdlPdfMode _mode = EdlPdfMode.sortieSeul;
-  // Portée (bail individuel) : complet / parties communes / chambre.
   EdlPdfScope _scope = EdlPdfScope.complet;
 
   @override
@@ -78,183 +87,14 @@ class _EdlPdfPreviewPageState extends State<EdlPdfPreviewPage> {
   }
 
   Future<EdlPdfData> _loadData() {
-    final isIndividuel = widget.privatifId != null;
-    if (isIndividuel) {
+    if (widget.privatifId != null) {
       return EdlPdfData.loadIndividuel(
         collectifId: widget.collectifId!,
         privatifId: widget.privatifId!,
       );
     }
-    return EdlPdfData.loadCollectif(
-      widget.collectifId!,
-    );
+    return EdlPdfData.loadCollectif(widget.collectifId!);
   }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
-      appBar: AppBar(
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
-        // Force la couleur des icônes (fermer/imprimer/télécharger) au blanc du
-        // titre — sinon un IconButtonTheme global les rendrait noires.
-        iconTheme: const IconThemeData(color: Colors.white),
-        actionsIconTheme: const IconThemeData(color: Colors.white),
-        title: FutureBuilder<EdlPdfData>(
-          future: _futurePdfData,
-          builder: (ctx, snap) => Text(
-            snap.hasData
-                ? 'Document — ${snap.data!.edl.sensLabel} · ${snap.data!.edl.lieuLabel}'
-                : 'Document — État des lieux',
-            style: const TextStyle(fontSize: 15, color: Colors.white),
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-        actions: [
-          FutureBuilder<EdlPdfData>(
-            future: _futurePdfData,
-            builder: (ctx, snap) {
-              if (!snap.hasData) return const SizedBox.shrink();
-              return Padding(
-                padding: const EdgeInsets.only(right: 16),
-                child: Row(
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.print),
-                      color: Colors.white,
-                      tooltip: 'Imprimer',
-                      onPressed: () => _printPdf(snap.data!),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.download),
-                      color: Colors.white,
-                      tooltip: 'Télécharger PDF',
-                      onPressed: () => _downloadPdf(snap.data!),
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
-        ],
-      ),
-      body: FutureBuilder<EdlPdfData>(
-        future: _futurePdfData,
-        builder: (ctx, snap) {
-          if (snap.hasError) {
-            return Center(
-              child: Text(
-                'Erreur : ${snap.error}',
-                style: const TextStyle(color: Colors.red),
-              ),
-            );
-          }
-          if (!snap.hasData) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          final data = snap.data!;
-          return Column(
-            children: [
-              if (!data.isFinalise) _warningBanner(),
-              if (data.hasEntree) _modeToggle(),
-              if (data.isIndividuel) _scopeToggle(),
-              Expanded(
-                child: _PdfPreviewWidget(
-                  // Clé sur (mode, portée) → régénère l'aperçu au changement.
-                  key: ValueKey('${_mode}_$_scope'),
-                  data: data,
-                  mode: _mode,
-                  scope: _scope,
-                ),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _warningBanner() => Container(
-    width: double.infinity,
-    color: const Color(0xFFFEF3C7),
-    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-    child: Row(
-      children: [
-        const Icon(Icons.warning_amber_rounded, color: Color(0xFFF59E0B)),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            'Cet EDL n\'est pas encore finalisé. Le PDF contiendra le filigrane « PRÉVIA · NON FINALISÉ ».',
-            style: const TextStyle(fontSize: 13, color: Color(0xFF92400E)),
-          ),
-        ),
-      ],
-    ),
-  );
-
-  /// Sélecteur « Sortie seul / Sortie + entrée » (uniquement pour un sortie
-  /// avec entrée couplée).
-  Widget _modeToggle() => Container(
-        width: double.infinity,
-        color: AppColors.surfaceContainerHigh,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: Row(
-          children: [
-            const Icon(Icons.compare_arrows, size: 18),
-            const SizedBox(width: 8),
-            const Text('Impression :', style: TextStyle(fontSize: 13)),
-            const SizedBox(width: 12),
-            SegmentedButton<EdlPdfMode>(
-              segments: const [
-                ButtonSegment(
-                  value: EdlPdfMode.sortieSeul,
-                  label: Text('Sortie seul'),
-                ),
-                ButtonSegment(
-                  value: EdlPdfMode.contrepoint,
-                  label: Text('Sortie + entrée'),
-                ),
-              ],
-              selected: {_mode},
-              onSelectionChanged: (s) => setState(() => _mode = s.first),
-            ),
-          ],
-        ),
-      );
-
-  /// Sélecteur de portée (bail individuel) : tout / parties communes / chambre.
-  Widget _scopeToggle() => Container(
-        width: double.infinity,
-        color: AppColors.surfaceContainerHigh,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: Row(
-          children: [
-            const Icon(Icons.layers_outlined, size: 18),
-            const SizedBox(width: 8),
-            const Text('Portée :', style: TextStyle(fontSize: 13)),
-            const SizedBox(width: 12),
-            SegmentedButton<EdlPdfScope>(
-              segments: const [
-                ButtonSegment(
-                  value: EdlPdfScope.complet,
-                  label: Text('Complet'),
-                ),
-                ButtonSegment(
-                  value: EdlPdfScope.communes,
-                  label: Text('Parties communes'),
-                ),
-                ButtonSegment(
-                  value: EdlPdfScope.chambre,
-                  label: Text('Chambre'),
-                ),
-              ],
-              selected: {_scope},
-              onSelectionChanged: (s) => setState(() => _scope = s.first),
-            ),
-          ],
-        ),
-      );
 
   Future<void> _printPdf(EdlPdfData data) async {
     final doc = await buildEdlPdf(data, mode: _mode, scope: _scope);
@@ -278,41 +118,224 @@ class _EdlPdfPreviewPageState extends State<EdlPdfPreviewPage> {
     final sens = edl.typeEdl == 'sortie' ? 'sortie' : 'entree';
     return 'EDL_${sens}_$date';
   }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Widget de prévisualisation native (PdfPreview du package printing)
-
-class _PdfPreviewWidget extends StatelessWidget {
-  final EdlPdfData data;
-  final EdlPdfMode mode;
-  final EdlPdfScope scope;
-
-  const _PdfPreviewWidget({
-    super.key,
-    required this.data,
-    required this.mode,
-    required this.scope,
-  });
 
   @override
   Widget build(BuildContext context) {
-    return PdfPreview(
-      build: (_) async {
-        final doc = await buildEdlPdf(data, mode: mode, scope: scope);
-        return doc.save();
-      },
-      canChangePageFormat: false,
-      canDebug: false,
-      pdfFileName: 'etat_des_lieux.pdf',
-      loadingWidget: const Center(child: CircularProgressIndicator()),
-      initialPageFormat: PdfPageFormat.a4,
+    return Scaffold(
+      appBar: AppBar(
+        title: FutureBuilder<EdlPdfData>(
+          future: _futurePdfData,
+          builder: (_, snap) => Text(
+            snap.hasData
+                ? 'Document — ${snap.data!.edl.sensLabel} · ${snap.data!.edl.lieuLabel}'
+                : 'Document — État des lieux',
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ),
+      body: FutureBuilder<EdlPdfData>(
+        future: _futurePdfData,
+        builder: (ctx, snap) {
+          if (snap.hasError) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(AppSpacing.xl),
+                child: Text(
+                  'Erreur : ${snap.error}',
+                  style: const TextStyle(color: Colors.red),
+                ),
+              ),
+            );
+          }
+          if (!snap.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          final data = snap.data!;
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // ── Barre de boutons + options ─────────────────────────────────
+              _EdlActionBar(
+                onPrint: () => _printPdf(data),
+                onDownload: () => _downloadPdf(data),
+                hasEntree: data.hasEntree,
+                isIndividuel: data.isIndividuel,
+                mode: _mode,
+                scope: _scope,
+                onModeChanged: (m) => setState(() => _mode = m),
+                onScopeChanged: (s) => setState(() => _scope = s),
+              ),
+              // ── Bandeau « non finalisé » ───────────────────────────────────
+              if (!data.isFinalise) _WarningBanner(),
+              // ── Prévisualisation PDF ───────────────────────────────────────
+              Expanded(
+                child: PdfPreview(
+                  key: ValueKey('${_mode}_$_scope'),
+                  build: (_) async {
+                    final doc = await buildEdlPdf(data, mode: _mode, scope: _scope);
+                    return doc.save();
+                  },
+                  allowPrinting: false,
+                  allowSharing: false,
+                  canChangePageFormat: false,
+                  canDebug: false,
+                  pdfFileName: '${_pdfName(data)}.pdf',
+                  loadingWidget: const Center(child: CircularProgressIndicator()),
+                  initialPageFormat: PdfPageFormat.a4,
+                  previewPageMargin: const EdgeInsets.all(AppSpacing.md),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+      // Bouton de signature en pied de page (locataire → accepter et signer).
+      bottomNavigationBar: widget.enableSign
+          ? SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(AppSpacing.md),
+                child: FutureBuilder<EdlPdfData>(
+                  future: _futurePdfData,
+                  builder: (_, snap) => SizedBox(
+                    height: 48,
+                    child: FilledButton.icon(
+                      onPressed: snap.hasData
+                          ? () => Navigator.of(context).pop(true)
+                          : null,
+                      icon: const Icon(Icons.draw_outlined),
+                      label: const Text('Signer et accepter'),
+                    ),
+                  ),
+                ),
+              ),
+            )
+          : null,
     );
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Widget de résumé des données (affiché avant/sous la prévisualisation)
+
+/// Barre d'actions : Imprimer · Télécharger + toggles mode/portée.
+class _EdlActionBar extends StatelessWidget {
+  final VoidCallback onPrint;
+  final VoidCallback onDownload;
+  final bool hasEntree;
+  final bool isIndividuel;
+  final EdlPdfMode mode;
+  final EdlPdfScope scope;
+  final ValueChanged<EdlPdfMode> onModeChanged;
+  final ValueChanged<EdlPdfScope> onScopeChanged;
+
+  const _EdlActionBar({
+    required this.onPrint,
+    required this.onDownload,
+    required this.hasEntree,
+    required this.isIndividuel,
+    required this.mode,
+    required this.scope,
+    required this.onModeChanged,
+    required this.onScopeChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final hasToggles = hasEntree || isIndividuel;
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerLowest,
+        border: Border(
+          bottom: BorderSide(color: Theme.of(context).dividerColor),
+        ),
+      ),
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.lg, vertical: AppSpacing.sm),
+      child: Wrap(
+        spacing: AppSpacing.sm,
+        runSpacing: AppSpacing.xs,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          OutlinedButton.icon(
+            onPressed: onPrint,
+            icon: const Icon(Icons.print_outlined, size: 18),
+            label: const Text('Imprimer'),
+          ),
+          OutlinedButton.icon(
+            onPressed: onDownload,
+            icon: const Icon(Icons.download_outlined, size: 18),
+            label: const Text('Télécharger'),
+          ),
+          if (hasToggles) ...[
+            Container(width: 1, height: 28, color: AppColors.outlineVariant),
+            if (hasEntree)
+              SegmentedButton<EdlPdfMode>(
+                segments: const [
+                  ButtonSegment(
+                      value: EdlPdfMode.sortieSeul, label: Text('Sortie seul')),
+                  ButtonSegment(
+                      value: EdlPdfMode.contrepoint,
+                      label: Text('Sortie + entrée')),
+                ],
+                selected: {mode},
+                onSelectionChanged: (s) => onModeChanged(s.first),
+                style: const ButtonStyle(
+                  visualDensity: VisualDensity.compact,
+                ),
+              ),
+            if (isIndividuel)
+              SegmentedButton<EdlPdfScope>(
+                segments: const [
+                  ButtonSegment(
+                      value: EdlPdfScope.complet, label: Text('Complet')),
+                  ButtonSegment(
+                      value: EdlPdfScope.communes,
+                      label: Text('Parties communes')),
+                  ButtonSegment(
+                      value: EdlPdfScope.chambre, label: Text('Chambre')),
+                ],
+                selected: {scope},
+                onSelectionChanged: (s) => onScopeChanged(s.first),
+                style: const ButtonStyle(
+                  visualDensity: VisualDensity.compact,
+                ),
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _WarningBanner extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      color: const Color(0xFFFEF3C7),
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.lg, vertical: AppSpacing.sm),
+      child: const Row(
+        children: [
+          Icon(Icons.warning_amber_rounded, color: Color(0xFFF59E0B)),
+          SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Text(
+              "Cet EDL n'est pas encore finalisé. Le PDF contiendra le filigrane « APERÇU · NON FINALISÉ ».",
+              style: TextStyle(fontSize: 13, color: Color(0xFF92400E)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Widget de résumé des données (utilisé ponctuellement en débogage / affichage)
 
 class EdlDataSummaryCard extends StatelessWidget {
   final EdlPdfData data;
@@ -345,7 +368,7 @@ class EdlDataSummaryCard extends StatelessWidget {
             _row('Relevés', data.releves.length.toString()),
             if (data.cles.isNotEmpty) _row('Clés', data.cles.length.toString()),
             if (data.additions.isNotEmpty)
-              _row('Additions', data.additions.length.toString()),
+              _row('Avenants', data.additions.length.toString()),
           ],
         ),
       ),
@@ -353,25 +376,25 @@ class EdlDataSummaryCard extends StatelessWidget {
   }
 
   Widget _row(String label, String value) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 3),
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 120,
-          child: Text(
-            label,
-            style: const TextStyle(
-              fontSize: 12,
-              color: Colors.grey,
-              fontWeight: FontWeight.w500,
+        padding: const EdgeInsets.symmetric(vertical: 3),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: 120,
+              child: Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
             ),
-          ),
+            Expanded(
+              child: Text(value, style: const TextStyle(fontSize: 12)),
+            ),
+          ],
         ),
-        Expanded(
-          child: Text(value, style: const TextStyle(fontSize: 12)),
-        ),
-      ],
-    ),
-  );
+      );
 }

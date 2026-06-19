@@ -9,11 +9,12 @@ class EdlDetailsDatasource {
   EdlDetailsDatasource._();
 
   static final _db = Supabase.instance.client;
+  static final _cache = DataCache.instance;
 
-  /// Les preneurs influencent `listByPreneur` / `listForLocataire` (cachés) :
-  /// on invalide le cache EDL après un write de preneur.
+  /// Invalide tout le cache EDL (prefixe `edl:`). Appelé après chaque write
+  /// qui modifie une table fille (preneur, relevé, clé, section, ligne).
   static void _invalidateEdl() =>
-      DataCache.instance.invalidatePrefix(CacheKeys.edl);
+      _cache.invalidatePrefix(CacheKeys.edl);
 
   static const _preneurs = 'etat_de_lieux_preneurs';
   static const _releves = 'etat_de_lieux_releves';
@@ -22,13 +23,15 @@ class EdlDetailsDatasource {
   static const _lignes = 'etat_de_lieux_lignes';
 
   // ── Preneurs ───────────────────────────────────────────────────────────────
-  static Future<List<EdlPreneur>> listPreneurs(int edlId) async {
-    final rows = await _db
-        .from(_preneurs)
-        .select('*, locataire:Users_Client!locataire_id(email)')
-        .eq('etat_de_lieux_id', edlId)
-        .order('ordre');
-    return rows.map(EdlPreneur.fromMap).toList();
+  static Future<List<EdlPreneur>> listPreneurs(int edlId) {
+    return _cache.get('${CacheKeys.edl}preneurs:$edlId', () async {
+      final rows = await _db
+          .from(_preneurs)
+          .select('*, locataire:Users_Client!locataire_id(email)')
+          .eq('etat_de_lieux_id', edlId)
+          .order('ordre');
+      return rows.map(EdlPreneur.fromMap).toList();
+    });
   }
 
   static Future<EdlPreneur> createPreneur(EdlPreneur p) async {
@@ -63,88 +66,105 @@ class EdlDetailsDatasource {
   }
 
   // ── Relevés (compteurs / chauffage / eau chaude) ─────────────────────────────
-  static Future<List<EdlReleve>> listReleves(int edlId) async {
-    final rows = await _db
-        .from(_releves)
-        .select()
-        .eq('etat_de_lieux_id', edlId)
-        .order('categorie')
-        .order('ordre');
-    return rows.map(EdlReleve.fromMap).toList();
+  static Future<List<EdlReleve>> listReleves(int edlId) {
+    return _cache.get('${CacheKeys.edl}releves:$edlId', () async {
+      final rows = await _db
+          .from(_releves)
+          .select()
+          .eq('etat_de_lieux_id', edlId)
+          .order('categorie')
+          .order('ordre');
+      return rows.map(EdlReleve.fromMap).toList();
+    });
   }
 
   static Future<EdlReleve> createReleve(EdlReleve r) async {
     final row = await _db.from(_releves).insert(r.toInsert()).select().single();
+    _invalidateEdl();
     return EdlReleve.fromMap(row);
   }
 
   static Future<void> updateReleve(int id, EdlReleve r) async {
     await _db.from(_releves).update(r.toInsert()).eq('id', id);
+    _invalidateEdl();
   }
 
   static Future<void> deleteReleve(int id) async {
     await _db.from(_releves).delete().eq('id', id);
+    _invalidateEdl();
   }
 
   // ── Clés ─────────────────────────────────────────────────────────────────────
-  static Future<List<EdlCle>> listCles(int edlId) async {
-    final rows = await _db
-        .from(_cles)
-        .select()
-        .eq('etat_de_lieux_id', edlId)
-        .order('ordre');
-    return rows.map(EdlCle.fromMap).toList();
+  static Future<List<EdlCle>> listCles(int edlId) {
+    return _cache.get('${CacheKeys.edl}cles:$edlId', () async {
+      final rows = await _db
+          .from(_cles)
+          .select()
+          .eq('etat_de_lieux_id', edlId)
+          .order('ordre');
+      return rows.map(EdlCle.fromMap).toList();
+    });
   }
 
   static Future<EdlCle> createCle(EdlCle c) async {
     final row = await _db.from(_cles).insert(c.toInsert()).select().single();
+    _invalidateEdl();
     return EdlCle.fromMap(row);
   }
 
   static Future<void> updateCle(int id, EdlCle c) async {
     await _db.from(_cles).update(c.toInsert()).eq('id', id);
+    _invalidateEdl();
   }
 
   static Future<void> deleteCle(int id) async {
     await _db.from(_cles).delete().eq('id', id);
+    _invalidateEdl();
   }
 
   // ── Sections + lignes ────────────────────────────────────────────────────────
   /// Carrega as sections de um EDL já com as `lignes` embarcadas (ordenadas).
-  static Future<List<EdlSection>> listSections(int edlId) async {
-    final rows = await _db
-        .from(_sections)
-        .select('*, etat_de_lieux_lignes(*)')
-        .eq('etat_de_lieux_id', edlId)
-        .order('ordre');
-    final sections = rows.map(EdlSection.fromMap).toList();
-    return sections;
+  static Future<List<EdlSection>> listSections(int edlId) {
+    return _cache.get('${CacheKeys.edl}sections:$edlId', () async {
+      final rows = await _db
+          .from(_sections)
+          .select('*, etat_de_lieux_lignes(*)')
+          .eq('etat_de_lieux_id', edlId)
+          .order('ordre');
+      return rows.map(EdlSection.fromMap).toList();
+    });
   }
 
   static Future<EdlSection> createSection(EdlSection s) async {
     final row = await _db.from(_sections).insert(s.toInsert()).select().single();
+    _invalidateEdl();
     return EdlSection.fromMap(row);
   }
 
   static Future<void> updateSection(int id, EdlSection s) async {
     await _db.from(_sections).update(s.toInsert()).eq('id', id);
+    _invalidateEdl();
   }
 
   static Future<void> deleteSection(int id) async {
     await _db.from(_sections).delete().eq('id', id);
+    _invalidateEdl();
   }
 
   static Future<EdlLigne> createLigne(EdlLigne l) async {
     final row = await _db.from(_lignes).insert(l.toInsert()).select().single();
+    _invalidateEdl();
     return EdlLigne.fromMap(row);
   }
 
   static Future<void> updateLigne(int id, EdlLigne l) async {
     await _db.from(_lignes).update(l.toInsert()).eq('id', id);
+    _invalidateEdl();
   }
 
   static Future<void> deleteLigne(int id) async {
     await _db.from(_lignes).delete().eq('id', id);
+    _invalidateEdl();
   }
 
   /// Cria uma section completa (com suas lignes) numa só sequência.

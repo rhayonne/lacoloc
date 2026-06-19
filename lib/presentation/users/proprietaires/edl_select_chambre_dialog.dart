@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:lacoloc_front/data/models/chambre.dart';
+import 'package:lacoloc_front/presentation/widgets/app_list_search_field.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_radius.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
@@ -85,19 +86,11 @@ class _SelectChambreDialogState extends State<_SelectChambreDialog> {
             ),
             const Divider(height: 1),
             if (widget.chambres.length > 6)
-              Padding(
+              AppListSearchField(
+                hint: 'Rechercher une chambre…',
+                onChanged: (q) => setState(() => _query = q),
                 padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.lg,
-                  vertical: AppSpacing.sm,
-                ),
-                child: TextField(
-                  onChanged: (v) => setState(() => _query = v),
-                  decoration: const InputDecoration(
-                    hintText: 'Rechercher une chambre…',
-                    prefixIcon: Icon(Icons.search),
-                    isDense: true,
-                  ),
-                ),
+                    horizontal: AppSpacing.lg, vertical: AppSpacing.sm),
               ),
             Flexible(
               child: filtered.isEmpty

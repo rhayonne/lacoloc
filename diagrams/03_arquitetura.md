@@ -1,4 +1,4 @@
-# Arquitetura do Sistema — La Coloc
+# Arquitetura do Sistema — Super Loc
 
 ## Visão em Camadas
 

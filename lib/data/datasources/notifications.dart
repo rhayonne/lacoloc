@@ -63,4 +63,26 @@ class NotificationsDatasource {
       // best-effort
     }
   }
+
+  /// Crée une notification pour **le(s) locataire(s)** de l'EDL (appelé côté
+  /// propriétaire, ex. à la finalisation). Le destinataire est dérivé de l'EDL
+  /// par la RPC `notify_edl_locataire` (SECURITY DEFINER) — non falsifiable.
+  /// Best-effort : ne doit pas bloquer le flux appelant.
+  static Future<void> notifyEdlLocataire({
+    required int edlId,
+    required String type,
+    required String title,
+    String? body,
+  }) async {
+    try {
+      await _db.rpc('notify_edl_locataire', params: {
+        'p_edl_id': edlId,
+        'p_type': type,
+        'p_title': title,
+        'p_body': body,
+      });
+    } catch (_) {
+      // best-effort
+    }
+  }
 }

@@ -1,4 +1,4 @@
-# Componentes de UI — La Coloc
+# Componentes de UI — Super Loc
 
 ## Hierarquia de Widgets Principais
 

@@ -238,7 +238,7 @@ class _LoginCardState extends State<LoginCard> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          'Super Coloc',
+          'Super Loc',
           textAlign: TextAlign.center,
           style: AppTypography.displayMd.copyWith(color: AppColors.primary),
         ),
@@ -278,7 +278,7 @@ class _LoginCardState extends State<LoginCard> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            'Super Coloc',
+            'Super Loc',
             textAlign: TextAlign.center,
             style: AppTypography.displayMd.copyWith(color: AppColors.primary),
           ),

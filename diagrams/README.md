@@ -1,4 +1,4 @@
-# Diagramas — La Coloc
+# Diagramas — Super Loc
 
 Documentação visual (MermaidJS) de como o sistema funciona. Renderiza no GitHub e em
 qualquer visualizador compatível com Mermaid.

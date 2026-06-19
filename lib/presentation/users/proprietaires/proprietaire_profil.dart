@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:lacoloc_front/data/cache/realtime_refresh_mixin.dart';
 import 'package:lacoloc_front/data/datasources/auth_service.dart';
 import 'package:lacoloc_front/data/datasources/chambres.dart';
+import 'package:lacoloc_front/data/datasources/demandes_contact.dart';
 import 'package:lacoloc_front/data/datasources/immeubles.dart';
+import 'package:lacoloc_front/data/datasources/notifications.dart';
 import 'package:lacoloc_front/data/models/chambre.dart';
 import 'package:lacoloc_front/data/models/facture.dart';
 import 'package:lacoloc_front/data/models/immeubles.dart';
@@ -23,6 +26,7 @@ import 'package:lacoloc_front/presentation/users/proprietaires/inventaire_page.d
 import 'package:lacoloc_front/presentation/users/proprietaires/mes_chambres_page.dart';
 import 'package:lacoloc_front/presentation/users/proprietaires/mes_immeubles_page.dart';
 import 'package:lacoloc_front/presentation/users/proprietaires/nouveau_immeuble_page.dart';
+import 'package:lacoloc_front/presentation/widgets/unsaved_changes_dialog.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_radius.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
@@ -89,7 +93,7 @@ class ProprietaireProfilPage extends StatefulWidget {
 }
 
 class _ProprietaireProfilPageState extends State<ProprietaireProfilPage>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, RealtimeRefreshMixin {
   final _scaffoldKey = GlobalKey<ScaffoldState>();
   // Clé stable du contenu : préserve l'état des pages de section (ex. un EDL
   // ouvert) quand la mise en page change (drawer ↔ sidebar) au redimensionnement.
@@ -131,10 +135,38 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage>
   // Configuration entreprise (admin de groupe) — renderiza no frame principal.
   bool _showEntrepriseConfig = false;
 
+  // Pastille du menu « Interactions » : notifications non lues + demandes de
+  // contact non établies. Recalculé sur changement Realtime.
+  int _interactionsBadge = 0;
+
+  @override
+  Set<String> get watchedEntities => {'notifications', 'demandes'};
+
+  @override
+  void onRealtimeChange() => _refreshBadges();
+
+  Future<void> _refreshBadges() async {
+    try {
+      final results = await Future.wait([
+        NotificationsDatasource.unreadCount(),
+        DemandesContactDatasource.listByOwner(),
+      ]);
+      if (!mounted) return;
+      final unread = results[0] as int;
+      final demandes = results[1] as List;
+      final pendingDemandes =
+          demandes.where((d) => d.contactEtabli == false).length;
+      setState(() => _interactionsBadge = unread + pendingDemandes);
+    } catch (_) {
+      // best-effort : pastille non bloquante
+    }
+  }
+
   @override
   void initState() {
     super.initState();
     _loadProfile();
+    _refreshBadges();
     _gestionTabCtrl = TabController(length: 4, vsync: this);
     _navCtrl = SidebarXController(
       selectedIndex: _idxVueGenerale,
@@ -166,7 +198,25 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage>
 
   void _onNavChanged() {
     if (_syncingNav || !mounted) return;
-    _changeSection(_indexToSection(_navCtrl.selectedIndex));
+    final newSection = _indexToSection(_navCtrl.selectedIndex);
+    // Le collapse/expand de la sidebar change le contrôleur sans changer de section.
+    if (newSection == _section) return;
+    // Si un formulaire est ouvert, on revient d'abord sur la section courante
+    // puis on demande confirmation avant de naviguer.
+    if (_showImmeubleForm || _showChambreForm) {
+      _syncingNav = true;
+      _navCtrl.selectIndex(_sectionToIndex(_section));
+      _syncingNav = false;
+      _askLeaveForm(newSection);
+      return;
+    }
+    _changeSection(newSection);
+  }
+
+  Future<void> _askLeaveForm(_Section target) async {
+    final choice = await showUnsavedChangesDialog(context);
+    if (!mounted) return;
+    if (choice != UnsavedChoice.cancel) _changeSection(target);
   }
 
   void _changeSection(_Section s) {
@@ -427,22 +477,42 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage>
 
   // ── Sidebar ────────────────────────────────────────────────────────────────
 
-  List<SidebarXItem> _buildNavItems() {
-    return const [
-      SidebarXItem(icon: Icons.dashboard_outlined, label: 'Vue générale'),
-      SidebarXItem(
-        icon: Icons.home_work_outlined,
-        label: 'Gestion Immobilière',
+  List<SidebarXItem> _buildNavItems(bool extended) {
+    return [
+      badgedSidebarItem(
+          icon: Icons.dashboard_outlined,
+          label: 'Vue générale',
+          extended: extended),
+      badgedSidebarItem(
+          icon: Icons.home_work_outlined,
+          label: 'Gestion Immobilière',
+          extended: extended),
+      badgedSidebarItem(
+          icon: Icons.receipt_long_outlined,
+          label: 'Finances',
+          extended: extended),
+      badgedSidebarItem(
+          icon: Icons.store_outlined,
+          label: 'Fournisseurs',
+          extended: extended),
+      badgedSidebarItem(
+          icon: Icons.assignment_outlined,
+          label: 'État des lieux',
+          extended: extended),
+      badgedSidebarItem(
+          icon: Icons.menu_book_outlined,
+          label: 'Documentation',
+          extended: extended),
+      badgedSidebarItem(
+        icon: Icons.people_alt_outlined,
+        label: 'Interactions',
+        count: _interactionsBadge,
+        extended: extended,
       ),
-      SidebarXItem(icon: Icons.receipt_long_outlined, label: 'Finances'),
-      SidebarXItem(icon: Icons.store_outlined, label: 'Fournisseurs'),
-      SidebarXItem(
-        icon: Icons.assignment_outlined,
-        label: 'État des lieux',
-      ),
-      SidebarXItem(icon: Icons.menu_book_outlined, label: 'Documentation'),
-      SidebarXItem(icon: Icons.people_alt_outlined, label: 'Interactions'),
-      SidebarXItem(icon: Icons.person_outline, label: 'Mon Profil'),
+      badgedSidebarItem(
+          icon: Icons.person_outline,
+          label: 'Mon Profil',
+          extended: extended),
     ];
   }
 
@@ -451,8 +521,9 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage>
       controller: _navCtrl,
       showToggleButton: !isNarrow,
       userEmail: AuthService.currentUser?.email,
+      userTypeLabel: _profile?.typeDisplayLabel,
       searchController: _searchCtrl,
-      items: _buildNavItems(),
+      items: _buildNavItems(_navCtrl.extended),
       footerBuilder: (ctx, extended) => Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -518,7 +589,7 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage>
               _scaffoldKey.currentState?.openDrawer();
             },
           ),
-          title: const Text('Super Coloc'),
+          title: const Text('Super Loc'),
         ),
         body: content,
       );

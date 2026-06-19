@@ -7,16 +7,25 @@ import 'package:lacoloc_front/data/datasources/auth_service.dart';
 import 'package:lacoloc_front/data/datasources/chambres.dart';
 import 'package:lacoloc_front/data/datasources/etat_de_lieux.dart';
 import 'package:lacoloc_front/data/datasources/immeubles.dart';
+import 'package:lacoloc_front/data/datasources/notifications.dart';
+import 'package:lacoloc_front/data/datasources/recettes.dart';
+import 'package:lacoloc_front/data/models/recette.dart';
 import 'package:lacoloc_front/data/models/chambre.dart';
 import 'package:lacoloc_front/data/models/etat_de_lieux.dart';
+import 'package:lacoloc_front/data/models/notification_model.dart';
 import 'package:lacoloc_front/data/models/users_client.dart';
 import 'package:lacoloc_front/data/permissions/permissions_service.dart';
 import 'package:lacoloc_front/presentation/chambres/chambre_card.dart';
 import 'package:lacoloc_front/presentation/widgets/permission_gate.dart';
 import 'package:lacoloc_front/presentation/widgets/edl_filter_bar.dart';
+import 'package:lacoloc_front/presentation/widgets/edl_signature_flow.dart';
 import 'package:lacoloc_front/presentation/users/proprietaires/etat_de_lieux_page.dart';
+import 'package:lacoloc_front/presentation/users/proprietaires/interactions_page.dart'
+    show NotificationCard;
 import 'package:lacoloc_front/presentation/chambres/chambre_detail_page.dart';
 import 'package:lacoloc_front/presentation/nav/app_sidebar.dart';
+import 'package:lacoloc_front/presentation/users/locataires/garants_page.dart';
+import 'package:lacoloc_front/presentation/users/proprietaires/bail_pdf_preview_page.dart';
 import 'package:lacoloc_front/presentation/widgets/filter_panel.dart';
 import 'package:lacoloc_front/utils/phone_field.dart';
 import 'package:lacoloc_front/data/datasources/signatures.dart';
@@ -34,24 +43,50 @@ class LocataireProfilPage extends StatefulWidget {
   State<LocataireProfilPage> createState() => _LocataireProfilPageState();
 }
 
-class _LocataireProfilPageState extends State<LocataireProfilPage> {
+class _LocataireProfilPageState extends State<LocataireProfilPage>
+    with RealtimeRefreshMixin {
   final _scaffoldKey = GlobalKey<ScaffoldState>();
   final _contentKey = GlobalKey();
   late final SidebarXController _navCtrl;
-  late Future<_LocBundle> _bundleFuture;
+
+  /// Données chargées (chambres + profil) ; null tant que le 1ᵉʳ chargement
+  /// n'est pas terminé.
+  _LocBundle? _data;
+  String? _error;
+
+  /// Compteurs « à traiter » pour les pastilles de menu (mis à jour au chargement
+  /// et sur changement Realtime).
+  int _edlBadge = 0; // EDL finalisés non signés
+  int _msgBadge = 0; // notifications non lues
+  List<EtatDesLieuxModel> _pendingEdls = const [];
+  List<NotificationModel> _unreadNotifs = const [];
+
   int? _selectedChambreId;
 
-  static const _idxDashboard = 0;
-  static const _idxChambres = 1;
-  static const _idxProfil = 2;
-  static const _idxInteractions = 3;
+  // Ordre du menu : Rechercher location (0) · Tableau de bord (1) ·
+  // État des lieux (2) · Messages (3) · Documents (4) · Finances (5) ·
+  // Mon Profil (6).
+  static const _idxChambres = 0;
+  static const _idxDashboard = 1;
+  static const _idxEdl = 2;
+  static const _idxMessages = 3;
+  static const _idxDocuments = 4;
+  static const _idxFinances = 5;
+  static const _idxProfil = 6;
+
+  @override
+  Set<String> get watchedEntities => {'notifications', 'edl'};
+
+  @override
+  void onRealtimeChange() => _refresh();
 
   @override
   void initState() {
     super.initState();
+    // Atterrissage par défaut sur le Tableau de bord (ce qui est en attente).
     _navCtrl = SidebarXController(selectedIndex: _idxDashboard, extended: true);
     _navCtrl.addListener(_onNavChanged);
-    _bundleFuture = _loadBundle();
+    _refresh();
   }
 
   @override
@@ -61,15 +96,38 @@ class _LocataireProfilPageState extends State<LocataireProfilPage> {
     super.dispose();
   }
 
-  Future<_LocBundle> _loadBundle() async {
-    final results = await Future.wait([
-      ChambresDatasource.listAll(),
-      AuthService.loadCurrentProfile(),
-    ]);
-    final all = results[0] as List<ChambreModel>;
-    final profile = results[1] as UsersClient?;
-    final available = all.where((c) => !c.estLoue && c.isActive).toList();
-    return _LocBundle(available: available, total: all.length, profile: profile);
+  Future<void> _refresh() async {
+    final uid = AuthService.currentUser?.id ?? '';
+    try {
+      final results = await Future.wait([
+        ChambresDatasource.listAll(),
+        AuthService.loadCurrentProfile(),
+        EtatDesLieuxDatasource.listForLocataire(uid),
+        NotificationsDatasource.listByOwner(refresh: true),
+      ]);
+      if (!mounted) return;
+      final all = results[0] as List<ChambreModel>;
+      final profile = results[1] as UsersClient?;
+      final edls = results[2] as List<EtatDesLieuxModel>;
+      final notifs = results[3] as List<NotificationModel>;
+      final available = all.where((c) => !c.estLoue && c.isActive).toList();
+      final pending = edls
+          .where((e) =>
+              e.situation == SituationEdl.finalise && !e.locataireAccepte)
+          .toList();
+      final unread = notifs.where((n) => !n.isRead).toList();
+      setState(() {
+        _data =
+            _LocBundle(available: available, total: all.length, profile: profile);
+        _pendingEdls = pending;
+        _unreadNotifs = unread;
+        _edlBadge = pending.length;
+        _msgBadge = unread.length;
+        _error = null;
+      });
+    } catch (e) {
+      if (mounted) setState(() => _error = e.toString());
+    }
   }
 
   void _onNavChanged() {
@@ -85,20 +143,50 @@ class _LocataireProfilPageState extends State<LocataireProfilPage> {
   }
 
   void _goToChambres() => _navCtrl.selectIndex(_idxChambres);
+  void _goToEdl() => _navCtrl.selectIndex(_idxEdl);
+  void _goToMessages() => _navCtrl.selectIndex(_idxMessages);
 
   Widget _buildSidebar({required bool isNarrow}) {
     return AppSidebar(
       controller: _navCtrl,
       showToggleButton: !isNarrow,
       userEmail: AuthService.currentUser?.email,
-      items: const [
-        SidebarXItem(icon: Icons.dashboard_outlined, label: 'Tableau de bord'),
-        SidebarXItem(icon: Icons.search_outlined, label: 'Chambres disponibles'),
-        SidebarXItem(icon: Icons.person_outline, label: 'Mon Profil'),
-        SidebarXItem(
+      userTypeLabel: 'Locataire',
+      items: [
+        // Label court : un libellé trop long dépasse la largeur de la sidebar
+        // (240 px) une fois en gras (sélectionné). Le titre de page reste long.
+        badgedSidebarItem(
+            icon: Icons.search_outlined,
+            label: 'Rechercher location',
+            extended: _navCtrl.extended),
+        badgedSidebarItem(
+            icon: Icons.dashboard_outlined,
+            label: 'Tableau de bord',
+            extended: _navCtrl.extended),
+        badgedSidebarItem(
           icon: Icons.assignment_outlined,
           label: 'État des lieux',
+          count: _edlBadge,
+          extended: _navCtrl.extended,
         ),
+        badgedSidebarItem(
+          icon: Icons.mail_outline,
+          label: 'Messages',
+          count: _msgBadge,
+          extended: _navCtrl.extended,
+        ),
+        badgedSidebarItem(
+            icon: Icons.folder_outlined,
+            label: 'Documents',
+            extended: _navCtrl.extended),
+        badgedSidebarItem(
+            icon: Icons.payments_outlined,
+            label: 'Finances',
+            extended: _navCtrl.extended),
+        badgedSidebarItem(
+            icon: Icons.person_outline,
+            label: 'Mon Profil',
+            extended: _navCtrl.extended),
       ],
       footerBuilder: (ctx, extended) => Column(
         mainAxisSize: MainAxisSize.min,
@@ -135,32 +223,33 @@ class _LocataireProfilPageState extends State<LocataireProfilPage> {
       );
     }
 
-    return FutureBuilder<_LocBundle>(
-      future: _bundleFuture,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (snapshot.hasError) {
-          return Center(child: Text('Erreur : ${snapshot.error}'));
-        }
-        final bundle = snapshot.data!;
-        return switch (_navCtrl.selectedIndex) {
-          _idxDashboard => _DashboardSection(
-              bundle: bundle,
-              onVoirChambres: _goToChambres,
-              onTapChambre: _openChambre,
-            ),
-          _idxChambres => _ChambresSection(
-              chambres: bundle.available,
-              onTap: _openChambre,
-            ),
-          _idxProfil => _ProfilSection(profile: bundle.profile),
-          _idxInteractions => const _InteractionsSection(),
-          _ => const SizedBox.shrink(),
-        };
-      },
-    );
+    if (_error != null) {
+      return Center(child: Text('Erreur : $_error'));
+    }
+    final bundle = _data;
+    if (bundle == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    return switch (_navCtrl.selectedIndex) {
+      _idxDashboard => _DashboardSection(
+          bundle: bundle,
+          pendingEdls: _pendingEdls,
+          unreadNotifs: _unreadNotifs,
+          onVoirChambres: _goToChambres,
+          onVoirEdl: _goToEdl,
+          onVoirMessages: _goToMessages,
+        ),
+      _idxChambres => _ChambresSection(
+          chambres: bundle.available,
+          onTap: _openChambre,
+        ),
+      _idxProfil => _ProfilSection(profile: bundle.profile),
+      _idxEdl => const _InteractionsSection(),
+      _idxMessages => const _MessagesSection(),
+      _idxDocuments => const _DocumentsSection(),
+      _idxFinances => const _FinancesSection(),
+      _ => const SizedBox.shrink(),
+    };
   }
 
   @override
@@ -246,16 +335,27 @@ class _LocataireSectionBar extends StatelessWidget {
   }
 }
 
+/// Tableau de bord du locataire — **lecture seule** : n'affiche que ce qui est
+/// en attente (EDL à signer, messages non lus) et sert de raccourcis vers les
+/// menus correspondants. L'utilisateur n'y modifie rien.
 class _DashboardSection extends StatelessWidget {
   final _LocBundle bundle;
+  final List<EtatDesLieuxModel> pendingEdls;
+  final List<NotificationModel> unreadNotifs;
   final VoidCallback onVoirChambres;
-  final void Function(int id) onTapChambre;
+  final VoidCallback onVoirEdl;
+  final VoidCallback onVoirMessages;
 
   const _DashboardSection({
     required this.bundle,
+    required this.pendingEdls,
+    required this.unreadNotifs,
     required this.onVoirChambres,
-    required this.onTapChambre,
+    required this.onVoirEdl,
+    required this.onVoirMessages,
   });
+
+  static final _dateFmt = DateFormat('dd/MM/yyyy');
 
   @override
   Widget build(BuildContext context) {
@@ -264,8 +364,8 @@ class _DashboardSection extends StatelessWidget {
     final firstName = rawName.isNotEmpty ? rawName.split(' ').first : '';
     final greeting =
         firstName.isNotEmpty ? 'Bonjour, $firstName !' : 'Bienvenue !';
-    final count = bundle.available.length;
-    final featured = bundle.available.take(6).toList();
+    final nbActions = pendingEdls.length + unreadNotifs.length;
+    final aJour = nbActions == 0;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -277,148 +377,359 @@ class _DashboardSection extends StatelessWidget {
             child: Center(
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 960),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // ── Carte de bienvenue ──────────────────────────────────────
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(AppSpacing.xl),
-                decoration: BoxDecoration(
-                  color: AppColors.primaryFixed,
-                  borderRadius: AppRadius.borderLg,
-                  border: Border.all(
-                    color: AppColors.primary.withValues(alpha: 0.20),
-                  ),
-                ),
-                child: Row(
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: Column(
+                    // ── Carte d'accueil ────────────────────────────────────
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(AppSpacing.xl),
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryFixed,
+                        borderRadius: AppRadius.borderLg,
+                        border: Border.all(
+                          color: AppColors.primary.withValues(alpha: 0.20),
+                        ),
+                      ),
+                      child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            greeting,
-                            style: AppTypography.headlineMd.copyWith(
-                              color: AppColors.onPrimaryFixedVariant,
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  greeting,
+                                  style: AppTypography.headlineMd.copyWith(
+                                    color: AppColors.onPrimaryFixedVariant,
+                                  ),
+                                ),
+                                const SizedBox(height: AppSpacing.xs),
+                                Text(
+                                  aJour
+                                      ? "Vous êtes à jour, rien en attente."
+                                      : '$nbActions élément${nbActions > 1 ? 's' : ''} '
+                                          'en attente de votre part.',
+                                  style: AppTypography.bodyMd.copyWith(
+                                    color: AppColors.onPrimaryFixedVariant
+                                        .withValues(alpha: 0.75),
+                                  ),
+                                ),
+                                const SizedBox(height: AppSpacing.lg),
+                                FilledButton.icon(
+                                  onPressed: onVoirChambres,
+                                  icon: const Icon(Icons.search, size: 16),
+                                  label: const Text('Rechercher une location'),
+                                  style: FilledButton.styleFrom(
+                                    backgroundColor: AppColors.primary,
+                                    foregroundColor: Colors.white,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                          const SizedBox(height: AppSpacing.xs),
-                          Text(
-                            count == 0
-                                ? 'Aucune chambre disponible pour le moment.'
-                                : '$count chambre${count > 1 ? 's' : ''} '
-                                    'disponible${count > 1 ? 's' : ''} en ce moment.',
-                            style: AppTypography.bodyMd.copyWith(
-                              color: AppColors.onPrimaryFixedVariant
-                                  .withValues(alpha: 0.75),
-                            ),
-                          ),
-                          const SizedBox(height: AppSpacing.lg),
-                          FilledButton.icon(
-                            onPressed: onVoirChambres,
-                            icon: const Icon(Icons.search, size: 16),
-                            label: const Text('Rechercher une chambre'),
-                            style: FilledButton.styleFrom(
-                              backgroundColor: AppColors.primary,
-                              foregroundColor: Colors.white,
-                            ),
+                          const SizedBox(width: AppSpacing.lg),
+                          Icon(
+                            aJour
+                                ? Icons.check_circle_outline
+                                : Icons.notifications_active_outlined,
+                            size: 72,
+                            color: AppColors.primary,
                           ),
                         ],
                       ),
                     ),
-                    const SizedBox(width: AppSpacing.lg),
-                    const Icon(
-                      Icons.bed_outlined,
-                      size: 72,
-                      color: AppColors.primary,
-                    ),
+
+                    const SizedBox(height: AppSpacing.xl),
+
+                    if (aJour)
+                      _emptyState()
+                    else ...[
+                      // ── États des lieux à signer ──────────────────────────
+                      if (pendingEdls.isNotEmpty) ...[
+                        _sectionHeader(
+                          icon: Icons.assignment_outlined,
+                          title: 'États des lieux à signer',
+                          actionLabel: 'Voir tout',
+                          onAction: onVoirEdl,
+                        ),
+                        const SizedBox(height: AppSpacing.md),
+                        ...pendingEdls.map(
+                          (e) => Padding(
+                            padding:
+                                const EdgeInsets.only(bottom: AppSpacing.sm),
+                            child: _DashboardEdlTile(
+                              edl: e,
+                              dateFmt: _dateFmt,
+                              onTap: onVoirEdl,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.xl),
+                      ],
+
+                      // ── Messages non lus ──────────────────────────────────
+                      if (unreadNotifs.isNotEmpty) ...[
+                        _sectionHeader(
+                          icon: Icons.mail_outline,
+                          title: 'Messages non lus',
+                          actionLabel: 'Voir tout',
+                          onAction: onVoirMessages,
+                        ),
+                        const SizedBox(height: AppSpacing.md),
+                        ...unreadNotifs.map(
+                          (n) => Padding(
+                            padding:
+                                const EdgeInsets.only(bottom: AppSpacing.sm),
+                            child: NotificationCard(
+                              notification: n,
+                              onTap: onVoirMessages,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
                   ],
                 ),
               ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 
-              const SizedBox(height: AppSpacing.xl),
+  Widget _sectionHeader({
+    required IconData icon,
+    required String title,
+    required String actionLabel,
+    required VoidCallback onAction,
+  }) {
+    return Row(
+      children: [
+        Icon(icon, size: 20, color: AppColors.onSurfaceVariant),
+        const SizedBox(width: AppSpacing.sm),
+        Expanded(child: Text(title, style: AppTypography.titleLg)),
+        TextButton.icon(
+          onPressed: onAction,
+          label: Text(actionLabel),
+          icon: const Icon(Icons.arrow_forward, size: 16),
+          iconAlignment: IconAlignment.end,
+        ),
+      ],
+    );
+  }
 
-              // ── Chambres en vedette ─────────────────────────────────────
-              if (featured.isEmpty)
-                Center(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: AppSpacing.xl,
-                    ),
-                    child: Column(
-                      children: [
-                        const Icon(
-                          Icons.bed_outlined,
-                          size: 56,
-                          color: AppColors.outline,
-                        ),
-                        const SizedBox(height: AppSpacing.md),
-                        Text(
-                          'Revenez bientôt —',
-                          style: AppTypography.titleLg.copyWith(
-                            color: AppColors.onSurfaceVariant,
-                          ),
-                        ),
-                        const SizedBox(height: AppSpacing.xs),
-                        Text(
-                          'de nouvelles chambres seront publiées prochainement.',
-                          style: AppTypography.bodyMd.copyWith(
-                            color: AppColors.onSurfaceVariant,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
-                    ),
+  Widget _emptyState() => Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: AppSpacing.xl),
+          child: Column(
+            children: [
+              const Icon(Icons.check_circle_outline,
+                  size: 56, color: AppColors.success),
+              const SizedBox(height: AppSpacing.md),
+              Text(
+                'Vous êtes à jour ✓',
+                style: AppTypography.titleLg
+                    .copyWith(color: AppColors.onSurfaceVariant),
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                "Aucun état des lieux à signer, aucun message en attente.",
+                style: AppTypography.bodyMd
+                    .copyWith(color: AppColors.onSurfaceVariant),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      );
+}
+
+/// Tuile compacte (lecture seule) d'un EDL à signer affichée dans le tableau de
+/// bord ; ouvre le menu « État des lieux ».
+class _DashboardEdlTile extends StatelessWidget {
+  final EtatDesLieuxModel edl;
+  final DateFormat dateFmt;
+  final VoidCallback onTap;
+
+  const _DashboardEdlTile({
+    required this.edl,
+    required this.dateFmt,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final lieu = [edl.immeubleNom, edl.chambreNom]
+        .where((s) => s != null && s.isNotEmpty)
+        .join(' · ');
+    final dateStr = edl.dateFinalisation != null
+        ? 'Finalisé le ${dateFmt.format(edl.dateFinalisation!)}'
+        : 'Finalisé';
+    return InkWell(
+      onTap: onTap,
+      borderRadius: AppRadius.borderMd,
+      child: Container(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        decoration: BoxDecoration(
+          color: AppColors.error.withValues(alpha: 0.05),
+          borderRadius: AppRadius.borderMd,
+          border: Border.all(color: AppColors.error.withValues(alpha: 0.30)),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.draw_outlined, size: 20, color: AppColors.error),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    lieu.isEmpty ? 'État des lieux' : lieu,
+                    style: AppTypography.bodyMd
+                        .copyWith(fontWeight: FontWeight.w600),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                )
-              else ...[
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Dernières chambres disponibles',
-                        style: AppTypography.titleLg,
-                      ),
-                    ),
-                    TextButton.icon(
-                      onPressed: onVoirChambres,
-                      label: const Text('Voir toutes'),
-                      icon: const Icon(Icons.arrow_forward, size: 16),
-                      iconAlignment: IconAlignment.end,
-                    ),
-                  ],
+                  Text(
+                    '${edl.typeLabel} · $dateStr',
+                    style: AppTypography.labelSm
+                        .copyWith(color: AppColors.onSurfaceVariant),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            const Icon(Icons.chevron_right, color: AppColors.onSurfaceVariant),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Section Messages (notifications du locataire)
+
+class _MessagesSection extends StatefulWidget {
+  const _MessagesSection();
+
+  @override
+  State<_MessagesSection> createState() => _MessagesSectionState();
+}
+
+class _MessagesSectionState extends State<_MessagesSection>
+    with RealtimeRefreshMixin {
+  bool _loading = true;
+  String? _error;
+  List<NotificationModel> _items = [];
+
+  @override
+  Set<String> get watchedEntities => {'notifications'};
+
+  @override
+  void onRealtimeChange() => _load();
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final data = await NotificationsDatasource.listByOwner(refresh: true);
+      if (!mounted) return;
+      setState(() => _items = data);
+    } catch (e) {
+      if (mounted) setState(() => _error = e.toString());
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _markRead(NotificationModel n) async {
+    if (n.isRead) return;
+    await NotificationsDatasource.markRead(n.id);
+    await _load();
+  }
+
+  Future<void> _markAllRead() async {
+    await NotificationsDatasource.markAllRead();
+    await _load();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const _LocataireSectionBar(title: 'Messages'),
+        Expanded(child: _buildBody()),
+      ],
+    );
+  }
+
+  Widget _buildBody() {
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_error != null) {
+      return Center(child: Text('Erreur : $_error'));
+    }
+    if (_items.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.xl),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.mail_outline,
+                  size: 48, color: AppColors.onSurfaceVariant),
+              const SizedBox(height: AppSpacing.md),
+              Text('Aucun message.',
+                  style: AppTypography.bodyMd
+                      .copyWith(color: AppColors.onSurfaceVariant)),
+            ],
+          ),
+        ),
+      );
+    }
+    final hasUnread = _items.any((n) => !n.isRead);
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 800),
+          child: ListView(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            children: [
+              if (hasUnread)
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton.icon(
+                    onPressed: _markAllRead,
+                    icon: const Icon(Icons.done_all, size: 18),
+                    label: const Text('Tout marquer comme lu'),
+                  ),
                 ),
-                const SizedBox(height: AppSpacing.md),
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    final cols = constraints.maxWidth > 700 ? 3 : 2;
-                    return GridView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: cols,
-                        crossAxisSpacing: AppSpacing.md,
-                        mainAxisSpacing: AppSpacing.md,
-                        childAspectRatio: 0.72,
-                      ),
-                      itemCount: featured.length,
-                      itemBuilder: (context, i) => ChambreCard(
-                        chambre: featured[i],
-                        onTap: () => onTapChambre(featured[i].id),
-                      ),
-                    );
-                  },
+              for (final n in _items)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                  child:
+                      NotificationCard(notification: n, onTap: () => _markRead(n)),
                 ),
-              ],
             ],
           ),
         ),
       ),
-            ),
-          ),
-      ],
     );
   }
 }
@@ -1162,7 +1473,7 @@ class _InteractionsSectionState extends State<_InteractionsSection>
     Navigator.of(context).push(MaterialPageRoute<void>(
       builder: (_) => _EdlDetailPage(
         edl: edl,
-        onAccepter: () => _accepter(edl.id),
+        onAccepter: () => _accepter(edl),
       ),
     ));
   }
@@ -1188,25 +1499,25 @@ class _InteractionsSectionState extends State<_InteractionsSection>
     return EtatDesLieuxDatasource.listForLocataire(uid);
   }
 
-  Future<void> _accepter(int edlId) async {
-    final sig = await showSignatureDialog(context);
-    if (sig == null || !mounted) return;
+  Future<void> _accepter(EtatDesLieuxModel edl) async {
+    // Vérifie/crée la signature, montre l'aperçu PDF avec bouton « Signer »,
+    // puis enregistre l'acceptation.
+    final sigUrl = await runLocataireSignatureFlow(context, edl);
+    if (sigUrl == null || !mounted) return;
     await EtatDesLieuxDatasource.locataireAccepter(
-      edlId,
-      locataireSignatureUrl: sig.url,
+      edl.id,
+      locataireSignatureUrl: sigUrl,
     );
     if (mounted) setState(() { _future = _load(); });
   }
 
-  /// `true` se o EDL está dentro da janela de additions de 30 dias.
-  static bool _isAdditionsOpen(EtatDesLieuxModel edl) {
-    if (edl.situation != SituationEdl.finalise) return false;
+  /// `true` se o EDL ainda está dentro da janela de **avenant** configurada na
+  /// criação (snapshot `avenant_window_days`), e portanto comporta um avenant.
+  static bool _isAvenantOpen(EtatDesLieuxModel edl) {
     if (edl.partie != PartieEdl.privative) return false;
     if (edl.chambreId == null) return false;
-    final ref = edl.dateFinalisation;
-    if (ref == null) return true; // finalizado mas não aceito → janela aberta
-    return DateTime.now()
-        .isBefore(DateTime(ref.year, ref.month + 1, ref.day));
+    if (edl.typeEdl != 'entree') return false;
+    return edl.isAvenantWindowOpen;
   }
 
   /// Abre a `EdlIndividuelMeubleePage` diretamente na aba Additions (índice 4).
@@ -1287,8 +1598,8 @@ class _InteractionsSectionState extends State<_InteractionsSection>
               final sorties =
                   all.where((e) => e.typeEdl == 'sortie').toList();
 
-              final additionable =
-                  all.where(_isAdditionsOpen).toList();
+              // EDL ouverts à un avenant (fenêtre d'avenant encore ouverte).
+              final avenantables = all.where(_isAvenantOpen).toList();
 
               return TabBarView(
                 controller: _tabCtrl,
@@ -1297,17 +1608,21 @@ class _InteractionsSectionState extends State<_InteractionsSection>
                   _EdlVisionGeneraleTab(
                     all: all,
                     pending: pending,
-                    additionable: additionable,
+                    avenantables: avenantables,
                     onAccepter: _accepter,
                     onVoir: _openDetail,
                     onVisualiser: _openDetail,
-                    onAddition: _openAddition,
+                    onAvenant: _openAddition,
+                    onSigner: _accepter,
                   ),
                   _EdlListTab(
                     edls: entrees,
                     emptyMessage: "Aucun état des lieux d'entrée.",
+                    avenantables: avenantables,
+                    onAvenant: _openAddition,
                     onVoir: _openDetail,
                     onVisualiser: _openDetail,
+                    onSigner: _accepter,
                   ),
                   _EdlListTab(
                     edls: sorties,
@@ -1330,20 +1645,22 @@ class _InteractionsSectionState extends State<_InteractionsSection>
 class _EdlVisionGeneraleTab extends StatelessWidget {
   final List<EtatDesLieuxModel> all;
   final List<EtatDesLieuxModel> pending;
-  final List<EtatDesLieuxModel> additionable;
-  final Future<void> Function(int) onAccepter;
+  final List<EtatDesLieuxModel> avenantables;
+  final Future<void> Function(EtatDesLieuxModel) onAccepter;
   final void Function(EtatDesLieuxModel) onVoir;
   final void Function(EtatDesLieuxModel) onVisualiser;
-  final Future<void> Function(EtatDesLieuxModel) onAddition;
+  final Future<void> Function(EtatDesLieuxModel) onAvenant;
+  final Future<void> Function(EtatDesLieuxModel)? onSigner;
 
   const _EdlVisionGeneraleTab({
     required this.all,
     required this.pending,
-    required this.additionable,
+    required this.avenantables,
     required this.onAccepter,
     required this.onVoir,
     required this.onVisualiser,
-    required this.onAddition,
+    required this.onAvenant,
+    this.onSigner,
   });
 
   @override
@@ -1376,7 +1693,7 @@ class _EdlVisionGeneraleTab extends StatelessWidget {
                 padding: const EdgeInsets.only(bottom: AppSpacing.md),
                 child: _PendingEdlCard(
                   edl: e,
-                  onAccepter: () => onAccepter(e.id),
+                  onAccepter: () => onAccepter(e),
                 ),
               ),
             ),
@@ -1384,33 +1701,20 @@ class _EdlVisionGeneraleTab extends StatelessWidget {
             const Divider(),
             const SizedBox(height: AppSpacing.md),
           ],
-          // ── Bouton Faire une addition (fenêtre ouverte) ─────────────
-          if (additionable.isNotEmpty)
-            PermissionGate(
-              permission: Perm.edlAddition,
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: AppSpacing.lg),
-                child: FilledButton.icon(
-                  onPressed: () async {
-                    EtatDesLieuxModel? selected;
-                    if (additionable.length == 1) {
-                      selected = additionable.first;
-                    } else {
-                      selected = await showDialog<EtatDesLieuxModel>(
-                        // ignore: use_build_context_synchronously
-                        context: context,
-                        builder: (_) =>
-                            _SelectAdditionDialog(edls: additionable),
-                      );
-                    }
-                    if (selected != null) onAddition(selected);
-                  },
-                  icon: const Icon(Icons.note_add_outlined, size: 16),
-                  label: const Text('Faire une addition'),
-                ),
+          // ── Titre + bouton « Avenant » (à droite, même ligne) ───────
+          Row(
+            children: [
+              Expanded(
+                child: Text('Tous les états des lieux',
+                    style: AppTypography.titleLg),
               ),
-            ),
-          Text('Tous les états des lieux', style: AppTypography.titleLg),
+              if (avenantables.isNotEmpty)
+                _AvenantButton(
+                  avenantables: avenantables,
+                  onAvenant: onAvenant,
+                ),
+            ],
+          ),
           const SizedBox(height: AppSpacing.md),
           if (all.isEmpty)
             Center(
@@ -1439,6 +1743,7 @@ class _EdlVisionGeneraleTab extends StatelessWidget {
               edls: all,
               onVoir: onVoir,
               onVisualiser: onVisualiser,
+              onSigner: onSigner,
             ),
         ],
       ),
@@ -1447,11 +1752,38 @@ class _EdlVisionGeneraleTab extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Dialog de seleção de EDL para additions
+// Bouton « Avenant » + dialog de sélection d'EDL (fenêtre d'avenant ouverte)
 
-class _SelectAdditionDialog extends StatelessWidget {
+/// Bouton « Avenant » (locataire) : ouvre **toujours** la boîte de sélection des
+/// EDL dont la fenêtre d'avenant est encore ouverte, puis déclenche [onAvenant].
+class _AvenantButton extends StatelessWidget {
+  final List<EtatDesLieuxModel> avenantables;
+  final Future<void> Function(EtatDesLieuxModel) onAvenant;
+
+  const _AvenantButton({required this.avenantables, required this.onAvenant});
+
+  @override
+  Widget build(BuildContext context) {
+    return PermissionGate(
+      permission: Perm.edlAddition,
+      child: FilledButton.icon(
+        onPressed: () async {
+          final selected = await showDialog<EtatDesLieuxModel>(
+            context: context,
+            builder: (_) => _SelectAvenantDialog(edls: avenantables),
+          );
+          if (selected != null) onAvenant(selected);
+        },
+        icon: const Icon(Icons.note_add_outlined, size: 16),
+        label: const Text('Avenant'),
+      ),
+    );
+  }
+}
+
+class _SelectAvenantDialog extends StatelessWidget {
   final List<EtatDesLieuxModel> edls;
-  const _SelectAdditionDialog({required this.edls});
+  const _SelectAvenantDialog({required this.edls});
 
   static final _fmt = DateFormat('dd/MM/yyyy');
 
@@ -1466,7 +1798,7 @@ class _SelectAdditionDialog extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Sélectionnez le contrat pour lequel vous souhaitez ajouter une addition :',
+              'Sélectionnez le contrat pour lequel vous souhaitez faire un avenant :',
               style: AppTypography.bodyMd.copyWith(
                   color: AppColors.onSurfaceVariant),
             ),
@@ -1509,17 +1841,27 @@ class _EdlListTab extends StatelessWidget {
   final String emptyMessage;
   final void Function(EtatDesLieuxModel) onVoir;
   final void Function(EtatDesLieuxModel) onVisualiser;
+  // EDL ouverts à un avenant + handler ; null = pas de bouton « Avenant »
+  // (ex. onglet Sortie).
+  final List<EtatDesLieuxModel>? avenantables;
+  final Future<void> Function(EtatDesLieuxModel)? onAvenant;
+  final Future<void> Function(EtatDesLieuxModel)? onSigner;
 
   const _EdlListTab({
     required this.edls,
     required this.emptyMessage,
     required this.onVoir,
     required this.onVisualiser,
+    this.avenantables,
+    this.onAvenant,
+    this.onSigner,
   });
 
   @override
   Widget build(BuildContext context) {
-    if (edls.isEmpty) {
+    final showAvenant =
+        avenantables != null && avenantables!.isNotEmpty && onAvenant != null;
+    if (edls.isEmpty && !showAvenant) {
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -1542,10 +1884,38 @@ class _EdlListTab extends StatelessWidget {
     }
     return SingleChildScrollView(
       padding: const EdgeInsets.all(AppSpacing.lg),
-      child: _EdlLocataireTable(
-        edls: edls,
-        onVoir: onVoir,
-        onVisualiser: onVisualiser,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (showAvenant)
+            Align(
+              alignment: Alignment.centerRight,
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                child: _AvenantButton(
+                  avenantables: avenantables!,
+                  onAvenant: onAvenant!,
+                ),
+              ),
+            ),
+          if (edls.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: AppSpacing.xl),
+              child: Text(
+                emptyMessage,
+                textAlign: TextAlign.center,
+                style: AppTypography.bodyMd
+                    .copyWith(color: AppColors.onSurfaceVariant),
+              ),
+            )
+          else
+            _EdlLocataireTable(
+              edls: edls,
+              onVoir: onVoir,
+              onVisualiser: onVisualiser,
+              onSigner: onSigner,
+            ),
+        ],
       ),
     );
   }
@@ -1573,11 +1943,13 @@ class _EdlLocataireTable extends StatefulWidget {
   final List<EtatDesLieuxModel> edls;
   final void Function(EtatDesLieuxModel) onVoir;
   final void Function(EtatDesLieuxModel) onVisualiser;
+  final Future<void> Function(EtatDesLieuxModel)? onSigner;
 
   const _EdlLocataireTable({
     required this.edls,
     required this.onVoir,
     required this.onVisualiser,
+    this.onSigner,
   });
 
   @override
@@ -1645,6 +2017,9 @@ class _EdlLocataireTableState extends State<_EdlLocataireTable> {
                             edl: e,
                             onVoir: () => widget.onVoir(e),
                             onVisualiser: () => widget.onVisualiser(e),
+                            onSigner: widget.onSigner != null
+                                ? () => widget.onSigner!(e)
+                                : null,
                           ),
                           const SizedBox(height: AppSpacing.md),
                         ],
@@ -1662,6 +2037,9 @@ class _EdlLocataireTableState extends State<_EdlLocataireTable> {
                         edl: filtered[i],
                         onVoir: () => widget.onVoir(filtered[i]),
                         onVisualiser: () => widget.onVisualiser(filtered[i]),
+                        onSigner: widget.onSigner != null
+                            ? () => widget.onSigner!(filtered[i])
+                            : null,
                       ),
                     ],
                   ],
@@ -1728,11 +2106,13 @@ class _EdlLocataireRow extends StatelessWidget {
   final EtatDesLieuxModel edl;
   final VoidCallback onVoir;
   final VoidCallback onVisualiser;
+  final VoidCallback? onSigner;
 
   const _EdlLocataireRow({
     required this.edl,
     required this.onVoir,
     required this.onVisualiser,
+    this.onSigner,
   });
 
   static final _fmt = DateFormat('dd/MM/yyyy');
@@ -1765,6 +2145,7 @@ class _EdlLocataireRow extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
+                if (edl.code != null) _EdlCodeChip(code: edl.code!),
               ],
             ),
           ),
@@ -1816,26 +2197,58 @@ class _EdlLocataireRow extends StatelessWidget {
                 IconButton(
                   onPressed: onVisualiser,
                   tooltip: 'Visualiser',
-                  visualDensity: VisualDensity.compact,
                   constraints:
-                      const BoxConstraints(minWidth: 36, minHeight: 36),
+                      const BoxConstraints(minWidth: 44, minHeight: 44),
                   padding: EdgeInsets.zero,
-                  icon: const Icon(Icons.visibility_outlined, size: 18),
+                  icon: const Icon(Icons.visibility_outlined, size: 20),
                 ),
-                IconButton(
-                  onPressed: onVoir,
-                  tooltip: 'Éditer',
-                  visualDensity: VisualDensity.compact,
-                  constraints:
-                      const BoxConstraints(minWidth: 36, minHeight: 36),
-                  padding: EdgeInsets.zero,
-                  color: AppColors.primary,
-                  icon: const Icon(Icons.edit_outlined, size: 18),
-                ),
+                if (edl.situation != SituationEdl.finalise)
+                  IconButton(
+                    onPressed: onVoir,
+                    tooltip: 'Éditer',
+                    constraints:
+                        const BoxConstraints(minWidth: 44, minHeight: 44),
+                    padding: EdgeInsets.zero,
+                    color: AppColors.primary,
+                    icon: const Icon(Icons.edit_outlined, size: 20),
+                  )
+                else if (!edl.locataireAccepte && onSigner != null)
+                  IconButton(
+                    onPressed: onSigner,
+                    tooltip: 'Signer',
+                    constraints:
+                        const BoxConstraints(minWidth: 44, minHeight: 44),
+                    padding: EdgeInsets.zero,
+                    color: AppColors.tertiary,
+                    icon: const Icon(Icons.draw_outlined, size: 20),
+                  ),
               ],
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Badge du code de référence de l'EDL (monospace, discret).
+class _EdlCodeChip extends StatelessWidget {
+  final String code;
+  const _EdlCodeChip({required this.code});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 2),
+      child: Text(
+        code,
+        style: AppTypography.labelSm.copyWith(
+          color: AppColors.onSurfaceVariant,
+          fontFeatures: const [FontFeature.tabularFigures()],
+          letterSpacing: 0.3,
+        ),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
       ),
     );
   }
@@ -1883,11 +2296,13 @@ class _EdlLocataireCard extends StatelessWidget {
   final EtatDesLieuxModel edl;
   final VoidCallback onVoir;
   final VoidCallback onVisualiser;
+  final VoidCallback? onSigner;
 
   const _EdlLocataireCard({
     required this.edl,
     required this.onVoir,
     required this.onVisualiser,
+    this.onSigner,
   });
 
   static final _fmt = DateFormat('dd/MM/yyyy');
@@ -1973,6 +2388,7 @@ class _EdlLocataireCard extends StatelessWidget {
                 color: AppColors.onSurfaceVariant,
               ),
             ),
+          if (edl.code != null) _EdlCodeChip(code: edl.code!),
           const SizedBox(height: AppSpacing.sm),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -2064,13 +2480,24 @@ class _EdlLocataireCard extends StatelessWidget {
                 label: const Text('Voir'),
               ),
               const SizedBox(width: AppSpacing.sm),
-              Expanded(
-                child: FilledButton.icon(
-                  onPressed: onVoir,
-                  icon: const Icon(Icons.edit_outlined, size: 16),
-                  label: const Text('Continuer'),
+              if (edl.situation != SituationEdl.finalise)
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: onVoir,
+                    icon: const Icon(Icons.edit_outlined, size: 16),
+                    label: const Text('Continuer'),
+                  ),
+                )
+              else if (!edl.locataireAccepte && onSigner != null)
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: onSigner,
+                    style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.tertiary),
+                    icon: const Icon(Icons.draw_outlined, size: 16),
+                    label: const Text('Signer'),
+                  ),
                 ),
-              ),
             ],
           ),
         ],
@@ -2812,6 +3239,450 @@ class _EdlSituationBadge extends StatelessWidget {
         situation.label,
         style: TextStyle(fontSize: 11, color: fg, fontWeight: FontWeight.w500),
       ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Section Documents (Baux + Garants)
+
+class _DocumentsSection extends StatefulWidget {
+  const _DocumentsSection();
+
+  @override
+  State<_DocumentsSection> createState() => _DocumentsSectionState();
+}
+
+class _DocumentsSectionState extends State<_DocumentsSection>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabCtrl = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _LocataireSectionBar(title: 'Documents'),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
+          child: TabBar(
+            controller: _tabCtrl,
+            tabs: const [
+              Tab(text: 'Mes baux'),
+              Tab(text: 'Garants'),
+            ],
+          ),
+        ),
+        Expanded(
+          child: TabBarView(
+            controller: _tabCtrl,
+            children: const [
+              _BauxLocataireTab(),
+              GarantsPage(),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Onglet Baux ──────────────────────────────────────────────────────────────
+
+class _BauxLocataireTab extends StatefulWidget {
+  const _BauxLocataireTab();
+
+  @override
+  State<_BauxLocataireTab> createState() => _BauxLocataireTabState();
+}
+
+class _BauxLocataireTabState extends State<_BauxLocataireTab> {
+  late Future<List<EtatDesLieuxModel>> _future;
+  static final _dateFmt = DateFormat('dd/MM/yyyy');
+
+  @override
+  void initState() {
+    super.initState();
+    _reload();
+  }
+
+  void _reload() {
+    final uid = AuthService.currentUser?.id ?? '';
+    final f = EtatDesLieuxDatasource.listForLocataire(uid).then(
+      (list) => list
+          .where((e) => e.typeEdl == 'entree' && e.locataireAccepte)
+          .toList()
+        ..sort((a, b) => (b.dateDebutBail ?? b.dateEtatLieux)
+            .compareTo(a.dateDebutBail ?? a.dateEtatLieux)),
+    );
+    setState(() { _future = f; });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<List<EtatDesLieuxModel>>(
+      future: _future,
+      builder: (context, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snap.hasError) {
+          return Center(child: Text('Erreur : ${snap.error}'));
+        }
+        final list = snap.data ?? [];
+
+        if (list.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.description_outlined,
+                    size: 56, color: AppColors.outline),
+                const SizedBox(height: AppSpacing.md),
+                Text('Aucun bail signé', style: AppTypography.titleLg),
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  'Vos baux apparaissent ici après avoir\naccepté et signé un état des lieux.',
+                  style: AppTypography.bodyMd
+                      .copyWith(color: AppColors.onSurfaceVariant),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          );
+        }
+
+        return ListView.separated(
+          padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.xl, vertical: AppSpacing.md),
+          itemCount: list.length,
+          separatorBuilder: (_, _) => const Divider(height: 1),
+          itemBuilder: (_, i) {
+            final edl = list[i];
+            final debut = edl.dateDebutBail ?? edl.dateEtatLieux;
+            final fin = edl.dateFinBail;
+            final lieu = edl.chambreNom != null
+                ? '${edl.immeubleNom ?? ''} · ${edl.chambreNom}'
+                : (edl.immeubleNom ?? '—');
+            return ListTile(
+              contentPadding:
+                  const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+              leading: const CircleAvatar(
+                backgroundColor: AppColors.primaryFixed,
+                child: Icon(Icons.description_outlined,
+                    color: AppColors.primary, size: 18),
+              ),
+              title: Text(lieu, style: AppTypography.bodyMd),
+              subtitle: Text(
+                '${_dateFmt.format(debut)}  →  ${fin != null ? _dateFmt.format(fin) : "En cours"}',
+                style: AppTypography.labelSm
+                    .copyWith(color: AppColors.onSurfaceVariant),
+              ),
+              trailing: OutlinedButton.icon(
+                onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => BailPdfPreviewPage(edl: edl),
+                )),
+                icon: const Icon(Icons.open_in_new, size: 14),
+                label: const Text('Bail'),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Section Finances (locataire) — loyers mensuels à payer (lecture seule)
+// ═════════════════════════════════════════════════════════════════════════════
+
+class _FinancesSection extends StatefulWidget {
+  const _FinancesSection();
+
+  @override
+  State<_FinancesSection> createState() => _FinancesSectionState();
+}
+
+class _FinancesSectionState extends State<_FinancesSection> {
+  late Future<List<RecetteModel>> _future;
+  String? _filtreStatut;
+
+  static final _currFmt =
+      NumberFormat.currency(locale: 'fr_FR', symbol: '€', decimalDigits: 2);
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  void _load() {
+    final uid = AuthService.currentUser?.id;
+    if (uid == null) {
+      _future = Future.value([]);
+    } else {
+      final f = RecettesDatasource.listByLocataire(uid);
+      setState(() => _future = f);
+    }
+  }
+
+  List<RecetteModel> _filter(List<RecetteModel> all) {
+    if (_filtreStatut == null) return all;
+    return all.where((r) => r.statut == _filtreStatut).toList();
+  }
+
+  double _total(List<RecetteModel> all, String statut) =>
+      all.where((r) => r.statut == statut).fold(0.0, (s, r) => s + r.montant);
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _LocataireSectionBar(title: 'Mes Finances'),
+        Expanded(
+          child: FutureBuilder<List<RecetteModel>>(
+            future: _future,
+            builder: (ctx, snap) {
+              if (snap.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (snap.hasError) {
+                return Center(child: Text('Erreur : ${snap.error}'));
+              }
+              final all = snap.data ?? [];
+              final filtered = _filter(all);
+
+              if (all.isEmpty) {
+                return Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.payments_outlined,
+                          size: 56, color: AppColors.outline),
+                      const SizedBox(height: AppSpacing.md),
+                      Text('Aucun loyer enregistré.',
+                          style: AppTypography.bodyMd.copyWith(
+                              color: AppColors.onSurfaceVariant)),
+                    ],
+                  ),
+                );
+              }
+
+              return Padding(
+                padding: const EdgeInsets.all(AppSpacing.lg),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // ── Résumé ────────────────────────────────────────────
+                    Wrap(
+                      spacing: AppSpacing.sm,
+                      runSpacing: AppSpacing.xs,
+                      children: [
+                        _LocFinanceChip(
+                          label: 'À payer',
+                          amount: _total(all, 'a_recevoir'),
+                          color: AppColors.primary,
+                          selected: _filtreStatut == 'a_recevoir',
+                          onTap: () => setState(() => _filtreStatut =
+                              _filtreStatut == 'a_recevoir'
+                                  ? null
+                                  : 'a_recevoir'),
+                        ),
+                        _LocFinanceChip(
+                          label: 'Payé',
+                          amount: _total(all, 'recu'),
+                          color: AppColors.tertiary,
+                          selected: _filtreStatut == 'recu',
+                          onTap: () => setState(() => _filtreStatut =
+                              _filtreStatut == 'recu' ? null : 'recu'),
+                        ),
+                        _LocFinanceChip(
+                          label: 'En retard',
+                          amount: _total(all, 'en_retard'),
+                          color: AppColors.error,
+                          selected: _filtreStatut == 'en_retard',
+                          onTap: () => setState(() => _filtreStatut =
+                              _filtreStatut == 'en_retard'
+                                  ? null
+                                  : 'en_retard'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+
+                    // ── Tableau ───────────────────────────────────────────
+                    Expanded(
+                      child: filtered.isEmpty
+                          ? Center(
+                              child: Text(
+                                'Aucune échéance pour ce filtre.',
+                                style: AppTypography.bodyMd.copyWith(
+                                    color: AppColors.onSurfaceVariant),
+                              ),
+                            )
+                          : LayoutBuilder(builder: (ctx, constraints) {
+                              final narrow = constraints.maxWidth < 650;
+                              return SingleChildScrollView(
+                                child: SingleChildScrollView(
+                                  scrollDirection: Axis.horizontal,
+                                  child: ConstrainedBox(
+                                    constraints: BoxConstraints(
+                                        minWidth: constraints.maxWidth),
+                                    child: DataTable(
+                                      columnSpacing: AppSpacing.lg,
+                                      headingRowColor:
+                                          WidgetStateProperty.all(
+                                              AppColors.surfaceContainerLow),
+                                      columns: [
+                                        const DataColumn(label: Text('Mois')),
+                                        if (!narrow)
+                                          const DataColumn(
+                                              label: Text('Bien')),
+                                        DataColumn(
+                                            label: const Text('Loyer (€)'),
+                                            numeric: true),
+                                        const DataColumn(
+                                            label: Text('Statut')),
+                                        if (!narrow)
+                                          const DataColumn(
+                                              label: Text('Payé le')),
+                                      ],
+                                      rows: filtered.map((r) {
+                                        return DataRow(cells: [
+                                          DataCell(Text(r.moisLabel,
+                                              style: AppTypography.bodyMd)),
+                                          if (!narrow)
+                                            DataCell(Text(r.lieuLabel,
+                                                style: AppTypography.bodyMd,
+                                                overflow:
+                                                    TextOverflow.ellipsis)),
+                                          DataCell(Text(
+                                              _currFmt.format(r.montant),
+                                              style: AppTypography.bodyMd)),
+                                          DataCell(
+                                              _LocStatutBadge(statut: r.statut)),
+                                          if (!narrow)
+                                            DataCell(Text(
+                                                r.paiementLabel ?? '—',
+                                                style: AppTypography.bodyMd)),
+                                        ]);
+                                      }).toList(),
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _LocFinanceChip extends StatelessWidget {
+  final String label;
+  final double amount;
+  final Color color;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _LocFinanceChip({
+    required this.label,
+    required this.amount,
+    required this.color,
+    required this.selected,
+    required this.onTap,
+  });
+
+  static final _fmt =
+      NumberFormat.currency(locale: 'fr_FR', symbol: '€', decimalDigits: 2);
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+        decoration: BoxDecoration(
+          color: selected
+              ? color.withValues(alpha: 0.12)
+              : AppColors.surfaceContainerLowest,
+          border: Border.all(
+              color: selected ? color : AppColors.outlineVariant,
+              width: selected ? 2 : 1),
+          borderRadius: AppRadius.borderMd,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(label,
+                style: AppTypography.labelSm
+                    .copyWith(color: AppColors.onSurfaceVariant)),
+            Text(_fmt.format(amount),
+                style: AppTypography.titleLs
+                    .copyWith(color: color, fontWeight: FontWeight.w700)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _LocStatutBadge extends StatelessWidget {
+  final String statut;
+  const _LocStatutBadge({required this.statut});
+
+  @override
+  Widget build(BuildContext context) {
+    final (label, bg, fg) = switch (statut) {
+      'recu' => (
+          'Payé',
+          AppColors.tertiaryFixed,
+          AppColors.onTertiaryFixedVariant
+        ),
+      'en_retard' => (
+          'En retard',
+          AppColors.errorContainer,
+          AppColors.onErrorContainer
+        ),
+      _ => (
+          'À payer',
+          AppColors.secondaryFixed,
+          AppColors.onSecondaryFixedVariant
+        ),
+    };
+    return Container(
+      padding:
+          const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 2),
+      decoration: BoxDecoration(
+          color: bg, borderRadius: AppRadius.borderFull),
+      child: Text(label, style: AppTypography.labelSm.copyWith(color: fg)),
     );
   }
 }

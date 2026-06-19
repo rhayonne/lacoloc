@@ -122,7 +122,8 @@ class EdlTableFilter {
       final hit = e.displayLocataire.toLowerCase().contains(q) ||
           (e.locataireEmail?.toLowerCase().contains(q) ?? false) ||
           (e.immeubleNom?.toLowerCase().contains(q) ?? false) ||
-          (e.chambreNom?.toLowerCase().contains(q) ?? false);
+          (e.chambreNom?.toLowerCase().contains(q) ?? false) ||
+          (e.code?.toLowerCase().contains(q) ?? false);
       if (!hit) return false;
     }
     return true;
@@ -262,7 +263,7 @@ class _EdlFilterBarState extends State<EdlFilterBar> {
       controller: _searchCtrl,
       onChanged: (v) => widget.onChanged(_f.copyWith(query: v)),
       decoration: InputDecoration(
-        hintText: 'Rechercher locataire, immeuble…',
+        hintText: 'Rechercher (code, locataire, immeuble)…',
         prefixIcon: const Icon(Icons.search, size: 20),
         suffixIcon: _f.query.isNotEmpty
             ? IconButton(

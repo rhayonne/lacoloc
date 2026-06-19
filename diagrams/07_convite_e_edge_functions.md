@@ -1,4 +1,4 @@
-# Convite de Locataire & Edge Functions — La Coloc
+# Convite de Locataire & Edge Functions — Super Loc
 
 ## Edge Functions (Deno, `supabase/functions/`)
 

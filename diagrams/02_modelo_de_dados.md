@@ -1,4 +1,4 @@
-# Modelo de Dados (ERD) — La Coloc
+# Modelo de Dados (ERD) — Super Loc
 
 > Atualizado para refletir o esquema completo: referência, patrimônio, finanças,
 > état des lieux, inventário, visitas e permissões.

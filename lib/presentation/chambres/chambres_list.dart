@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:lacoloc_front/data/datasources/chambre_charges.dart';
 import 'package:lacoloc_front/data/datasources/chambres.dart';
 import 'package:lacoloc_front/data/datasources/reference.dart';
 import 'package:lacoloc_front/data/models/chambre.dart';
+import 'package:lacoloc_front/data/models/chambre_charge.dart';
 import 'package:lacoloc_front/data/models/filter_state.dart';
 import 'package:lacoloc_front/presentation/chambres/chambre_card.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
@@ -14,12 +16,15 @@ class ChambresList extends StatefulWidget {
   final String filter;
   final ChambreFilter chambreFilter;
   final ValueChanged<List<ChambreModel>>? onDataLoaded;
+  /// Si fourni, intercepte le tap sur un card au lieu d'appeler pushNamed.
+  final ValueChanged<int>? onTapChambre;
 
   const ChambresList({
     super.key,
     this.filter = '',
     this.chambreFilter = ChambreFilter.empty,
     this.onDataLoaded,
+    this.onTapChambre,
   });
 
   @override
@@ -27,20 +32,15 @@ class ChambresList extends StatefulWidget {
 }
 
 class _ChambresListState extends State<ChambresList> {
-  late Future<List<ChambreModel>> _future;
+  late Future<_ListData> _future;
 
-  /// Mapa optionId → nom (Wifi, Lit double…) para rotular as options no card.
-  /// Carregado uma vez (cache de [ReferenceDatasource]) — evita fetch por card.
   Map<int, String> _optionNames = const {};
 
   @override
   void initState() {
     super.initState();
     _loadOptionNames();
-    _future = ChambresDatasource.listAll().then((data) {
-      widget.onDataLoaded?.call(data);
-      return data;
-    });
+    _future = _loadData();
   }
 
   Future<void> _loadOptionNames() async {
@@ -49,7 +49,15 @@ class _ChambresListState extends State<ChambresList> {
     setState(() => _optionNames = {for (final o in opts) o.id: o.name});
   }
 
-  bool _matches(ChambreModel c) {
+  Future<_ListData> _loadData() async {
+    final chambres = await ChambresDatasource.listAll();
+    widget.onDataLoaded?.call(chambres);
+    final ids = chambres.map((c) => c.id).toList();
+    final chargesMap = await ChambreChargesDatasource.listByChambres(ids);
+    return _ListData(chambres: chambres, chargesMap: chargesMap);
+  }
+
+  bool _matches(ChambreModel c, List<ChambreChargeModel> charges) {
     final f = widget.chambreFilter;
 
     // Filtro de texto da barra de busca
@@ -57,8 +65,7 @@ class _ChambresListState extends State<ChambresList> {
     if (text.isNotEmpty) {
       final inName = c.roomName.toLowerCase().contains(text);
       final inImm = c.immeubleName?.toLowerCase().contains(text) ?? false;
-      final inAddr =
-          c.immeubleAddress?.toLowerCase().contains(text) ?? false;
+      final inAddr = c.immeubleAddress?.toLowerCase().contains(text) ?? false;
       if (!inName && !inImm && !inAddr) return false;
     }
 
@@ -70,53 +77,40 @@ class _ChambresListState extends State<ChambresList> {
 
     // Localização (substring case-insensitive)
     if (f.city.isNotEmpty) {
-      final match =
-          c.immeubleCity?.toLowerCase().contains(f.city.toLowerCase()) ??
-              false;
+      final match = c.immeubleCity?.toLowerCase().contains(f.city.toLowerCase()) ?? false;
       if (!match) return false;
     }
     if (f.region.isNotEmpty) {
-      final match = c.immeubleRegion
-              ?.toLowerCase()
-              .contains(f.region.toLowerCase()) ??
-          false;
+      final match = c.immeubleRegion?.toLowerCase().contains(f.region.toLowerCase()) ?? false;
       if (!match) return false;
     }
     if (f.department.isNotEmpty) {
-      final match = c.immeubleDepartment
-              ?.toLowerCase()
-              .contains(f.department.toLowerCase()) ??
-          false;
+      final match = c.immeubleDepartment?.toLowerCase().contains(f.department.toLowerCase()) ?? false;
       if (!match) return false;
     }
 
-    if (f.bailType == BailTypeFilter.collectif && !c.immeubleBailLocation) {
-      return false;
-    }
-    if (f.bailType == BailTypeFilter.individuel && !c.immeubleBailIndividuel) {
-      return false;
-    }
+    if (f.bailType == BailTypeFilter.collectif && !c.immeubleBailLocation) return false;
+    if (f.bailType == BailTypeFilter.individuel && !c.immeubleBailIndividuel) return false;
 
     // Location meublée / non meublée
     if (f.meuble != null && c.immeubleLocationMeuble != f.meuble) return false;
 
     // Type d'immeuble
-    if (f.immeubleTypeId != null && c.immeubleTypeId != f.immeubleTypeId) {
-      return false;
-    }
+    if (f.immeubleTypeId != null && c.immeubleTypeId != f.immeubleTypeId) return false;
 
     // Surface m²
     if (f.m2Min != null && (c.m2 == null || c.m2! < f.m2Min!)) return false;
     if (f.m2Max != null && (c.m2 == null || c.m2! > f.m2Max!)) return false;
 
     // Prix loyer
-    if (f.prixMin != null &&
-        (c.prixLoyer == null || c.prixLoyer! < f.prixMin!)) {
-      return false;
-    }
-    if (f.prixMax != null &&
-        (c.prixLoyer == null || c.prixLoyer! > f.prixMax!)) {
-      return false;
+    if (f.prixMin != null && (c.prixLoyer == null || c.prixLoyer! < f.prixMin!)) return false;
+    if (f.prixMax != null && (c.prixLoyer == null || c.prixLoyer! > f.prixMax!)) return false;
+
+    // Charges
+    if (f.avecCharges != null) {
+      final hasInclus = charges.any((ch) => ch.type == 'inclus');
+      if (f.avecCharges! && !hasInclus) return false;
+      if (!f.avecCharges! && hasInclus) return false;
     }
 
     return true;
@@ -124,7 +118,7 @@ class _ChambresListState extends State<ChambresList> {
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<List<ChambreModel>>(
+    return FutureBuilder<_ListData>(
       future: _future,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -134,16 +128,15 @@ class _ChambresListState extends State<ChambresList> {
           return Center(
             child: Padding(
               padding: const EdgeInsets.all(AppSpacing.lg),
-              child: Text(
-                'Erreur : ${snapshot.error}',
-                style: AppTypography.bodyMd,
-              ),
+              child: Text('Erreur : ${snapshot.error}', style: AppTypography.bodyMd),
             ),
           );
         }
 
-        final all = snapshot.data ?? [];
-        final filtered = all.where(_matches).toList();
+        final data = snapshot.data!;
+        final filtered = data.chambres
+            .where((c) => _matches(c, data.chargesMap[c.id] ?? []))
+            .toList();
 
         if (filtered.isEmpty) {
           return Center(
@@ -162,20 +155,33 @@ class _ChambresListState extends State<ChambresList> {
             maxCrossAxisExtent: 420,
             crossAxisSpacing: AppSpacing.md,
             mainAxisSpacing: AppSpacing.md,
-            mainAxisExtent: 410,
+            mainAxisExtent: 420,
           ),
           itemCount: filtered.length,
           itemBuilder: (context, index) {
             final chambre = filtered[index];
+            final charges = data.chargesMap[chambre.id] ?? [];
             return ChambreCard(
               chambre: chambre,
               optionNames: _optionNames,
-              onTap: () => Navigator.of(context)
-                  .pushNamed('/chambre', arguments: chambre.id),
+              charges: charges,
+              onTap: () {
+                if (widget.onTapChambre != null) {
+                  widget.onTapChambre!(chambre.id);
+                } else {
+                  Navigator.of(context).pushNamed('/chambre', arguments: chambre.id);
+                }
+              },
             );
           },
         );
       },
     );
   }
+}
+
+class _ListData {
+  final List<ChambreModel> chambres;
+  final Map<int, List<ChambreChargeModel>> chargesMap;
+  _ListData({required this.chambres, required this.chargesMap});
 }

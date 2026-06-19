@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:lacoloc_front/data/models/etat_de_lieux.dart';
+import 'package:lacoloc_front/presentation/widgets/app_list_search_field.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_radius.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
@@ -28,12 +29,10 @@ class _SelectEntreeDialog extends StatefulWidget {
 }
 
 class _SelectEntreeDialogState extends State<_SelectEntreeDialog> {
-  final _searchCtrl = TextEditingController();
   String _query = '';
 
   @override
   void dispose() {
-    _searchCtrl.dispose();
     super.dispose();
   }
 
@@ -88,14 +87,10 @@ class _SelectEntreeDialogState extends State<_SelectEntreeDialog> {
                     .copyWith(color: AppColors.onSurfaceVariant),
               ),
               const SizedBox(height: AppSpacing.md),
-              TextField(
-                controller: _searchCtrl,
-                decoration: const InputDecoration(
-                  prefixIcon: Icon(Icons.search),
-                  hintText: 'Rechercher (immeuble, chambre, locataire)…',
-                  isDense: true,
-                ),
-                onChanged: (v) => setState(() => _query = v),
+              AppListSearchField(
+                hint: 'Rechercher (immeuble, chambre, locataire)…',
+                onChanged: (q) => setState(() => _query = q),
+                padding: EdgeInsets.zero,
               ),
               const SizedBox(height: AppSpacing.md),
               Flexible(

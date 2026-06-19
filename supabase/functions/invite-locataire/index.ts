@@ -14,6 +14,17 @@ function json(data: unknown, status = 200) {
   });
 }
 
+/// Échappe le HTML (anti-injection dans le corps des e-mails : full_name,
+/// email, phone proviennent d'entrées utilisateur).
+function esc(value: unknown): string {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 /// Mot de passe temporaire aléatoire (sans caractères ambigus).
 function genPassword(length = 14): string {
   const chars =
@@ -50,33 +61,38 @@ async function sendActivationEmail(
   const port = parseInt(Deno.env.get('SMTP_PORT') ?? '587', 10);
   const user = Deno.env.get('SMTP_USER') ?? '';
   const pass = Deno.env.get('SMTP_PASS') ?? '';
-  const from = Deno.env.get('SMTP_FROM') ?? `La Coloc <${user}>`;
+  const from = Deno.env.get('SMTP_FROM') ?? `Super Loc <${user}>`;
   const secure = port === 465;
 
   if (!host || !user || !pass) {
-    return { sent: false, smtpError: `Missing secrets — host="${host}" user="${user}" pass=${pass ? '***' : '(empty)'}` };
+    // Ne pas divulguer les valeurs de configuration SMTP dans la réponse.
+    console.error('SMTP non configuré (host/user/pass manquant).');
+    return { sent: false, smtpError: 'SMTP non configuré.' };
   }
 
   const displayName = fullName || email;
+  const nameSafe = esc(displayName);
+  const emailSafe = esc(email);
+  const phoneSafe = esc(phone);
 
   // Corps et sujet différents selon création vs renvoi de mot de passe.
   const subject = isResend
-    ? `Réinitialisation de votre accès — La Coloc`
-    : `Bienvenue sur La Coloc — Activez votre compte`;
+    ? `Réinitialisation de votre accès — Super Loc`
+    : `Bienvenue sur Super Loc — Activez votre compte`;
 
   const intro = isResend
     ? `
         <h2 style="color: #006685;">Réinitialisation de votre accès</h2>
-        <p>Bonjour <strong>${displayName}</strong>,</p>
+        <p>Bonjour <strong>${nameSafe}</strong>,</p>
         <p>
           Une réinitialisation de mot de passe a été demandée pour votre compte
-          <strong>La Coloc</strong> (<em>${email}</em>).
+          <strong>Super Loc</strong> (<em>${emailSafe}</em>).
         </p>
       `
     : `
-        <h2 style="color: #006685;">Bienvenue sur La Coloc, ${displayName} !</h2>
-        <p>Votre propriétaire vous a créé un compte sur <strong>La Coloc</strong>.</p>
-        ${phone ? `<p><strong>Téléphone enregistré :</strong> ${phone}</p>` : ''}
+        <h2 style="color: #006685;">Bienvenue sur Super Loc, ${nameSafe} !</h2>
+        <p>Votre propriétaire vous a créé un compte sur <strong>Super Loc</strong>.</p>
+        ${phone ? `<p><strong>Téléphone enregistré :</strong> ${phoneSafe}</p>` : ''}
       `;
 
   const buttonLabel = isResend
@@ -156,6 +172,32 @@ function isAlreadyRegistered(msg: string): boolean {
   );
 }
 
+/// Vérifie que l'appelant est authentifié et possède un rôle autorisé à gérer
+/// des comptes locataires (proprietaire / admin_groupe / super_admin). Retourne
+/// `null` si OK, sinon une `Response` d'erreur (401/403) à renvoyer directement.
+/// Le JWT est validé côté service role → non falsifiable.
+// deno-lint-ignore no-explicit-any
+async function requireManager(supabase: any, req: Request): Promise<Response | null> {
+  const authHeader = req.headers.get('Authorization') ?? '';
+  const token = authHeader.replace(/^Bearer\s+/i, '').trim();
+  if (!token) return json({ error: 'Authentification requise.' }, 401);
+  const { data: caller, error: authErr } = await supabase.auth.getUser(token);
+  if (authErr || !caller?.user) {
+    return json({ error: 'Jeton invalide ou expiré.' }, 401);
+  }
+  const { data: profile } = await supabase
+    .from('Users_Client')
+    .select('User_Types_Reference(code)')
+    .eq('id', caller.user.id)
+    .maybeSingle();
+  // deno-lint-ignore no-explicit-any
+  const code = (profile as any)?.User_Types_Reference?.code;
+  if (!['proprietaire', 'admin_groupe', 'super_admin'].includes(code)) {
+    return json({ error: 'Action réservée aux gestionnaires de comptes.' }, 403);
+  }
+  return null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -177,10 +219,16 @@ Deno.serve(async (req) => {
       emailType,
     } = body;
 
-    // En dev, le client peut rediriger l'e-mail vers une boîte de test
-    // (ADDR_MAIL_CONFIRMATION) sans changer l'e-mail réel du compte.
-    const recipient =
-      (typeof mailTo === 'string' && mailTo) ? mailTo : email;
+    // Redirection d'e-mail (mailTo) — uniquement honorée si le serveur l'autorise
+    // explicitement via le secret `ALLOW_CLIENT_MAIL_OVERRIDE=true` (réservé au
+    // DEV pour livrer dans une boîte de test). En PROD ce secret est absent →
+    // le lien d'activation part TOUJOURS vers l'e-mail réel du compte. Sans ce
+    // garde-fou, un appelant pouvait rediriger le lien (mot de passe temporaire)
+    // vers une adresse arbitraire → prise de contrôle de compte.
+    const overrideAllowed =
+      (Deno.env.get('ALLOW_CLIENT_MAIL_OVERRIDE') ?? '').toLowerCase() === 'true';
+    const rawMailTo = (typeof mailTo === 'string' && mailTo) ? mailTo : '';
+    const recipient = (overrideAllowed && rawMailTo) ? rawMailTo : email;
 
     // Racine de l'app (page qui détecte ?email&?temp). Fournie par le client
     // (.env URL_EMAIL_CONFIRMATION_*), avec repli sur le secret APP_URL.
@@ -220,7 +268,8 @@ Deno.serve(async (req) => {
         return json({ ok: false, error: 'Réservé au super admin.' }, 403);
       }
 
-      const to = recipient;
+      // Mode test = super_admin authentifié → on honore mailTo sans restriction.
+      const to = rawMailTo || email;
       if (!to) return json({ ok: false, error: 'email (ou mailTo) requis pour le test.' }, 400);
 
       // emailType : 'reset' → e-mail de réinitialisation ; sinon → activation.
@@ -228,12 +277,12 @@ Deno.serve(async (req) => {
       const tempPassword = 'MOT-DE-PASSE-TEST';
       const link = buildActivationLink(appUrl, to, 'TEST');
       const subject = isResend
-        ? 'Réinitialisation de votre accès — La Coloc'
-        : 'Bienvenue sur La Coloc — Activez votre compte';
+        ? 'Réinitialisation de votre accès — Super Loc'
+        : 'Bienvenue sur Super Loc — Activez votre compte';
 
       const { sent, smtpError } = await sendActivationEmail(
         to,
-        fullName ?? 'Test La Coloc',
+        fullName ?? 'Test Super Loc',
         tempPassword,
         link,
         phone,
@@ -257,7 +306,12 @@ Deno.serve(async (req) => {
 
     // ── Resend mode ──────────────────────────────────────────────────────────
     // Réinitialise un nouveau mot de passe temporaire et renvoie le lien.
+    // RÉSERVÉ aux gestionnaires authentifiés (propriétaire/admin/super admin) :
+    // sans ce contrôle, n'importe qui pouvait réinitialiser le mot de passe de
+    // n'importe quel compte (via son userId) → prise de contrôle de compte.
     if (resend === true) {
+      const denied = await requireManager(supabase, req);
+      if (denied) return denied;
       if (!existingUserId) return json({ error: 'userId est obligatoire.' }, 400);
       if (!email) return json({ error: 'email est obligatoire.' }, 400);
 
@@ -292,6 +346,12 @@ Deno.serve(async (req) => {
     }
 
     // ── Create mode ────────────────────────────────────────────────────────
+    // RÉSERVÉ aux gestionnaires authentifiés : sans ce contrôle, n'importe qui
+    // pouvait créer des comptes (service role) avec des données arbitraires.
+    {
+      const denied = await requireManager(supabase, req);
+      if (denied) return denied;
+    }
     if (!fullName || !email) {
       return json({ error: 'fullName et email sont obligatoires.' }, 400);
     }

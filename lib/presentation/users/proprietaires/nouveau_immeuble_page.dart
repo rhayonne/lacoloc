@@ -3,22 +3,26 @@ import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:form_builder_validators/form_builder_validators.dart';
 import 'package:lacoloc_front/data/datasources/address_search.dart';
 import 'package:lacoloc_front/data/datasources/auth_service.dart';
+import 'package:lacoloc_front/data/datasources/charges_reference.dart';
 import 'package:lacoloc_front/data/datasources/commons_seeder.dart';
+import 'package:lacoloc_front/data/datasources/immeuble_charges.dart';
 import 'package:lacoloc_front/data/datasources/immeubles.dart';
 import 'package:lacoloc_front/data/datasources/pieces.dart';
 import 'package:lacoloc_front/data/datasources/reference.dart';
 import 'package:lacoloc_front/data/pieces_communes_seed.dart';
 import 'package:lacoloc_front/data/models/address_suggestion.dart';
+import 'package:lacoloc_front/data/models/charge_reference.dart';
+import 'package:lacoloc_front/data/models/immeuble_charge.dart';
 import 'package:lacoloc_front/data/models/immeuble_type.dart';
 import 'package:lacoloc_front/data/models/immeubles.dart';
 import 'package:lacoloc_front/presentation/widgets/address_autocomplete_field.dart';
+import 'package:lacoloc_front/presentation/widgets/charges_selector.dart';
 import 'package:lacoloc_front/presentation/widgets/form_page_header.dart';
 import 'package:lacoloc_front/presentation/widgets/photo_picker_field.dart';
 import 'package:lacoloc_front/presentation/widgets/unsaved_changes_dialog.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
 import 'package:lacoloc_front/theme/app_typography.dart';
-import 'package:lacoloc_front/utils/responsive_form_wrapper.dart';
 
 class NouveauImmeublePage extends StatefulWidget {
   final ImmeublesModel? immeuble;
@@ -35,6 +39,8 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
   final _formKey = GlobalKey<FormBuilderState>();
 
   late Future<List<ImmeubleTypeModel>> _typesFuture;
+  late Future<_Bundle> _bundleFuture;
+
   ImmeubleTypeModel? _selectedType;
   String _address = '';
   String? _codePostal;
@@ -43,12 +49,14 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
   bool _isSubmitting = false;
   bool _isBailLocation = false;
 
+  // Charges sélectionnées
+  List<ChargeSelection> _charges = [];
+
   // Parties communes
-  ImmeublesModel? _createdImmeuble; // immeuble créé via le bouton (page neuve)
+  ImmeublesModel? _createdImmeuble;
   bool _communesCreated = false;
   bool _creatingCommunes = false;
 
-  /// Immeuble persisté (édition d'un existant OU créé via le bouton communes).
   ImmeublesModel? get _persistedImmeuble => widget.immeuble ?? _createdImmeuble;
   bool get _isEditing => _persistedImmeuble != null;
 
@@ -56,6 +64,7 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
   void initState() {
     super.initState();
     _typesFuture = ReferenceDatasource.immeubleTypes();
+    _bundleFuture = _loadBundle();
     final imm = widget.immeuble;
     if (imm != null) {
       _address = imm.address ?? '';
@@ -77,12 +86,31 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
     }
   }
 
-  /// Désactive le bouton si les pièces communes standard existent déjà.
+  Future<_Bundle> _loadBundle() async {
+    final chargesRef = await ChargesReferenceDatasource.listAll(activeOnly: true);
+    List<ImmeubleChargeModel> existing = [];
+    final imm = widget.immeuble;
+    if (imm != null) {
+      existing = await ImmeubleChargesDatasource.listByImmeuble(imm.id);
+    }
+    // Convertir en ChargeSelection initiales
+    final initSel = existing.map((ic) {
+      final ref = chargesRef.where((r) => r.id == ic.chargeRefId).firstOrNull;
+      if (ref == null) return null;
+      return ChargeSelection(ref: ref, type: ic.type, montant: ic.montant);
+    }).whereType<ChargeSelection>().toList();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() => _charges = initSel);
+    });
+
+    return _Bundle(chargesRef: chargesRef);
+  }
+
   Future<void> _checkCommunesExistantes(int immeubleId) async {
     try {
       final pieces = await PiecesDatasource.listByImmeuble(immeubleId);
-      final hasCommunes =
-          pieces.any((p) => kPiecesCommunesNoms.contains(p.nom));
+      final hasCommunes = pieces.any((p) => kPiecesCommunesNoms.contains(p.nom));
       if (mounted && hasCommunes) setState(() => _communesCreated = true);
     } catch (_) {}
   }
@@ -97,11 +125,6 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
     _formKey.currentState?.fields['region']?.didChange(s.region);
   }
 
-  /// Garante que département/région/code postal estejam preenchidos a partir
-  /// do endereço. Quando o usuário digita o endereço sem clicar numa sugestão,
-  /// esses campos ficam vazios; aqui fazemos um lookup na API BAN (code postal
-  /// do imóvel) e preenchemos antes de gravar. Idempotente: só busca se faltar
-  /// algum dos três e houver endereço.
   Future<void> _ensureLocationData() async {
     final state = _formKey.currentState;
     if (state == null) return;
@@ -111,18 +134,12 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
     final address = _address.trim();
     if (address.isEmpty) return;
     if (dept.isNotEmpty && region.isNotEmpty && cp.isNotEmpty) return;
-
     final results = await AddressSearchService.search(address);
     if (results.isEmpty || !mounted) return;
     final s = results.first;
-    if (dept.isEmpty && s.department.isNotEmpty) {
-      state.fields['department']?.didChange(s.department);
-    }
-    if (region.isEmpty && s.region.isNotEmpty) {
-      state.fields['region']?.didChange(s.region);
-    }
-    if ((state.fields['city']?.value as String?)?.trim().isEmpty != false &&
-        s.city.isNotEmpty) {
+    if (dept.isEmpty && s.department.isNotEmpty) state.fields['department']?.didChange(s.department);
+    if (region.isEmpty && s.region.isNotEmpty) state.fields['region']?.didChange(s.region);
+    if ((state.fields['city']?.value as String?)?.trim().isEmpty != false && s.city.isNotEmpty) {
       state.fields['city']?.didChange(s.city);
     }
     if (cp.isEmpty && s.postcode.isNotEmpty) _codePostal = s.postcode;
@@ -130,25 +147,19 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
 
   Future<void> _handleBack() async {
     final isDirty = _formKey.currentState?.isDirty ?? false;
-    if (!isDirty) {
-      widget.onBack?.call();
-      return;
-    }
+    if (!isDirty) { widget.onBack?.call(); return; }
     final choice = await showUnsavedChangesDialog(context);
     if (!mounted) return;
     switch (choice) {
-      case UnsavedChoice.cancel:
-        return;
-      case UnsavedChoice.discard:
-        widget.onBack?.call();
-      case UnsavedChoice.save:
-        await _submit();
+      case UnsavedChoice.cancel: return;
+      case UnsavedChoice.discard: widget.onBack?.call();
+      case UnsavedChoice.save: await _submit();
     }
   }
 
-  /// Construit le modèle à partir des valeurs du formulaire (déjà validées).
   ImmeublesModel _buildModel(Map<String, dynamic> values, ImmeubleTypeModel type) {
     String? trimOrNull(String? v) => v?.trim().isEmpty == true ? null : v?.trim();
+    final meuble = values['location_meuble'] as bool?;
     return ImmeublesModel(
       id: _persistedImmeuble?.id ?? 0,
       name: values['name'] as String,
@@ -159,8 +170,7 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
       region: trimOrNull(values['region'] as String?),
       department: trimOrNull(values['department'] as String?),
       codePostal: trimOrNull(_codePostal),
-      totalM2: double.tryParse(
-          ((values['total_m2'] as String?) ?? '').replaceAll(',', '.')),
+      totalM2: double.tryParse(((values['total_m2'] as String?) ?? '').replaceAll(',', '.')),
       description: trimOrNull(values['description'] as String?),
       commonPhotos: _photos,
       isActive: !((values['desactiver'] as bool?) ?? false),
@@ -168,43 +178,59 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
       bailLocation: (values['bail_location'] as bool?) ?? false,
       bailIndividuel: (values['bail_individuel'] as bool?) ?? false,
       prixLoyer: _isBailLocation
-          ? double.tryParse(
-              ((values['prix_loyer'] as String?) ?? '').replaceAll(',', '.'))
+          ? double.tryParse(((values['prix_loyer'] as String?) ?? '').replaceAll(',', '.'))
           : null,
-      locationMeuble: values['location_meuble'] as bool?,
+      locationMeuble: meuble,
+      depotGarantieMois: double.tryParse(((values['depot_garantie_mois'] as String?) ?? '').replaceAll(',', '.')),
+      dpeClasse: trimOrNull(values['dpe_classe'] as String?),
+      irlReference: trimOrNull(values['irl_reference'] as String?),
+      dureeBailMois: int.tryParse((values['duree_bail_mois'] as String?) ?? ''),
     );
+  }
+
+  Future<void> _saveCharges(int immeubleId) async {
+    // Supprimer les charges existantes puis insérer les nouvelles.
+    await ImmeubleChargesDatasource.deleteByImmeuble(immeubleId);
+    for (final sel in _charges) {
+      await ImmeubleChargesDatasource.upsert(ImmeubleChargeModel(
+        id: 0,
+        immeubleId: immeubleId,
+        chargeRefId: sel.ref.id,
+        type: sel.type,
+        montant: sel.montant,
+      ));
+    }
   }
 
   Future<void> _submit() async {
     if (!(_formKey.currentState?.saveAndValidate() ?? false)) return;
     final values = _formKey.currentState!.value;
-
     final type = values['type'] as ImmeubleTypeModel?;
     if (type == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Sélectionnez un type d'immeuble")),
-      );
+        const SnackBar(content: Text("Sélectionnez un type d'immeuble")));
       return;
     }
-
     setState(() => _isSubmitting = true);
     try {
       await _ensureLocationData();
       final model = _buildModel(_formKey.currentState!.value, type);
-      _isEditing
-          ? await ImmeublesDatasource.update(model)
-          : await ImmeublesDatasource.create(model);
+      ImmeublesModel saved;
+      if (_isEditing) {
+        await ImmeublesDatasource.update(model);
+        saved = model;
+      } else {
+        saved = await ImmeublesDatasource.create(model);
+      }
+      await _saveCharges(saved.id);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(_isEditing
-            ? 'Immeuble modifié avec succès'
-            : 'Immeuble créé avec succès'),
+        content: Text(_isEditing ? 'Immeuble modifié avec succès' : 'Immeuble créé avec succès'),
       ));
       widget.onSaved?.call();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Erreur : $e')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur : $e')));
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
@@ -215,28 +241,20 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
-  /// Génère automatiquement les pièces communes (+ inventaire si meublé).
-  /// Persiste l'immeuble au besoin pour obtenir son id.
   Future<void> _creerCommunes() async {
     final state = _formKey.currentState;
     final meuble = state?.fields['location_meuble']?.value as bool?;
     if (meuble == null) {
-      _snack('Sélectionnez le type de location (meublée ou non) avant de '
-          'créer les pièces.');
+      _snack('Sélectionnez le type de location (meublée ou non) avant de créer les pièces.');
       return;
     }
     if (!(state?.saveAndValidate() ?? false)) return;
     final values = state!.value;
     final type = values['type'] as ImmeubleTypeModel?;
-    if (type == null) {
-      _snack("Sélectionnez un type d'immeuble");
-      return;
-    }
-
+    if (type == null) { _snack("Sélectionnez un type d'immeuble"); return; }
     setState(() => _creatingCommunes = true);
     try {
       await _ensureLocationData();
-      // 1) Garantir l'existence de l'immeuble (id requis pour rattacher).
       var immeuble = _persistedImmeuble;
       final model = _buildModel(state.value, type);
       if (immeuble == null) {
@@ -246,7 +264,6 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
       } else {
         await ImmeublesDatasource.update(model);
       }
-      // 2) Semer les pièces communes (+ inventaire si meublé).
       await CommonsSeeder.seed(immeuble.id, meuble: meuble);
       if (!mounted) return;
       setState(() => _communesCreated = true);
@@ -257,6 +274,40 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
       if (mounted) setState(() => _creatingCommunes = false);
     }
   }
+
+  // ── Helpers de mise en page ───────────────────────────────────────────────
+
+  Widget _twoColumns(Widget left, Widget right, {bool wide = true, int flexLeft = 1, int flexRight = 1}) {
+    if (!wide) {
+      return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        left, const SizedBox(height: AppSpacing.md), right,
+      ]);
+    }
+    return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Flexible(flex: flexLeft, child: left),
+      const SizedBox(width: AppSpacing.md),
+      Flexible(flex: flexRight, child: right),
+    ]);
+  }
+
+  Widget _threeColumns(Widget a, Widget b, Widget c, {bool wide = true}) {
+    if (!wide) {
+      return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        a, const SizedBox(height: AppSpacing.md),
+        b, const SizedBox(height: AppSpacing.md), c,
+      ]);
+    }
+    return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Expanded(child: a), const SizedBox(width: AppSpacing.md),
+      Expanded(child: b), const SizedBox(width: AppSpacing.md),
+      Expanded(child: c),
+    ]);
+  }
+
+  Widget _sectionLabel(String text) => Padding(
+        padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+        child: Text(text, style: AppTypography.labelMd),
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -269,252 +320,390 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
             onSave: _submit,
             onClose: _handleBack,
             isSaving: _isSubmitting,
-            saveLabel:
-                _isEditing ? 'Enregistrer les modifications' : 'Enregistrer',
+            saveLabel: _isEditing ? 'Enregistrer les modifications' : 'Enregistrer',
           ),
         ),
-        Expanded(child: ResponsiveFormWrapper(
+        Expanded(
           child: SingleChildScrollView(
-          padding: const EdgeInsets.all(AppSpacing.lg),
-          child: FormBuilder(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-
-            // ── Type d'immeuble (async) ────────────────────────────────
-            FutureBuilder<List<ImmeubleTypeModel>>(
-              future: _typesFuture,
-              builder: (context, snapshot) {
-                final items = snapshot.data ?? [];
-                return FormBuilderDropdown<ImmeubleTypeModel>(
-                  key: ValueKey(_selectedType?.id),
-                  name: 'type',
-                  initialValue: _selectedType,
-                  decoration:
-                      const InputDecoration(labelText: "Type d'immeuble"),
-                  items: items
-                      .map((t) => DropdownMenuItem(
-                            value: t,
-                            child: Text(t.typeName),
-                          ))
-                      .toList(),
-                  onChanged: (v) => setState(() => _selectedType = v),
-                );
-              },
-            ),
-            const SizedBox(height: AppSpacing.md),
-
-            FormBuilderTextField(
-              name: 'name',
-              initialValue: widget.immeuble?.name,
-              decoration: const InputDecoration(labelText: 'Nom'),
-              validator: FormBuilderValidators.required(),
-            ),
-            const SizedBox(height: AppSpacing.md),
-
-            AddressAutocompleteField(
-              initialValue: _address,
-              onChanged: (v) => _address = v,
-              onSuggestionSelected: _onAddressSuggested,
-            ),
-            const SizedBox(height: AppSpacing.md),
-
-            Row(
-              children: [
-                Expanded(
-                  child: FormBuilderTextField(
-                    name: 'city',
-                    initialValue: widget.immeuble?.city,
-                    decoration: const InputDecoration(labelText: 'Ville'),
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.md),
-                Expanded(
-                  child: FormBuilderTextField(
-                    name: 'department',
-                    initialValue: widget.immeuble?.department,
-                    decoration: const InputDecoration(labelText: 'Département'),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.md),
-
-            FormBuilderTextField(
-              name: 'region',
-              initialValue: widget.immeuble?.region,
-              decoration: const InputDecoration(labelText: 'Région'),
-            ),
-            const SizedBox(height: AppSpacing.md),
-
-            FormBuilderTextField(
-              name: 'total_m2',
-              initialValue: widget.immeuble?.totalM2?.toStringAsFixed(2),
-              decoration:
-                  const InputDecoration(labelText: 'Surface totale (m²)'),
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
-            ),
-            const SizedBox(height: AppSpacing.md),
-
-            FormBuilderTextField(
-              name: 'description',
-              initialValue: widget.immeuble?.description,
-              decoration: const InputDecoration(
-                labelText: 'Description',
-                alignLabelWithHint: true,
-              ),
-              maxLines: 4,
-            ),
-            const SizedBox(height: AppSpacing.lg),
-
-            Text('Photos des espaces communs', style: AppTypography.labelMd),
-            const SizedBox(height: AppSpacing.sm),
-            PhotoPickerField(
-              folder: 'immeubles',
-              initialPhotos: _photos,
-              initialMainPhoto: _mainPhoto,
-              onChanged: (urls) => setState(() => _photos = urls),
-              onMainPhotoChanged: (url) => setState(() => _mainPhoto = url),
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            const Divider(),
-            const SizedBox(height: AppSpacing.sm),
-
-            Text('Type de bail', style: AppTypography.labelMd),
-            const SizedBox(height: AppSpacing.xs),
-            Align(
-              alignment: Alignment.centerLeft,
+            child: Align(
+              alignment: Alignment.topCenter,
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 480),
-                child: FormBuilderCheckbox(
-                  name: 'bail_location',
-                  initialValue: widget.immeuble?.bailLocation ?? false,
-                  title: const Text('Location'),
-                  subtitle: const Text(
-                      'Un seul contrat pour toutes les chambres de l\'immeuble.'),
-                  contentPadding: EdgeInsets.zero,
-                  controlAffinity: ListTileControlAffinity.leading,
-                  onChanged: (v) {
-                    setState(() => _isBailLocation = v ?? false);
-                    if (v == true) {
-                      _formKey.currentState?.fields['bail_individuel']
-                          ?.didChange(false);
-                    }
-                  },
-                ),
-              ),
-            ),
-            if (_isBailLocation) ...[
-              const SizedBox(height: AppSpacing.md),
-              FormBuilderTextField(
-                name: 'prix_loyer',
-                initialValue: widget.immeuble?.prixLoyer?.toStringAsFixed(2),
-                decoration: const InputDecoration(
-                  labelText: 'Valeur du loyer (€/mois)',
-                  prefixText: '€ ',
-                ),
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
-              ),
-            ],
-            const SizedBox(height: AppSpacing.md),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 480),
-                child: FormBuilderCheckbox(
-                  name: 'bail_individuel',
-                  initialValue: widget.immeuble?.bailIndividuel ?? false,
-                  title: const Text('Bail individuel (Colocation)'),
-                  subtitle: const Text('Contrat séparé pour chaque chambre.'),
-                  contentPadding: EdgeInsets.zero,
-                  controlAffinity: ListTileControlAffinity.leading,
-                  onChanged: (v) {
-                    if (v == true) {
-                      setState(() => _isBailLocation = false);
-                      _formKey.currentState?.fields['bail_location']
-                          ?.didChange(false);
-                    }
-                  },
-                ),
-              ),
-            ),
-            const Divider(),
-            const SizedBox(height: AppSpacing.sm),
+                constraints: const BoxConstraints(maxWidth: 860),
+                child: Padding(
+                  padding: const EdgeInsets.all(AppSpacing.lg),
+                  child: FormBuilder(
+                    key: _formKey,
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final wide = constraints.maxWidth >= 560;
+                        return FutureBuilder<_Bundle>(
+                          future: _bundleFuture,
+                          builder: (ctx, snap) {
+                            final bundle = snap.data;
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
 
-            // ── Parties communes ───────────────────────────────────────
-            Text('Parties communes', style: AppTypography.labelMd),
-            const SizedBox(height: AppSpacing.sm),
-            FormBuilderDropdown<bool>(
-              name: 'location_meuble',
-              initialValue: widget.immeuble?.locationMeuble,
-              decoration:
-                  const InputDecoration(labelText: 'Location meublée ?'),
-              items: const [
-                DropdownMenuItem(value: true, child: Text('Oui')),
-                DropdownMenuItem(value: false, child: Text('Non')),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.md),
-            OutlinedButton.icon(
-              onPressed: (_communesCreated || _creatingCommunes)
-                  ? null
-                  : _creerCommunes,
-              icon: _creatingCommunes
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.meeting_room_outlined),
-              label: const Text('Ajouter les pièces communes et inventaire'),
-            ),
-            if (_communesCreated) ...[
-              const SizedBox(height: AppSpacing.xs),
-              Row(
-                children: [
-                  const Icon(Icons.check_circle_outline,
-                      size: 16, color: AppColors.tertiary),
-                  const SizedBox(width: AppSpacing.xs),
-                  Expanded(
-                    child: Text(
-                      'Les parties communes ont été créées.',
-                      style: AppTypography.labelSm
-                          .copyWith(color: AppColors.tertiary),
+                                // ══ 1 — Identification ══════════════════════
+                                _sectionLabel("Identification"),
+                                _twoColumns(
+                                  wide: wide, flexLeft: 1, flexRight: 2,
+                                  FutureBuilder<List<ImmeubleTypeModel>>(
+                                    future: _typesFuture,
+                                    builder: (context, snapshot) {
+                                      final items = snapshot.data ?? [];
+                                      return FormBuilderDropdown<ImmeubleTypeModel>(
+                                        key: ValueKey(_selectedType?.id),
+                                        name: 'type',
+                                        initialValue: _selectedType,
+                                        decoration: const InputDecoration(labelText: "Type d'immeuble"),
+                                        items: items.map((t) => DropdownMenuItem(value: t, child: Text(t.typeName))).toList(),
+                                        onChanged: (v) => setState(() => _selectedType = v),
+                                      );
+                                    },
+                                  ),
+                                  FormBuilderTextField(
+                                    name: 'name',
+                                    initialValue: widget.immeuble?.name,
+                                    decoration: const InputDecoration(labelText: 'Nom'),
+                                    validator: FormBuilderValidators.required(),
+                                  ),
+                                ),
+                                const SizedBox(height: AppSpacing.lg),
+                                const Divider(),
+                                const SizedBox(height: AppSpacing.md),
+
+                                // ══ 2 — Localisation ════════════════════════
+                                _sectionLabel("Localisation"),
+                                AddressAutocompleteField(
+                                  initialValue: _address,
+                                  onChanged: (v) => _address = v,
+                                  onSuggestionSelected: _onAddressSuggested,
+                                ),
+                                const SizedBox(height: AppSpacing.md),
+                                wide
+                                    ? _threeColumns(
+                                        wide: true,
+                                        FormBuilderTextField(name: 'city', initialValue: widget.immeuble?.city, decoration: const InputDecoration(labelText: 'Ville')),
+                                        FormBuilderTextField(name: 'department', initialValue: widget.immeuble?.department, decoration: const InputDecoration(labelText: 'Département')),
+                                        FormBuilderTextField(name: 'region', initialValue: widget.immeuble?.region, decoration: const InputDecoration(labelText: 'Région')),
+                                      )
+                                    : Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                                        Row(children: [
+                                          Expanded(child: FormBuilderTextField(name: 'city', initialValue: widget.immeuble?.city, decoration: const InputDecoration(labelText: 'Ville'))),
+                                          const SizedBox(width: AppSpacing.md),
+                                          Expanded(child: FormBuilderTextField(name: 'department', initialValue: widget.immeuble?.department, decoration: const InputDecoration(labelText: 'Département'))),
+                                        ]),
+                                        const SizedBox(height: AppSpacing.md),
+                                        FormBuilderTextField(name: 'region', initialValue: widget.immeuble?.region, decoration: const InputDecoration(labelText: 'Région')),
+                                      ]),
+                                const SizedBox(height: AppSpacing.lg),
+                                const Divider(),
+                                const SizedBox(height: AppSpacing.md),
+
+                                // ══ 3 — Caractéristiques ════════════════════
+                                _sectionLabel("Caractéristiques"),
+                                wide
+                                    ? Row(children: [
+                                        Expanded(child: FormBuilderTextField(
+                                          name: 'total_m2',
+                                          initialValue: widget.immeuble?.totalM2?.toStringAsFixed(2),
+                                          decoration: const InputDecoration(labelText: 'Surface totale (m²)'),
+                                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                        )),
+                                        const SizedBox(width: AppSpacing.md),
+                                        const Expanded(child: SizedBox()),
+                                      ])
+                                    : FormBuilderTextField(
+                                        name: 'total_m2',
+                                        initialValue: widget.immeuble?.totalM2?.toStringAsFixed(2),
+                                        decoration: const InputDecoration(labelText: 'Surface totale (m²)'),
+                                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                      ),
+                                const SizedBox(height: AppSpacing.md),
+                                FormBuilderTextField(
+                                  name: 'description',
+                                  initialValue: widget.immeuble?.description,
+                                  decoration: const InputDecoration(labelText: 'Description', alignLabelWithHint: true),
+                                  maxLines: 4,
+                                ),
+                                const SizedBox(height: AppSpacing.lg),
+                                const Divider(),
+                                const SizedBox(height: AppSpacing.md),
+
+                                // ══ 4 — Photos ══════════════════════════════
+                                _sectionLabel("Photos des espaces communs"),
+                                PhotoPickerField(
+                                  folder: 'immeubles',
+                                  initialPhotos: _photos,
+                                  initialMainPhoto: _mainPhoto,
+                                  onChanged: (urls) => setState(() => _photos = urls),
+                                  onMainPhotoChanged: (url) => setState(() => _mainPhoto = url),
+                                ),
+                                const SizedBox(height: AppSpacing.lg),
+                                const Divider(),
+                                const SizedBox(height: AppSpacing.md),
+
+                                // ══ 5 — Type de bail ════════════════════════
+                                _sectionLabel("Type de bail"),
+                                _twoColumns(
+                                  wide: wide,
+                                  ConstrainedBox(
+                                    constraints: const BoxConstraints(maxWidth: 360),
+                                    child: FormBuilderCheckbox(
+                                      name: 'bail_location',
+                                      initialValue: widget.immeuble?.bailLocation ?? false,
+                                      title: const Text('Location'),
+                                      subtitle: const Text('Un seul contrat pour toutes les chambres de l\'immeuble.'),
+                                      contentPadding: EdgeInsets.zero,
+                                      controlAffinity: ListTileControlAffinity.leading,
+                                      onChanged: (v) {
+                                        setState(() => _isBailLocation = v ?? false);
+                                        if (v == true) _formKey.currentState?.fields['bail_individuel']?.didChange(false);
+                                      },
+                                    ),
+                                  ),
+                                  ConstrainedBox(
+                                    constraints: const BoxConstraints(maxWidth: 360),
+                                    child: FormBuilderCheckbox(
+                                      name: 'bail_individuel',
+                                      initialValue: widget.immeuble?.bailIndividuel ?? false,
+                                      title: const Text('Bail individuel (Colocation)'),
+                                      subtitle: const Text('Contrat séparé pour chaque chambre.'),
+                                      contentPadding: EdgeInsets.zero,
+                                      controlAffinity: ListTileControlAffinity.leading,
+                                      onChanged: (v) {
+                                        if (v == true) {
+                                          setState(() => _isBailLocation = false);
+                                          _formKey.currentState?.fields['bail_location']?.didChange(false);
+                                        }
+                                      },
+                                    ),
+                                  ),
+                                ),
+                                if (_isBailLocation) ...[
+                                  const SizedBox(height: AppSpacing.md),
+                                  wide
+                                      ? Row(children: [
+                                          Expanded(child: FormBuilderTextField(
+                                            name: 'prix_loyer',
+                                            initialValue: widget.immeuble?.prixLoyer?.toStringAsFixed(2),
+                                            decoration: const InputDecoration(labelText: 'Valeur du loyer (€/mois)', prefixText: '€ '),
+                                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                          )),
+                                          const SizedBox(width: AppSpacing.md),
+                                          const Expanded(child: SizedBox()),
+                                        ])
+                                      : FormBuilderTextField(
+                                          name: 'prix_loyer',
+                                          initialValue: widget.immeuble?.prixLoyer?.toStringAsFixed(2),
+                                          decoration: const InputDecoration(labelText: 'Valeur du loyer (€/mois)', prefixText: '€ '),
+                                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                        ),
+                                ],
+                                const SizedBox(height: AppSpacing.lg),
+                                const Divider(),
+                                const SizedBox(height: AppSpacing.md),
+
+                                // ══ 6 — Informations contractuelles ═════════
+                                _sectionLabel("Informations contractuelles"),
+                                _twoColumns(
+                                  wide: wide,
+                                  FormBuilderTextField(
+                                    name: 'depot_garantie_mois',
+                                    initialValue: widget.immeuble?.depotGarantieMois?.toString(),
+                                    decoration: InputDecoration(
+                                      labelText: 'Dépôt de garantie (mois)',
+                                      helperText: widget.immeuble?.locationMeuble == true
+                                          ? 'Max légal : 2 mois (meublé)'
+                                          : 'Max légal : 1 mois (non meublé)',
+                                      prefixIcon: const Icon(Icons.lock_outline),
+                                    ),
+                                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                  ),
+                                  FormBuilderTextField(
+                                    name: 'duree_bail_mois',
+                                    initialValue: widget.immeuble?.dureeBailMois?.toString()
+                                        ?? (widget.immeuble?.locationMeuble == true ? '12' : '36'),
+                                    decoration: const InputDecoration(
+                                      labelText: 'Durée du bail (mois)',
+                                      helperText: 'Minimum légal : 12 mois (meublé) · 36 mois (non meublé)',
+                                      prefixIcon: Icon(Icons.calendar_month_outlined),
+                                    ),
+                                    keyboardType: TextInputType.number,
+                                  ),
+                                ),
+                                const SizedBox(height: AppSpacing.md),
+                                _twoColumns(
+                                  wide: wide,
+                                  FormBuilderDropdown<String>(
+                                    name: 'dpe_classe',
+                                    initialValue: widget.immeuble?.dpeClasse,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Classe DPE',
+                                      helperText: 'Diagnostic de Performance Énergétique',
+                                      prefixIcon: Icon(Icons.eco_outlined),
+                                    ),
+                                    items: ['A', 'B', 'C', 'D', 'E', 'F', 'G']
+                                        .map((c) => DropdownMenuItem(
+                                              value: c,
+                                              child: Row(children: [
+                                                _DpeChip(classe: c),
+                                                const SizedBox(width: AppSpacing.sm),
+                                                Text(c),
+                                              ]),
+                                            ))
+                                        .toList(),
+                                  ),
+                                  FormBuilderTextField(
+                                    name: 'irl_reference',
+                                    initialValue: widget.immeuble?.irlReference,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Référence IRL',
+                                      helperText: 'Ex. : T2 2025 — 145,56',
+                                      prefixIcon: Icon(Icons.trending_up_outlined),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: AppSpacing.lg),
+                                const Divider(),
+                                const SizedBox(height: AppSpacing.md),
+
+                                // ══ 7 — Parties communes ════════════════════
+                                _sectionLabel("Parties communes"),
+                                wide
+                                    ? Row(children: [
+                                        Expanded(child: FormBuilderDropdown<bool>(
+                                          name: 'location_meuble',
+                                          initialValue: widget.immeuble?.locationMeuble,
+                                          decoration: const InputDecoration(labelText: 'Location meublée ?'),
+                                          items: const [
+                                            DropdownMenuItem(value: true, child: Text('Oui')),
+                                            DropdownMenuItem(value: false, child: Text('Non')),
+                                          ],
+                                        )),
+                                        const SizedBox(width: AppSpacing.md),
+                                        const Expanded(child: SizedBox()),
+                                      ])
+                                    : FormBuilderDropdown<bool>(
+                                        name: 'location_meuble',
+                                        initialValue: widget.immeuble?.locationMeuble,
+                                        decoration: const InputDecoration(labelText: 'Location meublée ?'),
+                                        items: const [
+                                          DropdownMenuItem(value: true, child: Text('Oui')),
+                                          DropdownMenuItem(value: false, child: Text('Non')),
+                                        ],
+                                      ),
+                                const SizedBox(height: AppSpacing.md),
+                                OutlinedButton.icon(
+                                  onPressed: (_communesCreated || _creatingCommunes) ? null : _creerCommunes,
+                                  icon: _creatingCommunes
+                                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                                      : const Icon(Icons.meeting_room_outlined),
+                                  label: const Text('Ajouter les pièces communes et inventaire'),
+                                ),
+                                if (_communesCreated) ...[
+                                  const SizedBox(height: AppSpacing.xs),
+                                  Row(children: [
+                                    const Icon(Icons.check_circle_outline, size: 16, color: AppColors.tertiary),
+                                    const SizedBox(width: AppSpacing.xs),
+                                    Expanded(child: Text('Les parties communes ont été créées.',
+                                        style: AppTypography.labelSm.copyWith(color: AppColors.tertiary))),
+                                  ]),
+                                ],
+                                const SizedBox(height: AppSpacing.lg),
+                                const Divider(),
+                                const SizedBox(height: AppSpacing.md),
+
+                                // ══ 8 — Charges locatives ═══════════════════
+                                _sectionLabel("Charges locatives"),
+                                Text(
+                                  widget.immeuble?.bailIndividuel == true
+                                      ? 'Charges par défaut — copiées automatiquement dans chaque nouvelle chambre. Par défaut aucune charge n\'est affichée dans les annonces.'
+                                      : 'Définissez les charges pour ce bien. Par défaut aucune charge n\'est affichée dans les annonces.',
+                                  style: AppTypography.bodyMd.copyWith(color: AppColors.onSurfaceVariant),
+                                ),
+                                const SizedBox(height: AppSpacing.md),
+                                if (bundle == null)
+                                  const LinearProgressIndicator()
+                                else if (bundle.chargesRef.isEmpty)
+                                  Text(
+                                    'Aucune charge disponible. Contactez le super admin.',
+                                    style: AppTypography.bodyMd.copyWith(color: AppColors.onSurfaceVariant),
+                                  )
+                                else
+                                  ChargesSelector(
+                                    available: bundle.chargesRef,
+                                    initial: _charges,
+                                    onChanged: (sel) => setState(() => _charges = sel),
+                                  ),
+                                const SizedBox(height: AppSpacing.lg),
+                                const Divider(),
+                                const SizedBox(height: AppSpacing.sm),
+
+                                // ══ 9 — Statut ══════════════════════════════
+                                ConstrainedBox(
+                                  constraints: const BoxConstraints(maxWidth: 480),
+                                  child: FormBuilderCheckbox(
+                                    name: 'desactiver',
+                                    initialValue: !(widget.immeuble?.isActive ?? true),
+                                    title: const Text('Désactiver immeuble'),
+                                    subtitle: const Text('Toutes les chambres seront masquées du site public.'),
+                                    activeColor: AppColors.error,
+                                    contentPadding: EdgeInsets.zero,
+                                    controlAffinity: ListTileControlAffinity.leading,
+                                  ),
+                                ),
+                                const SizedBox(height: AppSpacing.xl),
+                              ],
+                            );
+                          },
+                        );
+                      },
                     ),
                   ),
-                ],
-              ),
-            ],
-            const SizedBox(height: AppSpacing.sm),
-            const Divider(),
-
-            Align(
-              alignment: Alignment.centerLeft,
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 480),
-                child: FormBuilderCheckbox(
-                  name: 'desactiver',
-                  initialValue: !(widget.immeuble?.isActive ?? true),
-                  title: const Text('Désactiver immeuble'),
-                  subtitle: const Text(
-                    'Toutes les chambres seront masquées du site public.',
-                  ),
-                  activeColor: AppColors.error,
-                  contentPadding: EdgeInsets.zero,
-                  controlAffinity: ListTileControlAffinity.leading,
                 ),
               ),
             ),
-            const SizedBox(height: AppSpacing.xl),
-              ],
-            ),
           ),
-          ),
-        )),
-  ],
+        ),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _Bundle {
+  final List<ChargeReferenceModel> chargesRef;
+  _Bundle({required this.chargesRef});
+}
+
+/// Chip coloré selon la classe DPE (A=vert foncé → G=rouge foncé).
+class _DpeChip extends StatelessWidget {
+  final String classe;
+  const _DpeChip({required this.classe});
+
+  static const _colors = {
+    'A': Color(0xFF1A7A3A),
+    'B': Color(0xFF4CAF50),
+    'C': Color(0xFFA5C727),
+    'D': Color(0xFFF9C74F),
+    'E': Color(0xFFF4A261),
+    'F': Color(0xFFE76F51),
+    'G': Color(0xFFAB2328),
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _colors[classe] ?? Colors.grey;
+    return Container(
+      width: 22,
+      height: 22,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(4)),
+      child: Text(classe,
+          style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
     );
   }
 }

@@ -1,12 +1,12 @@
 openapi: 3.0.3
 
 info:
-  title: La Coloc — API (Supabase)
+  title: Super Loc — API (Supabase)
   version: "1.0.0"
   description: |
     Especificação detalhada da superfície de API consumida pelo app Flutter `lacoloc_front`.
 
-    A "API" do La Coloc é composta por **quatro famílias** de endpoints Supabase:
+    A "API" do Super Loc é composta por **quatro famílias** de endpoints Supabase:
 
     1. **PostgREST** — REST automático sobre as tabelas PostgreSQL (`/rest/v1/{table}`).
        Cada tabela aceita `GET` (com filtros/embeds), `POST` (insert), `PATCH` (update)
@@ -623,10 +623,27 @@ paths:
     post:
       tags: [RPC]
       summary: Listar locataires convidados (listInvitedLocataires)
+      description: |
+        Retorna apenas convidados **ainda não ativados**
+        (`auth.users.raw_user_meta_data->>'needs_completion' IS DISTINCT FROM 'false'`).
+        Após o locataire concluir a ativação, ele some da lista.
       requestBody:
         content: { application/json: { schema: { type: object, properties: { p_proprietaire_id: { type: string } } } } }
       responses:
         '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/UsersClient' } } } } }
+
+  /rest/v1/rpc/notify_edl_locataire:
+    post:
+      tags: [RPC]
+      summary: Notificar o(s) locataire(s) de um EDL (notifyEdlLocataire)
+      description: |
+        `SECURITY DEFINER`. Cria notificação(ões) `Notifications` com `recipient_id`
+        derivado do EDL (privatif → `locataire_id`; commune → preneurs). Valida
+        `can_access_edl`. Usado na finalização (evento `edl_a_signer`).
+      requestBody:
+        content: { application/json: { schema: { type: object, properties: { p_edl_id: { type: integer }, p_type: { type: string }, p_title: { type: string }, p_body: { type: string, nullable: true } } } } }
+      responses:
+        '200': { description: OK }
 
   # ──────────────────────── EDGE FUNCTIONS ────────────────────────
   /functions/v1/invite-locataire:
@@ -1089,8 +1106,9 @@ components:
       description: "Modelo Dart: EtatDesLieuxModel (tabela etat_de_lieux)"
       properties:
         id: { type: integer }
+        code: { type: string, nullable: true, readOnly: true, description: "Code de référence lisible, généré côté base à la création (trigger set_edl_code), unique. Format EDL-<E|S>-<IMM>-<INI>-<AAMMJJ>-<RND>, ex. EDL-E-CAEN-NL-260605-7F3K. Sert à localiser/rechercher l'EDL (locataire + proprio)." }
         proprietaire_id: { type: string, format: uuid }
-        locataire_id: { type: string, format: uuid }
+        locataire_id: { type: string, format: uuid, nullable: true, description: "Doit référencer un utilisateur de type locataire (trigger assert_locataire_type)." }
         immeuble_id: { type: integer }
         chambre_id: { type: integer, nullable: true }
         type_bail: { type: string, enum: [collectif, individuel] }

@@ -30,6 +30,7 @@ import 'package:lacoloc_front/presentation/users/proprietaires/edl_select_chambr
 import 'package:lacoloc_front/presentation/users/proprietaires/edl_select_collectif_avenant_dialog.dart';
 import 'package:lacoloc_front/presentation/users/proprietaires/edl_select_entree_sortie_dialog.dart';
 import 'package:lacoloc_front/presentation/users/proprietaires/edl_select_immeuble_dialog.dart';
+import 'package:lacoloc_front/presentation/users/proprietaires/bail_pdf_preview_page.dart';
 import 'package:lacoloc_front/presentation/users/proprietaires/edl_pdf_preview_page.dart';
 import 'package:lacoloc_front/presentation/widgets/document_pdf_button.dart';
 import 'package:lacoloc_front/presentation/widgets/edl_filter_bar.dart';
@@ -40,6 +41,7 @@ import 'package:lacoloc_front/presentation/widgets/unsaved_changes_dialog.dart';
 import 'package:lacoloc_front/presentation/widgets/photo_picker_field.dart';
 import 'package:lacoloc_front/utils/phone_field.dart';
 import 'package:lacoloc_front/utils/signature_pad.dart';
+import 'package:lacoloc_front/presentation/widgets/edl_signature_flow.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/card_delete_button.dart';
 import 'package:lacoloc_front/theme/app_radius.dart';
@@ -1083,7 +1085,7 @@ class _AvenantWindowCardState extends State<_AvenantWindowCard> {
       await EtatDesLieuxDatasource.setAvenantWindowDays(days);
       if (mounted) {
         final msg = days <= 0
-            ? 'Avenant / additions désactivés après finalisation.'
+            ? 'Avenants désactivés après finalisation.'
             : 'Fenêtre fixée à $days jours.';
         ScaffoldMessenger.of(
           context,
@@ -2174,6 +2176,17 @@ class _EdlRow extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
+                if (edl.code != null)
+                  Text(
+                    edl.code!,
+                    style: AppTypography.labelSm.copyWith(
+                      color: AppColors.onSurfaceVariant,
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                      letterSpacing: 0.3,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
               ],
             ),
           ),
@@ -3778,6 +3791,16 @@ class _EdlFormOverlayState extends State<_EdlFormOverlay> {
                     ),
                     const SizedBox(width: AppSpacing.xs),
                   ],
+                  if (isFinalized &&
+                      (widget.existingEdl?.locataireAccepte == true) &&
+                      widget.existingEdl?.typeEdl == 'entree')
+                    OutlinedButton.icon(
+                      onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => BailPdfPreviewPage(edl: widget.existingEdl!),
+                      )),
+                      icon: const Icon(Icons.description_outlined),
+                      label: const Text('Bail'),
+                    ),
                   if (!isFinalized)
                     OutlinedButton(
                       onPressed: _isFinalising ? null : _finaliser,
@@ -6035,7 +6058,7 @@ class _AdditionDialogState extends State<_AdditionDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Ajouter une addition'),
+      title: const Text('Ajouter un avenant'),
       content: SizedBox(
         width: 480,
         child: SingleChildScrollView(
@@ -6440,14 +6463,6 @@ class _EdlCollectifNonMeubleePageState
     }
   }
 
-  /// Sauvegarde côté locataire : ses observations sont déjà persistées à la volée
-  /// (il ne (re)crée jamais l'EDL). Recharge + confirme, pour offrir le même
-  /// couple Enregistrer/Fermer que le propriétaire.
-  Future<void> _onSaveLocataire() async {
-    if (widget.meublee) await _loadSections();
-    if (mounted) _snack('Enregistré.');
-  }
-
   /// Fermeture avec confirmation (Continuer / Quitter / Sauvegarder et quitter).
   Future<void> _handleClose() async {
     if (_isLocataire) {
@@ -6630,9 +6645,27 @@ class _EdlCollectifNonMeubleePageState
       ),
     );
     if (confirm != true || !mounted) return;
+
+    // Demander les dates du bail avant de finaliser (bail location = commune)
+    final bailResult = await showDialog<_BailDialogResult>(
+      context: context,
+      builder: (_) => const _FinaliserBailDialog(),
+    );
+    if (bailResult == null || !mounted) return;
+
+    // Le propriétaire signe l'EDL avant de finaliser.
+    final sig = await showSignatureDialog(context);
+    if (sig == null || !mounted) return;
+
     setState(() => _isFinalising = true);
     try {
-      await EtatDesLieuxDatasource.finaliser(_edlId!);
+      await EtatDesLieuxDatasource.finaliser(
+        _edlId!,
+        dateDebutBail: bailResult.dateDebut,
+        dateFinBail: bailResult.dateFin,
+        dureeBailMois: bailResult.dureeMois,
+        proprietaireSignatureUrl: sig.url,
+      );
       if (mounted) setState(() => _situation = SituationEdl.finalise);
       _snack('État des lieux finalisé.');
     } catch (e) {
@@ -6645,14 +6678,20 @@ class _EdlCollectifNonMeubleePageState
   /// Accepter et signer (locataire) : grave `locataire_accepte` + date.
   Future<void> _accepter() async {
     if (_edlId == null) return;
-    // Le locataire signe l'EDL.
-    final sig = await showSignatureDialog(context);
-    if (sig == null || !mounted) return;
+    // Le locataire vérifie/crée sa signature, voit le PDF, puis signe.
+    final edlModel = widget.existingEdl;
+    String? sigUrl;
+    if (edlModel != null) {
+      sigUrl = await runLocataireSignatureFlow(context, edlModel);
+    } else {
+      sigUrl = (await showSignatureDialog(context))?.url;
+    }
+    if (sigUrl == null || !mounted) return;
     setState(() => _isFinalising = true);
     try {
       await EtatDesLieuxDatasource.locataireAccepter(
         _edlId!,
-        locataireSignatureUrl: sig.url,
+        locataireSignatureUrl: sigUrl,
       );
       // Notifie le propriétaire (in-app + e-mail). Best-effort.
       final nom =
@@ -6723,10 +6762,9 @@ class _EdlCollectifNonMeubleePageState
 
   Widget? _headerAction() {
     if (_isLocataire) {
-      // Mêmes boutons standards que le propriétaire : Enregistrer · Fermer · | ·
-      // Document · Accepter et signer (quand finalisé, pas encore accepté).
+      // Locataire : lecture seule — pas d'Enregistrer (obs. sauvegardées
+      // inline). Boutons : Fermer · | · Document · Bail · Accepter et signer.
       return FormHeaderActions(
-        onSave: _onSaveLocataire,
         onClose: _handleClose,
         isSaving: _isSaving,
         extraActions: [
@@ -6734,6 +6772,15 @@ class _EdlCollectifNonMeubleePageState
             DocumentPdfButton(
               onPressed: () =>
                   openEdlCollectifPdfPreview(context: context, edlId: _edlId!),
+            ),
+          if (_saved && _locataireAccepte && widget.existingEdl != null &&
+              widget.existingEdl!.typeEdl == 'entree')
+            OutlinedButton.icon(
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => BailPdfPreviewPage(edl: widget.existingEdl!),
+              )),
+              icon: const Icon(Icons.description_outlined),
+              label: const Text('Bail'),
             ),
           if (_saved &&
               _situation == SituationEdl.finalise &&
@@ -6756,7 +6803,7 @@ class _EdlCollectifNonMeubleePageState
         ],
       );
     }
-    // Proprietaire : ordre standard Enregistrer · Fermer · | · Document · Finaliser.
+    // Proprietaire : ordre standard Enregistrer · Fermer · | · Document · Bail · Finaliser.
     final finalise = _situation == SituationEdl.finalise;
     return FormHeaderActions(
       onSave: _onSavePressed,
@@ -6767,6 +6814,14 @@ class _EdlCollectifNonMeubleePageState
           DocumentPdfButton(
             onPressed: () =>
                 openEdlCollectifPdfPreview(context: context, edlId: _edlId!),
+          ),
+        if (_saved && finalise && _locataireAccepte && widget.existingEdl != null && widget.existingEdl!.typeEdl == 'entree')
+          OutlinedButton.icon(
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => BailPdfPreviewPage(edl: widget.existingEdl!),
+            )),
+            icon: const Icon(Icons.description_outlined),
+            label: const Text('Bail'),
           ),
         // Le collectif d'un bail individuel ne se finalise pas : seuls les EDL
         // individuels (privatifs) sont finalisés.
@@ -8122,14 +8177,6 @@ class _EdlIndividuelMeubleePageState extends State<EdlIndividuelMeubleePage>
     }
   }
 
-  /// Sauvegarde côté locataire : ses observations sont déjà persistées à la volée
-  /// (le locataire ne (re)crée jamais l'EDL lui-même). Ce bouton recharge et
-  /// confirme, pour offrir le même couple Enregistrer/Fermer que le propriétaire.
-  Future<void> _onSaveLocataire() async {
-    await _loadAll();
-    if (mounted) _snack('Enregistré.');
-  }
-
   /// Fermeture / annulation. On ne **bloque jamais** la sortie : l'utilisateur
   /// peut toujours annuler. Un locataire reste obligatoire pour **sauvegarder**,
   /// mais « Quitter sans sauvegarder » est toujours possible — et si l'EDL avait
@@ -8328,6 +8375,10 @@ class _EdlIndividuelMeubleePageState extends State<EdlIndividuelMeubleePage>
     );
     if (result == null || !mounted) return;
 
+    // Le propriétaire signe l'EDL avant de finaliser.
+    final sig = await showSignatureDialog(context);
+    if (sig == null || !mounted) return;
+
     setState(() => _isFinalising = true);
     try {
       await EtatDesLieuxDatasource.finaliser(
@@ -8337,6 +8388,7 @@ class _EdlIndividuelMeubleePageState extends State<EdlIndividuelMeubleePage>
         dureeBailMois: result.dureeMois,
         chambreId: widget.chambre.id,
         typeEdl: widget.typeEdl,
+        proprietaireSignatureUrl: sig.url,
       );
       if (mounted) setState(() => _situation = SituationEdl.finalise);
       _snack('État des lieux finalisé.');
@@ -8350,14 +8402,20 @@ class _EdlIndividuelMeubleePageState extends State<EdlIndividuelMeubleePage>
   /// Accepter et signer (locataire) sur le privatif.
   Future<void> _accepter() async {
     if (_privatifId == null) return;
-    // Le locataire signe l'EDL.
-    final sig = await showSignatureDialog(context);
-    if (sig == null || !mounted) return;
+    // Le locataire vérifie/crée sa signature, voit le PDF, puis signe.
+    final edlModel = widget.existingEdl;
+    String? sigUrl;
+    if (edlModel != null) {
+      sigUrl = await runLocataireSignatureFlow(context, edlModel);
+    } else {
+      sigUrl = (await showSignatureDialog(context))?.url;
+    }
+    if (sigUrl == null || !mounted) return;
     setState(() => _isFinalising = true);
     try {
       await EtatDesLieuxDatasource.locataireAccepter(
         _privatifId!,
-        locataireSignatureUrl: sig.url,
+        locataireSignatureUrl: sigUrl,
       );
       final nom =
           AuthService.currentUser?.userMetadata?['full_name'] as String?;
@@ -8460,10 +8518,9 @@ class _EdlIndividuelMeubleePageState extends State<EdlIndividuelMeubleePage>
       final canAccepter =
           _saved && _situation == SituationEdl.finalise && !_locataireAccepte;
       final canDocument = _saved && _collectifId != null && _privatifId != null;
-      // Mêmes boutons standards que le propriétaire : Enregistrer · Fermer · | ·
-      // Document · Accepter et signer.
+      // Locataire : lecture seule — pas d'Enregistrer (obs. sauvegardées
+      // inline). Boutons : Fermer · | · Document · Bail · Accepter et signer.
       return FormHeaderActions(
-        onSave: _onSaveLocataire,
         onClose: _handleClose,
         isSaving: _isSaving,
         extraActions: [
@@ -8474,6 +8531,15 @@ class _EdlIndividuelMeubleePageState extends State<EdlIndividuelMeubleePage>
                 collectifId: _collectifId!,
                 privatifId: _privatifId!,
               ),
+            ),
+          if (_saved && _locataireAccepte && widget.existingEdl != null &&
+              widget.existingEdl!.typeEdl == 'entree')
+            OutlinedButton.icon(
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => BailPdfPreviewPage(edl: widget.existingEdl!),
+              )),
+              icon: const Icon(Icons.description_outlined),
+              label: const Text('Bail'),
             ),
           if (canAccepter)
             PermissionGate(
@@ -8494,7 +8560,7 @@ class _EdlIndividuelMeubleePageState extends State<EdlIndividuelMeubleePage>
         ],
       );
     }
-    // Proprietaire : ordre standard Enregistrer · Fermer · | · Document · Finaliser.
+    // Proprietaire : ordre standard Enregistrer · Fermer · | · Document · Bail · Finaliser.
     final finalise = _situation == SituationEdl.finalise;
     return FormHeaderActions(
       onSave: _onSavePressed,
@@ -8508,6 +8574,14 @@ class _EdlIndividuelMeubleePageState extends State<EdlIndividuelMeubleePage>
               collectifId: _collectifId!,
               privatifId: _privatifId!,
             ),
+          ),
+        if (finalise && _locataireAccepte && widget.existingEdl != null && widget.existingEdl!.typeEdl == 'entree')
+          OutlinedButton.icon(
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => BailPdfPreviewPage(edl: widget.existingEdl!),
+            )),
+            icon: const Icon(Icons.description_outlined),
+            label: const Text('Bail'),
           ),
         if (!finalise)
           PermissionGate(
@@ -8571,7 +8645,7 @@ class _EdlIndividuelMeubleePageState extends State<EdlIndividuelMeubleePage>
                       Tab(text: 'Parties communes'),
                       Tab(text: 'Relevés'),
                       Tab(text: 'Clés'),
-                      Tab(text: 'Additions'),
+                      Tab(text: 'Avenants'),
                     ],
                   ),
                   const SizedBox(height: AppSpacing.md),
@@ -9072,14 +9146,14 @@ class _EdlIndividuelMeubleePageState extends State<EdlIndividuelMeubleePage>
               child: FilledButton.icon(
                 onPressed: _addAddition,
                 icon: const Icon(Icons.add, size: 18),
-                label: const Text('Ajouter une addition'),
+                label: const Text('Ajouter un avenant'),
               ),
             ),
           ),
         ],
         const SizedBox(height: AppSpacing.md),
         if (_additions.isEmpty)
-          _emptyTab('Aucune addition pour le moment.')
+          _emptyTab('Aucun avenant pour le moment.')
         else
           for (final a in _additions) _additionCard(a),
       ],
@@ -9091,7 +9165,7 @@ class _EdlIndividuelMeubleePageState extends State<EdlIndividuelMeubleePage>
       _ when !_finalise => (
         Icons.info_outline,
         AppColors.onSurfaceVariant,
-        "Les additions seront possibles une fois l'état des lieux finalisé "
+        "Les avenants seront possibles une fois l'état des lieux finalisé "
             '(pendant 1 mois), pour signaler un élément non vérifié.',
       ),
       _ when _additionsOpen => (
@@ -9269,7 +9343,7 @@ class _EdlIndividuelMeubleePageState extends State<EdlIndividuelMeubleePage>
         await NotificationsDatasource.notifyEdlProprietaire(
           edlId: _privatifId!,
           type: 'edl_addition',
-          title: 'Nouvelle addition',
+          title: 'Nouvel avenant',
           body:
               '${nom ?? 'Le locataire'} a ajouté un élément ($comodo) à '
               "l'état des lieux de ${widget.chambre.roomName}.",
@@ -9282,7 +9356,7 @@ class _EdlIndividuelMeubleePageState extends State<EdlIndividuelMeubleePage>
         );
       }
       await _loadObservations();
-      if (mounted) _snack('Addition enregistrée.');
+      if (mounted) _snack('Avenant enregistré.');
     } catch (e) {
       _snack('Erreur : $e');
     }

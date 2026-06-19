@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:lacoloc_front/data/datasources/auth_service.dart';
 import 'package:lacoloc_front/data/datasources/factures.dart';
+import 'package:lacoloc_front/data/datasources/recettes.dart';
 import 'package:lacoloc_front/data/models/facture.dart';
+import 'package:lacoloc_front/data/models/recette.dart';
 import 'package:lacoloc_front/data/permissions/permissions_service.dart';
 import 'package:lacoloc_front/presentation/finances/nouvelle_facture_page.dart';
 import 'package:lacoloc_front/presentation/widgets/permission_gate.dart';
@@ -30,6 +33,7 @@ class _FacturesListPageState extends State<FacturesListPage>
     with SingleTickerProviderStateMixin {
   late TabController _tabCtrl;
   late Future<List<FactureModel>> _future;
+  late Future<List<RecetteModel>> _futureRecettes;
   final TextEditingController _searchCtrl = TextEditingController();
   String _query = '';
 
@@ -38,6 +42,7 @@ class _FacturesListPageState extends State<FacturesListPage>
     super.initState();
     _tabCtrl = TabController(length: 3, vsync: this);
     _future = _load();
+    _futureRecettes = _loadRecettes();
     _searchCtrl.addListener(
       () => setState(() => _query = _searchCtrl.text.toLowerCase()),
     );
@@ -54,6 +59,19 @@ class _FacturesListPageState extends State<FacturesListPage>
     final ownerId = AuthService.currentUser?.id;
     if (ownerId == null) return [];
     return FacturesDatasource.listByOwner(ownerId);
+  }
+
+  Future<List<RecetteModel>> _loadRecettes() async {
+    final ownerId = AuthService.currentUser?.id;
+    if (ownerId == null) return [];
+    return RecettesDatasource.listByOwner(ownerId);
+  }
+
+  Future<void> _refreshRecettes() async {
+    final ownerId = AuthService.currentUser?.id;
+    if (ownerId == null) return;
+    final f = RecettesDatasource.listByOwner(ownerId, refresh: true);
+    setState(() => _futureRecettes = f);
   }
 
   List<FactureModel> _filter(List<FactureModel> all) {
@@ -83,9 +101,9 @@ class _FacturesListPageState extends State<FacturesListPage>
           child: TabBar(
             controller: _tabCtrl,
             tabs: const [
-              Tab(text: 'Vision générale'),
-              Tab(text: 'Factures'),
+              Tab(text: 'Vue générale'),
               Tab(text: 'Recettes'),
+              Tab(text: 'Dépenses / Factures'),
             ],
           ),
         ),
@@ -96,8 +114,8 @@ class _FacturesListPageState extends State<FacturesListPage>
             controller: _tabCtrl,
             children: [
               _buildVisionGeneraleTab(),
-              _buildFacturesTab(),
               _buildRecettesTab(),
+              _buildFacturesTab(),
             ],
           ),
         ),
@@ -165,7 +183,7 @@ class _FacturesListPageState extends State<FacturesListPage>
               ),
               child: Row(
                 children: [
-                  Text('Factures', style: AppTypography.titleLg),
+                  Text('Dépenses / Factures', style: AppTypography.titleLg),
                   const Spacer(),
                   PermissionGate(
                     permission: Perm.facturesCreate,
@@ -248,56 +266,378 @@ class _FacturesListPageState extends State<FacturesListPage>
     );
   }
 
-  // ── Aba 3 : Recettes ────────────────────────────────────────────────────────
+  // ── Aba 2 : Recettes ────────────────────────────────────────────────────────
 
   Widget _buildRecettesTab() {
+    return FutureBuilder<List<RecetteModel>>(
+      future: _futureRecettes,
+      builder: (context, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snap.hasError) {
+          return Center(child: Text('Erreur : ${snap.error}'));
+        }
+        final all = snap.data ?? [];
+        return _RecettesTab(
+          recettes: all,
+          onAjouter: widget.onAjouterRecette,
+          onRefresh: _refreshRecettes,
+        );
+      },
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Aba Recettes
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _RecettesTab extends StatefulWidget {
+  final List<RecetteModel> recettes;
+  final VoidCallback onAjouter;
+  final Future<void> Function() onRefresh;
+
+  const _RecettesTab({
+    required this.recettes,
+    required this.onAjouter,
+    required this.onRefresh,
+  });
+
+  @override
+  State<_RecettesTab> createState() => _RecettesTabState();
+}
+
+class _RecettesTabState extends State<_RecettesTab> {
+  // Filtre actif : null = tous
+  String? _filtreStatut;
+  bool _saving = false;
+
+  static final _currFmt =
+      NumberFormat.currency(locale: 'fr_FR', symbol: '€', decimalDigits: 2);
+
+  List<RecetteModel> get _filtered {
+    if (_filtreStatut == null) return widget.recettes;
+    return widget.recettes
+        .where((r) => r.statut == _filtreStatut)
+        .toList();
+  }
+
+  double _total(String statut) => widget.recettes
+      .where((r) => r.statut == statut)
+      .fold(0.0, (s, r) => s + r.montant);
+
+  Future<void> _markPaid(RecetteModel r) async {
+    setState(() => _saving = true);
+    await RecettesDatasource.markPaid(r.id, DateTime.now());
+    await widget.onRefresh();
+    if (mounted) setState(() => _saving = false);
+  }
+
+  Future<void> _markUnpaid(RecetteModel r) async {
+    setState(() => _saving = true);
+    await RecettesDatasource.markUnpaid(r.id);
+    await widget.onRefresh();
+    if (mounted) setState(() => _saving = false);
+  }
+
+  Future<void> _markLate(RecetteModel r) async {
+    setState(() => _saving = true);
+    await RecettesDatasource.markLate(r.id);
+    await widget.onRefresh();
+    if (mounted) setState(() => _saving = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final filtered = _filtered;
+    final aRecevoir = _total('a_recevoir');
+    final recu = _total('recu');
+    final enRetard = _total('en_retard');
+
     return Padding(
       padding: const EdgeInsets.all(AppSpacing.lg),
-      child: Align(
-        alignment: Alignment.topCenter,
-        child: Container(
-          decoration: BoxDecoration(
-            color: AppColors.surfaceContainerLowest,
-            borderRadius: AppRadius.borderLg,
-            border: Border.all(color: AppColors.outlineVariant),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.shadowTint.withValues(alpha: 0.06),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // ── Résumé financier ──────────────────────────────────────────────
+          Row(
             children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.lg,
-                  AppSpacing.md,
-                  AppSpacing.lg,
-                  AppSpacing.md,
-                ),
-                child: Row(
-                  children: [
-                    Text('Recettes', style: AppTypography.titleLg),
-                    const Spacer(),
-                    PermissionGate(
-                      permission: Perm.facturesCreate,
-                      child: FilledButton.icon(
-                        onPressed: widget.onAjouterRecette,
-                        icon: const Icon(Icons.add, size: 18),
-                        label: const Text('Ajouter une recette'),
-                      ),
-                    ),
-                  ],
+              _SummaryChip(
+                label: 'À recevoir',
+                amount: aRecevoir,
+                color: AppColors.primary,
+                selected: _filtreStatut == 'a_recevoir',
+                onTap: () => setState(() =>
+                    _filtreStatut =
+                        _filtreStatut == 'a_recevoir' ? null : 'a_recevoir'),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              _SummaryChip(
+                label: 'Reçu',
+                amount: recu,
+                color: AppColors.tertiary,
+                selected: _filtreStatut == 'recu',
+                onTap: () => setState(() =>
+                    _filtreStatut = _filtreStatut == 'recu' ? null : 'recu'),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              _SummaryChip(
+                label: 'En retard',
+                amount: enRetard,
+                color: AppColors.error,
+                selected: _filtreStatut == 'en_retard',
+                onTap: () => setState(() =>
+                    _filtreStatut =
+                        _filtreStatut == 'en_retard' ? null : 'en_retard'),
+              ),
+              const Spacer(),
+              PermissionGate(
+                permission: Perm.facturesCreate,
+                child: FilledButton.icon(
+                  onPressed: widget.onAjouter,
+                  icon: const Icon(Icons.add, size: 18),
+                  label: const Text('Ajouter'),
                 ),
               ),
             ],
           ),
+          const SizedBox(height: AppSpacing.md),
+
+          // ── Tableau ───────────────────────────────────────────────────────
+          Expanded(
+            child: filtered.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.payments_outlined,
+                            size: 56, color: AppColors.outline),
+                        const SizedBox(height: AppSpacing.md),
+                        Text(
+                          widget.recettes.isEmpty
+                              ? 'Aucune recette enregistrée.'
+                              : 'Aucune recette pour ce filtre.',
+                          style: AppTypography.bodyMd
+                              .copyWith(color: AppColors.onSurfaceVariant),
+                        ),
+                        if (widget.recettes.isEmpty) ...[
+                          const SizedBox(height: AppSpacing.xs),
+                          Text(
+                            'Les loyers sont générés automatiquement lors de la finalisation d\'un bail.',
+                            style: AppTypography.labelSm
+                                .copyWith(color: AppColors.onSurfaceVariant),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ],
+                    ),
+                  )
+                : LayoutBuilder(
+                    builder: (ctx, constraints) {
+                      final narrow = constraints.maxWidth < 750;
+                      return SingleChildScrollView(
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(
+                                minWidth: constraints.maxWidth),
+                            child: DataTable(
+                              columnSpacing: AppSpacing.lg,
+                              headingRowColor: WidgetStateProperty.all(
+                                  AppColors.surfaceContainerLow),
+                              columns: [
+                                const DataColumn(label: Text('Mois')),
+                                if (!narrow)
+                                  const DataColumn(label: Text('Bien')),
+                                if (!narrow)
+                                  const DataColumn(label: Text('Locataire')),
+                                DataColumn(
+                                    label: const Text('Loyer (€)'),
+                                    numeric: true),
+                                const DataColumn(label: Text('Statut')),
+                                const DataColumn(label: Text('Payé le')),
+                                const DataColumn(label: Text('Actions')),
+                              ],
+                              rows: filtered.map((r) {
+                                return DataRow(cells: [
+                                  DataCell(Text(r.moisLabel,
+                                      style: AppTypography.bodyMd)),
+                                  if (!narrow)
+                                    DataCell(Text(r.lieuLabel,
+                                        style: AppTypography.bodyMd,
+                                        overflow: TextOverflow.ellipsis)),
+                                  if (!narrow)
+                                    DataCell(Text(
+                                        r.locataireNom ?? '—',
+                                        style: AppTypography.bodyMd,
+                                        overflow: TextOverflow.ellipsis)),
+                                  DataCell(Text(
+                                      _currFmt.format(r.montant),
+                                      style: AppTypography.bodyMd)),
+                                  DataCell(_RecetteStatutBadge(
+                                      statut: r.statut)),
+                                  DataCell(Text(r.paiementLabel ?? '—',
+                                      style: AppTypography.bodyMd)),
+                                  DataCell(_saving
+                                      ? const SizedBox(
+                                          width: 20,
+                                          height: 20,
+                                          child: CircularProgressIndicator(
+                                              strokeWidth: 2))
+                                      : _ActionMenu(
+                                          recette: r,
+                                          onMarkPaid: () => _markPaid(r),
+                                          onMarkUnpaid: () => _markUnpaid(r),
+                                          onMarkLate: () => _markLate(r),
+                                        )),
+                                ]);
+                              }).toList(),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _SummaryChip extends StatelessWidget {
+  final String label;
+  final double amount;
+  final Color color;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _SummaryChip({
+    required this.label,
+    required this.amount,
+    required this.color,
+    required this.selected,
+    required this.onTap,
+  });
+
+  static final _fmt =
+      NumberFormat.currency(locale: 'fr_FR', symbol: '€', decimalDigits: 2);
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+        decoration: BoxDecoration(
+          color: selected ? color.withValues(alpha: 0.12) : AppColors.surfaceContainerLowest,
+          border: Border.all(
+            color: selected ? color : AppColors.outlineVariant,
+            width: selected ? 2 : 1,
+          ),
+          borderRadius: AppRadius.borderMd,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(label,
+                style:
+                    AppTypography.labelSm.copyWith(color: AppColors.onSurfaceVariant)),
+            Text(_fmt.format(amount),
+                style: AppTypography.titleLs
+                    .copyWith(color: color, fontWeight: FontWeight.w700)),
+          ],
         ),
       ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _RecetteStatutBadge extends StatelessWidget {
+  final String statut;
+  const _RecetteStatutBadge({required this.statut});
+
+  @override
+  Widget build(BuildContext context) {
+    final (label, bg, fg) = switch (statut) {
+      'recu' => ('Reçu', AppColors.tertiaryFixed, AppColors.onTertiaryFixedVariant),
+      'en_retard' => ('En retard', AppColors.errorContainer, AppColors.onErrorContainer),
+      _ => ('À recevoir', AppColors.secondaryFixed, AppColors.onSecondaryFixedVariant),
+    };
+    return Container(
+      padding:
+          const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 2),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: AppRadius.borderFull,
+      ),
+      child: Text(label, style: AppTypography.labelSm.copyWith(color: fg)),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _ActionMenu extends StatelessWidget {
+  final RecetteModel recette;
+  final VoidCallback onMarkPaid;
+  final VoidCallback onMarkUnpaid;
+  final VoidCallback onMarkLate;
+
+  const _ActionMenu({
+    required this.recette,
+    required this.onMarkPaid,
+    required this.onMarkUnpaid,
+    required this.onMarkLate,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<String>(
+      icon: const Icon(Icons.more_vert, size: 20),
+      tooltip: 'Actions',
+      onSelected: (v) {
+        if (v == 'paid') onMarkPaid();
+        if (v == 'unpaid') onMarkUnpaid();
+        if (v == 'late') onMarkLate();
+      },
+      itemBuilder: (_) => [
+        if (recette.statut != 'recu')
+          const PopupMenuItem(
+            value: 'paid',
+            child: Row(children: [
+              Icon(Icons.check_circle_outline, size: 18),
+              SizedBox(width: 8),
+              Text('Marquer reçu'),
+            ]),
+          ),
+        if (recette.statut == 'recu')
+          const PopupMenuItem(
+            value: 'unpaid',
+            child: Row(children: [
+              Icon(Icons.undo, size: 18),
+              SizedBox(width: 8),
+              Text('Annuler paiement'),
+            ]),
+          ),
+        if (recette.statut != 'en_retard' && recette.statut != 'recu')
+          const PopupMenuItem(
+            value: 'late',
+            child: Row(children: [
+              Icon(Icons.warning_amber_outlined, size: 18),
+              SizedBox(width: 8),
+              Text('Marquer en retard'),
+            ]),
+          ),
+      ],
     );
   }
 }
