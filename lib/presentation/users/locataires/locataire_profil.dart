@@ -1,4 +1,3 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:intl/intl.dart';
@@ -17,6 +16,7 @@ import 'package:lacoloc_front/data/models/users_client.dart';
 import 'package:lacoloc_front/data/permissions/permissions_service.dart';
 import 'package:lacoloc_front/presentation/chambres/chambre_card.dart';
 import 'package:lacoloc_front/presentation/widgets/permission_gate.dart';
+import 'package:lacoloc_front/presentation/widgets/private_image.dart';
 import 'package:lacoloc_front/presentation/widgets/edl_filter_bar.dart';
 import 'package:lacoloc_front/presentation/widgets/edl_signature_flow.dart';
 import 'package:lacoloc_front/presentation/users/proprietaires/etat_de_lieux_page.dart';
@@ -2888,17 +2888,11 @@ class _EdlDetailPageState extends State<_EdlDetailPage> {
                                       const SizedBox(width: 8),
                                   itemBuilder: (_, i) => ClipRRect(
                                     borderRadius: AppRadius.borderSm,
-                                    child: CachedNetworkImage(
-                                      imageUrl: entry.value.photos[i],
+                                    child: PrivateImage(
+                                      ref: entry.value.photos[i],
                                       width: 80,
                                       height: 80,
                                       fit: BoxFit.cover,
-                                      errorWidget: (_, _, _) => const SizedBox(
-                                        width: 80,
-                                        height: 80,
-                                        child: Icon(Icons.broken_image_outlined,
-                                            color: AppColors.onSurfaceVariant),
-                                      ),
                                     ),
                                   ),
                                 ),
@@ -3082,7 +3076,7 @@ class _LocataireSignatureSectionState extends State<_LocataireSignatureSection> 
                       border: Border.all(color: AppColors.outlineVariant),
                       borderRadius: AppRadius.borderMd,
                     ),
-                    child: Image.network(url, fit: BoxFit.contain),
+                    child: PrivateImage(ref: url, fit: BoxFit.contain),
                   ),
                   const SizedBox(height: AppSpacing.sm),
                   Row(

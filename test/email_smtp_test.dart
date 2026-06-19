@@ -78,5 +78,11 @@ void main() {
       isTrue,
       reason: 'Envio falhou — smtpError: ${data['smtpError'] ?? '(nenhum)'}',
     );
-  }, timeout: const Timeout(Duration(seconds: 30)));
+  }, timeout: const Timeout(Duration(seconds: 30)),
+     // Teste MANUEL d'intégration : appelle la fonction edge en production et
+     // envoie un vrai e-mail. Le mode `test` exige désormais un JWT super_admin
+     // (la clé anon seule renvoie 401), donc ce test ne peut pas s'exécuter dans
+     // la suite automatique. À lancer à la main avec une session super_admin :
+     //   flutter test test/email_smtp_test.dart
+     skip: 'Test manuel : nécessite une session super_admin (voir en-tête).');
 }

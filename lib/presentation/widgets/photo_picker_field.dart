@@ -1,8 +1,8 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lacoloc_front/data/datasources/storage_service.dart';
+import 'package:lacoloc_front/presentation/widgets/private_image.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_radius.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
@@ -234,15 +234,7 @@ class _Thumbnail extends StatelessWidget {
           ),
           child: ClipRRect(
             borderRadius: AppRadius.borderMd,
-            child: CachedNetworkImage(
-              imageUrl: url,
-              fit: BoxFit.cover,
-              placeholder: (_, _) => const SizedBox.shrink(),
-              errorWidget: (_, _, _) => const Icon(
-                Icons.broken_image_outlined,
-                color: AppColors.outline,
-              ),
-            ),
+            child: PrivateImage(ref: url, fit: BoxFit.cover),
           ),
         ),
         // Botão remover (canto superior direito)

@@ -6,9 +6,16 @@
 |---|---|---|---|---|
 | `invite-locataire` | **create** | `fullName`, `email`, `proprietaireId`, `phone?`, `dateOfBirth?`, `redirectTo?`, `mailTo?` | `{ userId, emailSent, smtpError? }` | `admin.createUser` com **senha temp aleatória** + `email_confirm:true` + `needs_completion:true`; grava `invited_by_proprietaire_id`; envia e-mail SMTP com a senha temp + link `…/?email&temp`; marca `invitation_email_sent` |
 | `invite-locataire` | **resend** | `resend: true`, `userId`, `email`, `fullName?`, `phone?`, `redirectTo?`, `mailTo?` | `{ emailSent, smtpError? }` | `admin.updateUserById` define **nova** senha temp (+ `needs_completion:true`); reenvia o link |
-| `invite-locataire` | **test** | `test: true`, `email` | `{ emailSent, smtpConfigured, smtpError? }` | só envia e-mail de diagnóstico SMTP (não cria conta) |
+| `invite-locataire` | **test** | `test: true`, `email`, `emailType?` (super_admin) | `{ ok, …, smtpError? }` | só envia e-mail de diagnóstico SMTP (não cria conta) |
+| `notify-edl` | — | `edlId`, `event` (`accepte`/`addition`/`a_signer`), `locataireNom?`, `comodo?`, `texte?`, `mailTo?` | `{ sent, smtpError? }` | e-mail SMTP sobre um EDL; destinatário resolvido server-side; campos de texto com escape HTML |
 | `delete-account` | — | (JWT no header) | `{ success }` ou `{ error }` | bloqueia se houver `etat_de_lieux` com `locataire_id` = usuário; senão `auth.admin.deleteUser` |
 | `notify-proprietaire` | — | `fullName`, `email`, `phone?`, `note?` | best-effort | notifica admin sobre novo cadastro de propriétaire (chamada por `AuthService.notifyProprietaireRegistration`) |
+
+> **🔒 Autenticação/autorização (correções de segurança):**
+> - `invite-locataire` **create/resend**: validam o JWT do chamador (`requireManager` → `getUser` + `code`) e exigem `proprietaire`/`admin_groupe`/`super_admin` (401/403). Antes eram abertos → permitiam criar contas ou redefinir a senha de qualquer utilizador (via `userId`) e desviar o link.
+> - `invite-locataire` **test**: reservado a `super_admin` (`verify_jwt: true`).
+> - `notify-edl`: valida o JWT **e lê o EDL com o cliente do chamador (RLS)** → 403 se não tem acesso; impede disparar e-mails enumerando `edlId`. Campos `locataireNom`/`comodo`/`texte` (+ nomes) passam por escape HTML.
+> - `notify_edl_proprietaire` / `notify_edl_locataire`, `search_locataires`, `list_invited_locataires`: `EXECUTE` revogado de `anon`/`PUBLIC` (só `authenticated`).
 
 > **Segredos usados pela `invite-locataire`**: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`,
 > `SMTP_PASS`, `SMTP_FROM`, `APP_URL`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`.
@@ -20,10 +27,12 @@
 > O link de ação leva à verificação Supabase → redireciona para a URL (`/confirmation-locataire`);
 > o listener em `my_app.dart` detecta `needs_completion` e abre `/completer-inscription`.
 >
-> **`mailTo`** (override de dev): em ambiente **dev**, `inviteLocataire` envia `mailTo =`
-> `ADDR_MAIL_CONFIRMATION` (`.env.dev`). A edge function usa `recipient = mailTo ?? email`
-> apenas como **destinatário do e-mail** — o compte é sempre criado com o e-mail real.
-> Em prod (`ADDR_MAIL_CONFIRMATION` vazio) não há override.
+> **`mailTo`** (override de dev): em **dev**, `inviteLocataire` envia `mailTo =`
+> `ADDR_MAIL_CONFIRMATION` (`.env.dev`) como **destinatário do e-mail** — o compte é sempre
+> criado com o e-mail real. **Gate de segurança:** nos modos `create`/`resend` o override só
+> é honrado se o secret de servidor **`ALLOW_CLIENT_MAIL_OVERRIDE=true`** estiver definido;
+> caso contrário (prod, ou projeto único sem o secret) o link de ativação vai **sempre** ao
+> e-mail real — impede desviar o link (com a senha temp) para um endereço arbitrário.
 
 ---
 

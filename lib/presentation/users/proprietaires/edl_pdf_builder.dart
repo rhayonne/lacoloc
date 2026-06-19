@@ -1,10 +1,10 @@
 import 'dart:math' as math;
 import 'dart:typed_data';
-import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+import 'package:lacoloc_front/data/datasources/storage_service.dart';
 import 'package:lacoloc_front/data/models/edl_details.dart';
 import 'package:lacoloc_front/data/models/observation_edl.dart';
 import 'edl_pdf_data.dart';
@@ -76,15 +76,12 @@ Future<pw.Document> buildEdlPdf(
   return doc;
 }
 
-/// Télécharge les bytes d'une image depuis une URL publique.
-/// Retourne null en cas d'erreur ou si l'URL est nulle.
-Future<Uint8List?> _fetchImageBytes(String? url) async {
-  if (url == null) return null;
-  try {
-    final resp = await http.get(Uri.parse(url));
-    if (resp.statusCode == 200) return resp.bodyBytes;
-  } catch (_) {}
-  return null;
+/// Télécharge les bytes d'une image, qu'elle soit privée (`doc:` → URL signée
+/// / download RLS) ou une URL publique. Retourne null en cas d'erreur ou si la
+/// référence est nulle.
+Future<Uint8List?> _fetchImageBytes(String? ref) async {
+  if (ref == null) return null;
+  return StorageService.downloadBytes(ref);
 }
 
 /// Remplace les caractères hors Latin-1 par leur équivalent ASCII.

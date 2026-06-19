@@ -169,13 +169,13 @@ void main() {
         expect(model.bailLabel, 'Location');
       });
 
-      test('retorna "Bail individuel" quando bailIndividuel=true', () {
+      test('retorna "Bail individuel (Colocation)" quando bailIndividuel=true', () {
         final model = ImmeublesModel(
           id: 1,
           name: 'Test',
           bailIndividuel: true,
         );
-        expect(model.bailLabel, 'Bail individuel');
+        expect(model.bailLabel, 'Bail individuel (Colocation)');
       });
 
       test('retorna null quando nenhum bail selecionado', () {

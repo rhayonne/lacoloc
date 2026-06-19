@@ -6,6 +6,7 @@ import 'package:lacoloc_front/data/datasources/signatures.dart';
 import 'package:lacoloc_front/data/models/etat_de_lieux.dart';
 import 'package:lacoloc_front/presentation/users/proprietaires/bail_pdf_preview_page.dart';
 import 'package:lacoloc_front/presentation/widgets/app_list_search_field.dart';
+import 'package:lacoloc_front/presentation/widgets/private_image.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_radius.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
@@ -569,7 +570,7 @@ class _SignaturePageState extends State<_SignaturePage> {
                   border: Border.all(color: AppColors.outlineVariant),
                   borderRadius: AppRadius.borderMd,
                 ),
-                child: Image.network(url, fit: BoxFit.contain),
+                child: PrivateImage(ref: url, fit: BoxFit.contain),
               ),
               const SizedBox(height: AppSpacing.md),
               Row(

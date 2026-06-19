@@ -614,6 +614,11 @@ paths:
     post:
       tags: [RPC]
       summary: Buscar locataires (EtatDesLieuxDatasource.searchLocataires)
+      description: |
+        `SECURITY DEFINER`. **Auth obrigatória** — `EXECUTE` revogado de `anon`/`PUBLIC`
+        (só `authenticated`) e guarda interna: `auth.uid()` não-nulo **+**
+        `current_user_role() ∈ {proprietaire, admin_groupe, super_admin}`. Devolve PII
+        (nome/email/telefone), por isso não pode ser anónima.
       requestBody:
         content: { application/json: { schema: { type: object, properties: { search_query: { type: string } } } } }
       responses:
@@ -624,7 +629,9 @@ paths:
       tags: [RPC]
       summary: Listar locataires convidados (listInvitedLocataires)
       description: |
-        Retorna apenas convidados **ainda não ativados**
+        `SECURITY DEFINER`. **Auth obrigatória** — `EXECUTE` revogado de `anon`/`PUBLIC`;
+        guarda interna: `p_proprietaire_id = auth.uid()` **ou** `is_super_admin()` (um gestor
+        só vê os seus convidados). Retorna apenas convidados **ainda não ativados**
         (`auth.users.raw_user_meta_data->>'needs_completion' IS DISTINCT FROM 'false'`).
         Após o locataire concluir a ativação, ele some da lista.
       requestBody:
@@ -651,9 +658,16 @@ paths:
       tags: [EdgeFunctions]
       summary: Convidar / reenviar convite de locataire
       description: |
-        **create**: gera link `invite`, cria usuário, grava `invited_by_proprietaire_id`,
+        **🔒 Auth obrigatória (create/resend):** valida o JWT do chamador (`requireManager`)
+        e exige `proprietaire`/`admin_groupe`/`super_admin` (401/403). Sem isto qualquer um
+        podia criar contas ou redefinir a senha de outro utilizador (via `userId`) e desviar
+        o link → roubo de conta.
+        **create**: cria usuário com senha temp, grava `invited_by_proprietaire_id`,
         envia e-mail SMTP e marca `invitation_email_sent`.
-        **resend** (`resend: true` + `userId`): gera `magiclink` e reenvia e-mail.
+        **resend** (`resend: true` + `userId`): define nova senha temp e reenvia o link.
+        **test** (`test: true`, super_admin): e-mail de diagnóstico sem criar conta.
+        **`mailTo`** (override de teste) só honrado se o secret `ALLOW_CLIENT_MAIL_OVERRIDE=true`
+        (modos create/resend); em prod fica desligado → link sempre ao e-mail real.
       requestBody:
         required: true
         content:
@@ -662,6 +676,35 @@ paths:
       responses:
         '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/InviteLocataireResponse' } } } }
         '400': { description: "Erro (ex: e-mail já existe)", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '401': { description: "Não autenticado" }
+        '403': { description: "Sem permissão (não é gestor)" }
+
+  /functions/v1/notify-edl:
+    post:
+      tags: [EdgeFunctions]
+      summary: Notificar por e-mail um evento de EDL (accepte / addition / a_signer)
+      description: |
+        **🔒 Auth obrigatória + controlo de acesso:** valida o JWT e **lê o EDL com o
+        cliente do chamador (RLS)** — se não pode ver o EDL, 403. Os destinatários são
+        resolvidos server-side (service role) a partir do EDL. Campos de texto
+        (`locataireNom`, `comodo`, `texte`) passam por escape HTML (anti-injeção).
+        `mailTo` só honrado com `ALLOW_CLIENT_MAIL_OVERRIDE=true`.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                edlId: { type: integer }
+                event: { type: string, enum: [accepte, addition, a_signer] }
+                locataireNom: { type: string, nullable: true }
+                comodo: { type: string, nullable: true }
+                texte: { type: string, nullable: true }
+                mailTo: { type: string, nullable: true }
+      responses:
+        '200': { description: OK }
+        '401': { description: "Não autenticado" }
+        '403': { description: "Sem acesso a este EDL" }
 
   /functions/v1/delete-account:
     post:
@@ -691,10 +734,15 @@ paths:
         '200': { description: Enviado (falhas são silenciosas no cliente) }
 
   # ───────────────────────────── STORAGE ──────────────────────────
+  # Dois buckets: "photos" (público, conteúdo de anúncio) e "documents" (privado,
+  # conteúdo sensível: assinaturas + fotos/observações de EDL). Ver StorageService.
   /storage/v1/object/photos/{path}:
     post:
       tags: [Storage]
-      summary: Upload de foto (StorageService.upload → bucket "photos")
+      summary: Upload de foto pública (StorageService.upload → bucket "photos")
+      description: |
+        Conteúdo NÃO sensível (immeubles/chambres/pièces/inventaire). Guarda a URL
+        pública na BD. O bucket não permite listing (só URLs diretas servem).
       parameters: [ { name: path, in: path, required: true, schema: { type: string } } ]
       requestBody:
         content:
@@ -706,6 +754,38 @@ paths:
       summary: Apagar foto (StorageService.delete)
       parameters: [ { name: path, in: path, required: true, schema: { type: string } } ]
       responses: { '200': { description: Removido } }
+
+  /storage/v1/object/documents/{path}:
+    post:
+      tags: [Storage]
+      summary: Upload de conteúdo sensível (bucket privado "documents")
+      description: |
+        Conteúdo SENSÍVEL: assinaturas (`signatures/{userId}/…`) e fotos/observações de
+        EDL (`etat_de_lieux/{edlId}/…`). Guarda uma referência `doc:<path>` na BD (não a URL).
+        RLS em `storage.objects`: EDL → `can_access_edl(edlId)` (ambas as partes); assinaturas
+        → só o dono. A exibição usa URL **assinada** (ver abaixo).
+      parameters: [ { name: path, in: path, required: true, schema: { type: string } } ]
+      requestBody:
+        content:
+          application/octet-stream:
+            schema: { type: string, format: binary }
+      responses: { '200': { description: "OK (guardar ref doc:<path>)" }, '403': { description: "Sem acesso (RLS)" } }
+    delete:
+      tags: [Storage]
+      summary: Apagar conteúdo privado (StorageService.delete)
+      parameters: [ { name: path, in: path, required: true, schema: { type: string } } ]
+      responses: { '200': { description: Removido } }
+
+  /storage/v1/object/sign/documents/{path}:
+    post:
+      tags: [Storage]
+      summary: Gerar URL assinada temporária (StorageService.resolveUrl)
+      description: |
+        Para exibir conteúdo do bucket privado. O cliente (via PrivateImage) chama
+        `createSignedUrl(path, 3600)`; só funciona se o utilizador passar a RLS de SELECT
+        sobre o objeto. URL válida ~1h (cache em memória no cliente).
+      parameters: [ { name: path, in: path, required: true, schema: { type: string } } ]
+      responses: { '200': { description: "signedURL" }, '403': { description: "Sem acesso (RLS)" } }
 
 components:
 

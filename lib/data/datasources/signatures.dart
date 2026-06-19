@@ -52,12 +52,42 @@ class SignaturesDatasource {
     await _db.from(_table).delete().eq('user_id', uid);
   }
 
-  /// Upload des bytes PNG de la signature et retourne l'URL publique.
+  /// Upload des bytes PNG de la signature (bucket privé) et retourne une
+  /// référence `doc:` à stocker (signature sauvegardée de l'utilisateur).
   static Future<String> uploadPng(Uint8List bytes) {
     return StorageService.upload(
       bytes: bytes,
       filename: 'signature.png',
       folder: 'signatures',
     );
+  }
+
+  /// Copie la signature [sourceRef] (sauvegardée par l'utilisateur, privée) dans
+  /// l'espace de l'EDL `etat_de_lieux/{edlId}/signatures/...` afin qu'elle soit
+  /// **lisible par les deux parties** (RLS can_access_edl) — nécessaire pour le
+  /// PDF où chaque partie voit la signature de l'autre. [role] = `proprietaire`
+  /// ou `locataire`. En cas d'échec, renvoie [sourceRef] tel quel (repli sûr).
+  static Future<String> materializeForEdl({
+    required int edlId,
+    required String role,
+    required String sourceRef,
+  }) async {
+    try {
+      final prefix = 'etat_de_lieux/$edlId/';
+      if (StorageService.isPrivateRef(sourceRef) &&
+          StorageService.pathOfRef(sourceRef).startsWith(prefix)) {
+        return sourceRef; // déjà dans l'espace de cet EDL
+      }
+      final bytes = await StorageService.downloadBytes(sourceRef);
+      if (bytes == null) return sourceRef;
+      final ts = DateTime.now().millisecondsSinceEpoch;
+      return await StorageService.uploadDocument(
+        bytes: bytes,
+        path: '${prefix}signatures/$role-$ts.png',
+        contentType: 'image/png',
+      );
+    } catch (_) {
+      return sourceRef;
+    }
   }
 }

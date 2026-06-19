@@ -6,6 +6,7 @@ import 'package:lacoloc_front/data/datasources/chambres.dart';
 import 'package:lacoloc_front/data/datasources/edl_details.dart';
 import 'package:lacoloc_front/data/datasources/notifications.dart';
 import 'package:lacoloc_front/data/datasources/recettes.dart';
+import 'package:lacoloc_front/data/datasources/signatures.dart';
 import 'package:lacoloc_front/data/datasources/session_scope.dart';
 import 'package:lacoloc_front/data/models/chambre.dart';
 import 'package:lacoloc_front/data/models/etat_de_lieux.dart';
@@ -507,6 +508,14 @@ class EtatDesLieuxDatasource {
     String? proprietaireSignatureUrl,
   }) async {
     final now = DateTime.now();
+    // Copie la signature dans l'espace de l'EDL (lisible par les deux parties).
+    if (proprietaireSignatureUrl != null) {
+      proprietaireSignatureUrl = await SignaturesDatasource.materializeForEdl(
+        edlId: id,
+        role: 'proprietaire',
+        sourceRef: proprietaireSignatureUrl,
+      );
+    }
     // Snapshot de la fenêtre avenant/additions depuis la préférence du
     // propriétaire (Vision générale) — fixée à la finalisation pour rester
     // stable même si la préférence change ensuite.
@@ -671,6 +680,14 @@ class EtatDesLieuxDatasource {
   }) async {
     final now = DateTime.now();
     final today = now.toIso8601String().substring(0, 10);
+    // Copie la signature dans l'espace de l'EDL (lisible par les deux parties).
+    if (locataireSignatureUrl != null) {
+      locataireSignatureUrl = await SignaturesDatasource.materializeForEdl(
+        edlId: id,
+        role: 'locataire',
+        sourceRef: locataireSignatureUrl,
+      );
+    }
     await _db.from(_table).update({
       'locataire_accepte': true,
       'date_finalisation': today,

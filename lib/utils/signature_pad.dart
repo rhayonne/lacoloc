@@ -5,6 +5,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lacoloc_front/data/datasources/signatures.dart';
+import 'package:lacoloc_front/presentation/widgets/private_image.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_radius.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
@@ -367,13 +368,9 @@ class _SignatureDialogState extends State<_SignatureDialog>
                                         borderRadius: AppRadius.borderMd,
                                         color: Colors.white,
                                       ),
-                                      child: Image.network(
-                                        _savedUrl!,
+                                      child: PrivateImage(
+                                        ref: _savedUrl!,
                                         fit: BoxFit.contain,
-                                        loadingBuilder: (_, child, progress) =>
-                                            progress == null
-                                                ? child
-                                                : const Center(child: CircularProgressIndicator()),
                                       ),
                                     ),
                                   ),

@@ -77,12 +77,14 @@ graph TB
             AUTH[("auth.users + trigger\n→ Users_Client")]
         end
         subgraph Storage["Storage"]
-            BKT[("Bucket: photos")]
+            BKT[("Bucket: photos\n(público — anúncios)")]
+            BKD[("Bucket: documents\n(privado — assinaturas + fotos EDL\nRLS: can_access_edl / dono)")]
         end
         subgraph EF["Edge Functions (Deno)"]
-            EF1["invite-locataire (create/resend)"]
+            EF1["invite-locataire (create/resend/test)\n🔒 auth: gestor/super_admin"]
             EF2["delete-account"]
             EF3["notify-proprietaire (referenciada)"]
+            EF4["notify-edl (accepte/addition/a_signer)\n🔒 auth + can_access_edl"]
         end
     end
 

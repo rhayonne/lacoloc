@@ -39,6 +39,7 @@ import 'package:lacoloc_front/presentation/widgets/permission_gate.dart';
 import 'package:lacoloc_front/presentation/widgets/locataire_search_field.dart';
 import 'package:lacoloc_front/presentation/widgets/unsaved_changes_dialog.dart';
 import 'package:lacoloc_front/presentation/widgets/photo_picker_field.dart';
+import 'package:lacoloc_front/presentation/widgets/private_image.dart';
 import 'package:lacoloc_front/utils/phone_field.dart';
 import 'package:lacoloc_front/utils/signature_pad.dart';
 import 'package:lacoloc_front/presentation/widgets/edl_signature_flow.dart';
@@ -3906,7 +3907,8 @@ class _EdlFormOverlayState extends State<_EdlFormOverlay> {
     final saved =
         await showDialog<({String? description, List<String> photos})>(
           context: context,
-          builder: (_) => _WallObsDialog(wallKey: wallKey, existing: existing),
+          builder: (_) =>
+              _WallObsDialog(wallKey: wallKey, existing: existing, edlId: id),
         );
 
     if (saved == null || !mounted) return;
@@ -3943,7 +3945,7 @@ class _EdlFormOverlayState extends State<_EdlFormOverlay> {
     final saved =
         await showDialog<({String? description, List<String> photos})>(
           context: context,
-          builder: (_) => _GeneralObsDialog(existing: existing),
+          builder: (_) => _GeneralObsDialog(existing: existing, edlId: id),
         );
 
     if (saved == null || !mounted) return;
@@ -4680,19 +4682,11 @@ class _EdlObsTile extends StatelessWidget {
                   separatorBuilder: (_, _) => const SizedBox(width: 8),
                   itemBuilder: (_, i) => ClipRRect(
                     borderRadius: AppRadius.borderSm,
-                    child: CachedNetworkImage(
-                      imageUrl: obs.photos[i],
+                    child: PrivateImage(
+                      ref: obs.photos[i],
                       width: 80,
                       height: 80,
                       fit: BoxFit.cover,
-                      errorWidget: (_, _, _) => const SizedBox(
-                        width: 80,
-                        height: 80,
-                        child: Icon(
-                          Icons.broken_image_outlined,
-                          color: AppColors.onSurfaceVariant,
-                        ),
-                      ),
                     ),
                   ),
                 ),
@@ -5844,8 +5838,13 @@ class _LocataireBadge extends StatelessWidget {
 class _WallObsDialog extends StatefulWidget {
   final String wallKey;
   final ObservationEdl? existing;
+  final int edlId;
 
-  const _WallObsDialog({required this.wallKey, this.existing});
+  const _WallObsDialog({
+    required this.wallKey,
+    required this.edlId,
+    this.existing,
+  });
 
   @override
   State<_WallObsDialog> createState() => _WallObsDialogState();
@@ -5907,7 +5906,7 @@ class _WallObsDialogState extends State<_WallObsDialog> {
               ),
               const SizedBox(height: AppSpacing.sm),
               PhotoPickerField(
-                folder: 'etat_de_lieux/murs',
+                folder: 'etat_de_lieux/${widget.edlId}/murs',
                 initialPhotos: _photos,
                 onChanged: (urls) => setState(() => _photos = urls),
               ),
@@ -5941,7 +5940,9 @@ class _WallObsDialogState extends State<_WallObsDialog> {
 class _GeneralObsDialog extends StatefulWidget {
   final ObservationEdl? existing;
 
-  const _GeneralObsDialog({this.existing});
+  final int edlId;
+
+  const _GeneralObsDialog({required this.edlId, this.existing});
 
   @override
   State<_GeneralObsDialog> createState() => _GeneralObsDialogState();
@@ -5999,7 +6000,7 @@ class _GeneralObsDialogState extends State<_GeneralObsDialog> {
               ),
               const SizedBox(height: AppSpacing.sm),
               PhotoPickerField(
-                folder: 'etat_de_lieux/general',
+                folder: 'etat_de_lieux/${widget.edlId}/general',
                 initialPhotos: _photos,
                 onChanged: (urls) => setState(() => _photos = urls),
               ),
@@ -6032,7 +6033,8 @@ class _GeneralObsDialogState extends State<_GeneralObsDialog> {
 /// enregistrée automatiquement (created_at).
 class _AdditionDialog extends StatefulWidget {
   final List<({String label, int? pieceId, int? chambreId})> comodos;
-  const _AdditionDialog({required this.comodos});
+  final int edlId;
+  const _AdditionDialog({required this.comodos, required this.edlId});
 
   @override
   State<_AdditionDialog> createState() => _AdditionDialogState();
@@ -6106,7 +6108,7 @@ class _AdditionDialogState extends State<_AdditionDialog> {
               ),
               const SizedBox(height: AppSpacing.sm),
               PhotoPickerField(
-                folder: 'etat_de_lieux/additions',
+                folder: 'etat_de_lieux/${widget.edlId}/additions',
                 initialPhotos: _photos,
                 onChanged: (urls) => setState(() => _photos = urls),
               ),
@@ -6546,7 +6548,11 @@ class _EdlCollectifNonMeubleePageState
     final saved =
         await showDialog<({String? description, List<String> photos})>(
           context: context,
-          builder: (_) => _WallObsDialog(wallKey: wallKey, existing: existing),
+          builder: (_) => _WallObsDialog(
+            wallKey: wallKey,
+            existing: existing,
+            edlId: _edlId!,
+          ),
         );
     if (saved == null || !mounted) return;
     try {
@@ -6582,7 +6588,8 @@ class _EdlCollectifNonMeubleePageState
     final saved =
         await showDialog<({String? description, List<String> photos})>(
           context: context,
-          builder: (_) => _GeneralObsDialog(existing: existing),
+          builder: (_) =>
+              _GeneralObsDialog(existing: existing, edlId: _edlId!),
         );
     if (saved == null || !mounted) return;
     try {
@@ -8297,7 +8304,11 @@ class _EdlIndividuelMeubleePageState extends State<EdlIndividuelMeubleePage>
     final saved =
         await showDialog<({String? description, List<String> photos})>(
           context: context,
-          builder: (_) => _WallObsDialog(wallKey: wallKey, existing: existing),
+          builder: (_) => _WallObsDialog(
+            wallKey: wallKey,
+            existing: existing,
+            edlId: edlId,
+          ),
         );
     if (saved == null || !mounted) return;
     try {
@@ -8330,7 +8341,7 @@ class _EdlIndividuelMeubleePageState extends State<EdlIndividuelMeubleePage>
     final saved =
         await showDialog<({String? description, List<String> photos})>(
           context: context,
-          builder: (_) => _GeneralObsDialog(existing: existing),
+          builder: (_) => _GeneralObsDialog(existing: existing, edlId: edlId),
         );
     if (saved == null || !mounted) return;
     try {
@@ -9275,20 +9286,11 @@ class _EdlIndividuelMeubleePageState extends State<EdlIndividuelMeubleePage>
                 for (final url in a.photos)
                   ClipRRect(
                     borderRadius: AppRadius.borderSm,
-                    child: CachedNetworkImage(
-                      imageUrl: url,
+                    child: PrivateImage(
+                      ref: url,
                       width: 72,
                       height: 72,
                       fit: BoxFit.cover,
-                      errorWidget: (_, _, _) => Container(
-                        width: 72,
-                        height: 72,
-                        color: AppColors.surfaceContainerHighest,
-                        child: const Icon(
-                          Icons.broken_image_outlined,
-                          size: 18,
-                        ),
-                      ),
                     ),
                   ),
               ],
@@ -9312,7 +9314,8 @@ class _EdlIndividuelMeubleePageState extends State<EdlIndividuelMeubleePage>
           })
         >(
           context: context,
-          builder: (_) => _AdditionDialog(comodos: comodos ?? _comodos),
+          builder: (_) =>
+              _AdditionDialog(comodos: comodos ?? _comodos, edlId: _privatifId!),
         );
     if (res == null || !mounted) return;
     if ((res.description == null || res.description!.isEmpty) &&
