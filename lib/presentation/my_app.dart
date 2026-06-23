@@ -76,6 +76,19 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       }
     });
     _handleActivationLink();
+    _handleTourLink();
+  }
+
+  /// Lien `?tour=...` (depuis le manuel « Tour guidé ») : amène l'utilisateur
+  /// connecté à son espace (AuthGate route par type) pour que le tour démarre.
+  /// Le paramètre `tour` reste dans l'URL (Uri.base) et est lu par la page
+  /// cible (ex. ProprietaireProfil) pour lancer le bon tour.
+  void _handleTourLink() {
+    final tour = Uri.base.queryParameters['tour'];
+    if (tour == null || tour.isEmpty) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _navigatorKey.currentState?.pushReplacementNamed('/profile');
+    });
   }
 
   /// Lien d'activation `?email=...&temp=...` : connecte automatiquement le
