@@ -636,11 +636,10 @@ class SidebarActionButton extends StatelessWidget {
                         children: [
                           Icon(icon, color: c, size: 20),
                           const SizedBox(width: 12),
-                          // Largeur bornée → le libellé peut passer sur 2 lignes
-                          // (ex. « Configuration entreprise ») sans pousser
-                          // l'icône hors de l'écran.
-                          ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 150),
+                          // Flexible → le libellé s'adapte à la largeur dispo
+                          // (y compris pendant l'animation d'ouverture/fermeture)
+                          // et passe sur 2 lignes si besoin, sans overflow.
+                          Flexible(
                             child: Text(
                               label,
                               maxLines: 2,
