@@ -203,6 +203,15 @@ erDiagram
         text nouvelle_adresse
         text lieu_redaction
         text nombre_exemplaires
+        date date_debut_bail
+        date date_fin_bail
+        int duree_bail_mois
+        bool bail_avec_garant
+        timestamp proprietaire_signed_at
+        text proprietaire_signature_url
+        timestamp locataire_signed_at
+        text locataire_signature_url
+        timestamp last_signature_request_at
         timestamp created_at
     }
 
@@ -281,7 +290,57 @@ erDiagram
         timestamp created_at
     }
 
+    Garants {
+        int id PK
+        uuid locataire_id FK
+        text type_garant
+        text type_caution
+        bool is_active
+        text nom
+        text prenom
+        text adresse
+        text email
+        text telephone
+        numeric revenu_mensuel_net
+        text iban
+        text raison_sociale
+        text siret
+        timestamp created_at
+    }
+
+    Notifications {
+        int id PK
+        uuid proprietaire_id FK
+        uuid recipient_id FK
+        text type
+        text title
+        text body
+        int etat_de_lieux_id FK
+        text media_type
+        text media_url
+        int admin_message_id FK
+        bool is_read
+        timestamp created_at
+    }
+
+    Admin_Messages {
+        int id PK
+        uuid sender_id FK
+        text title
+        text body
+        text media_type
+        text media_url
+        text audience
+        int recipients_count
+        timestamp created_at
+    }
+
     Users_Client }o--|| User_Types_Reference : "tem tipo"
+    Garants }o--|| Users_Client : "garant de (locataire)"
+    Notifications }o--|| Users_Client : "destinée à (recipient)"
+    Notifications }o--o| etat_de_lieux : "concerne un EDL"
+    Notifications }o--o| Admin_Messages : "issue d'une diffusion"
+    Admin_Messages }o--|| Users_Client : "envoyé par (super admin)"
     Users_Client }o--o| Users_Client : "convidado por (invited_by)"
     User_Permissions }o--|| Users_Client : "atribuída a"
     User_Permissions }o--|| Permissions_Reference : "concede"
