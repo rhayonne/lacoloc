@@ -808,10 +808,26 @@ class _MessagesSectionState extends State<_MessagesSection>
 
   @override
   Widget build(BuildContext context) {
+    // Même en-tête que les Interactions du propriétaire (titre + sous-titre).
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const _LocataireSectionBar(title: 'Interactions'),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+              AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, AppSpacing.md),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Interactions', style: AppTypography.headlineMd),
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                'Suivi de vos échanges et notifications.',
+                style: AppTypography.bodyMd
+                    .copyWith(color: AppColors.onSurfaceVariant),
+              ),
+            ],
+          ),
+        ),
         Expanded(child: _buildBody()),
       ],
     );
