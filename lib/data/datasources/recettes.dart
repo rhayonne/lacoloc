@@ -103,6 +103,28 @@ class RecettesDatasource {
     if (proprietaireId == null) return;
 
     final rows = <Map<String, dynamic>>[];
+
+    // Échéance du dépôt de garantie (caution) = loyer × nb de mois de dépôt,
+    // exigée au début du bail. À recevoir (propriétaire) = à payer (locataire).
+    final depotMois = await _depotGarantieMois(
+      chambreId: row['chambre_id'] as int?,
+      immeubleId: row['immeuble_id'] as int?,
+    );
+    if (depotMois != null && depotMois > 0) {
+      rows.add({
+        'owner_id': proprietaireId,
+        'locataire_id': row['locataire_id'],
+        'etat_de_lieux_id': edlId,
+        'immeuble_id': row['immeuble_id'],
+        'chambre_id': row['chambre_id'],
+        'montant': montant * depotMois,
+        'date_echeance':
+            '${startDate.year}-${startDate.month.toString().padLeft(2, '0')}-01',
+        'statut': 'a_recevoir',
+        'notes': 'Dépôt de garantie (caution)',
+      });
+    }
+
     for (var i = 0; i < dureeMois; i++) {
       final echeance =
           DateTime(startDate.year, startDate.month + i, 1);
@@ -121,6 +143,31 @@ class RecettesDatasource {
 
     await _db.from(_table).insert(rows);
     _invalidate();
+  }
+
+  /// Nombre de mois de dépôt de garantie de la chambre (sinon de l'immeuble).
+  static Future<double?> _depotGarantieMois({
+    int? chambreId,
+    int? immeubleId,
+  }) async {
+    if (chambreId != null) {
+      final c = await _db
+          .from('Chambres')
+          .select('depot_garantie_mois')
+          .eq('id', chambreId)
+          .maybeSingle();
+      final v = (c?['depot_garantie_mois'] as num?)?.toDouble();
+      if (v != null && v > 0) return v;
+    }
+    if (immeubleId != null) {
+      final i = await _db
+          .from('Immeubles')
+          .select('depot_garantie_mois')
+          .eq('id', immeubleId)
+          .maybeSingle();
+      return (i?['depot_garantie_mois'] as num?)?.toDouble();
+    }
+    return null;
   }
 
   // ── Sortie précoce : suppression des échéances futures ───────────────────
