@@ -6,11 +6,13 @@ import 'package:lacoloc_front/data/datasources/auth_service.dart';
 import 'package:lacoloc_front/data/datasources/chambre_charges.dart';
 import 'package:lacoloc_front/data/datasources/chambres.dart';
 import 'package:lacoloc_front/data/datasources/charges_reference.dart';
+import 'package:lacoloc_front/data/datasources/etat_de_lieux.dart';
 import 'package:lacoloc_front/data/datasources/immeuble_charges.dart';
 import 'package:lacoloc_front/data/datasources/immeubles.dart';
 import 'package:lacoloc_front/data/datasources/reference.dart';
 import 'package:lacoloc_front/data/models/chambre.dart';
 import 'package:lacoloc_front/data/models/chambre_charge.dart';
+import 'package:lacoloc_front/data/models/etat_de_lieux.dart';
 import 'package:lacoloc_front/data/models/charge_reference.dart';
 import 'package:lacoloc_front/data/models/immeubles.dart';
 import 'package:lacoloc_front/data/models/reference.dart';
@@ -49,6 +51,9 @@ class _CreerChambrePageState extends State<CreerChambrePage> {
   double? _loyer;
   double? _cautionMois;
 
+  // EDL d'entrée privatif lié à cette chambre (pour le statut « louée »).
+  EtatDesLieuxModel? _linkedEdl;
+
   bool get _isEditing => widget.chambre != null;
 
   @override
@@ -59,6 +64,11 @@ class _CreerChambrePageState extends State<CreerChambrePage> {
     _loyer = ch?.prixLoyer;
     _cautionMois = ch?.depotGarantieMois;
     if (ch != null) {
+      // EDL d'entrée privatif lié → permet d'afficher le code du bail/EDL.
+      EtatDesLieuxDatasource.findPrivatif(chambreId: ch.id, typeEdl: 'entree')
+          .then((edl) {
+        if (mounted) setState(() => _linkedEdl = edl);
+      }).catchError((_) {});
       _roomPhotos = List.from(ch.roomPhotos);
       _mainPhoto = ch.mainPhoto;
       _bundleFuture.then((bundle) {
@@ -190,7 +200,11 @@ class _CreerChambrePageState extends State<CreerChambrePage> {
         roomPhotos: _roomPhotos,
         selectedOptionIds: selectedOptions,
         isActive: !((values['desactiver'] as bool?) ?? false),
-        estLoue: (values['est_loue'] as bool?) ?? false,
+        // Si la chambre est liée à un bail finalisé, elle reste occupée
+        // (la case n'est pas affichée dans ce cas).
+        estLoue: _linkedEdl?.situation == SituationEdl.finalise
+            ? true
+            : ((values['est_loue'] as bool?) ?? false),
         mainPhoto: _mainPhoto,
         depotGarantieMois: double.tryParse(((values['depot_garantie_mois'] as String?) ?? '').replaceAll(',', '.')),
         dureeBailMois: int.tryParse((values['duree_bail_mois'] as String?) ?? ''),
@@ -235,6 +249,61 @@ class _CreerChambrePageState extends State<CreerChambrePage> {
         padding: const EdgeInsets.only(bottom: AppSpacing.sm),
         child: Text(text, style: AppTypography.labelMd),
       );
+
+  /// Statut « Chambre louée » :
+  /// - liée à un bail/EDL **finalisé** → case cochée, **verrouillée**, avec le
+  ///   **code de l'EDL/bail** pour le localiser.
+  /// - sinon → case modifiable ; si cochée sans bail, la chambre est marquée
+  ///   occupée **par le propriétaire** (note explicite).
+  Widget _buildStatutLouee() {
+    final edl = _linkedEdl;
+    final linkedFinalise = edl != null && edl.situation == SituationEdl.finalise;
+
+    if (linkedFinalise) {
+      final code = edl.code ?? 'EDL #${edl.id}';
+      return Container(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        decoration: BoxDecoration(
+          color: AppColors.primaryFixed.withValues(alpha: 0.35),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppColors.primary.withValues(alpha: 0.4)),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.link, color: AppColors.primary),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Chambre louée — liée à un bail',
+                      style: TextStyle(fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 2),
+                  SelectableText(
+                    'Code : $code',
+                    style: AppTypography.labelSm
+                        .copyWith(color: AppColors.onSurfaceVariant),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return FormBuilderCheckbox(
+      name: 'est_loue',
+      initialValue: widget.chambre?.estLoue ?? false,
+      title: const Text('Chambre louée'),
+      subtitle: const Text(
+          'Aucun bail lié. Si vous la cochez, la chambre sera marquée occupée '
+          'par le propriétaire (sans bail).'),
+      activeColor: AppColors.primary,
+      contentPadding: EdgeInsets.zero,
+      controlAffinity: ListTileControlAffinity.leading,
+    );
+  }
 
   /// Montant démonstratif du dépôt de garantie = loyer HC × nb de mois.
   /// Affiché sous le champ ; sera facturé au locataire à la génération du bail.
@@ -534,15 +603,7 @@ class _CreerChambrePageState extends State<CreerChambrePage> {
 
                                 // ══ 6 — Statut ═══════════════════════════════
                                 _sectionLabel("Statut"),
-                                FormBuilderCheckbox(
-                                  name: 'est_loue',
-                                  initialValue: widget.chambre?.estLoue ?? false,
-                                  title: const Text('Chambre louée'),
-                                  subtitle: const Text('Marque cette chambre comme actuellement occupée.'),
-                                  activeColor: AppColors.primary,
-                                  contentPadding: EdgeInsets.zero,
-                                  controlAffinity: ListTileControlAffinity.leading,
-                                ),
+                                _buildStatutLouee(),
                                 FormBuilderCheckbox(
                                   name: 'desactiver',
                                   initialValue: !(widget.chambre?.isActive ?? true),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show FilteringTextInputFormatter, TextInputFormatter;
 import 'package:lacoloc_front/data/models/charge_reference.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
@@ -251,6 +252,16 @@ class _ChargeCard extends StatelessWidget {
               controller: controller,
               enabled: enabled,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              // Masque monétaire : chiffres + un séparateur + 2 décimales max.
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
+                TextInputFormatter.withFunction((oldV, newV) {
+                  final t = newV.text;
+                  if (t.isEmpty) return newV;
+                  if (!RegExp(r'^\d*([.,]\d{0,2})?$').hasMatch(t)) return oldV;
+                  return newV;
+                }),
+              ],
               decoration: const InputDecoration(
                 labelText: 'Montant (€/mois)',
                 prefixText: '€ ',

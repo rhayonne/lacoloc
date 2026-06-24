@@ -18,6 +18,7 @@ import 'package:lacoloc_front/data/models/immeubles.dart';
 import 'package:lacoloc_front/presentation/widgets/address_autocomplete_field.dart';
 import 'package:lacoloc_front/presentation/widgets/charges_selector.dart';
 import 'package:lacoloc_front/presentation/widgets/form_page_header.dart';
+import 'package:lacoloc_front/presentation/widgets/number_stepper_field.dart';
 import 'package:lacoloc_front/presentation/widgets/photo_picker_field.dart';
 import 'package:lacoloc_front/presentation/widgets/unsaved_changes_dialog.dart';
 import 'package:lacoloc_front/presentation/tour/guided_tours.dart';
@@ -681,28 +682,25 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
                                 _sectionLabel("Informations contractuelles"),
                                 _twoColumns(
                                   wide: wide,
-                                  FormBuilderTextField(
+                                  NumberStepperField(
                                     name: 'depot_garantie_mois',
                                     initialValue: widget.immeuble?.depotGarantieMois?.toString(),
-                                    decoration: InputDecoration(
-                                      labelText: 'Dépôt de garantie (mois)',
-                                      helperText: widget.immeuble?.locationMeuble == true
-                                          ? 'Max légal : 2 mois (meublé)'
-                                          : 'Max légal : 1 mois (non meublé)',
-                                      prefixIcon: const Icon(Icons.lock_outline),
-                                    ),
-                                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                    labelText: 'Dépôt de garantie (mois)',
+                                    helperText: widget.immeuble?.locationMeuble == true
+                                        ? 'Max légal : 2 mois (meublé)'
+                                        : 'Max légal : 1 mois (non meublé)',
+                                    prefixIcon: Icons.lock_outline,
+                                    min: 0,
+                                    max: 3,
                                   ),
-                                  FormBuilderTextField(
+                                  NumberStepperField(
                                     name: 'duree_bail_mois',
                                     initialValue: widget.immeuble?.dureeBailMois?.toString()
                                         ?? (widget.immeuble?.locationMeuble == true ? '12' : '36'),
-                                    decoration: const InputDecoration(
-                                      labelText: 'Durée du bail (mois)',
-                                      helperText: 'Minimum légal : 12 mois (meublé) · 36 mois (non meublé)',
-                                      prefixIcon: Icon(Icons.calendar_month_outlined),
-                                    ),
-                                    keyboardType: TextInputType.number,
+                                    labelText: 'Durée du bail (mois)',
+                                    helperText: 'Minimum légal : 12 mois (meublé) · 36 mois (non meublé)',
+                                    prefixIcon: Icons.calendar_month_outlined,
+                                    min: 1,
                                   ),
                                 ),
                                 const SizedBox(height: AppSpacing.md),
