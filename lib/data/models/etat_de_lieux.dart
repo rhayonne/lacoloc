@@ -129,6 +129,9 @@ class EtatDesLieuxModel {
   final DateTime? dateDebutBail;
   final DateTime? dateFinBail;
   final int? dureeBailMois;
+  /// Le bail nécessite-t-il un garant ? null = non décidé, true = requis,
+  /// false = sans garant. Décidé par le propriétaire à la génération du bail.
+  final bool? bailAvecGarant;
   final double? surfaceM2;
   final int? nombrePiecesPrincipales;
   final String? designation;
@@ -144,6 +147,9 @@ class EtatDesLieuxModel {
   final String? proprietaireSignatureUrl;
   final DateTime? locataireSignedAt;
   final String? locataireSignatureUrl;
+
+  /// Dernière demande de signature envoyée au locataire (anti-spam 5 jours).
+  final DateTime? lastSignatureRequestAt;
 
   // Champs enrichis via join
   final String? locataireNom;
@@ -190,6 +196,7 @@ class EtatDesLieuxModel {
     this.dateDebutBail,
     this.dateFinBail,
     this.dureeBailMois,
+    this.bailAvecGarant,
     this.surfaceM2,
     this.nombrePiecesPrincipales,
     this.designation,
@@ -215,7 +222,31 @@ class EtatDesLieuxModel {
     this.proprietaireSignatureUrl,
     this.locataireSignedAt,
     this.locataireSignatureUrl,
+    this.lastSignatureRequestAt,
   });
+
+  /// Le propriétaire peut (re)demander une signature ? Vrai si jamais demandé
+  /// ou si la dernière demande date de plus de 5 jours.
+  bool get canRequestSignature {
+    final last = lastSignatureRequestAt;
+    if (last == null) return true;
+    return DateTime.now().difference(last).inDays >= 5;
+  }
+
+  /// Jours restants avant de pouvoir re-demander une signature (0 si possible).
+  int get signatureRequestCooldownDays {
+    final last = lastSignatureRequestAt;
+    if (last == null) return 0;
+    final remaining = 5 - DateTime.now().difference(last).inDays;
+    return remaining > 0 ? remaining : 0;
+  }
+
+  /// Un bail peut être généré pour cet EDL (entrée privative individuelle ou
+  /// commune d'un bail location).
+  bool get isBailEligible =>
+      typeEdl == 'entree' &&
+      (partie == PartieEdl.privative ||
+          (partie == PartieEdl.commune && typeBail == 'location'));
 
   factory EtatDesLieuxModel.fromMap(Map<String, dynamic> map) {
     final loc = map['locataire'] as Map<String, dynamic>?;
@@ -268,6 +299,7 @@ class EtatDesLieuxModel {
           ? DateTime.parse(map['date_fin_bail'] as String)
           : null,
       dureeBailMois: map['duree_bail_mois'] as int?,
+      bailAvecGarant: map['bail_avec_garant'] as bool?,
       surfaceM2: (map['surface_m2'] as num?)?.toDouble(),
       nombrePiecesPrincipales: map['nombre_pieces_principales'] as int?,
       designation: map['designation'] as String?,
@@ -300,6 +332,9 @@ class EtatDesLieuxModel {
           ? DateTime.parse(map['locataire_signed_at'] as String)
           : null,
       locataireSignatureUrl: map['locataire_signature_url'] as String?,
+      lastSignatureRequestAt: map['last_signature_request_at'] != null
+          ? DateTime.parse(map['last_signature_request_at'] as String)
+          : null,
       preneursNoms: () {
         final raw = map['preneurs'];
         if (raw is! List) return const <String>[];
@@ -341,6 +376,7 @@ class EtatDesLieuxModel {
     if (dateFinBail != null)
       'date_fin_bail': dateFinBail!.toIso8601String().substring(0, 10),
     if (dureeBailMois != null) 'duree_bail_mois': dureeBailMois,
+    if (bailAvecGarant != null) 'bail_avec_garant': bailAvecGarant,
     if (surfaceM2 != null) 'surface_m2': surfaceM2,
     if (nombrePiecesPrincipales != null)
       'nombre_pieces_principales': nombrePiecesPrincipales,

@@ -1,5 +1,4 @@
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:carousel_slider/carousel_slider.dart';
 import 'package:flutter/material.dart';
 import 'package:lacoloc_front/data/datasources/auth_service.dart';
 import 'package:lacoloc_front/data/datasources/chambres.dart';
@@ -12,6 +11,7 @@ import 'package:lacoloc_front/data/models/reference.dart';
 import 'package:lacoloc_front/data/models/users_client.dart';
 import 'package:lacoloc_front/presentation/login_dialog.dart';
 import 'package:lacoloc_front/presentation/nav/app_sidebar.dart';
+import 'package:lacoloc_front/presentation/widgets/photo_carousel.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_radius.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
@@ -266,25 +266,30 @@ class _DetailContent extends StatelessWidget {
     final photos = _orderedPhotos(chambre);
 
     return SingleChildScrollView(
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 860),
-          child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.lg),
+      child: LayoutBuilder(
+        builder: (context, cns) {
+          // ~10% de marge à gauche/droite ; la photo occupe la majeure
+          // partie de la largeur (responsive).
+          final hpad = (cns.maxWidth * 0.10).clamp(AppSpacing.lg, 220.0);
+          final carouselH = (cns.maxWidth * 0.8 * 9 / 16).clamp(260.0, 520.0);
+          return Padding(
+            padding:
+                EdgeInsets.symmetric(horizontal: hpad, vertical: AppSpacing.lg),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                TextButton.icon(
+                OutlinedButton.icon(
                   onPressed: onBack ?? () => Navigator.of(context).pop(),
                   icon: const Icon(Icons.arrow_back, size: 18),
                   label: const Text('Retour'),
                 ),
                 const SizedBox(height: AppSpacing.sm),
 
-                // Photo carousel
-                ClipRRect(
-                  borderRadius: AppRadius.borderLg,
-                  child: _PhotoCarousel(photos: photos),
+                // Photo carousel (défilement auto 5 s + zoom plein écran)
+                PhotoCarousel(
+                  photos: photos,
+                  height: carouselH,
+                  placeholderIcon: Icons.bed_outlined,
                 ),
                 const SizedBox(height: AppSpacing.lg),
 
@@ -373,8 +378,8 @@ class _DetailContent extends StatelessWidget {
                 const SizedBox(height: AppSpacing.xl),
               ],
             ),
-          ),
-        ),
+          );
+        },
       ),
     );
   }
@@ -526,241 +531,6 @@ class _DetailContent extends StatelessWidget {
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _PhotoCarousel extends StatefulWidget {
-  final List<String> photos;
-  const _PhotoCarousel({required this.photos});
-
-  @override
-  State<_PhotoCarousel> createState() => _PhotoCarouselState();
-}
-
-class _PhotoCarouselState extends State<_PhotoCarousel> {
-  int _index = 0;
-  final CarouselSliderController _ctrl = CarouselSliderController();
-
-  @override
-  Widget build(BuildContext context) {
-    if (widget.photos.isEmpty) {
-      return Container(
-        height: 280,
-        color: AppColors.surfaceContainerLow,
-        alignment: Alignment.center,
-        child: const Icon(Icons.photo_library_outlined,
-            size: 56, color: AppColors.outline),
-      );
-    }
-
-    return Stack(
-      children: [
-        CarouselSlider(
-          carouselController: _ctrl,
-          items: widget.photos.asMap().entries.map((entry) {
-            return GestureDetector(
-              onTap: () => _openFullscreen(context, entry.key),
-              child: CachedNetworkImage(
-                imageUrl: entry.value,
-                fit: BoxFit.cover,
-                width: double.infinity,
-              ),
-            );
-          }).toList(),
-          options: CarouselOptions(
-            height: 360,
-            viewportFraction: 1,
-            enableInfiniteScroll: widget.photos.length > 1,
-            onPageChanged: (i, _) => setState(() => _index = i),
-          ),
-        ),
-
-        // Counter top-right: "1 / N"
-        if (widget.photos.length > 1)
-          Positioned(
-            top: AppSpacing.sm,
-            right: AppSpacing.sm,
-            child: Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.sm,
-                vertical: AppSpacing.xs,
-              ),
-              decoration: BoxDecoration(
-                color: Colors.black54,
-                borderRadius: AppRadius.borderFull,
-              ),
-              child: Text(
-                '${_index + 1} / ${widget.photos.length}',
-                style: const TextStyle(color: Colors.white, fontSize: 12),
-              ),
-            ),
-          ),
-
-        // Prev arrow
-        if (widget.photos.length > 1)
-          Positioned(
-            left: AppSpacing.sm,
-            top: 0,
-            bottom: 0,
-            child: Center(
-              child: _ArrowButton(
-                icon: Icons.chevron_left,
-                onTap: () => _ctrl.previousPage(),
-              ),
-            ),
-          ),
-
-        // Next arrow
-        if (widget.photos.length > 1)
-          Positioned(
-            right: AppSpacing.sm,
-            top: 0,
-            bottom: 0,
-            child: Center(
-              child: _ArrowButton(
-                icon: Icons.chevron_right,
-                onTap: () => _ctrl.nextPage(),
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-
-  void _openFullscreen(BuildContext context, int initialIndex) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        fullscreenDialog: true,
-        builder: (_) => _FullscreenGallery(
-          photos: widget.photos,
-          initialIndex: initialIndex,
-        ),
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _ArrowButton extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback onTap;
-  const _ArrowButton({required this.icon, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 36,
-        height: 36,
-        decoration: const BoxDecoration(
-          color: Colors.black45,
-          shape: BoxShape.circle,
-        ),
-        child: Icon(icon, color: Colors.white, size: 22),
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _FullscreenGallery extends StatefulWidget {
-  final List<String> photos;
-  final int initialIndex;
-  const _FullscreenGallery(
-      {required this.photos, required this.initialIndex});
-
-  @override
-  State<_FullscreenGallery> createState() => _FullscreenGalleryState();
-}
-
-class _FullscreenGalleryState extends State<_FullscreenGallery> {
-  late int _index;
-  late PageController _pageCtrl;
-
-  @override
-  void initState() {
-    super.initState();
-    _index = widget.initialIndex;
-    _pageCtrl = PageController(initialPage: widget.initialIndex);
-  }
-
-  @override
-  void dispose() {
-    _pageCtrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: Stack(
-        children: [
-          PageView.builder(
-            controller: _pageCtrl,
-            itemCount: widget.photos.length,
-            onPageChanged: (i) => setState(() => _index = i),
-            itemBuilder: (context, i) => InteractiveViewer(
-              minScale: 1,
-              maxScale: 4,
-              child: Center(
-                child: CachedNetworkImage(
-                  imageUrl: widget.photos[i],
-                  fit: BoxFit.contain,
-                ),
-              ),
-            ),
-          ),
-
-          // Counter bottom center
-          if (widget.photos.length > 1)
-            Positioned(
-              bottom: AppSpacing.xl,
-              left: 0,
-              right: 0,
-              child: Center(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.md,
-                    vertical: AppSpacing.xs,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.black54,
-                    borderRadius: AppRadius.borderFull,
-                  ),
-                  child: Text(
-                    '${_index + 1} / ${widget.photos.length}',
-                    style: const TextStyle(color: Colors.white, fontSize: 14),
-                  ),
-                ),
-              ),
-            ),
-
-          // Close button top-right
-          Positioned(
-            top: MediaQuery.of(context).padding.top + 8,
-            right: 12,
-            child: GestureDetector(
-              onTap: () => Navigator.of(context).pop(),
-              child: Container(
-                width: 40,
-                height: 40,
-                decoration: const BoxDecoration(
-                  color: Colors.black54,
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.close, color: Colors.white, size: 20),
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }

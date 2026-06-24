@@ -5,18 +5,32 @@ import 'package:lacoloc_front/data/datasources/demandes_contact.dart';
 import 'package:lacoloc_front/data/cache/realtime_refresh_mixin.dart';
 import 'package:lacoloc_front/data/datasources/immeubles.dart';
 import 'package:lacoloc_front/data/datasources/notifications.dart';
+import 'package:lacoloc_front/data/datasources/signatures.dart';
 import 'package:lacoloc_front/data/models/chambre.dart';
 import 'package:lacoloc_front/data/models/demande_contact.dart';
 import 'package:lacoloc_front/data/models/immeubles.dart';
 import 'package:lacoloc_front/data/models/notification_model.dart';
+import 'package:lacoloc_front/data/models/users_client.dart';
 import 'package:lacoloc_front/presentation/users/proprietaires/interactions_page.dart';
+import 'package:lacoloc_front/presentation/widgets/readiness_checklist.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_radius.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
 import 'package:lacoloc_front/theme/app_typography.dart';
+import 'package:lacoloc_front/utils/signature_pad.dart';
 
 class VueGeneralePage extends StatefulWidget {
-  const VueGeneralePage({super.key});
+  /// Liens de la checklist « Conditions pour louer » vers les sections.
+  final VoidCallback? onCompleterProfil;
+  final VoidCallback? onCreerImmeuble;
+  final VoidCallback? onGererChambres;
+
+  const VueGeneralePage({
+    super.key,
+    this.onCompleterProfil,
+    this.onCreerImmeuble,
+    this.onGererChambres,
+  });
 
   @override
   State<VueGeneralePage> createState() => _VueGeneralePageState();
@@ -57,12 +71,72 @@ class _VueGeneralePageState extends State<VueGeneralePage>
       notifs = all.where((n) => !n.isRead).toList();
     } catch (_) {}
 
+    final profile = await AuthService.loadCurrentProfile();
+    final signatureUrl = await SignaturesDatasource.getSavedUrl();
+
     return _VueData(
       immeubles: immeubles,
       chambres: chambres,
       pendingDemandes: pending,
       notifications: notifs,
+      profile: profile,
+      hasSignature: signatureUrl != null,
     );
+  }
+
+  /// Ouvre le pop-up de création de signature et l'enregistre comme signature
+  /// par défaut, puis rafraîchit la checklist.
+  Future<void> _createSignature() async {
+    final res = await showSignatureDialog(context);
+    if (res == null || !mounted) return;
+    try {
+      await SignaturesDatasource.saveUrl(res.url);
+      final f = _load();
+      setState(() => _future = f);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur : $e')),
+        );
+      }
+    }
+  }
+
+  /// Conditions « prêt à louer » du propriétaire.
+  List<ChecklistItem> _checklistItems(_VueData data) {
+    final p = data.profile;
+    final profilComplet = (p?.fullName?.trim().isNotEmpty ?? false) &&
+        (p?.phone?.trim().isNotEmpty ?? false);
+    return [
+      ChecklistItem(
+        label: 'Compléter mon profil',
+        hint: 'Nom et téléphone',
+        done: profilComplet,
+        actionLabel: 'Compléter',
+        onAction: widget.onCompleterProfil,
+      ),
+      ChecklistItem(
+        label: 'Enregistrer ma signature électronique',
+        hint: 'Nécessaire pour finaliser les états des lieux et baux',
+        done: data.hasSignature,
+        actionLabel: 'Créer ma signature',
+        onAction: _createSignature,
+      ),
+      ChecklistItem(
+        label: 'Créer au moins un immeuble',
+        hint: 'Votre bien à louer',
+        done: data.immeubles.isNotEmpty,
+        actionLabel: 'Ajouter un immeuble',
+        onAction: widget.onCreerImmeuble,
+      ),
+      ChecklistItem(
+        label: 'Créer au moins une chambre',
+        hint: 'L\'unité louée (chambre ou logement)',
+        done: data.chambres.isNotEmpty,
+        actionLabel: 'Gérer les chambres',
+        onAction: widget.onGererChambres,
+      ),
+    ];
   }
 
   @override
@@ -123,6 +197,8 @@ class _VueGeneralePageState extends State<VueGeneralePage>
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      ReadinessChecklist(items: _checklistItems(data)),
+                      const SizedBox(height: AppSpacing.xl),
                       _StatCards(
                         immeubles: data.immeubles,
                         chambres: data.chambres,
@@ -416,12 +492,16 @@ class _VueData {
   final List<ChambreModel> chambres;
   final List<DemandeContactModel> pendingDemandes;
   final List<NotificationModel> notifications;
+  final UsersClient? profile;
+  final bool hasSignature;
 
   const _VueData({
     required this.immeubles,
     required this.chambres,
     required this.pendingDemandes,
     this.notifications = const [],
+    this.profile,
+    this.hasSignature = false,
   });
 
   factory _VueData.empty() => const _VueData(

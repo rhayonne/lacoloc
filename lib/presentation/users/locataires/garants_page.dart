@@ -9,6 +9,7 @@ import 'package:lacoloc_front/data/models/address_suggestion.dart';
 import 'package:lacoloc_front/data/models/garant.dart';
 import 'package:lacoloc_front/presentation/widgets/app_list_search_field.dart';
 import 'package:lacoloc_front/presentation/widgets/address_autocomplete_field.dart';
+import 'package:lacoloc_front/presentation/widgets/unsaved_changes_dialog.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_radius.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
@@ -123,7 +124,8 @@ class _GarantsPageState extends State<GarantsPage> {
                     Text('Garants', style: AppTypography.headlineLg),
                     const SizedBox(height: AppSpacing.xs),
                     Text(
-                      'Vos garants (caution) pour vos contrats de location.',
+                      'Vos garants (caution) pour vos contrats de location. '
+                      'Les garants activés sont automatiquement ajoutés aux baux générés.',
                       style: AppTypography.bodyMd
                           .copyWith(color: AppColors.onSurfaceVariant),
                     ),
@@ -348,9 +350,14 @@ class _GarantCardState extends State<_GarantCard> {
               ),
 
               // Toggle actif/inactif
-              Switch(
-                value: g.isActive,
-                onChanged: (_) => widget.onToggle(),
+              Tooltip(
+                message: g.isActive
+                    ? 'Désactiver (ne sera plus ajouté aux baux générés)'
+                    : 'Activer (sera ajouté automatiquement aux baux générés)',
+                child: Switch(
+                  value: g.isActive,
+                  onChanged: (_) => widget.onToggle(),
+                ),
               ),
 
               // Supprimer
@@ -540,7 +547,30 @@ class _GarantFormWithBack extends StatefulWidget {
 class _GarantFormWithBackState extends State<_GarantFormWithBack> {
   final _formKey = GlobalKey<FormBuilderState>();
   bool _isSubmitting = false;
+  bool _dirty = false;
   String _typeGarant = 'physique';
+
+  void _markDirty() {
+    if (!_dirty && mounted) setState(() => _dirty = true);
+  }
+
+  /// Retour avec confirmation si des modifications non sauvegardées existent.
+  Future<void> _handleBack() async {
+    if (!_dirty) {
+      widget.onBack();
+      return;
+    }
+    final choice = await showUnsavedChangesDialog(context);
+    if (!mounted) return;
+    switch (choice) {
+      case UnsavedChoice.cancel:
+        return;
+      case UnsavedChoice.discard:
+        widget.onBack();
+      case UnsavedChoice.save:
+        await _submit();
+    }
+  }
 
   // Contrôleurs pour les champs hors FormBuilder
   late final TextEditingController _adresseCtrl;
@@ -560,6 +590,9 @@ class _GarantFormWithBackState extends State<_GarantFormWithBack> {
     _codePostalCtrl = TextEditingController(text: widget.garant?.codePostal ?? '');
     _villeCtrl = TextEditingController(text: widget.garant?.ville ?? '');
     _dateNaissance = widget.garant?.dateNaissance;
+    for (final c in [_adresseCtrl, _codePostalCtrl, _villeCtrl]) {
+      c.addListener(_markDirty);
+    }
   }
 
   @override
@@ -659,7 +692,7 @@ class _GarantFormWithBackState extends State<_GarantFormWithBack> {
             children: [
               IconButton.outlined(
                 icon: const Icon(Icons.arrow_back),
-                onPressed: widget.onBack,
+                onPressed: _handleBack,
                 tooltip: 'Retour à la liste',
               ),
               const SizedBox(width: AppSpacing.md),
@@ -679,6 +712,7 @@ class _GarantFormWithBackState extends State<_GarantFormWithBack> {
                 constraints: const BoxConstraints(maxWidth: 600),
                 child: FormBuilder(
                   key: _formKey,
+                  onChanged: _markDirty,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [

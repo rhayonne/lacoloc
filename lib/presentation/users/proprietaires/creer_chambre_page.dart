@@ -15,6 +15,7 @@ import 'package:lacoloc_front/data/models/charge_reference.dart';
 import 'package:lacoloc_front/data/models/immeubles.dart';
 import 'package:lacoloc_front/data/models/reference.dart';
 import 'package:lacoloc_front/presentation/widgets/charges_selector.dart';
+import 'package:lacoloc_front/presentation/widgets/number_stepper_field.dart';
 import 'package:lacoloc_front/presentation/widgets/form_page_header.dart';
 import 'package:lacoloc_front/presentation/widgets/photo_picker_field.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
@@ -44,6 +45,10 @@ class _CreerChambrePageState extends State<CreerChambrePage> {
   bool _isSubmitting = false;
   List<ChargeSelection> _charges = [];
 
+  // Pour le montant démonstratif du dépôt de garantie (loyer × nb mois).
+  double? _loyer;
+  double? _cautionMois;
+
   bool get _isEditing => widget.chambre != null;
 
   @override
@@ -51,6 +56,8 @@ class _CreerChambrePageState extends State<CreerChambrePage> {
     super.initState();
     _bundleFuture = _loadBundle();
     final ch = widget.chambre;
+    _loyer = ch?.prixLoyer;
+    _cautionMois = ch?.depotGarantieMois;
     if (ch != null) {
       _roomPhotos = List.from(ch.roomPhotos);
       _mainPhoto = ch.mainPhoto;
@@ -229,6 +236,36 @@ class _CreerChambrePageState extends State<CreerChambrePage> {
         child: Text(text, style: AppTypography.labelMd),
       );
 
+  /// Montant démonstratif du dépôt de garantie = loyer HC × nb de mois.
+  /// Affiché sous le champ ; sera facturé au locataire à la génération du bail.
+  Widget _cautionPreview() {
+    final loyer = _loyer;
+    final mois = _cautionMois;
+    if (loyer == null || mois == null || loyer <= 0 || mois <= 0) {
+      return const SizedBox.shrink();
+    }
+    final montant = loyer * mois;
+    return Padding(
+      padding: const EdgeInsets.only(top: AppSpacing.xs),
+      child: Row(
+        children: [
+          const Icon(Icons.info_outline,
+              size: 14, color: AppColors.onSurfaceVariant),
+          const SizedBox(width: AppSpacing.xs),
+          Expanded(
+            child: Text(
+              'Dépôt demandé au locataire : ${montant.toStringAsFixed(2)} € '
+              '(${mois.toStringAsFixed(mois % 1 == 0 ? 0 : 1)} × ${loyer.toStringAsFixed(2)} €). '
+              'Une échéance sera créée à la génération du bail.',
+              style: AppTypography.labelSm
+                  .copyWith(color: AppColors.onSurfaceVariant),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -358,7 +395,10 @@ class _CreerChambrePageState extends State<CreerChambrePage> {
                                   inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*[,.]?\d{0,2}'))],
                                   onChanged: (v) {
                                     final cents = _parseCents(v);
-                                    setState(() => _pricePreview = cents != null && cents > 0 ? formatFrenchCurrency(cents) : null);
+                                    setState(() {
+                                      _pricePreview = cents != null && cents > 0 ? formatFrenchCurrency(cents) : null;
+                                      _loyer = double.tryParse((v ?? '').replaceAll(',', '.'));
+                                    });
                                   },
                                 ),
                                 const SizedBox(height: AppSpacing.md),
@@ -406,59 +446,63 @@ class _CreerChambrePageState extends State<CreerChambrePage> {
 
                                 // ══ 4 — Informations contractuelles ══════════
                                 _sectionLabel("Informations contractuelles"),
-                                wide
-                                    ? Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                        Expanded(child: FormBuilderTextField(
-                                          name: 'depot_garantie_mois',
-                                          initialValue: widget.chambre?.depotGarantieMois?.toString(),
-                                          decoration: InputDecoration(
-                                            labelText: 'Dépôt de garantie (mois)',
-                                            helperText: _selectedImmeuble?.locationMeuble == true
-                                                ? 'Max légal : 2 mois (meublé)'
-                                                : 'Max légal : 1 mois (non meublé)',
-                                            prefixIcon: const Icon(Icons.lock_outline),
-                                          ),
-                                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                        )),
-                                        const SizedBox(width: AppSpacing.md),
-                                        Expanded(child: FormBuilderTextField(
-                                          name: 'duree_bail_mois',
-                                          initialValue: widget.chambre?.dureeBailMois?.toString()
-                                              ?? (_selectedImmeuble?.locationMeuble == true ? '12' : '36'),
-                                          decoration: const InputDecoration(
-                                            labelText: 'Durée du bail (mois)',
-                                            helperText: 'Min. légal : 12 (meublé) · 36 (non meublé)',
-                                            prefixIcon: Icon(Icons.calendar_month_outlined),
-                                          ),
-                                          keyboardType: TextInputType.number,
-                                        )),
-                                      ])
-                                    : Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                                        FormBuilderTextField(
-                                          name: 'depot_garantie_mois',
-                                          initialValue: widget.chambre?.depotGarantieMois?.toString(),
-                                          decoration: InputDecoration(
-                                            labelText: 'Dépôt de garantie (mois)',
-                                            helperText: _selectedImmeuble?.locationMeuble == true
-                                                ? 'Max légal : 2 mois (meublé)'
-                                                : 'Max légal : 1 mois (non meublé)',
-                                            prefixIcon: const Icon(Icons.lock_outline),
-                                          ),
-                                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                        ),
-                                        const SizedBox(height: AppSpacing.md),
-                                        FormBuilderTextField(
-                                          name: 'duree_bail_mois',
-                                          initialValue: widget.chambre?.dureeBailMois?.toString()
-                                              ?? (_selectedImmeuble?.locationMeuble == true ? '12' : '36'),
-                                          decoration: const InputDecoration(
-                                            labelText: 'Durée du bail (mois)',
-                                            helperText: 'Min. légal : 12 (meublé) · 36 (non meublé)',
-                                            prefixIcon: Icon(Icons.calendar_month_outlined),
-                                          ),
-                                          keyboardType: TextInputType.number,
-                                        ),
-                                      ]),
+                                Builder(builder: (_) {
+                                  final meuble =
+                                      _selectedImmeuble?.locationMeuble == true;
+                                  final depot = NumberStepperField(
+                                    name: 'depot_garantie_mois',
+                                    initialValue:
+                                        widget.chambre?.depotGarantieMois?.toString(),
+                                    labelText: 'Dépôt de garantie (mois)',
+                                    helperText: meuble
+                                        ? 'Max légal : 2 mois (meublé)'
+                                        : 'Max légal : 1 mois (non meublé)',
+                                    prefixIcon: Icons.lock_outline,
+                                    min: 0,
+                                    max: 3,
+                                    onValue: (v) =>
+                                        setState(() => _cautionMois = v),
+                                  );
+                                  final duree = NumberStepperField(
+                                    name: 'duree_bail_mois',
+                                    initialValue:
+                                        widget.chambre?.dureeBailMois?.toString() ??
+                                            (meuble ? '12' : '36'),
+                                    labelText: 'Durée du bail (mois)',
+                                    helperText:
+                                        'Min. légal : 12 (meublé) · 36 (non meublé)',
+                                    prefixIcon: Icons.calendar_month_outlined,
+                                    min: 1,
+                                  );
+                                  return Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      wide
+                                          ? Row(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Expanded(child: depot),
+                                                const SizedBox(
+                                                    width: AppSpacing.md),
+                                                Expanded(child: duree),
+                                              ],
+                                            )
+                                          : Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.stretch,
+                                              children: [
+                                                depot,
+                                                const SizedBox(
+                                                    height: AppSpacing.md),
+                                                duree,
+                                              ],
+                                            ),
+                                      _cautionPreview(),
+                                    ],
+                                  );
+                                }),
                                 const SizedBox(height: AppSpacing.lg),
                                 const Divider(),
                                 const SizedBox(height: AppSpacing.md),

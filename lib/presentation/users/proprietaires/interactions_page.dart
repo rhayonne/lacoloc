@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:lacoloc_front/utils/media_embed.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:intl/intl.dart';
 import 'package:lacoloc_front/data/cache/realtime_refresh_mixin.dart';
 import 'package:lacoloc_front/data/datasources/demandes_contact.dart';
@@ -705,6 +708,7 @@ class NotificationCard extends StatelessWidget {
 
   IconData get _icon => switch (notification.type) {
         'edl_accepte' => Icons.verified_outlined,
+        'admin_message' => Icons.campaign_outlined,
         _ => Icons.notifications_outlined,
       };
 
@@ -746,9 +750,25 @@ class NotificationCard extends StatelessWidget {
                   if (notification.body != null &&
                       notification.body!.isNotEmpty) ...[
                     const SizedBox(height: 2),
-                    Text(notification.body!,
-                        style: AppTypography.bodyMd
-                            .copyWith(color: AppColors.onSurfaceVariant)),
+                    // Rendu Markdown (sans HTML brut → pas d'injection XSS).
+                    MarkdownBody(
+                      data: notification.body!,
+                      onTapLink: (text, href, title) {
+                        if (href != null) {
+                          launchUrl(Uri.parse(href),
+                              mode: LaunchMode.externalApplication);
+                        }
+                      },
+                    ),
+                  ],
+                  if (notification.mediaType != null &&
+                      notification.mediaUrl != null) ...[
+                    const SizedBox(height: AppSpacing.sm),
+                    MessageMediaView(
+                      mediaType: notification.mediaType,
+                      mediaUrl: notification.mediaUrl,
+                      height: 200,
+                    ),
                   ],
                   const SizedBox(height: AppSpacing.xs),
                   Text(dateStr,

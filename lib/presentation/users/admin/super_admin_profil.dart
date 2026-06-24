@@ -9,6 +9,7 @@ import 'package:lacoloc_front/presentation/admin/meuble_categories_page.dart';
 import 'package:lacoloc_front/presentation/admin/meuble_types_page.dart';
 import 'package:lacoloc_front/presentation/admin/payment_types_page.dart';
 import 'package:lacoloc_front/presentation/nav/app_sidebar.dart';
+import 'package:lacoloc_front/presentation/users/admin/communication_page.dart';
 import 'package:lacoloc_front/presentation/users/admin/comptes_entreprises_page.dart';
 import 'package:lacoloc_front/presentation/users/admin/maintenance_page.dart';
 import 'package:lacoloc_front/presentation/users/admin/utilisateurs_admin_page.dart';
@@ -19,15 +20,17 @@ import 'package:lacoloc_front/theme/app_typography.dart';
 // ─── Índices do sidebar ───────────────────────────────────────────────────────
 const _idxDashboard      = 0;
 const _idxUtilisateurs   = 1;
-const _idxEntreprises    = 2;
-const _idxPaymentTypes   = 3;
-const _idxConfigImmeuble = 4;
-const _idxMaintenance    = 5;
+const _idxCommunication  = 2;
+const _idxEntreprises    = 3;
+const _idxPaymentTypes   = 4;
+const _idxConfigImmeuble = 5;
+const _idxMaintenance    = 6;
 
-enum _Section { dashboard, utilisateurs, entreprises, paymentTypes, configImmeuble, maintenance }
+enum _Section { dashboard, utilisateurs, communication, entreprises, paymentTypes, configImmeuble, maintenance }
 
 _Section _indexToSection(int i) => switch (i) {
       _idxUtilisateurs   => _Section.utilisateurs,
+      _idxCommunication  => _Section.communication,
       _idxEntreprises    => _Section.entreprises,
       _idxPaymentTypes   => _Section.paymentTypes,
       _idxConfigImmeuble => _Section.configImmeuble,
@@ -38,6 +41,7 @@ _Section _indexToSection(int i) => switch (i) {
 int _sectionToIndex(_Section s) => switch (s) {
       _Section.dashboard       => _idxDashboard,
       _Section.utilisateurs    => _idxUtilisateurs,
+      _Section.communication   => _idxCommunication,
       _Section.entreprises     => _idxEntreprises,
       _Section.paymentTypes    => _idxPaymentTypes,
       _Section.configImmeuble  => _idxConfigImmeuble,
@@ -106,6 +110,7 @@ class _SuperAdminProfilPageState extends State<SuperAdminProfilPage> {
     return switch (_section) {
       _Section.dashboard       => const _SuperAdminDashboard(),
       _Section.utilisateurs    => const UtilisateursAdminPage(),
+      _Section.communication   => const CommunicationPage(),
       _Section.entreprises     => const ComptesEntreprisesPage(),
       _Section.paymentTypes    => const PaymentTypesPage(),
       _Section.configImmeuble  => const _ConfigImmeublePage(),
@@ -127,6 +132,10 @@ class _SuperAdminProfilPageState extends State<SuperAdminProfilPage> {
         badgedSidebarItem(
             icon: Icons.people_outlined,
             label: 'Utilisateurs',
+            extended: _navCtrl.extended),
+        badgedSidebarItem(
+            icon: Icons.campaign_outlined,
+            label: 'Communication',
             extended: _navCtrl.extended),
         badgedSidebarItem(
             icon: Icons.business_outlined,

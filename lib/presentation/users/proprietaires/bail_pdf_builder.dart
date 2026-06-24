@@ -1,6 +1,8 @@
+import 'dart:typed_data';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+import 'package:lacoloc_front/data/datasources/storage_service.dart';
 import 'bail_pdf_data.dart';
 
 /// Génère un document PDF de bail conforme aux contrats-types obligatoires
@@ -14,6 +16,14 @@ class BailPdfBuilder {
     final font = await PdfGoogleFonts.notoSansRegular();
     final fontBold = await PdfGoogleFonts.notoSansBold();
     final fontItalic = await PdfGoogleFonts.notoSansItalic();
+
+    // Images de signature (best-effort : null si indisponible).
+    final sigResults = await Future.wait([
+      _fetchImageBytes(data.edl.proprietaireSignatureUrl),
+      _fetchImageBytes(data.edl.locataireSignatureUrl),
+    ]);
+    final bailleurSig = sigResults[0];
+    final preneurSig = sigResults[1];
 
     final doc = pw.Document();
 
@@ -228,6 +238,53 @@ class BailPdfBuilder {
                 'déduction faite des sommes restant dues au bailleur.',
               ),
             ]),
+            if (d.garants.isNotEmpty)
+              article('4.5', 'Cautionnement (garant)', [
+                para(
+                  'Le paiement des sommes dues au titre du présent bail est garanti '
+                  'par le(s) cautionnement(s) suivant(s), dont les actes sont annexés '
+                  'au présent contrat :',
+                ),
+                pw.SizedBox(height: 4),
+                for (final g in d.garants) ...[
+                  pw.SizedBox(height: 4),
+                  pw.Text(
+                    g.typeGarant == 'morale'
+                        ? '${g.displayName} — ${g.typeGarantLabel}'
+                        : g.displayName,
+                    style: bold,
+                  ),
+                  row('Type de caution', g.typeCautionLabel),
+                  if (g.typeGarant == 'morale') ...[
+                    if (g.siret != null && g.siret!.isNotEmpty)
+                      row('SIRET', g.siret!),
+                    if (g.representantLegal != null &&
+                        g.representantLegal!.isNotEmpty)
+                      row('Représentant légal', g.representantLegal!),
+                  ] else ...[
+                    if (g.dateNaissanceFormatted != null)
+                      row(
+                        'Né(e) le',
+                        '${g.dateNaissanceFormatted}'
+                            '${g.lieuNaissance != null && g.lieuNaissance!.isNotEmpty ? ' à ${g.lieuNaissance}' : ''}',
+                      ),
+                    if (g.profession != null && g.profession!.isNotEmpty)
+                      row('Profession', g.profession!),
+                  ],
+                  if ([g.adresse, g.codePostal, g.ville]
+                      .any((s) => s != null && s.isNotEmpty))
+                    row(
+                      'Adresse',
+                      [g.adresse, g.codePostal, g.ville]
+                          .where((s) => s != null && s.isNotEmpty)
+                          .join(', '),
+                    ),
+                  if (g.email != null && g.email!.isNotEmpty)
+                    row('Email', g.email!),
+                  if (g.telephone != null && g.telephone!.isNotEmpty)
+                    row('Téléphone', g.telephone!),
+                ],
+              ]),
           ]),
 
           // ══ V — OBLIGATIONS DES PARTIES ════════════════════════════════════
@@ -336,28 +393,21 @@ class BailPdfBuilder {
             pw.Row(
               mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
               children: [
-                pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
-                  children: [
-                    pw.Text('Le bailleur', style: bold),
-                    pw.SizedBox(height: 4),
-                    pw.Text(d.bailleur.displayName, style: base),
-                    pw.SizedBox(height: 32),
-                    pw.Text('Signature :', style: base),
-                    pw.Container(width: 150, height: 1, color: PdfColors.black),
-                  ],
+                _signatureBlock(
+                  role: 'Le bailleur',
+                  name: d.bailleur.displayName,
+                  sigBytes: bailleurSig,
+                  bold: bold,
+                  base: base,
                 ),
-                pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
-                  children: [
-                    pw.Text(d.isColocation ? 'Le(s) colocataire(s)' : 'Le(s) locataire(s)', style: bold),
-                    pw.SizedBox(height: 4),
-                    if (d.preneurs.isNotEmpty)
-                      pw.Text(d.preneurs.first.displayName, style: base),
-                    pw.SizedBox(height: 32),
-                    pw.Text('Signature :', style: base),
-                    pw.Container(width: 150, height: 1, color: PdfColors.black),
-                  ],
+                _signatureBlock(
+                  role: d.isColocation
+                      ? 'Le(s) colocataire(s)'
+                      : 'Le(s) locataire(s)',
+                  name: d.preneurs.isNotEmpty ? d.preneurs.first.displayName : '',
+                  sigBytes: preneurSig,
+                  bold: bold,
+                  base: base,
                 ),
               ],
             ),
@@ -372,6 +422,54 @@ class BailPdfBuilder {
     );
 
     return doc;
+  }
+
+  // ── Helpers signature ───────────────────────────────────────────────────────
+
+  /// Télécharge les bytes d'une image de signature (privée `doc:` ou URL
+  /// publique). Retourne null si indisponible.
+  Future<Uint8List?> _fetchImageBytes(String? ref) async {
+    if (ref == null) return null;
+    try {
+      return await StorageService.downloadBytes(ref);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Bloc de signature : rôle + nom + image de signature (ou ligne vierge).
+  pw.Widget _signatureBlock({
+    required String role,
+    required String name,
+    required Uint8List? sigBytes,
+    required pw.TextStyle bold,
+    required pw.TextStyle base,
+  }) {
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.Text(role, style: bold),
+        pw.SizedBox(height: 4),
+        if (name.isNotEmpty) pw.Text(name, style: base),
+        pw.SizedBox(height: 8),
+        pw.Text('Signature :', style: base),
+        pw.SizedBox(height: 4),
+        if (sigBytes != null)
+          pw.Container(
+            width: 150,
+            height: 48,
+            alignment: pw.Alignment.centerLeft,
+            child: pw.Image(
+              pw.MemoryImage(sigBytes),
+              fit: pw.BoxFit.contain,
+              height: 48,
+            ),
+          )
+        else
+          pw.SizedBox(height: 24),
+        pw.Container(width: 150, height: 1, color: PdfColors.black),
+      ],
+    );
   }
 
   // ── Helpers texte ──────────────────────────────────────────────────────────

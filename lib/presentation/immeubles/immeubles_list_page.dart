@@ -12,7 +12,11 @@ import 'package:lacoloc_front/theme/app_typography.dart';
 
 /// Page publique listant les immeubles actifs qui ont au moins une chambre active.
 class ImmeublesListPage extends StatefulWidget {
-  const ImmeublesListPage({super.key});
+  /// Ouverture de la fiche détail (rendue dans le cadre principal). Si null,
+  /// la carte n'est pas cliquable.
+  final void Function(int immeubleId)? onTapImmeuble;
+
+  const ImmeublesListPage({super.key, this.onTapImmeuble});
 
   @override
   State<ImmeublesListPage> createState() => _ImmeublesListPageState();
@@ -151,11 +155,16 @@ class _ImmeublesListPageState extends State<ImmeublesListPage> {
                   maxCrossAxisExtent: 420,
                   crossAxisSpacing: AppSpacing.md,
                   mainAxisSpacing: AppSpacing.md,
-                  mainAxisExtent: 340,
+                  mainAxisExtent: 420,
                 ),
                 itemCount: filtered.length,
-                itemBuilder: (context, index) =>
-                    _ImmeubleCard(immeuble: filtered[index]),
+                itemBuilder: (context, index) {
+                  final imm = filtered[index];
+                  return _ImmeubleCard(
+                    immeuble: imm,
+                    onTap: () => widget.onTapImmeuble?.call(imm.id),
+                  );
+                },
               );
             },
           ),
@@ -169,7 +178,8 @@ class _ImmeublesListPageState extends State<ImmeublesListPage> {
 
 class _ImmeubleCard extends StatelessWidget {
   final ImmeublesModel immeuble;
-  const _ImmeubleCard({required this.immeuble});
+  final VoidCallback onTap;
+  const _ImmeubleCard({required this.immeuble, required this.onTap});
 
   String? get _coverUrl {
     final imm = immeuble;
@@ -182,77 +192,89 @@ class _ImmeubleCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final cover = _coverUrl;
 
+    // Même mise en page que la carte de chambre (Accueil) : photo 16/9,
+    // contenu extensible, bouton « Voir détails » pleine largeur.
     return Card(
       clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          AspectRatio(
-            aspectRatio: 16 / 9,
-            child: cover != null
-                ? CachedNetworkImage(
-                    imageUrl: cover,
-                    fit: BoxFit.cover,
-                    placeholder: (_, _) =>
-                        Container(color: AppColors.surfaceContainerLow),
-                    errorWidget: (_, _, _) => _placeholder(),
-                  )
-                : _placeholder(),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.md,
-              AppSpacing.md,
-              AppSpacing.md,
-              AppSpacing.sm,
+      child: InkWell(
+        onTap: onTap,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            AspectRatio(
+              aspectRatio: 16 / 9,
+              child: cover != null
+                  ? CachedNetworkImage(
+                      imageUrl: cover,
+                      fit: BoxFit.cover,
+                      placeholder: (_, _) =>
+                          Container(color: AppColors.surfaceContainerLow),
+                      errorWidget: (_, _, _) => _placeholder(),
+                    )
+                  : _placeholder(),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  immeuble.name,
-                  style: AppTypography.titleLg,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: AppSpacing.xs),
-                if (immeuble.city != null || immeuble.address != null)
-                  Row(
-                    children: [
-                      const Icon(Icons.place_outlined,
-                          size: 14, color: AppColors.onSurfaceVariant),
-                      const SizedBox(width: AppSpacing.xs),
-                      Expanded(
-                        child: Text(
-                          _locationLine(),
-                          style: AppTypography.bodyMd.copyWith(
-                            color: AppColors.onSurfaceVariant,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.md, AppSpacing.sm, AppSpacing.md, AppSpacing.xs),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      immeuble.name,
+                      style: AppTypography.titleLg,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (immeuble.city != null || immeuble.address != null) ...[
+                      const SizedBox(height: AppSpacing.xs),
+                      Text(
+                        _locationLine(),
+                        style: AppTypography.bodyMd
+                            .copyWith(color: AppColors.onSurfaceVariant),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
-                  ),
-                const SizedBox(height: AppSpacing.sm),
-                Wrap(
-                  spacing: AppSpacing.sm,
-                  runSpacing: AppSpacing.xs,
-                  children: [
-                    if (immeuble.type != null)
-                      _Pill(label: immeuble.type!.typeName),
-                    if (immeuble.department != null)
-                      _Pill(label: immeuble.department!),
-                    if (immeuble.totalM2 != null)
-                      _Pill(
-                          label:
-                              '${immeuble.totalM2!.toStringAsFixed(0)} m²'),
+                    const SizedBox(height: AppSpacing.sm),
+                    Flexible(
+                      child: ClipRect(
+                        child: Align(
+                          alignment: Alignment.bottomLeft,
+                          child: Wrap(
+                            spacing: AppSpacing.xs,
+                            runSpacing: AppSpacing.xs,
+                            children: [
+                              if (immeuble.type != null)
+                                _Pill(label: immeuble.type!.typeName),
+                              if (immeuble.department != null)
+                                _Pill(label: immeuble.department!),
+                              if (immeuble.totalM2 != null)
+                                _Pill(
+                                    label:
+                                        '${immeuble.totalM2!.toStringAsFixed(0)} m²'),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
                   ],
                 ),
-              ],
+              ),
             ),
-          ),
-        ],
+            Padding(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: onTap,
+                  label: const Text('Voir détails'),
+                  icon: const Icon(Icons.remove_red_eye, size: 18),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -6,6 +6,7 @@ import 'package:lacoloc_front/data/datasources/signatures.dart';
 import 'package:lacoloc_front/data/models/etat_de_lieux.dart';
 import 'package:lacoloc_front/presentation/users/proprietaires/bail_pdf_preview_page.dart';
 import 'package:lacoloc_front/presentation/widgets/app_list_search_field.dart';
+import 'package:lacoloc_front/presentation/widgets/bail_signature_flow.dart';
 import 'package:lacoloc_front/presentation/widgets/private_image.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_radius.dart';
@@ -211,6 +212,30 @@ class _BauxPageState extends State<_BauxPage> {
     });
   }
 
+  /// Ouvre l'aperçu du bail après avoir vérifié la signature du bailleur :
+  /// si le bail n'est pas encore signé, propose d'y apposer la signature
+  /// (création si nécessaire) avant l'ouverture.
+  Future<void> _openBail(EtatDesLieuxModel edl) async {
+    // 1) Garant : choix (Oui/Non) + vérification ; peut bloquer l'impression
+    //    et notifier le locataire s'il manque un garant requis.
+    final garantRes = await ensureBailGarant(context, edl);
+    if (garantRes == null || !mounted) return;
+    // 2) Signature du bailleur.
+    final signed = await ensureBailSignature(
+      context,
+      garantRes.edl,
+      role: 'proprietaire',
+    );
+    if (signed == null || !mounted) return;
+    // 3) Aperçu (l'impression est auto-bloquée si un garant requis manque).
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => BailPdfPreviewPage(edl: signed),
+      ),
+    );
+    if (mounted) _reload();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -306,11 +331,7 @@ class _BauxPageState extends State<_BauxPage> {
                       edl: items[i],
                       wide: wide,
                       dateFmt: _dateFmt,
-                      onViewPdf: () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => BailPdfPreviewPage(edl: items[i]),
-                        ),
-                      ),
+                      onViewPdf: () => _openBail(items[i]),
                     ),
                   );
                 },

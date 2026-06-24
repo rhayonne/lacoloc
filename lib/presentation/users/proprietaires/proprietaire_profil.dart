@@ -445,7 +445,13 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage>
         onBack: _closeImmeubleDetail,
       );
     }
-    if (_section == _Section.vueGenerale) return const VueGeneralePage();
+    if (_section == _Section.vueGenerale) {
+      return VueGeneralePage(
+        onCompleterProfil: () => _changeSection(_Section.monProfil),
+        onCreerImmeuble: () => _openImmeubleCreation(),
+        onGererChambres: () => _changeSection(_Section.gestion),
+      );
+    }
     if (_section == _Section.monProfil) return const MonProfilProprietairePage();
     if (_section == _Section.finances) {
       return FacturesListPage(

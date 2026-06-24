@@ -74,15 +74,19 @@ class _BailPdfPreviewPageState extends State<BailPdfPreviewPage> {
           }
 
           final data = snapshot.data!;
+          // Impression bloquée tant qu'un garant requis n'est pas enregistré.
+          final blocked = data.garantManquant;
 
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // ── Barre de boutons ─────────────────────────────────────────
               _ActionBar(
+                enabled: !blocked,
                 onPrint: () => _print(data),
                 onDownload: () => _download(data),
               ),
+              if (blocked) const _GarantBlockedBanner(),
               // ── Prévisualisation PDF ─────────────────────────────────────
               Expanded(
                 child: PdfPreview(
@@ -114,10 +118,12 @@ class _BailPdfPreviewPageState extends State<BailPdfPreviewPage> {
 class _ActionBar extends StatelessWidget {
   final VoidCallback onPrint;
   final VoidCallback onDownload;
+  final bool enabled;
 
   const _ActionBar({
     required this.onPrint,
     required this.onDownload,
+    this.enabled = true,
   });
 
   @override
@@ -140,14 +146,44 @@ class _ActionBar extends StatelessWidget {
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
           OutlinedButton.icon(
-            onPressed: onPrint,
+            onPressed: enabled ? onPrint : null,
             icon: const Icon(Icons.print_outlined, size: 18),
             label: const Text('Imprimer'),
           ),
           OutlinedButton.icon(
-            onPressed: onDownload,
+            onPressed: enabled ? onDownload : null,
             icon: const Icon(Icons.download_outlined, size: 18),
             label: const Text('Télécharger'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Bandeau d'avertissement : impression bloquée car le bail nécessite un garant
+/// qui n'a pas encore été enregistré par le locataire.
+class _GarantBlockedBanner extends StatelessWidget {
+  const _GarantBlockedBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      width: double.infinity,
+      color: scheme.errorContainer,
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.lg, vertical: AppSpacing.sm),
+      child: Row(
+        children: [
+          Icon(Icons.gpp_maybe_outlined, size: 20, color: scheme.onErrorContainer),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Text(
+              "Ce bail nécessite un garant. L'impression sera possible une fois "
+              "qu'au moins un garant aura été enregistré par le locataire.",
+              style: AppTypography.bodyMd.copyWith(color: scheme.onErrorContainer),
+            ),
           ),
         ],
       ),

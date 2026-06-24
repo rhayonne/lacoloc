@@ -13,5 +13,7 @@ qualquer visualizador compatível com Mermaid.
 | 06 | [06_etat_des_lieux.md](06_etat_des_lieux.md) | Ciclo de vida do EDL (criar → finaliser → assinar), observations, vision générale |
 | 07 | [07_convite_e_edge_functions.md](07_convite_e_edge_functions.md) | Convite de locataire, edge functions, RPCs |
 | 08 | [08_gestion_inventaire.md](08_gestion_inventaire.md) | Gestion Immobilière, Pièces, Inventaire, Agenda Visites |
+| 09 | [09_immeuble_vers_bail.md](09_immeuble_vers_bail.md) | Caminho completo Immeuble → Bail (pré-requisitos, garants, caution, impressão) |
+| 10 | [10_parcours_location.md](10_parcours_location.md) | Parcours locataire (colocation/location) **e** proprietaire (immeuble→bail) : fluxos, casos de uso, sequência, estados |
 
 > Especificação da API (objetos + endpoints Supabase): [`../docs/openapi.yaml`](../docs/openapi.yaml).

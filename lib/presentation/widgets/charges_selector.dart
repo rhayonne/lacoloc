@@ -228,47 +228,25 @@ class _ChargeCard extends StatelessWidget {
 
           const SizedBox(height: AppSpacing.sm),
 
-          // ── Options ───────────────────────────────────────────────────────
-          SizedBox(
-            width: double.infinity,
-            child: SegmentedButton<String>(
-              segments: const [
-                ButtonSegment(
-                  value: 'none',
-                  icon: Icon(Icons.block_outlined, size: 13),
-                  label: Text('Aucun'),
-                ),
-                ButtonSegment(
-                  value: 'inclus',
-                  icon: Icon(Icons.check_circle_outline, size: 13),
-                  label: Text('Inclus'),
-                ),
-                ButtonSegment(
-                  value: 'fixe',
-                  icon: Icon(Icons.euro, size: 13),
-                  label: Text('Fixe'),
-                ),
-                ButtonSegment(
-                  value: 'variable',
-                  icon: Icon(Icons.show_chart, size: 13),
-                  label: Text('Var.'),
-                ),
-              ],
-              selected: {_currentType},
-              onSelectionChanged: enabled
-                  ? (s) => onOptionChanged(s.first)
-                  : null,
-              style: ButtonStyle(
-                textStyle: WidgetStateProperty.all(AppTypography.labelSm),
-                visualDensity: VisualDensity.compact,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
+          // ── Options (empilées verticalement : ne casse pas dans les cartes
+          //    étroites, contrairement au SegmentedButton à 4 segments) ──────
+          for (final opt in const <(String, IconData, String)>[
+            ('none', Icons.block_outlined, 'Aucun'),
+            ('inclus', Icons.check_circle_outline, 'Inclus dans le loyer'),
+            ('fixe', Icons.euro, 'Montant fixe'),
+            ('variable', Icons.show_chart, 'Variable'),
+          ])
+            _OptionTile(
+              icon: opt.$2,
+              label: opt.$3,
+              selected: _currentType == opt.$1,
+              enabled: enabled,
+              onTap: () => onOptionChanged(opt.$1),
             ),
-          ),
 
           // ── Champ montant (uniquement si fixe) ────────────────────────────
           if (_isFixe) ...[
-            const SizedBox(height: AppSpacing.xs),
+            const SizedBox(height: AppSpacing.sm),
             TextField(
               controller: controller,
               enabled: enabled,
@@ -282,6 +260,69 @@ class _ChargeCard extends StatelessWidget {
             ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Option de charge empilée (Aucun / Inclus / Fixe / Variable). Ligne pleine
+/// largeur, sélectionnable — ne casse jamais le texte (≠ SegmentedButton).
+class _OptionTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final bool enabled;
+  final VoidCallback onTap;
+
+  const _OptionTile({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.enabled,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+      child: InkWell(
+        onTap: enabled ? onTap : null,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.sm, vertical: 6),
+          decoration: BoxDecoration(
+            color: selected ? AppColors.primary : AppColors.surfaceContainerLowest,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: selected ? AppColors.primary : AppColors.outlineVariant,
+            ),
+          ),
+          child: Row(
+            children: [
+              Icon(icon,
+                  size: 15,
+                  color: selected ? AppColors.onPrimary : AppColors.onSurfaceVariant),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Text(
+                  label,
+                  style: AppTypography.labelSm.copyWith(
+                    color: selected ? AppColors.onPrimary : AppColors.onSurface,
+                    fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              if (selected)
+                const Icon(Icons.check, size: 15, color: AppColors.onPrimary),
+            ],
+          ),
+        ),
       ),
     );
   }

@@ -4,6 +4,7 @@ import 'package:lacoloc_front/data/models/chambre.dart';
 import 'package:lacoloc_front/presentation/app_search_bar.dart';
 import 'package:lacoloc_front/presentation/chambres/chambre_detail_page.dart';
 import 'package:lacoloc_front/presentation/chambres/chambres_list.dart';
+import 'package:lacoloc_front/presentation/immeubles/immeuble_public_detail_page.dart';
 import 'package:lacoloc_front/presentation/immeubles/immeubles_list_page.dart';
 import 'package:lacoloc_front/presentation/login_dialog.dart';
 import 'package:lacoloc_front/presentation/nav/app_sidebar.dart';
@@ -31,6 +32,7 @@ class _HomePageState extends State<HomePage> {
   String _searchQuery = '';
   ChambreFilter _chambreFilter = ChambreFilter.empty;
   int? _detailChambreId;
+  int? _detailImmeubleId;
 
   static const _idxChambres = 0;
   static const _idxImmeubles = 1;
@@ -57,6 +59,13 @@ class _HomePageState extends State<HomePage> {
     if (idx == _section) return;
     setState(() {
       _section = idx;
+      // Utilisateur non connecté : chaque clic de menu ramène vers la section
+      // choisie (on ferme une éventuelle fiche détail ouverte). Connecté : on
+      // ne change pas le comportement existant.
+      if (!AuthService.isLoggedIn) {
+        _detailChambreId = null;
+        _detailImmeubleId = null;
+      }
       if (idx != _idxChambres) {
         _searchQuery = '';
         _chambreFilter = ChambreFilter.empty;
@@ -124,7 +133,16 @@ class _HomePageState extends State<HomePage> {
 
   Widget _buildBody() {
     if (_section == _idxImmeubles) {
-      return const ImmeublesListPage();
+      // Fiche immeuble rendue dans le cadre principal (menu conservé à gauche).
+      if (_detailImmeubleId != null) {
+        return ImmeublePublicDetailView(
+          immeubleId: _detailImmeubleId!,
+          onBack: () => setState(() => _detailImmeubleId = null),
+        );
+      }
+      return ImmeublesListPage(
+        onTapImmeuble: (id) => setState(() => _detailImmeubleId = id),
+      );
     }
     if (_detailChambreId != null) {
       return ChambreDetailView(

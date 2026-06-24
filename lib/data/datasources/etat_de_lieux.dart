@@ -568,6 +568,40 @@ class EtatDesLieuxDatasource {
     invalidate();
   }
 
+  /// Le propriétaire (re)demande au locataire de signer un EDL finalisé non
+  /// signé : notification in-app + e-mail. **Anti-spam : 1 demande / 5 jours**
+  /// (vérifié sur `last_signature_request_at`). Lance une `Exception` si la
+  /// dernière demande date de moins de 5 jours.
+  static Future<void> requestSignature(int id) async {
+    final row = await _db
+        .from(_table)
+        .select('last_signature_request_at')
+        .eq('id', id)
+        .maybeSingle();
+    final lastRaw = row?['last_signature_request_at'] as String?;
+    if (lastRaw != null) {
+      final days = DateTime.now().difference(DateTime.parse(lastRaw)).inDays;
+      if (days < 5) {
+        throw Exception(
+            'Une demande a déjà été envoyée il y a $days jour(s). '
+            'Réessayez dans ${5 - days} jour(s).');
+      }
+    }
+    await _db.from(_table).update({
+      'last_signature_request_at': DateTime.now().toIso8601String(),
+    }).eq('id', id);
+
+    await NotificationsDatasource.notifyEdlLocataire(
+      edlId: id,
+      type: 'edl_a_signer',
+      title: 'Signature requise — état des lieux',
+      body: "Votre bailleur vous demande de signer votre état des lieux en "
+          "urgence. Merci de l'accepter et le signer dès que possible.",
+    );
+    await notifyASigner(edlId: id);
+    invalidate();
+  }
+
   static Future<void> delete(int id) async {
     final row = await _db
         .from(_table)
@@ -695,6 +729,39 @@ class EtatDesLieuxDatasource {
       'locataire_signature_url': ?locataireSignatureUrl,
     }).eq('id', id);
     invalidate();
+  }
+
+  /// Enregistre le choix du propriétaire « ce bail nécessite-t-il un garant ? »
+  /// sur l'EDL [id] (true = requis, false = sans garant).
+  static Future<void> setBailAvecGarant(int id, bool value) async {
+    await _db
+        .from(_table)
+        .update({'bail_avec_garant': value}).eq('id', id);
+    invalidate();
+  }
+
+  /// Appose la signature du [role] (`proprietaire` ou `locataire`) sur le
+  /// bail/EDL [id] : matérialise l'image dans l'espace de l'EDL (lisible par les
+  /// deux parties via `can_access_edl`) puis enregistre l'URL + l'horodatage.
+  /// Utilisé par le flux « signer le bail » (aperçu/impression du contrat de
+  /// bail). Retourne l'URL matérialisée.
+  static Future<String> setBailSignature({
+    required int id,
+    required String role,
+    required String signatureUrl,
+  }) async {
+    final materialized = await SignaturesDatasource.materializeForEdl(
+      edlId: id,
+      role: role,
+      sourceRef: signatureUrl,
+    );
+    final col = role == 'locataire' ? 'locataire' : 'proprietaire';
+    await _db.from(_table).update({
+      '${col}_signature_url': materialized,
+      '${col}_signed_at': DateTime.now().toIso8601String(),
+    }).eq('id', id);
+    invalidate();
+    return materialized;
   }
 
   /// Notifie le propriétaire (e-mail) qu'un EDL a été accepté/signé.

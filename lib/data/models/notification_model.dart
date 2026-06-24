@@ -15,6 +15,13 @@ class NotificationModel {
   final bool isRead;
   final DateTime createdAt;
 
+  /// Média joint (messages du super admin) : `image` ou `youtube`.
+  final String? mediaType;
+
+  /// Pour `image` : URL de l'image. Pour `youtube` : identifiant de la vidéo
+  /// (11 caractères) ou URL — résolu à l'affichage.
+  final String? mediaUrl;
+
   const NotificationModel({
     required this.id,
     required this.proprietaireId,
@@ -26,6 +33,8 @@ class NotificationModel {
     this.locataireId,
     this.isRead = false,
     required this.createdAt,
+    this.mediaType,
+    this.mediaUrl,
   });
 
   factory NotificationModel.fromMap(Map<String, dynamic> m) => NotificationModel(
@@ -40,5 +49,7 @@ class NotificationModel {
         locataireId: m['locataire_id'] as String?,
         isRead: (m['is_read'] as bool?) ?? false,
         createdAt: DateTime.parse(m['created_at'] as String),
+        mediaType: m['media_type'] as String?,
+        mediaUrl: m['media_url'] as String?,
       );
 }

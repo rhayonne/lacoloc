@@ -5,12 +5,15 @@ import 'package:lacoloc_front/data/cache/realtime_refresh_mixin.dart';
 import 'package:lacoloc_front/data/datasources/auth_service.dart';
 import 'package:lacoloc_front/data/datasources/chambres.dart';
 import 'package:lacoloc_front/data/datasources/etat_de_lieux.dart';
+import 'package:lacoloc_front/data/datasources/garants.dart';
+import 'package:lacoloc_front/presentation/widgets/readiness_checklist.dart';
 import 'package:lacoloc_front/data/datasources/immeubles.dart';
 import 'package:lacoloc_front/data/datasources/notifications.dart';
 import 'package:lacoloc_front/data/datasources/recettes.dart';
 import 'package:lacoloc_front/data/models/recette.dart';
 import 'package:lacoloc_front/data/models/chambre.dart';
 import 'package:lacoloc_front/data/models/etat_de_lieux.dart';
+import 'package:lacoloc_front/data/models/garant.dart';
 import 'package:lacoloc_front/data/models/notification_model.dart';
 import 'package:lacoloc_front/data/models/users_client.dart';
 import 'package:lacoloc_front/data/permissions/permissions_service.dart';
@@ -26,6 +29,7 @@ import 'package:lacoloc_front/presentation/chambres/chambre_detail_page.dart';
 import 'package:lacoloc_front/presentation/nav/app_sidebar.dart';
 import 'package:lacoloc_front/presentation/users/locataires/garants_page.dart';
 import 'package:lacoloc_front/presentation/users/proprietaires/bail_pdf_preview_page.dart';
+import 'package:lacoloc_front/presentation/widgets/bail_signature_flow.dart';
 import 'package:lacoloc_front/presentation/widgets/filter_panel.dart';
 import 'package:lacoloc_front/utils/phone_field.dart';
 import 'package:lacoloc_front/data/datasources/signatures.dart';
@@ -61,7 +65,22 @@ class _LocataireProfilPageState extends State<LocataireProfilPage>
   List<EtatDesLieuxModel> _pendingEdls = const [];
   List<NotificationModel> _unreadNotifs = const [];
 
+  /// Au moins un bail exige un garant alors que le locataire n'en a aucun.
+  bool _needsGarant = false;
+
+  /// État courant pour la checklist « Conditions pour louer ».
+  bool _hasSignature = false;
+  bool _hasGarant = false;
+
+  /// Onglet initial de la section Documents (0 = Baux, 1 = Garants) — utilisé
+  /// pour ouvrir directement les Garants depuis le raccourci du tableau de bord.
+  int _documentsInitialTab = 0;
+
   int? _selectedChambreId;
+
+  /// Dernier index de menu sélectionné (pour ne rafraîchir que sur un vrai
+  /// changement de section, pas au collapse/expand de la sidebar).
+  int _lastNavIndex = _idxDashboard;
 
   // Ordre du menu : Rechercher location (0) · Tableau de bord (1) ·
   // État des lieux (2) · Messages (3) · Documents (4) · Finances (5) ·
@@ -104,18 +123,25 @@ class _LocataireProfilPageState extends State<LocataireProfilPage>
         AuthService.loadCurrentProfile(),
         EtatDesLieuxDatasource.listForLocataire(uid),
         NotificationsDatasource.listByOwner(refresh: true),
+        GarantsDatasource.activeByLocataire(uid),
+        SignaturesDatasource.getSavedUrl(),
       ]);
       if (!mounted) return;
       final all = results[0] as List<ChambreModel>;
       final profile = results[1] as UsersClient?;
       final edls = results[2] as List<EtatDesLieuxModel>;
       final notifs = results[3] as List<NotificationModel>;
+      final garants = results[4] as List<GarantModel>;
+      final signatureUrl = results[5] as String?;
       final available = all.where((c) => !c.estLoue && c.isActive).toList();
       final pending = edls
           .where((e) =>
               e.situation == SituationEdl.finalise && !e.locataireAccepte)
           .toList();
       final unread = notifs.where((n) => !n.isRead).toList();
+      // Un bail exige un garant mais le locataire n'en a aucun → alerte.
+      final needsGarant =
+          garants.isEmpty && edls.any((e) => e.bailAvecGarant == true);
       setState(() {
         _data =
             _LocBundle(available: available, total: all.length, profile: profile);
@@ -123,6 +149,9 @@ class _LocataireProfilPageState extends State<LocataireProfilPage>
         _unreadNotifs = unread;
         _edlBadge = pending.length;
         _msgBadge = unread.length;
+        _needsGarant = needsGarant;
+        _hasSignature = signatureUrl != null;
+        _hasGarant = garants.isNotEmpty;
         _error = null;
       });
     } catch (e) {
@@ -132,7 +161,15 @@ class _LocataireProfilPageState extends State<LocataireProfilPage>
 
   void _onNavChanged() {
     if (!mounted) return;
+    final idx = _navCtrl.selectedIndex;
+    // Le listener se déclenche aussi au collapse/expand de la sidebar (sans
+    // changer d'index) : on ne rafraîchit que lors d'un vrai changement de
+    // section. Revenir sur le tableau de bord après avoir agi ailleurs (profil,
+    // signature, garant…) recharge la checklist « Conditions pour louer ».
+    final changed = idx != _lastNavIndex;
+    _lastNavIndex = idx;
     setState(() => _selectedChambreId = null);
+    if (changed && idx == _idxDashboard) _refresh();
   }
 
   Future<void> _doLogout() async {
@@ -145,6 +182,36 @@ class _LocataireProfilPageState extends State<LocataireProfilPage>
   void _goToChambres() => _navCtrl.selectIndex(_idxChambres);
   void _goToEdl() => _navCtrl.selectIndex(_idxEdl);
   void _goToMessages() => _navCtrl.selectIndex(_idxMessages);
+
+  void _goToProfil() => _navCtrl.selectIndex(_idxProfil);
+
+  /// Ouvre le pop-up de création de signature et l'enregistre comme signature
+  /// par défaut, puis rafraîchit la checklist.
+  Future<void> _createSignature() async {
+    final res = await showSignatureDialog(context);
+    if (res == null || !mounted) return;
+    try {
+      await SignaturesDatasource.saveUrl(res.url);
+      await _refresh();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur : $e')),
+        );
+      }
+    }
+  }
+
+  /// Ouvre la section Documents directement sur l'onglet « Garants ».
+  void _goToGarants() {
+    setState(() => _documentsInitialTab = 1);
+    _navCtrl.selectIndex(_idxDocuments);
+    // Remet l'onglet par défaut (Baux) pour les prochaines ouvertures via menu,
+    // sans perturber l'onglet déjà affiché (l'état du TabController est conservé).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() => _documentsInitialTab = 0);
+    });
+  }
 
   Widget _buildSidebar({required bool isNarrow}) {
     return AppSidebar(
@@ -171,7 +238,7 @@ class _LocataireProfilPageState extends State<LocataireProfilPage>
         ),
         badgedSidebarItem(
           icon: Icons.mail_outline,
-          label: 'Messages',
+          label: 'Interactions',
           count: _msgBadge,
           extended: _navCtrl.extended,
         ),
@@ -235,9 +302,15 @@ class _LocataireProfilPageState extends State<LocataireProfilPage>
           bundle: bundle,
           pendingEdls: _pendingEdls,
           unreadNotifs: _unreadNotifs,
+          needsGarant: _needsGarant,
+          hasSignature: _hasSignature,
+          hasGarant: _hasGarant,
           onVoirChambres: _goToChambres,
           onVoirEdl: _goToEdl,
           onVoirMessages: _goToMessages,
+          onVoirGarants: _goToGarants,
+          onCompleterProfil: _goToProfil,
+          onCreerSignature: _createSignature,
         ),
       _idxChambres => _ChambresSection(
           chambres: bundle.available,
@@ -246,7 +319,7 @@ class _LocataireProfilPageState extends State<LocataireProfilPage>
       _idxProfil => _ProfilSection(profile: bundle.profile),
       _idxEdl => const _InteractionsSection(),
       _idxMessages => const _MessagesSection(),
-      _idxDocuments => const _DocumentsSection(),
+      _idxDocuments => _DocumentsSection(initialTab: _documentsInitialTab),
       _idxFinances => const _FinancesSection(),
       _ => const SizedBox.shrink(),
     };
@@ -342,18 +415,62 @@ class _DashboardSection extends StatelessWidget {
   final _LocBundle bundle;
   final List<EtatDesLieuxModel> pendingEdls;
   final List<NotificationModel> unreadNotifs;
+  final bool needsGarant;
+  final bool hasSignature;
+  final bool hasGarant;
   final VoidCallback onVoirChambres;
   final VoidCallback onVoirEdl;
   final VoidCallback onVoirMessages;
+  final VoidCallback onVoirGarants;
+  final VoidCallback onCompleterProfil;
+  final VoidCallback onCreerSignature;
 
   const _DashboardSection({
     required this.bundle,
     required this.pendingEdls,
     required this.unreadNotifs,
+    required this.needsGarant,
+    required this.hasSignature,
+    required this.hasGarant,
     required this.onVoirChambres,
     required this.onVoirEdl,
     required this.onVoirMessages,
+    required this.onVoirGarants,
+    required this.onCompleterProfil,
+    required this.onCreerSignature,
   });
+
+  /// Construit les conditions « prêt à louer » du locataire.
+  List<ChecklistItem> _checklistItems() {
+    final p = bundle.profile;
+    final profilComplet = (p?.fullName?.trim().isNotEmpty ?? false) &&
+        (p?.phone?.trim().isNotEmpty ?? false) &&
+        p?.dateOfBirth != null;
+    return [
+      ChecklistItem(
+        label: 'Compléter mon profil',
+        hint: 'Nom, téléphone et date de naissance',
+        done: profilComplet,
+        actionLabel: 'Compléter',
+        onAction: onCompleterProfil,
+      ),
+      ChecklistItem(
+        label: 'Enregistrer ma signature électronique',
+        hint: 'Nécessaire pour signer vos états des lieux et baux',
+        done: hasSignature,
+        actionLabel: 'Créer ma signature',
+        onAction: onCreerSignature,
+      ),
+      // Enregistrer un garant est obligatoire pour louer.
+      ChecklistItem(
+        label: 'Enregistrer un garant (caution)',
+        hint: 'Obligatoire pour louer',
+        done: hasGarant,
+        actionLabel: 'Ajouter un garant',
+        onAction: onVoirGarants,
+      ),
+    ];
+  }
 
   static final _dateFmt = DateFormat('dd/MM/yyyy');
 
@@ -364,7 +481,8 @@ class _DashboardSection extends StatelessWidget {
     final firstName = rawName.isNotEmpty ? rawName.split(' ').first : '';
     final greeting =
         firstName.isNotEmpty ? 'Bonjour, $firstName !' : 'Bienvenue !';
-    final nbActions = pendingEdls.length + unreadNotifs.length;
+    final nbActions =
+        pendingEdls.length + unreadNotifs.length + (needsGarant ? 1 : 0);
     final aJour = nbActions == 0;
 
     return Column(
@@ -440,6 +558,10 @@ class _DashboardSection extends StatelessWidget {
                       ),
                     ),
 
+                    const SizedBox(height: AppSpacing.xl),
+
+                    // ── Conditions pour louer (checklist + liens) ─────────
+                    ReadinessChecklist(items: _checklistItems()),
                     const SizedBox(height: AppSpacing.xl),
 
                     if (aJour)
@@ -671,7 +793,7 @@ class _MessagesSectionState extends State<_MessagesSection>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const _LocataireSectionBar(title: 'Messages'),
+        const _LocataireSectionBar(title: 'Interactions'),
         Expanded(child: _buildBody()),
       ],
     );
@@ -3241,7 +3363,9 @@ class _EdlSituationBadge extends StatelessWidget {
 // Section Documents (Baux + Garants)
 
 class _DocumentsSection extends StatefulWidget {
-  const _DocumentsSection();
+  /// Onglet ouvert à l'entrée : 0 = Mes baux, 1 = Garants.
+  final int initialTab;
+  const _DocumentsSection({this.initialTab = 0});
 
   @override
   State<_DocumentsSection> createState() => _DocumentsSectionState();
@@ -3254,7 +3378,11 @@ class _DocumentsSectionState extends State<_DocumentsSection>
   @override
   void initState() {
     super.initState();
-    _tabCtrl = TabController(length: 2, vsync: this);
+    _tabCtrl = TabController(
+      length: 2,
+      vsync: this,
+      initialIndex: widget.initialTab.clamp(0, 1),
+    );
   }
 
   @override
@@ -3310,6 +3438,18 @@ class _BauxLocataireTabState extends State<_BauxLocataireTab> {
   void initState() {
     super.initState();
     _reload();
+  }
+
+  /// Ouvre l'aperçu du bail après vérification de la signature du locataire :
+  /// si le bail ne porte pas encore sa signature, propose de l'apposer
+  /// (création si nécessaire) avant l'ouverture.
+  Future<void> _openBail(EtatDesLieuxModel edl) async {
+    final signed = await ensureBailSignature(context, edl, role: 'locataire');
+    if (signed == null || !mounted) return;
+    await Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => BailPdfPreviewPage(edl: signed),
+    ));
+    if (mounted) _reload();
   }
 
   void _reload() {
@@ -3385,9 +3525,7 @@ class _BauxLocataireTabState extends State<_BauxLocataireTab> {
                     .copyWith(color: AppColors.onSurfaceVariant),
               ),
               trailing: OutlinedButton.icon(
-                onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => BailPdfPreviewPage(edl: edl),
-                )),
+                onPressed: () => _openBail(edl),
                 icon: const Icon(Icons.open_in_new, size: 14),
                 label: const Text('Bail'),
               ),
@@ -3429,7 +3567,9 @@ class _FinancesSectionState extends State<_FinancesSection> {
       _future = Future.value([]);
     } else {
       final f = RecettesDatasource.listByLocataire(uid);
-      setState(() => _future = f);
+      setState(() {
+        _future = f;
+      });
     }
   }
 

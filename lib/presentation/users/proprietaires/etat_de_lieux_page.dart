@@ -32,6 +32,7 @@ import 'package:lacoloc_front/presentation/users/proprietaires/edl_select_entree
 import 'package:lacoloc_front/presentation/users/proprietaires/edl_select_immeuble_dialog.dart';
 import 'package:lacoloc_front/presentation/users/proprietaires/bail_pdf_preview_page.dart';
 import 'package:lacoloc_front/presentation/users/proprietaires/edl_pdf_preview_page.dart';
+import 'package:lacoloc_front/presentation/widgets/bail_signature_flow.dart';
 import 'package:lacoloc_front/presentation/widgets/document_pdf_button.dart';
 import 'package:lacoloc_front/presentation/widgets/edl_filter_bar.dart';
 import 'package:lacoloc_front/presentation/widgets/form_page_header.dart';
@@ -59,7 +60,7 @@ const double _colSens = 84.0; // Entrée / Sortie
 const double _colEtat = 92.0;
 const double _colFin = 104.0;
 const double _colSit = 140.0;
-const double _colBtn = 92.0; // bouton « Continuer » (compact)
+const double _colBtn = 130.0; // bouton d'action (Continuer / Signature / Bail)
 const double _colDel = 36.0;
 const double _colEye = 36.0; // bouton « visualiser »
 const double _colLink =
@@ -1856,6 +1857,157 @@ class _EdlTableCardState extends State<_EdlTableCard> {
   }
 }
 
+/// Bouton d'action principal d'une ligne d'EDL, selon l'état :
+/// - **non finalisé** → « Continuer » (édition).
+/// - **finalisé + non signé par le locataire** → « Demander signature »
+///   (envoie une demande au locataire ; anti-spam 1 / 5 jours).
+/// - **finalisé + signé + éligible au bail** → « Générer bail » (ouvre le flux
+///   bail : vérification garant + signature bailleur + aperçu).
+class _EdlActionButton extends StatefulWidget {
+  final EtatDesLieuxModel edl;
+  final VoidCallback onContinuer;
+  final bool compact;
+
+  const _EdlActionButton({
+    required this.edl,
+    required this.onContinuer,
+    this.compact = false,
+  });
+
+  @override
+  State<_EdlActionButton> createState() => _EdlActionButtonState();
+}
+
+class _EdlActionButtonState extends State<_EdlActionButton> {
+  bool _busy = false;
+  late DateTime? _lastReq = widget.edl.lastSignatureRequestAt;
+
+  bool get _finalise => widget.edl.situation == SituationEdl.finalise;
+  bool get _signed => widget.edl.locataireAccepte;
+
+  int get _cooldown {
+    final last = _lastReq;
+    if (last == null) return 0;
+    final r = 5 - DateTime.now().difference(last).inDays;
+    return r > 0 ? r : 0;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final edl = widget.edl;
+
+    if (!_finalise) {
+      return PermissionGate(
+        permission: Perm.edlEdit,
+        child: _btn(
+          icon: Icons.edit_outlined,
+          label: 'Continuer',
+          onPressed: widget.onContinuer,
+        ),
+      );
+    }
+
+    if (!_signed) {
+      final canReq = _cooldown == 0 && !_busy;
+      return PermissionGate(
+        permission: Perm.edlEdit,
+        child: _btn(
+          icon: Icons.mark_email_unread_outlined,
+          label: widget.compact ? 'Signature' : 'Demander signature',
+          onPressed: canReq ? _requestSignature : null,
+          tooltip: _cooldown > 0
+              ? 'Demande déjà envoyée — réessayez dans $_cooldown jour(s)'
+              : 'Demander au locataire de signer (e-mail)',
+        ),
+      );
+    }
+
+    if (edl.isBailEligible) {
+      return PermissionGate(
+        permission: Perm.edlEdit,
+        child: _btn(
+          icon: Icons.description_outlined,
+          label: widget.compact ? 'Bail' : 'Générer bail',
+          onPressed: _busy ? null : _genererBail,
+          tooltip: 'Générer le contrat de bail',
+        ),
+      );
+    }
+
+    return const SizedBox.shrink();
+  }
+
+  Future<void> _requestSignature() async {
+    setState(() => _busy = true);
+    try {
+      await EtatDesLieuxDatasource.requestSignature(widget.edl.id);
+      if (!mounted) return;
+      setState(() {
+        _lastReq = DateTime.now();
+        _busy = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Demande de signature envoyée au locataire.'),
+        backgroundColor: AppColors.success,
+      ));
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _busy = false);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('$e'.replaceFirst('Exception: ', '')),
+        backgroundColor: AppColors.error,
+      ));
+    }
+  }
+
+  Future<void> _genererBail() async {
+    setState(() => _busy = true);
+    final garantRes = await ensureBailGarant(context, widget.edl);
+    if (garantRes == null || !mounted) {
+      if (mounted) setState(() => _busy = false);
+      return;
+    }
+    final signed = await ensureBailSignature(context, garantRes.edl,
+        role: 'proprietaire');
+    if (!mounted) return;
+    setState(() => _busy = false);
+    if (signed == null) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => BailPdfPreviewPage(edl: signed)),
+    );
+  }
+
+  Widget _btn({
+    required IconData icon,
+    required String label,
+    VoidCallback? onPressed,
+    String? tooltip,
+  }) {
+    final child = SizedBox(
+      width: double.infinity,
+      child: FilledButton.icon(
+        onPressed: onPressed,
+        icon: _busy
+            ? const SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(
+                    strokeWidth: 2, color: Colors.white))
+            : Icon(icon, size: widget.compact ? 14 : 16),
+        label: Text(label,
+            maxLines: 1, overflow: TextOverflow.ellipsis),
+        style: widget.compact
+            ? FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                textStyle: const TextStyle(fontSize: 11),
+              )
+            : null,
+      ),
+    );
+    return tooltip != null ? Tooltip(message: tooltip, child: child) : child;
+  }
+}
+
 class _EdlRow extends StatelessWidget {
   final EtatDesLieuxModel edl;
   final VoidCallback onVoir;
@@ -2028,15 +2180,11 @@ class _EdlRow extends StatelessWidget {
                 ),
                 const SizedBox(width: AppSpacing.sm),
               ],
+              // Action principale selon l'état : Continuer (édition) /
+              // Demander signature (finalisé non signé) / Générer bail
+              // (finalisé + signé + éligible).
               Expanded(
-                child: PermissionGate(
-                  permission: Perm.edlEdit,
-                  child: FilledButton.icon(
-                    onPressed: onVoir,
-                    icon: const Icon(Icons.edit_outlined, size: 16),
-                    label: const Text('Continuer'),
-                  ),
-                ),
+                child: _EdlActionButton(edl: edl, onContinuer: onVoir),
               ),
               if (onDelete != null)
                 PermissionGate(
@@ -2288,21 +2436,11 @@ class _EdlRow extends StatelessWidget {
           ),
           const SizedBox(width: AppSpacing.sm),
 
-          // Bouton Continuer (compact, icône crayon)
-          PermissionGate(
-            permission: Perm.edlEdit,
-            child: SizedBox(
-              width: _colBtn,
-              child: FilledButton.icon(
-                onPressed: onVoir,
-                icon: const Icon(Icons.edit_outlined, size: 14),
-                label: const Text('Continuer'),
-                style: FilledButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 6),
-                  textStyle: const TextStyle(fontSize: 11),
-                ),
-              ),
-            ),
+          // Action principale (compacte) : Continuer / Demander signature /
+          // Générer bail selon l'état. Colonne réservée pour l'alignement.
+          SizedBox(
+            width: _colBtn,
+            child: _EdlActionButton(edl: edl, onContinuer: onVoir, compact: true),
           ),
           const SizedBox(width: AppSpacing.sm),
           PermissionGate(

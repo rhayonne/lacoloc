@@ -6,8 +6,10 @@ import 'package:lacoloc_front/data/datasources/immeuble_charges.dart';
 import 'package:lacoloc_front/data/datasources/immeubles.dart';
 import 'package:lacoloc_front/data/models/chambre.dart';
 import 'package:lacoloc_front/data/models/chambre_charge.dart';
+import 'package:lacoloc_front/data/datasources/garants.dart';
 import 'package:lacoloc_front/data/models/edl_details.dart';
 import 'package:lacoloc_front/data/models/etat_de_lieux.dart';
+import 'package:lacoloc_front/data/models/garant.dart';
 import 'package:lacoloc_front/data/models/immeuble_charge.dart';
 import 'package:lacoloc_front/data/models/immeubles.dart';
 
@@ -80,6 +82,7 @@ class BailPdfData {
   final List<EdlPreneur> preneurDetails;
   final List<ImmeubleChargeModel> immeubleCharges;
   final List<ChambreChargeModel> chambreCharges;
+  final List<GarantModel> garants;
   final BailType bailType;
 
   const BailPdfData({
@@ -91,6 +94,7 @@ class BailPdfData {
     required this.preneurDetails,
     required this.immeubleCharges,
     required this.chambreCharges,
+    required this.garants,
     required this.bailType,
   });
 
@@ -100,6 +104,13 @@ class BailPdfData {
   String get texteLegal => bailType.texteLegal;
   bool get isColocation => bailType.isColocation;
   bool get isMeuble => bailType.isMeuble;
+
+  /// Le bail a été marqué comme nécessitant un garant par le propriétaire.
+  bool get bailAvecGarant => edl.bailAvecGarant ?? false;
+
+  /// Un garant est requis mais aucun n'est encore enregistré → impression
+  /// bloquée tant que le locataire n'a pas créé au moins un garant.
+  bool get garantManquant => bailAvecGarant && garants.isEmpty;
 
   /// Durée effective du bail en mois (valeur enregistrée ou légale).
   int get dureeMois {
@@ -162,6 +173,33 @@ class BailPdfData {
 
   // ── Chargement ────────────────────────────────────────────────────────────
 
+  /// Garants actifs liés à un bail : ceux du locataire du privatif (individuel)
+  /// + ceux de chaque preneur identifié (colocation). Dédupliqués par id.
+  /// Best-effort (la RLS peut filtrer un preneur non rattaché au propriétaire).
+  static Future<List<GarantModel>> garantsForEdl(
+    EtatDesLieuxModel edl, {
+    List<EdlPreneur>? preneurDetails,
+  }) async {
+    final preneurs =
+        preneurDetails ?? await EdlDetailsDatasource.listPreneurs(edl.id);
+    final ids = <String>{
+      if (edl.locataireId != null) edl.locataireId!,
+      ...preneurs.map((p) => p.locataireId).whereType<String>(),
+    };
+    final out = <GarantModel>[];
+    final seen = <int>{};
+    for (final uid in ids) {
+      try {
+        for (final g in await GarantsDatasource.activeByLocataire(uid)) {
+          if (seen.add(g.id)) out.add(g);
+        }
+      } catch (_) {
+        // best-effort
+      }
+    }
+    return out;
+  }
+
   static Future<BailPdfData> fromEdl(EtatDesLieuxModel edl) async {
     final db = Supabase.instance.client;
 
@@ -219,6 +257,9 @@ class BailPdfData {
         ? await ChambreChargesDatasource.listByChambre(chambre.id)
         : <ChambreChargeModel>[];
 
+    // Garants actifs du bail (locataire + preneurs).
+    final garants = await garantsForEdl(edl, preneurDetails: preneurDetails);
+
     // Type de bail
     final meuble = immeuble.locationMeuble ?? false;
     final BailType bailType;
@@ -237,6 +278,7 @@ class BailPdfData {
       preneurDetails: preneurDetails,
       immeubleCharges: immCharges,
       chambreCharges: chamCharges,
+      garants: garants,
       bailType: bailType,
     );
   }
