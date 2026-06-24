@@ -21,6 +21,7 @@ import 'package:lacoloc_front/presentation/chambres/chambre_card.dart';
 import 'package:lacoloc_front/presentation/widgets/permission_gate.dart';
 import 'package:lacoloc_front/presentation/widgets/private_image.dart';
 import 'package:lacoloc_front/presentation/widgets/edl_filter_bar.dart';
+import 'package:lacoloc_front/presentation/widgets/bail_requirements_dialog.dart';
 import 'package:lacoloc_front/presentation/widgets/edl_signature_flow.dart';
 import 'package:lacoloc_front/presentation/users/proprietaires/etat_de_lieux_page.dart';
 import 'package:lacoloc_front/presentation/users/proprietaires/interactions_page.dart'
@@ -783,6 +784,23 @@ class _MessagesSectionState extends State<_MessagesSection>
     await _load();
   }
 
+  /// Tap : marque comme lue + ouvre le pop-up des documents requis du bail
+  /// (avec boutons « Résoudre ») pour les notifications liées à un EDL.
+  Future<void> _onNotifTap(NotificationModel n) async {
+    await _markRead(n);
+    if (!mounted) return;
+    const bailTypes = {
+      'bail_garant_requis',
+      'bail_remplissage',
+      'edl_a_signer',
+    };
+    if (n.etatDeLieuxId != null && bailTypes.contains(n.type)) {
+      await showBailRequirementsDialog(context,
+          edlId: n.etatDeLieuxId!, asProprietaire: false);
+      if (mounted) _load();
+    }
+  }
+
   Future<void> _markAllRead() async {
     await NotificationsDatasource.markAllRead();
     await _load();
@@ -845,8 +863,8 @@ class _MessagesSectionState extends State<_MessagesSection>
               for (final n in _items)
                 Padding(
                   padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                  child:
-                      NotificationCard(notification: n, onTap: () => _markRead(n)),
+                  child: NotificationCard(
+                      notification: n, onTap: () => _onNotifTap(n)),
                 ),
             ],
           ),

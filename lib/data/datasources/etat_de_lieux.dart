@@ -44,7 +44,7 @@ class EtatDesLieuxDatasource {
       'locataire:Users_Client!locataire_id(id, full_name, email, phone, created_at, invitation_email_sent, invitation_sent_at), '
       'immeuble:Immeubles!immeuble_id(id, name, address, location_meuble, type:Immeuble_Types_Reference!type_id(name)), '
       'chambre:Chambres!chambre_id(id, room_name), '
-      'proprietaire:Users_Client!proprietaire_id(id, full_name), '
+      'proprietaire:Users_Client!proprietaire_id(id, full_name, phone), '
       'preneurs:etat_de_lieux_preneurs(nom, locataire:Users_Client!locataire_id(full_name))';
 
   static Future<List<EtatDesLieuxModel>> listByProprietaire(
@@ -597,6 +597,40 @@ class EtatDesLieuxDatasource {
       title: 'Signature requise — état des lieux',
       body: "Votre bailleur vous demande de signer votre état des lieux en "
           "urgence. Merci de l'accepter et le signer dès que possible.",
+    );
+    await notifyASigner(edlId: id);
+    invalidate();
+  }
+
+  /// Le propriétaire (re)demande au locataire de **compléter les documents
+  /// manquants** du bail (garant / signature). Notification + e-mail.
+  /// Anti-spam : 1 demande / 5 jours (réutilise `last_signature_request_at`).
+  static Future<void> requestBailCompletion(int id, {String? body}) async {
+    final row = await _db
+        .from(_table)
+        .select('last_signature_request_at')
+        .eq('id', id)
+        .maybeSingle();
+    final lastRaw = row?['last_signature_request_at'] as String?;
+    if (lastRaw != null) {
+      final days = DateTime.now().difference(DateTime.parse(lastRaw)).inDays;
+      if (days < 5) {
+        throw Exception(
+            'Une demande a déjà été envoyée il y a $days jour(s). '
+            'Réessayez dans ${5 - days} jour(s).');
+      }
+    }
+    await _db.from(_table).update({
+      'last_signature_request_at': DateTime.now().toIso8601String(),
+    }).eq('id', id);
+
+    await NotificationsDatasource.notifyEdlLocataire(
+      edlId: id,
+      type: 'bail_remplissage',
+      title: 'Documents requis pour votre bail',
+      body: body ??
+          "Votre bailleur vous demande de compléter les documents manquants "
+              "de votre bail (garant et/ou signature).",
     );
     await notifyASigner(edlId: id);
     invalidate();

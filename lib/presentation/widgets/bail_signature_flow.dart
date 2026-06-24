@@ -61,7 +61,7 @@ Future<BailGarantResult?> ensureBailGarant(
   if (current.bailAvecGarant == true) {
     final garants = await BailPdfData.garantsForEdl(current);
     if (garants.isEmpty) {
-      // Notifier le locataire (apparaît dans « Messages » + tableau de bord).
+      // Notifier le locataire (apparaît dans « Interactions » + tableau de bord).
       await NotificationsDatasource.notifyEdlLocataire(
         edlId: current.id,
         type: 'bail_garant_requis',
@@ -69,6 +69,15 @@ Future<BailGarantResult?> ensureBailGarant(
         body: "Votre bailleur demande l'enregistrement d'au moins un garant "
             "(caution) pour votre bail. Rendez-vous dans « Documents › Garants » "
             "pour en ajouter un.",
+      );
+      // Notifier aussi le propriétaire (suivi côté Interactions).
+      await NotificationsDatasource.notifyEdlProprietaire(
+        edlId: current.id,
+        type: 'bail_garant_requis',
+        title: 'Bail en attente — garant du locataire',
+        body: "Le locataire doit enregistrer un garant pour générer le bail. "
+            "Ouvrez ce message pour voir les documents requis et relancer le "
+            "locataire.",
       );
       if (context.mounted) {
         await showDialog<void>(

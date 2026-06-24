@@ -165,6 +165,7 @@ class EtatDesLieuxModel {
   final bool immeubleMeuble;
   final String? chambreNom;
   final String? proprietaireNom;
+  final String? proprietairePhone;
   // Noms des preneurs (embed `preneurs` — EDL collectif). Vide pour un privatif.
   final List<String> preneursNoms;
 
@@ -217,6 +218,7 @@ class EtatDesLieuxModel {
     this.immeubleMeuble = false,
     this.chambreNom,
     this.proprietaireNom,
+    this.proprietairePhone,
     this.preneursNoms = const [],
     this.proprietaireSignedAt,
     this.proprietaireSignatureUrl,
@@ -324,6 +326,7 @@ class EtatDesLieuxModel {
       immeubleMeuble: (imm?['location_meuble'] as bool?) ?? false,
       chambreNom: chb?['room_name'] as String?,
       proprietaireNom: prop?['full_name'] as String?,
+      proprietairePhone: prop?['phone'] as String?,
       proprietaireSignedAt: map['proprietaire_signed_at'] != null
           ? DateTime.parse(map['proprietaire_signed_at'] as String)
           : null,

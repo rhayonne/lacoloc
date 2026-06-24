@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:lacoloc_front/presentation/widgets/bail_requirements_dialog.dart';
 import 'package:lacoloc_front/utils/media_embed.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:intl/intl.dart';
@@ -642,6 +643,25 @@ class _NotificationsTabState extends State<_NotificationsTab>
     await _load();
   }
 
+  /// Tap sur une notification : marque comme lue + ouvre le pop-up des
+  /// documents requis du bail pour les notifications liées à un EDL.
+  Future<void> _onNotifTap(NotificationModel n) async {
+    await _markRead(n);
+    if (!mounted) return;
+    if (n.etatDeLieuxId != null && _isBailNotif(n.type)) {
+      await showBailRequirementsDialog(context,
+          edlId: n.etatDeLieuxId!, asProprietaire: true);
+      if (mounted) _load();
+    }
+  }
+
+  static bool _isBailNotif(String type) => const {
+        'bail_garant_requis',
+        'bail_remplissage',
+        'edl_a_signer',
+        'edl_accepte',
+      }.contains(type);
+
   Future<void> _markAllRead() async {
     await NotificationsDatasource.markAllRead();
     await _load();
@@ -691,7 +711,7 @@ class _NotificationsTabState extends State<_NotificationsTab>
           for (final n in _items)
             Padding(
               padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-              child: NotificationCard(notification: n, onTap: () => _markRead(n)),
+              child: NotificationCard(notification: n, onTap: () => _onNotifTap(n)),
             ),
         ],
       ),
