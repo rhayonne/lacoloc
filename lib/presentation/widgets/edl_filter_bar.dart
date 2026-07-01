@@ -268,6 +268,7 @@ class _EdlFilterBarState extends State<EdlFilterBar> {
         suffixIcon: _f.query.isNotEmpty
             ? IconButton(
                 icon: const Icon(Icons.close, size: 18),
+                tooltip: 'Effacer la recherche',
                 onPressed: () {
                   _searchCtrl.clear();
                   widget.onChanged(_f.copyWith(query: ''));
@@ -453,10 +454,13 @@ class _Chip extends StatelessWidget {
             ],
             if (onClear != null) ...[
               const SizedBox(width: 2),
-              InkWell(
-                onTap: onClear,
-                borderRadius: AppRadius.borderFull,
-                child: Icon(Icons.close, size: 13, color: fg),
+              Tooltip(
+                message: 'Effacer ce filtre',
+                child: InkWell(
+                  onTap: onClear,
+                  borderRadius: AppRadius.borderFull,
+                  child: Icon(Icons.close, size: 13, color: fg),
+                ),
               ),
             ],
           ],

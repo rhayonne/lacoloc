@@ -30,6 +30,15 @@ class InventaireModel {
   final List<String> photos;
   final DateTime createdAt;
 
+  /// Affiche cet article dans l'annonce de la chambre (carte publique).
+  /// Faux par défaut (les anciens « équipements » migrés sont à vrai).
+  final bool dansAnnonce;
+
+  // Vétusté
+  final DateTime? dateAcquisition;
+  final double? valeurAchat;
+  final String? categorieVetusteCustom;
+
   // Enrichis via join
   final String? meubleNom;
   final String? meubleCategorie;
@@ -48,6 +57,10 @@ class InventaireModel {
     this.description,
     required this.photos,
     required this.createdAt,
+    this.dansAnnonce = false,
+    this.dateAcquisition,
+    this.valeurAchat,
+    this.categorieVetusteCustom,
     this.meubleNom,
     this.meubleCategorie,
     this.chambreNom,
@@ -55,6 +68,10 @@ class InventaireModel {
   });
 
   String get displayNom => nomCustom ?? meubleNom ?? '—';
+
+  /// Catégorie utilisée pour la vétusté : la catégorie propre (saisie) sinon
+  /// celle du meuble de référence.
+  String? get categorieVetuste => categorieVetusteCustom ?? meubleCategorie;
 
   String get displayLieu {
     if (chambreNom != null) return chambreNom!;
@@ -87,6 +104,12 @@ class InventaireModel {
       description: map['description'] as String?,
       photos: photos,
       createdAt: DateTime.parse(map['created_at'] as String),
+      dansAnnonce: (map['dans_annonce'] as bool?) ?? false,
+      dateAcquisition: map['date_acquisition'] != null
+          ? DateTime.parse(map['date_acquisition'] as String)
+          : null,
+      valeurAchat: (map['valeur_achat'] as num?)?.toDouble(),
+      categorieVetusteCustom: map['categorie_vetuste'] as String?,
       meubleNom: ref?['nom'] as String?,
       meubleCategorie: ref?['categorie'] as String?,
       chambreNom: chb?['room_name'] as String?,
@@ -104,5 +127,10 @@ class InventaireModel {
     'quantite': quantite,
     if (description != null && description!.isNotEmpty) 'description': description,
     'photos': photos,
+    'dans_annonce': dansAnnonce,
+    'date_acquisition': dateAcquisition?.toIso8601String(),
+    if (valeurAchat != null) 'valeur_achat': valeurAchat,
+    'categorie_vetuste':
+        (categorieVetusteCustom?.isNotEmpty == true) ? categorieVetusteCustom : null,
   };
 }

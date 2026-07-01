@@ -249,11 +249,13 @@ class _DateRangePopupState extends State<_DateRangePopup> {
         const Spacer(),
         IconButton(
           icon: const Icon(Icons.chevron_left),
+          tooltip: 'Mois précédent',
           onPressed: () => setState(
               () => _month = DateTime(_month.year, _month.month - 1)),
         ),
         IconButton(
           icon: const Icon(Icons.chevron_right),
+          tooltip: 'Mois suivant',
           onPressed: () => setState(
               () => _month = DateTime(_month.year, _month.month + 1)),
         ),

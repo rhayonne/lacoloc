@@ -2,7 +2,9 @@ import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:lacoloc_front/data/datasources/edl_details.dart';
+import 'package:lacoloc_front/data/datasources/observations_edl.dart';
 import 'package:lacoloc_front/data/models/edl_details.dart';
+import 'package:lacoloc_front/data/models/observation_edl.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_radius.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
@@ -333,45 +335,62 @@ class _EdlClesSectionState extends State<EdlClesSection> {
 
   Future<void> _edit(EdlCle? c) async {
     final type = TextEditingController(text: c?.typeCle ?? '');
-    final nombre = TextEditingController(text: c?.nombre?.toString() ?? '');
     final comm = TextEditingController(text: c?.commentaire ?? '');
-    var remise = c?.remiseCeJour ?? false;
-    var date = c?.dateRemise;
+    // « Remise ce jour » coché → date = aujourd'hui ; sinon on choisit une date.
+    var remiseCeJour = c == null ? true : c.remiseCeJour;
+    var date = c?.dateRemise ?? DateTime.now();
 
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setLocal) => AlertDialog(
-          title: Text(c == null ? 'Nouvelle clé' : 'Modifier la clé'),
+          title: Text(c == null ? 'Ajouter une clé' : 'Modifier la clé'),
           content: SingleChildScrollView(
             child: SizedBox(
               width: 420,
               child: Column(mainAxisSize: MainAxisSize.min, children: [
-                _dlgField(type, 'Type de clé (ex: Badge accès)'),
-                _dlgField(nombre, 'Nombre', keyboard: TextInputType.number),
+                _dlgField(type, 'Nom de la clé (ex : Badge, clé chambre…)'),
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
                   title: const Text('Remise ce jour'),
-                  value: remise,
-                  onChanged: (v) => setLocal(() => remise = v),
+                  value: remiseCeJour,
+                  onChanged: (v) => setLocal(() {
+                    remiseCeJour = v;
+                    if (v) date = DateTime.now();
+                  }),
                 ),
+                // Champ pour choisir une autre date (actif si pas « ce jour »).
                 ListTile(
+                  enabled: !remiseCeJour,
                   contentPadding: EdgeInsets.zero,
-                  title: Text(date == null ? 'Date de remise' : _dateFmt.format(date!)),
-                  trailing: const Icon(Icons.calendar_today_outlined, size: 18),
-                  onTap: () async {
-                    final now = DateTime.now();
-                    final picked = await showDatePicker(
-                      context: ctx,
-                      initialDate: date ?? now,
-                      firstDate: DateTime(now.year - 5),
-                      lastDate: DateTime(now.year + 5),
-                      locale: const Locale('fr'),
-                    );
-                    if (picked != null) setLocal(() => date = picked);
-                  },
+                  title: const Text('Date de remise'),
+                  subtitle: Text(_dateFmt.format(date)),
+                  trailing:
+                      const Icon(Icons.calendar_today_outlined, size: 18),
+                  onTap: remiseCeJour
+                      ? null
+                      : () async {
+                          final now = DateTime.now();
+                          final picked = await showDatePicker(
+                            context: ctx,
+                            initialDate: date,
+                            firstDate: DateTime(now.year - 5),
+                            lastDate: DateTime(now.year + 5),
+                            locale: const Locale('fr'),
+                          );
+                          if (picked != null) setLocal(() => date = picked);
+                        },
                 ),
-                _dlgField(comm, 'Commentaire'),
+                const SizedBox(height: AppSpacing.sm),
+                TextField(
+                  controller: comm,
+                  maxLines: 3,
+                  decoration: const InputDecoration(
+                    labelText: 'Commentaire',
+                    alignLabelWithHint: true,
+                    border: OutlineInputBorder(),
+                  ),
+                ),
               ]),
             ),
           ),
@@ -387,9 +406,9 @@ class _EdlClesSectionState extends State<EdlClesSection> {
       id: c?.id,
       etatDesLieuxId: widget.edlId,
       typeCle: type.text.trim(),
-      nombre: int.tryParse(nombre.text),
-      remiseCeJour: remise,
-      dateRemise: date,
+      nombre: c?.nombre ?? 1,
+      remiseCeJour: remiseCeJour,
+      dateRemise: remiseCeJour ? DateTime.now() : date,
       commentaire: comm.text.trim().isEmpty ? null : comm.text.trim(),
       ordre: c?.ordre ?? _items.length,
     );
@@ -432,6 +451,155 @@ class _EdlClesSectionState extends State<EdlClesSection> {
             label: const Text('Ajouter une clé'),
           ),
         ),
+      ],
+    );
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// DIVERS (observations libres rattachées à l'EDL)
+// ════════════════════════════════════════════════════════════════════════════
+
+/// Onglet « Divers » : observations libres (texte) rattachées directement à
+/// l'EDL [edlId] (privatif pour l'individuel, collectif pour le collectif).
+/// Stockées dans `etat_de_lieux_observations` avec `wall_key = 'divers'`.
+class EdlDiversSection extends StatefulWidget {
+  final int edlId;
+  final bool readOnly;
+  /// 'proprietaire' | 'locataire' — auteur des observations ajoutées ici.
+  final String authorRole;
+
+  const EdlDiversSection({
+    super.key,
+    required this.edlId,
+    this.readOnly = false,
+    this.authorRole = 'proprietaire',
+  });
+
+  @override
+  State<EdlDiversSection> createState() => _EdlDiversSectionState();
+}
+
+class _EdlDiversSectionState extends State<EdlDiversSection> {
+  List<ObservationEdl> _items = [];
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final all = await ObservationsEdlDatasource.listByEdl(widget.edlId);
+    if (!mounted) return;
+    setState(() {
+      _items = all.where((o) => o.isDivers).toList();
+      _loading = false;
+    });
+  }
+
+  bool get _canEdit => !widget.readOnly;
+
+  Future<void> _edit(ObservationEdl? o) async {
+    final ctrl = TextEditingController(text: o?.description ?? '');
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(o == null ? 'Ajouter une observation' : 'Modifier'),
+        content: SizedBox(
+          width: 460,
+          child: TextField(
+            controller: ctrl,
+            autofocus: true,
+            maxLines: 5,
+            decoration: const InputDecoration(
+              labelText: 'Observation',
+              alignLabelWithHint: true,
+              border: OutlineInputBorder(),
+              hintText: 'Note libre à reporter dans l\'état des lieux…',
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: AppTheme.saveButtonStyle,
+            child: const Text('Enregistrer'),
+          ),
+        ],
+      ),
+    );
+    final text = ctrl.text.trim();
+    if (ok != true || text.isEmpty) return;
+    if (o?.id == null) {
+      await ObservationsEdlDatasource.insertGeneral(ObservationEdl(
+        etatDesLieuxId: widget.edlId,
+        wallKey: 'divers',
+        description: text,
+        authorRole: widget.authorRole,
+      ));
+    } else {
+      await ObservationsEdlDatasource.updateById(
+        o!.id!,
+        ObservationEdl(
+          id: o.id,
+          etatDesLieuxId: widget.edlId,
+          wallKey: 'divers',
+          description: text,
+          photos: o.photos,
+          authorRole: o.authorRole,
+        ),
+      );
+    }
+    await _load();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (_items.isEmpty)
+          _emptyHint('Aucune observation. Ajoutez une note libre à reporter '
+              'dans l\'état des lieux.'),
+        ..._items.map((o) {
+          // Le locataire ne modifie/supprime que ses propres observations.
+          final mine = o.authorRole == widget.authorRole ||
+              widget.authorRole == 'proprietaire';
+          return ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.sticky_note_2_outlined),
+            title: Text(o.description ?? ''),
+            subtitle: o.isLocataire
+                ? Text('Ajouté par le locataire',
+                    style: AppTypography.labelSm
+                        .copyWith(color: AppColors.primary))
+                : null,
+            trailing: (_canEdit && mine)
+                ? _editDelete(() => _edit(o), () async {
+                    if (o.id != null) {
+                      await ObservationsEdlDatasource.deleteById(o.id!);
+                      await _load();
+                    }
+                  })
+                : null,
+          );
+        }),
+        if (_canEdit)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: () => _edit(null),
+              icon: const Icon(Icons.add, size: 16),
+              label: const Text('Ajouter'),
+            ),
+          ),
       ],
     );
   }
@@ -690,9 +858,13 @@ class _EdlCompositionSectionState extends State<EdlCompositionSection> {
 Widget _editDelete(VoidCallback onEdit, VoidCallback onDelete) => Row(
   mainAxisSize: MainAxisSize.min,
   children: [
-    IconButton(icon: const Icon(Icons.edit_outlined, size: 18), onPressed: onEdit),
+    IconButton(
+        icon: const Icon(Icons.edit_outlined, size: 18),
+        tooltip: 'Modifier',
+        onPressed: onEdit),
     IconButton(
       icon: Icon(Icons.delete_outline, size: 18, color: AppColors.error),
+      tooltip: 'Supprimer',
       onPressed: onDelete,
     ),
   ],
@@ -770,10 +942,16 @@ class _EdlCompositionTableState extends State<EdlCompositionTable> {
   }
 
   Future<void> _addLigne(EdlSection section) async {
+    // En fin de table : max(ordre) + 1 (évite les collisions d'ordre après
+    // suppression, qui inséraient la ligne au milieu).
+    final nextOrdre = section.lignes.isEmpty
+        ? 0
+        : section.lignes.map((l) => l.ordre).reduce((a, b) => a > b ? a : b) +
+            1;
     await EdlDetailsDatasource.createLigne(EdlLigne(
       sectionId: section.id!,
       equipement: 'Nouvel élément',
-      ordre: section.lignes.length,
+      ordre: nextOrdre,
     ));
     _reload();
   }

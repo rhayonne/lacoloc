@@ -474,15 +474,20 @@ class _PieceThumbnail extends StatelessWidget {
         Positioned(
           bottom: 4,
           left: 4,
-          child: GestureDetector(
-            onTap: onToggleAnnonce,
-            child: Icon(
-              isMarked ? Icons.star_rounded : Icons.star_border_rounded,
-              size: 22,
-              color: isMarked ? AppColors.secondary : Colors.white,
-              shadows: const [
-                Shadow(color: Colors.black54, blurRadius: 6),
-              ],
+          child: Tooltip(
+            message: isMarked
+                ? "Affichée dans l'annonce — cliquer pour masquer"
+                : "Masquée de l'annonce — cliquer pour afficher",
+            child: GestureDetector(
+              onTap: onToggleAnnonce,
+              child: Icon(
+                isMarked ? Icons.star_rounded : Icons.star_border_rounded,
+                size: 22,
+                color: isMarked ? AppColors.secondary : Colors.white,
+                shadows: const [
+                  Shadow(color: Colors.black54, blurRadius: 6),
+                ],
+              ),
             ),
           ),
         ),

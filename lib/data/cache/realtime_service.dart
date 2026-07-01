@@ -103,4 +103,5 @@ class CacheKeys {
   static const chargesRef = 'charges_ref:';
   static const paymentTypes = 'payment_types:';
   static const meubleCategories = 'meuble_categories:';
+  static const vetuste = 'vetuste:';
 }

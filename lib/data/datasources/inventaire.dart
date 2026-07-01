@@ -57,6 +57,47 @@ class InventaireDatasource {
     }, refresh: refresh);
   }
 
+  /// Noms des articles « affichés dans l'annonce » (dans_annonce=true) groupés
+  /// par chambre — sert à la carte publique et au filtre « équipements ».
+  /// Passe par la RPC `chambre_equipements_annonce` (SECURITY DEFINER) qui
+  /// n'expose que les noms → lisible aussi par le public / un locataire.
+  static Future<Map<int, List<String>>> annonceLabelsByChambre(
+    List<int> chambreIds, {
+    bool refresh = false,
+  }) {
+    if (chambreIds.isEmpty) return Future.value(<int, List<String>>{});
+    final sorted = [...chambreIds]..sort();
+    return _cache.get('${CacheKeys.inventaire}annonce:${sorted.join(",")}',
+        () async {
+      final rows = await _db.rpc('chambre_equipements_annonce',
+          params: {'p_chambre_ids': sorted});
+      final map = <int, List<String>>{};
+      for (final r in (rows as List)) {
+        final cid = (r['chambre_id'] as num?)?.toInt();
+        final nom = r['nom'] as String?;
+        if (cid == null || nom == null || nom.isEmpty) continue;
+        (map[cid] ??= <String>[]).add(nom);
+      }
+      return map;
+    }, refresh: refresh);
+  }
+
+  /// Liste distincte (triée) des noms d'équipements « dans l'annonce » — pour
+  /// alimenter les chips du filtre. Lisible par le public via la RPC.
+  static Future<List<String>> annonceEquipementNames({bool refresh = false}) {
+    return _cache.get('${CacheKeys.inventaire}annonce_names', () async {
+      final rows = await _db
+          .rpc('chambre_equipements_annonce', params: {'p_chambre_ids': null});
+      final set = <String>{};
+      for (final r in (rows as List)) {
+        final nom = r['nom'] as String?;
+        if (nom != null && nom.isNotEmpty) set.add(nom);
+      }
+      final list = set.toList()..sort();
+      return list;
+    }, ttl: const Duration(minutes: 30), refresh: refresh);
+  }
+
   static Future<InventaireModel> create(InventaireModel m) async {
     final row = await _db
         .from(_table)
@@ -93,6 +134,12 @@ class InventaireDatasource {
   /// Supprime tous les articles liés à une pièce.
   static Future<void> deleteByPiece(int pieceId) async {
     await _db.from(_table).delete().eq('piece_id', pieceId);
+    _invalidate();
+  }
+
+  /// Supprime tous les articles liés à une chambre.
+  static Future<void> deleteByChambre(int chambreId) async {
+    await _db.from(_table).delete().eq('chambre_id', chambreId);
     _invalidate();
   }
 

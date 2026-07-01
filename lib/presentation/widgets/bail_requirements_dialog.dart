@@ -101,9 +101,25 @@ class _BailRequirementsBodyState extends State<_BailRequirementsBody> {
   Future<void> _resolveSignature(EtatDesLieuxModel edl) async {
     final url = await runLocataireSignatureFlow(context, edl);
     if (url == null || !mounted) return;
-    await EtatDesLieuxDatasource.locataireAccepter(edl.id,
-        locataireSignatureUrl: url);
-    if (mounted) _reload();
+    try {
+      await EtatDesLieuxDatasource.locataireAccepter(edl.id,
+          locataireSignatureUrl: url);
+      final ok = await EtatDesLieuxDatasource.isLocataireSigned(edl.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(ok
+              ? 'Signature enregistrée ✓'
+              : 'Signé, mais confirmation impossible — rouvrez le document.'),
+        ),
+      );
+      _reload();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
+    }
   }
 
   Future<void> _demanderRemplissage() async {
@@ -170,6 +186,7 @@ class _BailRequirementsBodyState extends State<_BailRequirementsBody> {
                   ),
                   IconButton(
                     icon: const Icon(Icons.close),
+                    tooltip: 'Fermer',
                     onPressed: () => Navigator.of(context).pop(),
                   ),
                 ],

@@ -55,7 +55,14 @@ graph TB
             PTS["PaymentTypesDatasource"]
             RS["ReferenceDatasource (cache)"]
             SS["StorageService"]
-            ADDR["AddressSearchService"]
+            ADDR["AddressSearchService (BAN data.geopf.fr)"]
+            REC["RecettesDatasource"]
+            GAR["GarantsDatasource"]
+            SIG["SignaturesDatasource"]
+            COM["CommunicationDatasource"]
+            MCD["MeubleCategoriesDatasource"]
+            CRD["ChargesReferenceDatasource / ImmeubleChargesDatasource"]
+            VET["VetusteDatasource"]
         end
     end
 
@@ -63,10 +70,11 @@ graph TB
         subgraph DB["PostgreSQL + RLS"]
             T1[("Users_Client / *_Reference")]
             T2[("Immeubles / Chambres / Pieces")]
-            T3[("Inventaire / Meubles_Reference")]
-            T4[("Factures / Fournisseurs / Visites")]
+            T3[("Inventaire / Meubles_Reference / Meuble_Categories_Reference")]
+            T4[("Factures / Recettes / Fournisseurs / Visites / Charges_Reference")]
             T5[("Demandes_Contact")]
             T6[("etat_de_lieux / _observations")]
+            T7[("vetuste_bareme / vetuste_decompte / _ligne")]
             T7[("User_Permissions")]
         end
         subgraph RPC["RPC (SECURITY DEFINER)"]

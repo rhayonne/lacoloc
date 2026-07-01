@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:lacoloc_front/data/datasources/auth_service.dart';
 import 'package:lacoloc_front/data/datasources/chambres.dart';
 import 'package:lacoloc_front/data/datasources/demandes_contact.dart';
+import 'package:lacoloc_front/data/datasources/etat_de_lieux.dart';
 import 'package:lacoloc_front/data/cache/realtime_refresh_mixin.dart';
 import 'package:lacoloc_front/data/datasources/immeubles.dart';
 import 'package:lacoloc_front/data/datasources/notifications.dart';
 import 'package:lacoloc_front/data/datasources/signatures.dart';
 import 'package:lacoloc_front/data/models/chambre.dart';
 import 'package:lacoloc_front/data/models/demande_contact.dart';
+import 'package:lacoloc_front/data/models/etat_de_lieux.dart';
 import 'package:lacoloc_front/data/models/immeubles.dart';
 import 'package:lacoloc_front/data/models/notification_model.dart';
 import 'package:lacoloc_front/data/models/users_client.dart';
@@ -25,11 +27,15 @@ class VueGeneralePage extends StatefulWidget {
   final VoidCallback? onCreerImmeuble;
   final VoidCallback? onGererChambres;
 
+  /// Lien vers la section « État des lieux » (depuis le bloc « Baux à signer »).
+  final VoidCallback? onAllerEtatsDesLieux;
+
   const VueGeneralePage({
     super.key,
     this.onCompleterProfil,
     this.onCreerImmeuble,
     this.onGererChambres,
+    this.onAllerEtatsDesLieux,
   });
 
   @override
@@ -71,6 +77,19 @@ class _VueGeneralePageState extends State<VueGeneralePage>
       notifs = all.where((n) => !n.isRead).toList();
     } catch (_) {}
 
+    // Baux en attente de la signature du propriétaire : EDL d'entrée éligibles,
+    // acceptés par le locataire, mais que le bailleur n'a pas encore signés.
+    List<EtatDesLieuxModel> bauxASigner = [];
+    try {
+      final edls = await EtatDesLieuxDatasource.listByProprietaire(ownerId);
+      bauxASigner = edls
+          .where((e) =>
+              e.isBailEligible &&
+              e.locataireAccepte &&
+              !e.bailSignedBy('proprietaire'))
+          .toList();
+    } catch (_) {}
+
     final profile = await AuthService.loadCurrentProfile();
     final signatureUrl = await SignaturesDatasource.getSavedUrl();
 
@@ -79,6 +98,7 @@ class _VueGeneralePageState extends State<VueGeneralePage>
       chambres: chambres,
       pendingDemandes: pending,
       notifications: notifs,
+      bauxASigner: bauxASigner,
       profile: profile,
       hasSignature: signatureUrl != null,
     );
@@ -204,6 +224,13 @@ class _VueGeneralePageState extends State<VueGeneralePage>
                         chambres: data.chambres,
                       ),
                       const SizedBox(height: AppSpacing.xl),
+                      if (data.bauxASigner.isNotEmpty) ...[
+                        _BauxASignerSection(
+                          baux: data.bauxASigner,
+                          onAller: widget.onAllerEtatsDesLieux,
+                        ),
+                        const SizedBox(height: AppSpacing.xl),
+                      ],
                       if (data.notifications.isNotEmpty) ...[
                         _NotificationsSection(
                           notifications: data.notifications,
@@ -487,11 +514,90 @@ class _NotificationsSection extends StatelessWidget {
   }
 }
 
+/// Bloc « Baux à signer » : baux acceptés par le locataire en attente de la
+/// signature du bailleur. Carte d'alerte (orange) cliquable → section EDL.
+class _BauxASignerSection extends StatelessWidget {
+  final List<EtatDesLieuxModel> baux;
+  final VoidCallback? onAller;
+  const _BauxASignerSection({required this.baux, this.onAller});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(Icons.draw_outlined, size: 20, color: AppColors.secondary),
+            const SizedBox(width: AppSpacing.sm),
+            Text('Baux à signer', style: AppTypography.titleLg),
+            const SizedBox(width: AppSpacing.sm),
+            Chip(
+              label: Text('${baux.length}'),
+              visualDensity: VisualDensity.compact,
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.md),
+        for (final e in baux)
+          Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+            child: Material(
+              color: AppColors.secondaryContainer,
+              borderRadius: AppRadius.borderMd,
+              child: InkWell(
+                onTap: onAller,
+                borderRadius: AppRadius.borderMd,
+                child: Padding(
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  child: Row(
+                    children: [
+                      Icon(Icons.description_outlined,
+                          size: 20, color: scheme.onSurface),
+                      const SizedBox(width: AppSpacing.sm),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              e.locataireNom ?? 'Locataire',
+                              style: AppTypography.bodyLg
+                                  .copyWith(fontWeight: FontWeight.w700),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            Text(
+                              '${e.immeubleNom ?? 'Bien'} — en attente de votre signature',
+                              style: AppTypography.labelSm.copyWith(
+                                  color: AppColors.onSurfaceVariant),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.sm),
+                      const Icon(Icons.chevron_right, size: 20),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 class _VueData {
   final List<ImmeublesModel> immeubles;
   final List<ChambreModel> chambres;
   final List<DemandeContactModel> pendingDemandes;
   final List<NotificationModel> notifications;
+  final List<EtatDesLieuxModel> bauxASigner;
   final UsersClient? profile;
   final bool hasSignature;
 
@@ -500,6 +606,7 @@ class _VueData {
     required this.chambres,
     required this.pendingDemandes,
     this.notifications = const [],
+    this.bauxASigner = const [],
     this.profile,
     this.hasSignature = false,
   });

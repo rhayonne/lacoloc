@@ -42,6 +42,12 @@ flowchart TD
 | `/confirmation-locataire` | retorno da confirmação de e-mail |
 | `/chambre` (dinâmica, `onGenerateRoute`) | `ChambreDetailPage(chambreId: int)` |
 
+> **Accueil — fiches détail in-frame**: `HomePage` guarda `_detailChambreId`/`_detailImmeubleId`
+> e renderiza `ChambreDetailView`/`ImmeublePublicDetailView` no cadre (menu à esquerda), sem
+> nova rota. O botão **« Voir l'immeuble »** da fiche de chambre chama `onVoirImmeuble` → define
+> `_detailImmeubleId` (a fiche do immeuble ganha prioridade no `_buildBody`) ; **Retour** limpa só
+> `_detailImmeubleId` → volta à fiche da **chambre** (`_detailChambreId` ainda definido).
+
 ---
 
 ## Dashboard do Propriétaire (SidebarX — 8 seções)
@@ -67,7 +73,7 @@ flowchart TD
     S1 --> C1["Abas: Mes Propriétés · Mes Chambres ·\nAgenda — Visites · Inventaire"]
     S2 --> C2["FacturesListPage (factures + recettes)"]
     S3 --> C3["FournisseursPage"]
-    S4 --> C4["EtatDesLieuxPage (Vision · Entrée · Sortie)"]
+    S4 --> C4["EtatDesLieuxPage (Vision · Entrée · Sortie · Vétusté)"]
     S5 --> C5["DocumentationPage"]
     S6 --> C6["InteractionsPage (Demandes de Contact)"]
     S7 --> C7["MonProfilProprietairePage"]
@@ -81,17 +87,46 @@ flowchart TD
 
 ---
 
-## Dashboard do Super Admin (SidebarX — 4 índices)
+## Dashboard do Super Admin (SidebarX)
 
 ```mermaid
 flowchart TD
     APROFIL["SuperAdminProfil"]
-    A0["0 — Accueil (volta para /)"]
-    A1["1 — Utilisateurs → UtilisateursAdminPage"]
-    A2["2 — Types de paiement → PaymentTypesPage"]
-    A3["3 — Types de meuble → MeubleTypesPage"]
-    APROFIL --> A0 & A1 & A2 & A3
+    A0["Tableau de bord"]
+    A1["Utilisateurs → UtilisateursAdminPage"]
+    A2["Communication → CommunicationPage"]
+    A3["Comptes Entreprises → ComptesEntreprisesPage"]
+    A4["Types de paiement → PaymentTypesPage"]
+    A5["Config Immeuble (onglets: Types de meuble ·\nCatégories · Charges locatives)"]
+    A6["Maintenance (Connexions · Services)"]
+    A7["Accueil (volta para /)"]
+    APROFIL --> A0 & A1 & A2 & A3 & A4 & A5 & A6 & A7
 ```
+
+> **Config Immeuble** reúne o CRUD de `Meubles_Reference` (`MeubleTypesPage`),
+> `Meuble_Categories_Reference` (`MeubleCategoriesPage`) e `Charges_Reference`
+> (`ChargesReferencePage`).
+
+---
+
+## Dashboard do Locataire (SidebarX)
+
+```mermaid
+flowchart TD
+    LPROFIL["LocataireProfil"]
+    L0["0 — Rechercher location (busca de chambres)"]
+    L1["1 — Tableau de bord (read-only: o que está pendente)"]
+    L2["2 — État des lieux (badge: à assinar)"]
+    L3["3 — Interactions / Messages (badge: notifs)"]
+    L4["4 — Documents"]
+    L5["5 — Finances (recettes : loyers + à recevoir vétusté)"]
+    L6["6 — Mon Profil"]
+    LPROFIL --> L0 & L1 & L2 & L3 & L4 & L5 & L6
+```
+
+> O **Tableau de bord** é read-only e mostra atalhos para o que está pendente
+> (EDL a assinar, mensagens). A « somme à recevoir » de um décompte de vétusté
+> aparece em **Finances** (`listByLocataire`).
 
 ---
 

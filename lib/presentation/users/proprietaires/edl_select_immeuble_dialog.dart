@@ -94,6 +94,7 @@ class _SelectImmeubleDialogState extends State<_SelectImmeubleDialog> {
                   suffixIcon: _query.isNotEmpty
                       ? IconButton(
                           icon: const Icon(Icons.close, size: 18),
+                          tooltip: 'Effacer la recherche',
                           onPressed: () {
                             _searchCtrl.clear();
                             setState(() => _query = '');

@@ -353,6 +353,7 @@ class _SidebarHeader extends StatelessWidget {
                           suffixIcon: searchCtrl!.text.isNotEmpty
                               ? IconButton(
                                   icon: const Icon(Icons.close, size: 16),
+                                  tooltip: 'Effacer la recherche',
                                   onPressed: searchCtrl!.clear,
                                 )
                               : null,

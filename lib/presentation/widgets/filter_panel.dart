@@ -2,10 +2,11 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:lacoloc_front/data/datasources/inventaire.dart';
+import 'package:lacoloc_front/presentation/widgets/filter_button.dart';
 import 'package:lacoloc_front/data/datasources/reference.dart';
 import 'package:lacoloc_front/data/models/filter_state.dart';
 import 'package:lacoloc_front/data/models/immeuble_type.dart';
-import 'package:lacoloc_front/data/models/reference.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_radius.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
@@ -110,15 +111,15 @@ class _FilterPanelState extends State<FilterPanel> {
   final _m2MaxCtrl = TextEditingController();
   final _prixMinCtrl = TextEditingController();
   final _prixMaxCtrl = TextEditingController();
-  Future<List<ReferenceItem>>? _optionsFuture;
   Future<List<ImmeubleTypeModel>>? _typesFuture;
+  Future<List<String>>? _equipFuture;
 
   @override
   void initState() {
     super.initState();
     _syncCtrls(widget.filter);
     if (widget.modules.contains(FilterModule.equipements)) {
-      _optionsFuture = ReferenceDatasource.roomOptions();
+      _equipFuture = InventaireDatasource.annonceEquipementNames();
     }
     if (widget.modules.contains(FilterModule.typeImmeuble)) {
       _typesFuture = ReferenceDatasource.immeubleTypes();
@@ -171,10 +172,10 @@ class _FilterPanelState extends State<FilterPanel> {
     );
   }
 
-  void _toggleOption(int id, bool selected) {
-    final next = Set<int>.from(widget.filter.optionIds);
-    selected ? next.add(id) : next.remove(id);
-    widget.onChanged(widget.filter.copyWith(optionIds: next));
+  void _toggleEquipement(String name, bool selected) {
+    final next = Set<String>.from(widget.filter.equipements);
+    selected ? next.add(name) : next.remove(name);
+    widget.onChanged(widget.filter.copyWith(equipements: next));
   }
 
   /// Réinitialiser : efface tous les filtres (le panneau reste ouvert).
@@ -255,52 +256,15 @@ class _FilterPanelState extends State<FilterPanel> {
               CompositedTransformTarget(
                 link: _link,
                 child: OverlayPortal(
-                controller: _portalCtrl,
-                overlayChildBuilder: _buildOverlay,
-                child: Material(
-                  color: isOpen
-                      ? AppColors.primaryFixed
-                      : AppColors.surfaceContainerLow,
-                  borderRadius: AppRadius.borderFull,
-                  child: InkWell(
-                    borderRadius: AppRadius.borderFull,
+                  controller: _portalCtrl,
+                  overlayChildBuilder: _buildOverlay,
+                  child: FilterButton(
+                    isOpen: isOpen,
+                    activeCount: active,
                     onTap: _toggle,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.md,
-                        vertical: AppSpacing.sm,
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.tune,
-                              size: 18, color: AppColors.onSurfaceVariant),
-                          const SizedBox(width: AppSpacing.sm),
-                          Text('Filtres', style: AppTypography.titleLs),
-                          if (active > 0) ...[
-                            const SizedBox(width: AppSpacing.xs),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 6, vertical: 1),
-                              decoration: BoxDecoration(
-                                color: AppColors.primary,
-                                borderRadius: AppRadius.borderFull,
-                              ),
-                              child: Text('$active',
-                                  style: AppTypography.labelSm
-                                      .copyWith(color: AppColors.onPrimary)),
-                            ),
-                          ],
-                          const SizedBox(width: AppSpacing.xs),
-                          Icon(isOpen ? Icons.expand_less : Icons.expand_more,
-                              size: 20, color: AppColors.onSurfaceVariant),
-                        ],
-                      ),
-                    ),
                   ),
                 ),
               ),
-            ),
             if (widget.trailing != null) ...[
               const Spacer(),
               widget.trailing!,
@@ -615,26 +579,26 @@ class _FilterPanelState extends State<FilterPanel> {
   /// MODULE `equipements` — Options/équipements des chambres (Wifi, Lit double…).
   /// Quand l'utiliser : chambres (option directe) ou immeubles (au moins une
   /// chambre couvrant les options choisies).
-  /// Émet `optionIds` (ET : toutes les options sélectionnées doivent être présentes).
+  /// Émet `equipements` (ET : tous les équipements sélectionnés doivent être présents).
   Widget _buildEquipements() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text('Équipements', style: AppTypography.labelMd),
         const SizedBox(height: AppSpacing.sm),
-        FutureBuilder<List<ReferenceItem>>(
-          future: _optionsFuture,
+        FutureBuilder<List<String>>(
+          future: _equipFuture,
           builder: (_, snap) {
-            final opts = snap.data ?? [];
+            final opts = snap.data ?? const <String>[];
             if (opts.isEmpty) return const SizedBox.shrink();
             return Wrap(
               spacing: AppSpacing.sm,
               runSpacing: AppSpacing.xs,
-              children: opts.map((o) {
+              children: opts.map((name) {
                 return _chip(
-                  label: o.name,
-                  selected: widget.filter.optionIds.contains(o.id),
-                  onSelected: (v) => _toggleOption(o.id, v),
+                  label: name,
+                  selected: widget.filter.equipements.contains(name),
+                  onSelected: (v) => _toggleEquipement(name, v),
                 );
               }).toList(),
             );

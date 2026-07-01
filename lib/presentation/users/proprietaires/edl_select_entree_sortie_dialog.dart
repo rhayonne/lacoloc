@@ -74,6 +74,7 @@ class _SelectEntreeDialogState extends State<_SelectEntreeDialog> {
                   ),
                   IconButton(
                     icon: const Icon(Icons.close),
+                    tooltip: 'Fermer',
                     onPressed: () => Navigator.pop(context),
                   ),
                 ],

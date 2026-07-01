@@ -250,6 +250,18 @@ class EtatDesLieuxModel {
       (partie == PartieEdl.privative ||
           (partie == PartieEdl.commune && typeBail == 'location'));
 
+  /// Le bail porte-t-il déjà la signature du [role] (`proprietaire`/`locataire`) ?
+  /// La signature du locataire est posée à l'acceptation de l'EDL et réutilisée
+  /// sur le bail ; celle du propriétaire est posée au moment de signer le bail.
+  bool bailSignedBy(String role) => role == 'locataire'
+      ? locataireSignatureUrl != null
+      : proprietaireSignatureUrl != null;
+
+  /// Le bail est entièrement signé (les deux parties) → il est verrouillé :
+  /// plus aucune modification, le bouton « Bail » devient « Visualiser ».
+  bool get bailFullySigned =>
+      proprietaireSignatureUrl != null && locataireSignatureUrl != null;
+
   factory EtatDesLieuxModel.fromMap(Map<String, dynamic> map) {
     final loc = map['locataire'] as Map<String, dynamic>?;
     final imm = map['immeuble'] as Map<String, dynamic>?;
@@ -465,6 +477,13 @@ class EtatDesLieuxModel {
       dateDebutBail != null ? _dateFmt.format(dateDebutBail!) : null;
   String? get dateFinBailFormatted =>
       dateFinBail != null ? _dateFmt.format(dateFinBail!) : null;
+
+  /// Date de signature du bail par le propriétaire (= « Fait à …, le … » du
+  /// contrat). `null` tant que le bailleur n'a pas signé.
+  String? get proprietaireSignedAtFormatted =>
+      proprietaireSignedAt != null ? _dateFmt.format(proprietaireSignedAt!) : null;
+  String? get locataireSignedAtFormatted =>
+      locataireSignedAt != null ? _dateFmt.format(locataireSignedAt!) : null;
 
   /// Identifiant du « contrat » qui regroupe un EDL collectif et ses privatifs :
   /// l'id du collectif lui-même (partie commune) ou l'`edl_collectif_id` (privatif).

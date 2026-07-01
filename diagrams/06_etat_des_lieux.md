@@ -49,6 +49,25 @@ erDiagram
 `etat_usure`: `N` neuf · `B` bon état · `U` état d'usage · `M` mauvais.
 As linhas de equipamento são alimentadas pelo `Inventaire` + estrutura da
 chambre/immeuble, mais itens estruturais (SOL, MURs, PLAFOND, FENETRES…).
+**Ordem das lignes:** ao adicionar « Ajouter un élément », a nova ligne recebe
+`ordre = max(ordre)+1` (não `length`) → aparece sempre **no fim** da tabela
+(evita colisão de `ordre` após exclusões).
+
+### Onglet « Clés » (popup)
+`EdlClesSection` — botão « Ajouter une clé » → popup repetível com **Nom de la
+clé** (texto), **switch « Remise ce jour »** (data = hoje ; desativa o campo de
+data) + **Date de remise** (para outra data), e **Commentaire**. Uma chave por
+vez (o proprietaire repete para cada chave). Gravado em `etat_de_lieux_cles`.
+
+### Onglet « Divers » (observations libres)
+Novo onglet **Divers** na `EdlIndividuelMeubleePage` (index 4, antes de Avenants)
+e seção **Divers** na `EdlCollectifNonMeubleePage`. Botão « Ajouter » → popup com
+um campo texto + Annuler/Enregistrer. Persistido em `etat_de_lieux_observations`
+com **`wall_key = 'divers'`** (sem `piece_id`/`chambre_id`), **sem migração**.
+Escopo: no individuel grava no **privatif** → aparece no individuel ; no collectif
+grava no **collectif** → aparece no collectif. Widget reutilizável
+`EdlDiversSection(edlId, readOnly, authorRole)`. **PDF:** seção dedicada « DIVERS »
+(`_sectionDivers`), excluída das observations orphelines para não duplicar.
 
 ## Estados (`SituationEdl`)
 
@@ -114,6 +133,9 @@ sequenceDiagram
 
 ## Ciclo de Vida — Locataire aceita e assina
 
+> Detalhe do fluxo de assinatura (proprietaire/locataire, `materializeForEdl`, audit,
+> stockage privé) : ver [14_signatures.md](14_signatures.md).
+
 ```mermaid
 sequenceDiagram
     actor LC as Locataire
@@ -155,6 +177,42 @@ graph TD
   `invited_by_proprietaire_id`. Mostra coluna "E-mail envoyé" + botão "Renvoyer →".
 - Após criar locataire pelo dialog, ele aparece como **chip** no formulário
   (avatar + nome + email + ×) e é imediatamente populado na tabela de invités.
+
+> **Abas da `EtatDesLieuxPage`**: **Vision générale · Entrée · Sortie · Vétusté** (4 abas).
+
+---
+
+## Aba "Vétusté" — Décompte de réparations locatives (Option B)
+
+```mermaid
+graph TD
+    SORT["EDL de SORTIE finalisé\n(_finaliser)"] --> DET["buildCandidatesForSortie\n(compara etat_usure entrée→sortie, rangs N<B<U<M)"]
+    DET -->|"dégradations détectées"| POP["Pop-up\n« Dégradation détectée — créer la vétusté ? »\n(proposerVetusteSiDegradation)"]
+    POP -->|Oui| DEC["createDecompteFromSortie\n(vetuste_decompte + lignes, idempotent)"]
+    DEC --> TAB["Aba Vétusté (VetustePage)"]
+
+    TAB --> BAR["AppAccordion « Barème de vétusté »\n(editável: durée/franchise/coef/résiduel par catégorie)"]
+    TAB --> LIST["Liste des décomptes (groupés par EDL/immeuble)"]
+    TAB --> ADD["« Ajouter une vétusté » (manuel)\n→ choix immeuble + chambre"]
+    LIST --> ED["_DecompteEditor\n(imputable on/off · catégorie · valeur d'achat → recalcul live)"]
+    ED --> PDF["DocumentPdfButton\n→ « Décompte de réparations locatives » (PDF)"]
+    ED --> REC["« Générer l'à recevoir »\n→ Recettes (statut a_recevoir)"]
+    REC --> FIN["Finances proprietaire **et** locataire\n(+ notif locataire si EDL lié)"]
+```
+
+- **Détection** (`VetusteDatasource.buildCandidatesForSortie`): para cada `etat_de_lieux_lignes`
+  da sortie cujo `etat_usure` piorou em relação à entrée couplée (`edl_entree_id`), cria uma
+  ligne candidate. Pré-preenche `valeur_achat`/`date_acquisition`/`categorie` via o artigo de
+  `Inventaire` de mesmo nome.
+- **Cálculo** (`VetusteCalc`, `lib/utils/vetuste_calc.dart`): `abattement% = clamp((âge − franchise)
+  × coef_annuel, 0, 100 − résiduel_min)`; `valeur_résiduelle = valeur_achat × (1 − abattement/100)`.
+- **Barème** (`vetuste_bareme`): 1 linha por **catégorie de meuble**, editável pelo proprietaire
+  na própria aba (seed automático de valores padrão na 1ª leitura).
+- **Manual**: o proprietaire pode criar um décompte a qualquer momento, ligado a um imóvel
+  (+ chambre opcional), sem EDL.
+- **À recevoir**: « Générer l'à recevoir » cria uma `Recettes` (statut `a_recevoir`, échéance +30 j),
+  marca o décompte `genere`, e (se houver `etat_de_lieux_id`) notifica o locataire. A recette
+  aparece em **Finances** dos dois lados (RLS).
 
 ---
 

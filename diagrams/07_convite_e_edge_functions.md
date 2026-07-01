@@ -7,6 +7,7 @@
 | `invite-locataire` | **create** | `fullName`, `email`, `proprietaireId`, `phone?`, `dateOfBirth?`, `redirectTo?`, `mailTo?` | `{ userId, emailSent, smtpError? }` | `admin.createUser` com **senha temp aleatória** + `email_confirm:true` + `needs_completion:true`; grava `invited_by_proprietaire_id`; envia e-mail SMTP com a senha temp + link `…/?email&temp`; marca `invitation_email_sent` |
 | `invite-locataire` | **resend** | `resend: true`, `userId`, `email`, `fullName?`, `phone?`, `redirectTo?`, `mailTo?` | `{ emailSent, smtpError? }` | `admin.updateUserById` define **nova** senha temp (+ `needs_completion:true`); reenvia o link |
 | `invite-locataire` | **test** | `test: true`, `email`, `emailType?` (super_admin) | `{ ok, …, smtpError? }` | só envia e-mail de diagnóstico SMTP (não cria conta) |
+| `invite-locataire` | **delete** | `del: true`, `userId` | `{ deleted }` ou `{ error }` | **anula a invitação** de um locataire *pas encore activé* (`admin.deleteUser`). Recusa se a conta já foi ativada (`needs_completion=false`) ou tem `etat_de_lieux`. Chamado por `EtatDesLieuxDatasource.cancelInvitation` (botão lixeira no card « Locataires invités ») |
 | `notify-edl` | — | `edlId`, `event` (`accepte`/`addition`/`a_signer`), `locataireNom?`, `comodo?`, `texte?`, `mailTo?` | `{ sent, smtpError? }` | e-mail SMTP sobre um EDL; destinatário resolvido server-side; campos de texto com escape HTML |
 | `delete-account` | — | (JWT no header) | `{ success }` ou `{ error }` | bloqueia se houver `etat_de_lieux` com `locataire_id` = usuário; senão `auth.admin.deleteUser` |
 | `notify-proprietaire` | — | `fullName`, `email`, `phone?`, `note?` | best-effort | notifica admin sobre novo cadastro de propriétaire (chamada por `AuthService.notifyProprietaireRegistration`) |
@@ -14,6 +15,7 @@
 > **🔒 Autenticação/autorização (correções de segurança):**
 > - `invite-locataire` **create/resend**: validam o JWT do chamador (`requireManager` → `getUser` + `code`) e exigem `proprietaire`/`admin_groupe`/`super_admin` (401/403). Antes eram abertos → permitiam criar contas ou redefinir a senha de qualquer utilizador (via `userId`) e desviar o link.
 > - `invite-locataire` **test**: reservado a `super_admin` (`verify_jwt: true`).
+> - `invite-locataire` **delete**: `requireManager` + só o **propriétaire émetteur** (`invited_by_proprietaire_id`) ou `super_admin`/`admin_groupe` (mesma entreprise) ; recusa conta ativada ou liée a contratos.
 > - `notify-edl`: valida o JWT **e lê o EDL com o cliente do chamador (RLS)** → 403 se não tem acesso; impede disparar e-mails enumerando `edlId`. Campos `locataireNom`/`comodo`/`texte` (+ nomes) passam por escape HTML.
 > - `notify_edl_proprietaire` / `notify_edl_locataire`, `search_locataires`, `list_invited_locataires`: `EXECUTE` revogado de `anon`/`PUBLIC` (só `authenticated`).
 

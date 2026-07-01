@@ -59,17 +59,50 @@ class _DocumentationPageState extends State<DocumentationPage>
             ],
           ),
         ),
+        const Divider(height: 1),
         Expanded(
           child: TabBarView(
             controller: _tabCtrl,
             children: const [
-              _VisionGeneralePage(),
-              _BauxPage(),
-              _SignaturePage(),
+              _DocCard(child: _VisionGeneralePage()),
+              _DocCard(child: _BauxPage()),
+              _DocCard(child: _SignaturePage()),
             ],
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Frame en carte (bord arrondi + ombre) — identique à la section
+/// « Gestion Immobilière », pour une présentation homogène entre les pages.
+class _DocCard extends StatelessWidget {
+  final Widget child;
+  const _DocCard({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppColors.surfaceContainerLowest,
+          borderRadius: AppRadius.borderLg,
+          border: Border.all(color: AppColors.outlineVariant),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.shadowTint.withValues(alpha: 0.06),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: AppRadius.borderLg,
+          child: child,
+        ),
+      ),
     );
   }
 }
@@ -131,7 +164,90 @@ class _VisionGeneralePage extends StatelessWidget {
           subtitle: 'Configurer la signature utilisée dans les documents.',
           onTap: () {},
         ),
+        const SizedBox(height: AppSpacing.xl),
+        const ESignatureNoticeCard(),
       ],
+    );
+  }
+}
+
+/// Avis légal sur la signature électronique et sa validation dans l'application.
+/// Affiché au propriétaire (Documentation) et au locataire (espace signature).
+class ESignatureNoticeCard extends StatelessWidget {
+  const ESignatureNoticeCard({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceContainerLow,
+        borderRadius: AppRadius.borderLg,
+        border: Border.all(color: AppColors.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.verified_user_outlined,
+                  color: AppColors.primary, size: 20),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Text('Signature électronique — valeur juridique',
+                    style: AppTypography.titleLg),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            "En France, la signature électronique a la même valeur juridique "
+            "qu'une signature manuscrite dès lors que l'identité du signataire "
+            "peut être établie et l'intégrité du document garantie (règlement "
+            "européen eIDAS n° 910/2014 et articles 1366 et 1367 du Code civil).",
+            style: AppTypography.bodyMd
+                .copyWith(color: AppColors.onSurfaceVariant),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Text('Comment nous validons vos signatures',
+              style: AppTypography.labelMd),
+          const SizedBox(height: AppSpacing.xs),
+          ...const [
+            "Compte authentifié — chaque signataire est connecté à son compte personnel.",
+            "Horodatage — la date et l'heure de la signature sont enregistrées.",
+            "Empreinte d'intégrité (SHA-256) — une empreinte des données du document est calculée et apposée sur le PDF pour détecter toute modification ultérieure.",
+            "Traçabilité — un faisceau d'indices (compte, horodatage, empreinte) est conservé pour prouver, en cas de litige, l'identité, le consentement et l'intégrité.",
+          ].map((t) => Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Padding(
+                      padding: EdgeInsets.only(top: 5, right: 6),
+                      child: Icon(Icons.check_circle_outline,
+                          size: 14, color: AppColors.success),
+                    ),
+                    Expanded(
+                      child: Text(t,
+                          style: AppTypography.bodyMd
+                              .copyWith(color: AppColors.onSurface)),
+                    ),
+                  ],
+                ),
+              )),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            "Ce niveau correspond à une « signature électronique simple » "
+            "renforcée par un faisceau d'indices. Pour les baux et états des "
+            "lieux d'habitation, ce niveau est adapté ; une signature avancée "
+            "ou qualifiée (avec un prestataire certifié) reste possible pour "
+            "une sécurité juridique maximale.",
+            style: AppTypography.labelSm
+                .copyWith(color: AppColors.onSurfaceVariant, fontStyle: FontStyle.italic),
+          ),
+        ],
+      ),
     );
   }
 }

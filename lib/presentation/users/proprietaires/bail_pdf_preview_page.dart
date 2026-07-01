@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:printing/printing.dart';
+import 'package:lacoloc_front/data/datasources/etat_de_lieux.dart';
+import 'package:lacoloc_front/data/datasources/signatures.dart';
 import 'package:lacoloc_front/data/models/etat_de_lieux.dart';
+import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
+import 'package:lacoloc_front/theme/app_theme.dart';
 import 'package:lacoloc_front/theme/app_typography.dart';
+import 'package:lacoloc_front/utils/signature_pad.dart';
 import 'bail_pdf_builder.dart';
 import 'bail_pdf_data.dart';
 
@@ -10,10 +15,26 @@ import 'bail_pdf_data.dart';
 ///
 /// Layout standard : AppBar (titre + retour) · barre de boutons juste en
 /// dessous · PdfPreview plein écran sans barre native.
+///
+/// Si [readOnly] est faux et que le [role] courant n'a pas encore signé, une
+/// action « Confirmer ma signature » est proposée dans la barre. Une fois le
+/// bail signé par les deux parties, il est verrouillé (consultation seule).
 class BailPdfPreviewPage extends StatefulWidget {
   final EtatDesLieuxModel edl;
 
-  const BailPdfPreviewPage({super.key, required this.edl});
+  /// Rôle de l'utilisateur courant (`proprietaire` = bailleur, `locataire`).
+  final String role;
+
+  /// Mode consultation seule (aucune signature proposée). Utilisé quand le bail
+  /// est déjà entièrement signé (« Visualiser le bail »).
+  final bool readOnly;
+
+  const BailPdfPreviewPage({
+    super.key,
+    required this.edl,
+    this.role = 'proprietaire',
+    this.readOnly = false,
+  });
 
   @override
   State<BailPdfPreviewPage> createState() => _BailPdfPreviewPageState();
@@ -21,6 +42,9 @@ class BailPdfPreviewPage extends StatefulWidget {
 
 class _BailPdfPreviewPageState extends State<BailPdfPreviewPage> {
   late Future<BailPdfData> _dataFuture;
+  bool _signing = false;
+  // Portée d'impression (bail individuel) : tout / chambre / parties communes.
+  BailPdfScope _scope = BailPdfScope.complet;
 
   @override
   void initState() {
@@ -28,8 +52,47 @@ class _BailPdfPreviewPageState extends State<BailPdfPreviewPage> {
     _dataFuture = BailPdfData.fromEdl(widget.edl);
   }
 
+  /// Appose la signature de l'utilisateur courant sur le bail puis recharge les
+  /// données (la signature + sa date apparaissent alors dans le PDF).
+  Future<void> _confirmSignature(BailPdfData data) async {
+    if (_signing) return;
+    setState(() => _signing = true);
+    try {
+      String? sigUrl = await SignaturesDatasource.getSavedUrl();
+      if (!mounted) return;
+      if (sigUrl == null) {
+        final res = await showSignatureDialog(context);
+        if (res == null || !mounted) return;
+        sigUrl = res.url;
+      }
+      await EtatDesLieuxDatasource.setBailSignature(
+        id: data.edl.id,
+        role: widget.role,
+        signatureUrl: sigUrl,
+      );
+      final fresh = await EtatDesLieuxDatasource.findById(data.edl.id);
+      if (!mounted) return;
+      setState(() {
+        _dataFuture = BailPdfData.fromEdl(fresh ?? data.edl);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Signature enregistrée sur le bail.'),
+        backgroundColor: AppColors.success,
+      ));
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Impossible d\'enregistrer la signature : $e'),
+          backgroundColor: AppColors.error,
+        ));
+      }
+    } finally {
+      if (mounted) setState(() => _signing = false);
+    }
+  }
+
   Future<void> _print(BailPdfData data) async {
-    final pdf = await BailPdfBuilder(data).build();
+    final pdf = await BailPdfBuilder(data).build(scope: _scope);
     await Printing.layoutPdf(
       onLayout: (_) => pdf.save(),
       name: 'bail_${data.edl.id}.pdf',
@@ -37,7 +100,7 @@ class _BailPdfPreviewPageState extends State<BailPdfPreviewPage> {
   }
 
   Future<void> _download(BailPdfData data) async {
-    final pdf = await BailPdfBuilder(data).build();
+    final pdf = await BailPdfBuilder(data).build(scope: _scope);
     await Printing.sharePdf(
       bytes: await pdf.save(),
       filename: 'bail_${data.edl.id}.pdf',
@@ -76,6 +139,10 @@ class _BailPdfPreviewPageState extends State<BailPdfPreviewPage> {
           final data = snapshot.data!;
           // Impression bloquée tant qu'un garant requis n'est pas enregistré.
           final blocked = data.garantManquant;
+          // Signature proposée si non verrouillé et que le rôle n'a pas signé.
+          final canSign = !widget.readOnly &&
+              !data.edl.bailSignedBy(widget.role) &&
+              !blocked;
 
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -85,14 +152,39 @@ class _BailPdfPreviewPageState extends State<BailPdfPreviewPage> {
                 enabled: !blocked,
                 onPrint: () => _print(data),
                 onDownload: () => _download(data),
+                onSign: canSign ? () => _confirmSignature(data) : null,
+                signing: _signing,
               ),
               if (blocked) const _GarantBlockedBanner(),
+              // ── Portée d'impression (bail individuel avec parties communes) ──
+              if (data.hasPartiesCommunes)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.lg, AppSpacing.sm, AppSpacing.lg, 0),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: SegmentedButton<BailPdfScope>(
+                      segments: const [
+                        ButtonSegment(
+                            value: BailPdfScope.complet, label: Text('Complet')),
+                        ButtonSegment(
+                            value: BailPdfScope.chambre, label: Text('Chambre')),
+                        ButtonSegment(
+                            value: BailPdfScope.communes,
+                            label: Text('Parties communes')),
+                      ],
+                      selected: {_scope},
+                      onSelectionChanged: (s) =>
+                          setState(() => _scope = s.first),
+                    ),
+                  ),
+                ),
               // ── Prévisualisation PDF ─────────────────────────────────────
               Expanded(
                 child: PdfPreview(
-                  key: ValueKey(data.edl.id),
+                  key: ValueKey('${data.edl.id}_$_scope'),
                   build: (format) async {
-                    final pdf = await BailPdfBuilder(data).build();
+                    final pdf = await BailPdfBuilder(data).build(scope: _scope);
                     return pdf.save();
                   },
                   allowPrinting: false,
@@ -120,10 +212,16 @@ class _ActionBar extends StatelessWidget {
   final VoidCallback onDownload;
   final bool enabled;
 
+  /// Si non nul, affiche un bouton « Confirmer ma signature ».
+  final VoidCallback? onSign;
+  final bool signing;
+
   const _ActionBar({
     required this.onPrint,
     required this.onDownload,
     this.enabled = true,
+    this.onSign,
+    this.signing = false,
   });
 
   @override
@@ -145,6 +243,18 @@ class _ActionBar extends StatelessWidget {
         runSpacing: AppSpacing.xs,
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
+          if (onSign != null)
+            FilledButton.icon(
+              style: AppTheme.saveButtonStyle,
+              onPressed: signing ? null : onSign,
+              icon: signing
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.draw_outlined, size: 18),
+              label: const Text('Confirmer ma signature'),
+            ),
           OutlinedButton.icon(
             onPressed: enabled ? onPrint : null,
             icon: const Icon(Icons.print_outlined, size: 18),

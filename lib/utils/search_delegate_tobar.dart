@@ -15,6 +15,7 @@ class SearchDelgateTobar extends SearchDelegate<ChambreModel?> {
     return [
       IconButton(
         icon: const Icon(Icons.clear_outlined),
+        tooltip: 'Effacer',
         onPressed: () => query = '',
       ),
     ];
@@ -24,6 +25,7 @@ class SearchDelgateTobar extends SearchDelegate<ChambreModel?> {
   Widget? buildLeading(BuildContext context) {
     return IconButton(
       icon: const Icon(Icons.arrow_back),
+      tooltip: 'Retour',
       onPressed: () => close(context, null),
     );
   }

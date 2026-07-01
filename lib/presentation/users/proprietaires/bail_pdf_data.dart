@@ -4,7 +4,10 @@ import 'package:lacoloc_front/data/datasources/chambres.dart';
 import 'package:lacoloc_front/data/datasources/edl_details.dart';
 import 'package:lacoloc_front/data/datasources/immeuble_charges.dart';
 import 'package:lacoloc_front/data/datasources/immeubles.dart';
+import 'package:lacoloc_front/data/datasources/pieces.dart';
+import 'package:lacoloc_front/data/datasources/vetuste.dart';
 import 'package:lacoloc_front/data/models/chambre.dart';
+import 'package:lacoloc_front/data/models/piece.dart';
 import 'package:lacoloc_front/data/models/chambre_charge.dart';
 import 'package:lacoloc_front/data/datasources/garants.dart';
 import 'package:lacoloc_front/data/models/edl_details.dart';
@@ -12,6 +15,7 @@ import 'package:lacoloc_front/data/models/etat_de_lieux.dart';
 import 'package:lacoloc_front/data/models/garant.dart';
 import 'package:lacoloc_front/data/models/immeuble_charge.dart';
 import 'package:lacoloc_front/data/models/immeubles.dart';
+import 'package:lacoloc_front/data/models/vetuste.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -85,6 +89,14 @@ class BailPdfData {
   final List<GarantModel> garants;
   final BailType bailType;
 
+  /// Barème de vétusté du bailleur (1 ligne par catégorie de meuble) — affiché
+  /// dans l'article 8.4 « Décompte de fin de bail » du contrat.
+  final List<VetusteBaremeModel> baremeVetuste;
+
+  /// Pièces communes de l'immeuble (bail individuel/colocation) — utilisées pour
+  /// la section « Parties communes » du bail (miroir de l'EDL collectif).
+  final List<PieceModel> piecesCommunes;
+
   const BailPdfData({
     required this.edl,
     required this.immeuble,
@@ -96,7 +108,13 @@ class BailPdfData {
     required this.chambreCharges,
     required this.garants,
     required this.bailType,
+    this.piecesCommunes = const [],
+    this.baremeVetuste = const [],
   });
+
+  /// Vrai si le bail comporte une partie « parties communes » imprimable
+  /// séparément (colocation avec des pièces communes renseignées).
+  bool get hasPartiesCommunes => isColocation && piecesCommunes.isNotEmpty;
 
   // ── Accesseurs pratiques ──────────────────────────────────────────────────
 
@@ -134,9 +152,14 @@ class BailPdfData {
     return immeuble.prixLoyer;
   }
 
+  /// Les charges sont désormais gérées au niveau de l'immeuble. Pour une
+  /// colocation, on n'utilise les charges spécifiques de la chambre que si
+  /// elles existent (legacy) ; sinon on hérite de celles de l'immeuble.
+  bool get useChambreCharges => isColocation && chambreCharges.isNotEmpty;
+
   /// Charges mensuelles fixes (somme des charges « fixe »).
   double get chargesFixesMensuelles {
-    if (isColocation) {
+    if (useChambreCharges) {
       return chambreCharges
           .where((c) => c.type == 'fixe')
           .fold(0, (s, c) => s + (c.montant ?? 0));
@@ -147,7 +170,7 @@ class BailPdfData {
   }
 
   bool get hasChargesIncluses {
-    if (isColocation) return chambreCharges.any((c) => c.type == 'inclus');
+    if (useChambreCharges) return chambreCharges.any((c) => c.type == 'inclus');
     return immeubleCharges.any((c) => c.type == 'inclus');
   }
 
@@ -260,6 +283,14 @@ class BailPdfData {
     // Garants actifs du bail (locataire + preneurs).
     final garants = await garantsForEdl(edl, preneurDetails: preneurDetails);
 
+    // Barème de vétusté du bailleur (pour l'article 8.4). Best-effort.
+    List<VetusteBaremeModel> baremeVetuste = const [];
+    try {
+      baremeVetuste = await VetusteDatasource.listBareme(edl.proprietaireId);
+    } catch (_) {
+      // best-effort : un bail reste imprimable sans barème.
+    }
+
     // Type de bail
     final meuble = immeuble.locationMeuble ?? false;
     final BailType bailType;
@@ -267,6 +298,16 @@ class BailPdfData {
       bailType = meuble ? BailType.locationMeuble : BailType.locationNonMeuble;
     } else {
       bailType = meuble ? BailType.individuelleMeuble : BailType.individuelleNonMeuble;
+    }
+
+    // Pièces communes (pour la section « Parties communes » du bail individuel).
+    List<PieceModel> piecesCommunes = const [];
+    if (edl.typeBail == 'individuel') {
+      try {
+        piecesCommunes = await PiecesDatasource.listByImmeuble(immeuble.id);
+      } catch (_) {
+        // best-effort
+      }
     }
 
     return BailPdfData(
@@ -280,6 +321,12 @@ class BailPdfData {
       chambreCharges: chamCharges,
       garants: garants,
       bailType: bailType,
+      piecesCommunes: piecesCommunes,
+      baremeVetuste: baremeVetuste,
     );
   }
 }
+
+/// Portée d'impression du bail individuel (miroir de l'EDL) :
+/// tout, la chambre (privatif) ou les parties communes (collectif).
+enum BailPdfScope { complet, chambre, communes }

@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:lacoloc_front/data/cache/realtime_refresh_mixin.dart';
 import 'package:lacoloc_front/data/datasources/auth_service.dart';
 import 'package:lacoloc_front/data/datasources/chambres.dart';
+import 'package:lacoloc_front/data/datasources/inventaire.dart';
 import 'package:lacoloc_front/data/datasources/etat_de_lieux.dart';
 import 'package:lacoloc_front/data/datasources/garants.dart';
 import 'package:lacoloc_front/presentation/widgets/readiness_checklist.dart';
@@ -30,6 +31,8 @@ import 'package:lacoloc_front/presentation/chambres/chambre_detail_page.dart';
 import 'package:lacoloc_front/presentation/nav/app_sidebar.dart';
 import 'package:lacoloc_front/presentation/users/locataires/garants_page.dart';
 import 'package:lacoloc_front/presentation/users/proprietaires/bail_pdf_preview_page.dart';
+import 'package:lacoloc_front/presentation/users/proprietaires/documentation_page.dart'
+    show ESignatureNoticeCard;
 import 'package:lacoloc_front/presentation/widgets/bail_signature_flow.dart';
 import 'package:lacoloc_front/presentation/widgets/filter_panel.dart';
 import 'package:lacoloc_front/utils/phone_field.dart';
@@ -339,6 +342,7 @@ class _LocataireProfilPageState extends State<LocataireProfilPage>
           ? AppBar(
               leading: IconButton(
                 icon: const Icon(Icons.menu),
+                tooltip: 'Ouvrir le menu',
                 onPressed: () {
                   if (!_navCtrl.extended) _navCtrl.setExtended(true);
                   _scaffoldKey.currentState?.openDrawer();
@@ -906,6 +910,21 @@ class _ChambresSectionState extends State<_ChambresSection> {
   String _query = '';
   ChambreFilter _filter = ChambreFilter.empty;
 
+  /// Équipements « dans l'annonce » par chambre (carte + filtre).
+  Map<int, List<String>> _equip = const {};
+
+  @override
+  void initState() {
+    super.initState();
+    _loadEquip();
+  }
+
+  Future<void> _loadEquip() async {
+    final map = await InventaireDatasource.annonceLabelsByChambre(
+        widget.chambres.map((c) => c.id).toList());
+    if (mounted) setState(() => _equip = map);
+  }
+
   List<ChambreModel> get _filtered {
     return widget.chambres.where((c) {
       if (_query.isNotEmpty) {
@@ -917,9 +936,9 @@ class _ChambresSectionState extends State<_ChambresSection> {
         if (!inName && !inImm && !inAddr && !inCity) return false;
       }
       final f = _filter;
-      if (f.optionIds.isNotEmpty &&
-          !f.optionIds.every((id) => c.selectedOptionIds.contains(id))) {
-        return false;
+      if (f.equipements.isNotEmpty) {
+        final labels = _equip[c.id] ?? const [];
+        if (!f.equipements.every(labels.contains)) return false;
       }
       if (f.city.isNotEmpty &&
           !(c.immeubleCity?.toLowerCase().contains(f.city.toLowerCase()) ??
@@ -1003,6 +1022,7 @@ class _ChambresSectionState extends State<_ChambresSection> {
                     suffixIcon: _query.isNotEmpty
                         ? IconButton(
                             icon: const Icon(Icons.close, size: 18),
+                            tooltip: 'Effacer la recherche',
                             onPressed: () => setState(() => _query = ''),
                           )
                         : null,
@@ -1086,6 +1106,7 @@ class _ChambresSectionState extends State<_ChambresSection> {
                       itemCount: filtered.length,
                       itemBuilder: (context, i) => ChambreCard(
                         chambre: filtered[i],
+                        equipementLabels: _equip[filtered[i].id] ?? const [],
                         onTap: () => widget.onTap(filtered[i].id),
                       ),
                     );
@@ -1660,11 +1681,31 @@ class _InteractionsSectionState extends State<_InteractionsSection>
     // puis enregistre l'acceptation.
     final sigUrl = await runLocataireSignatureFlow(context, edl);
     if (sigUrl == null || !mounted) return;
-    await EtatDesLieuxDatasource.locataireAccepter(
-      edl.id,
-      locataireSignatureUrl: sigUrl,
-    );
-    if (mounted) setState(() { _future = _load(); });
+    try {
+      await EtatDesLieuxDatasource.locataireAccepter(
+        edl.id,
+        locataireSignatureUrl: sigUrl,
+      );
+      // Vérifie que la signature est bien posée sur l'EDL.
+      final ok = await EtatDesLieuxDatasource.isLocataireSigned(edl.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(ok
+              ? 'État des lieux accepté et signé ✓'
+              : 'Accepté, mais la signature n\'a pas pu être confirmée — '
+                  'rouvrez le document pour vérifier.'),
+        ),
+      );
+      setState(() {
+        _future = _load();
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
+    }
   }
 
   /// `true` se o EDL ainda está dentro da janela de **avenant** configurada na
@@ -1901,6 +1942,8 @@ class _EdlVisionGeneraleTab extends StatelessWidget {
               onVisualiser: onVisualiser,
               onSigner: onSigner,
             ),
+          const SizedBox(height: AppSpacing.xl),
+          const ESignatureNoticeCard(),
         ],
       ),
     );
@@ -3478,10 +3521,19 @@ class _BauxLocataireTabState extends State<_BauxLocataireTab> {
   /// si le bail ne porte pas encore sa signature, propose de l'apposer
   /// (création si nécessaire) avant l'ouverture.
   Future<void> _openBail(EtatDesLieuxModel edl) async {
+    // Bail déjà signé par les deux parties → consultation seule (verrouillé).
+    if (edl.bailFullySigned) {
+      await Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => BailPdfPreviewPage(
+          edl: edl, role: 'locataire', readOnly: true),
+      ));
+      if (mounted) _reload();
+      return;
+    }
     final signed = await ensureBailSignature(context, edl, role: 'locataire');
     if (signed == null || !mounted) return;
     await Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => BailPdfPreviewPage(edl: signed),
+      builder: (_) => BailPdfPreviewPage(edl: signed, role: 'locataire'),
     ));
     if (mounted) _reload();
   }

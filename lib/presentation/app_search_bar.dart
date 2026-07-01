@@ -112,6 +112,7 @@ class _AppSearchBarState extends State<AppSearchBar> {
             suffixIcon: _searchQuery.isNotEmpty
                 ? IconButton(
                     icon: const Icon(Icons.close, size: 18),
+                    tooltip: 'Effacer la recherche',
                     onPressed: () {
                       setState(() {
                         _searchController.clear();

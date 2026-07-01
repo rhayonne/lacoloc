@@ -258,15 +258,20 @@ class _Thumbnail extends StatelessWidget {
         Positioned(
           bottom: 4,
           left: 4,
-          child: GestureDetector(
-            onTap: onToggleMain,
-            child: Icon(
-              isMain ? Icons.star_rounded : Icons.star_border_rounded,
-              size: 22,
-              color: isMain ? AppColors.secondary : Colors.white,
-              shadows: const [
-                Shadow(color: Colors.black54, blurRadius: 6),
-              ],
+          child: Tooltip(
+            message: isMain
+                ? 'Photo principale'
+                : 'Définir comme photo principale',
+            child: GestureDetector(
+              onTap: onToggleMain,
+              child: Icon(
+                isMain ? Icons.star_rounded : Icons.star_border_rounded,
+                size: 22,
+                color: isMain ? AppColors.secondary : Colors.white,
+                shadows: const [
+                  Shadow(color: Colors.black54, blurRadius: 6),
+                ],
+              ),
             ),
           ),
         ),

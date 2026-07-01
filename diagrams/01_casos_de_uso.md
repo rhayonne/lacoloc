@@ -123,6 +123,7 @@ flowchart LR
     subgraph Finances
         F1["Fournisseurs (banco/Wero/PayPal)"]
         F2["Factures + recettes (TVA)"]
+        F3["À recevoir (loyers + décompte de vétusté)"]
     end
 
     subgraph EDL["État des lieux"]
@@ -131,6 +132,7 @@ flowchart LR
         E3["Plan 2D — observations por mur"]
         E4["Convidar locataire (e-mail)"]
         E5["Finaliser → aguarda assinatura do locataire"]
+        E6["Vétusté: barème + décompte de réparations\n(sortie → à recevoir)"]
     end
 
     P --> M1 & M2 & M3 & M4
@@ -139,6 +141,7 @@ flowchart LR
     P --> F1 & F2
     P --> E1 --> E2 --> E3 --> E5
     E1 --> E4
+    E5 --> E6 --> F3
 ```
 
 ---

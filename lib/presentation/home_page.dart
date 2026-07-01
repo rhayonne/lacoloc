@@ -132,14 +132,16 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildBody() {
+    // Fiche immeuble rendue dans le cadre principal (menu conservé à gauche).
+    // Prioritaire : « Retour » efface l'immeuble et, si on venait d'une chambre
+    // (_detailChambreId encore défini), on retombe sur la fiche de la chambre.
+    if (_detailImmeubleId != null) {
+      return ImmeublePublicDetailView(
+        immeubleId: _detailImmeubleId!,
+        onBack: () => setState(() => _detailImmeubleId = null),
+      );
+    }
     if (_section == _idxImmeubles) {
-      // Fiche immeuble rendue dans le cadre principal (menu conservé à gauche).
-      if (_detailImmeubleId != null) {
-        return ImmeublePublicDetailView(
-          immeubleId: _detailImmeubleId!,
-          onBack: () => setState(() => _detailImmeubleId = null),
-        );
-      }
       return ImmeublesListPage(
         onTapImmeuble: (id) => setState(() => _detailImmeubleId = id),
       );
@@ -148,6 +150,7 @@ class _HomePageState extends State<HomePage> {
       return ChambreDetailView(
         chambreId: _detailChambreId!,
         onBack: () => setState(() => _detailChambreId = null),
+        onVoirImmeuble: (id) => setState(() => _detailImmeubleId = id),
       );
     }
     // No telefone (estreito) o bandeau de texto some; o botão « Voir les
@@ -219,6 +222,7 @@ class _HomePageState extends State<HomePage> {
           onSearch: (value) => setState(() => _searchQuery = value),
           leading: IconButton(
             icon: const Icon(Icons.menu),
+            tooltip: 'Ouvrir le menu',
             onPressed: () {
               if (!_navCtrl.extended) _navCtrl.setExtended(true);
               _scaffoldKey.currentState?.openDrawer();

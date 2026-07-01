@@ -4,13 +4,19 @@ import 'package:lacoloc_front/data/datasources/auth_service.dart';
 import 'package:lacoloc_front/data/datasources/chambres.dart';
 import 'package:lacoloc_front/data/datasources/immeubles.dart';
 import 'package:lacoloc_front/data/datasources/inventaire.dart';
+import 'package:lacoloc_front/data/datasources/meuble_categories.dart';
 import 'package:lacoloc_front/data/datasources/pieces.dart';
 import 'package:lacoloc_front/data/models/chambre.dart';
 import 'package:lacoloc_front/data/models/immeubles.dart';
 import 'package:lacoloc_front/data/models/inventaire.dart';
 import 'package:lacoloc_front/data/models/piece.dart';
 import 'package:lacoloc_front/data/permissions/permissions_service.dart';
+import 'package:lacoloc_front/presentation/widgets/app_list_search_field.dart';
+import 'package:lacoloc_front/presentation/widgets/field_help_icon.dart';
+import 'package:lacoloc_front/presentation/widgets/filter_button.dart';
 import 'package:lacoloc_front/presentation/widgets/permission_gate.dart';
+import 'package:lacoloc_front/presentation/widgets/photo_picker_field.dart';
+import 'package:lacoloc_front/presentation/widgets/unsaved_changes_dialog.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_radius.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
@@ -232,6 +238,12 @@ class _InventaireTableState extends State<_InventaireTable> {
 
   String _query = '';
   int? _filterImmeuble;
+  String? _filterCategorie;
+
+  /// Panneau de filtres ouvert (inline, sous le bouton « Filtres »).
+  /// On reste dans le flux normal (pas d'OverlayPortal) → fiable à toute
+  /// résolution et sans crash de reparentage au redimensionnement.
+  bool _filterOpen = false;
 
   @override
   void initState() {
@@ -241,8 +253,15 @@ class _InventaireTableState extends State<_InventaireTable> {
 
   String _immeubleNom(int id) => widget.immeubleNoms[id] ?? '—';
 
+  int get _activeFilterCount =>
+      (widget.lockedImmeubleId == null && _filterImmeuble != null ? 1 : 0) +
+      (_filterCategorie != null ? 1 : 0);
+
   List<InventaireModel> get _filtered => widget.items.where((it) {
     if (_filterImmeuble != null && it.immeubleId != _filterImmeuble) {
+      return false;
+    }
+    if (_filterCategorie != null && it.meubleCategorie != _filterCategorie) {
       return false;
     }
     if (_query.isEmpty) return true;
@@ -262,98 +281,168 @@ class _InventaireTableState extends State<_InventaireTable> {
     return map;
   }
 
+  /// Catégories présentes dans la liste avec leur compteur (triées).
+  Map<String, int> get _categorieCounts {
+    final map = <String, int>{};
+    for (final it in widget.items) {
+      final cat = it.meubleCategorie;
+      if (cat == null || cat.isEmpty) continue;
+      map[cat] = (map[cat] ?? 0) + 1;
+    }
+    return Map.fromEntries(
+      map.entries.toList()..sort((a, b) => a.key.compareTo(b.key)),
+    );
+  }
+
+  /// Corps inline du panneau de filtres (immeuble + catégorie), affiché sous le
+  /// bouton « Filtres » dans le flux normal — fiable à toute résolution.
+  Widget _buildFilterBody() {
+    final locked = widget.lockedImmeubleId != null;
+    final immeubleCounts = _immeubleCounts;
+    final categorieCounts = _categorieCounts;
+
+    return Container(
+      margin: const EdgeInsets.only(top: AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceContainerLowest,
+        borderRadius: AppRadius.borderLg,
+        border: Border.all(color: AppColors.outlineVariant),
+      ),
+      padding: const EdgeInsets.fromLTRB(
+          AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (!locked) ...[
+            Text('Immeuble', style: AppTypography.labelMd),
+            const SizedBox(height: AppSpacing.sm),
+            Wrap(
+              spacing: AppSpacing.xs,
+              runSpacing: AppSpacing.xs,
+              children: [
+                _InvFilterChip(
+                  label: 'Tous',
+                  count: widget.items.length,
+                  selected: _filterImmeuble == null,
+                  onTap: () {
+                    setState(() => _filterImmeuble = null);
+                  },
+                ),
+                ...immeubleCounts.entries.map(
+                  (e) => _InvFilterChip(
+                    label: _immeubleNom(e.key),
+                    count: e.value,
+                    selected: _filterImmeuble == e.key,
+                    onTap: () => setState(() => _filterImmeuble =
+                        _filterImmeuble == e.key ? null : e.key),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.md),
+          ],
+          Text('Catégorie', style: AppTypography.labelMd),
+          const SizedBox(height: AppSpacing.sm),
+          if (categorieCounts.isEmpty)
+            Text('Aucune catégorie.',
+                style: AppTypography.bodyMd
+                    .copyWith(color: AppColors.onSurfaceVariant))
+          else
+            Wrap(
+              spacing: AppSpacing.xs,
+              runSpacing: AppSpacing.xs,
+              children: categorieCounts.entries
+                  .map(
+                    (e) => _InvFilterChip(
+                      label: e.key,
+                      count: e.value,
+                      selected: _filterCategorie == e.key,
+                      onTap: () => setState(() => _filterCategorie =
+                          _filterCategorie == e.key ? null : e.key),
+                    ),
+                  )
+                  .toList(),
+            ),
+          const SizedBox(height: AppSpacing.lg),
+          const Divider(height: 1),
+          const SizedBox(height: AppSpacing.md),
+          Wrap(
+            alignment: WrapAlignment.end,
+            spacing: AppSpacing.sm,
+            runSpacing: AppSpacing.sm,
+            children: [
+              FilledButton.icon(
+                onPressed: () {
+                  setState(() {
+                    if (!locked) _filterImmeuble = null;
+                    _filterCategorie = null;
+                  });
+                },
+                style: AppTheme.deleteButtonStyle,
+                icon: const Icon(Icons.clear_all, size: 18),
+                label: const Text('Réinitialiser'),
+              ),
+              FilledButton.icon(
+                onPressed: () => setState(() => _filterOpen = false),
+                style: AppTheme.saveButtonStyle,
+                icon: const Icon(Icons.check, size: 18),
+                label: const Text('Appliquer'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final filtered = _filtered;
-    final locked = widget.lockedImmeubleId != null;
 
-    final searchField = TextField(
+    final searchField = AppListSearchField(
+      hint: 'Rechercher un article, un lieu, un immeuble…',
+      padding: EdgeInsets.zero,
+      iconSize: 20,
       onChanged: (v) => setState(() => _query = v),
-      decoration: InputDecoration(
-        hintText: 'Rechercher article, lieu, immeuble…',
-        prefixIcon: const Icon(Icons.search, size: 20),
-        suffixIcon: _query.isNotEmpty
-            ? IconButton(
-                icon: const Icon(Icons.close, size: 18),
-                onPressed: () => setState(() => _query = ''),
-              )
-            : null,
-        isDense: true,
-        border: const OutlineInputBorder(),
-        contentPadding: const EdgeInsets.symmetric(
-          vertical: 10,
-          horizontal: AppSpacing.md,
-        ),
-      ),
     );
 
-    final List<Widget> chips;
-    if (locked) {
-      // Immeuble fixé : un seul chip verrouillé et sélectionné.
-      final id = widget.lockedImmeubleId!;
-      chips = [
-        _InvFilterChip(
-          label: _immeubleNom(id),
-          count: _immeubleCounts[id] ?? 0,
-          selected: true,
-          onTap: () {},
-        ),
-      ];
-    } else {
-      final counts = _immeubleCounts;
-      chips = [
-        _InvFilterChip(
-          label: 'Tous',
-          count: widget.items.length,
-          selected: _filterImmeuble == null,
-          onTap: () => setState(() => _filterImmeuble = null),
-        ),
-        ...counts.entries.map(
-          (e) => _InvFilterChip(
-            label: _immeubleNom(e.key),
-            count: e.value,
-            selected: _filterImmeuble == e.key,
-            onTap: () => setState(
-              () => _filterImmeuble = _filterImmeuble == e.key ? null : e.key,
-            ),
-          ),
-        ),
-      ];
-    }
+    // Bouton « Filtres » (standard) — bascule le panneau inline.
+    final filterButton = FilterButton(
+      isOpen: _filterOpen,
+      activeCount: _activeFilterCount,
+      onTap: () => setState(() => _filterOpen = !_filterOpen),
+    );
 
     return Padding(
       padding: const EdgeInsets.all(AppSpacing.lg),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // ── Filtres (recherche + chips immeuble) ──────────────────────
+          // ── Filtres (recherche + bouton Filtres) ──────────────────────
           LayoutBuilder(
             builder: (context, constraints) {
-              final chipsRow = Wrap(
-                spacing: AppSpacing.xs,
-                runSpacing: AppSpacing.xs,
-                children: chips,
-              );
               if (constraints.maxWidth < 600) {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     searchField,
                     const SizedBox(height: AppSpacing.sm),
-                    chipsRow,
+                    Align(alignment: Alignment.centerLeft, child: filterButton),
                   ],
                 );
               }
               return Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   Expanded(child: searchField),
                   const SizedBox(width: AppSpacing.md),
-                  Flexible(child: chipsRow),
+                  filterButton,
                 ],
               );
             },
           ),
+          // Panneau de filtres inline (ouvre/ferme avec le bouton).
+          if (_filterOpen) _buildFilterBody(),
           const SizedBox(height: AppSpacing.md),
           Expanded(
             child: Container(
@@ -362,54 +451,85 @@ class _InventaireTableState extends State<_InventaireTable> {
                 borderRadius: AppRadius.borderLg,
                 border: Border.all(color: AppColors.outlineVariant),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Ligne de titre — fixe
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.md,
-                      vertical: AppSpacing.sm,
-                    ),
-                    color: AppColors.surfaceContainerLow,
-                    child: const Row(
-                      children: [
-                        Expanded(
-                            flex: 3, child: Text('Article', style: _hStyle)),
-                        Expanded(
-                            flex: 2, child: Text('Immeuble', style: _hStyle)),
-                        Expanded(flex: 2, child: Text('Lieu', style: _hStyle)),
-                        Expanded(flex: 1, child: Text('Qté', style: _hStyle)),
-                        Expanded(
-                            flex: 2, child: Text('Valeur', style: _hStyle)),
-                        SizedBox(width: 80),
-                      ],
-                    ),
-                  ),
-                  const Divider(height: 1),
-                  Expanded(
-                    child: filtered.isEmpty
-                        ? Center(
-                            child: Text(
-                              'Aucun article ne correspond au filtre.',
-                              style: AppTypography.bodyMd.copyWith(
-                                color: AppColors.onSurfaceVariant,
-                              ),
-                            ),
-                          )
-                        : ListView.separated(
-                            itemCount: filtered.length,
-                            separatorBuilder: (_, _) =>
-                                const Divider(height: 1),
-                            itemBuilder: (_, i) => _InventaireRow(
-                              item: filtered[i],
-                              immeubleNom: _immeubleNom(filtered[i].immeubleId),
-                              onEdit: () => widget.onEdit(filtered[i]),
-                              onDelete: () => widget.onDelete(filtered[i]),
-                            ),
+              clipBehavior: Clip.antiAlias,
+              // Sous ~760px on bascule en cartes verticales (lisible sur mobile)
+              // au lieu de comprimer toutes les colonnes du tableau.
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final narrow = constraints.maxWidth < 760;
+                  if (filtered.isEmpty) {
+                    return Center(
+                      child: Text(
+                        'Aucun article ne correspond au filtre.',
+                        style: AppTypography.bodyMd.copyWith(
+                          color: AppColors.onSurfaceVariant,
+                        ),
+                      ),
+                    );
+                  }
+                  if (narrow) {
+                    return ListView.separated(
+                      padding: const EdgeInsets.all(AppSpacing.sm),
+                      itemCount: filtered.length,
+                      separatorBuilder: (_, _) =>
+                          const SizedBox(height: AppSpacing.sm),
+                      itemBuilder: (_, i) => _InventaireCard(
+                        item: filtered[i],
+                        immeubleNom: _immeubleNom(filtered[i].immeubleId),
+                        onEdit: () => widget.onEdit(filtered[i]),
+                        onDelete: () => widget.onDelete(filtered[i]),
+                      ),
+                    );
+                  }
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // Ligne de titre — fixe
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.md,
+                          vertical: AppSpacing.sm,
+                        ),
+                        color: AppColors.surfaceContainerLow,
+                        child: const Row(
+                          children: [
+                            Expanded(
+                                flex: 3,
+                                child: Text('Article', style: _hStyle)),
+                            Expanded(
+                                flex: 2,
+                                child: Text('Catégorie', style: _hStyle)),
+                            Expanded(
+                                flex: 2,
+                                child: Text('Immeuble', style: _hStyle)),
+                            Expanded(
+                                flex: 2, child: Text('Lieu', style: _hStyle)),
+                            Expanded(
+                                flex: 1, child: Text('Qté', style: _hStyle)),
+                            Expanded(
+                                flex: 2,
+                                child: Text('Valeur', style: _hStyle)),
+                            SizedBox(width: 80),
+                          ],
+                        ),
+                      ),
+                      const Divider(height: 1),
+                      Expanded(
+                        child: ListView.separated(
+                          itemCount: filtered.length,
+                          separatorBuilder: (_, _) => const Divider(height: 1),
+                          itemBuilder: (_, i) => _InventaireRow(
+                            item: filtered[i],
+                            immeubleNom:
+                                _immeubleNom(filtered[i].immeubleId),
+                            onEdit: () => widget.onEdit(filtered[i]),
+                            onDelete: () => widget.onDelete(filtered[i]),
                           ),
-                  ),
-                ],
+                        ),
+                      ),
+                    ],
+                  );
+                },
               ),
             ),
           ),
@@ -434,9 +554,7 @@ class _InventaireRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final valeur = item.valeur != null
-        ? formatFrenchCurrency(item.valeur!.round())
-        : '—';
+    final valeur = item.valeur != null ? formatEuros(item.valeur!) : '—';
 
     return Padding(
       padding: const EdgeInsets.symmetric(
@@ -450,15 +568,43 @@ class _InventaireRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(item.displayNom, style: AppTypography.labelMd),
-                if (item.meubleCategorie != null)
-                  Text(
-                    item.meubleCategorie!,
-                    style: AppTypography.labelSm.copyWith(
-                      color: AppColors.onSurfaceVariant,
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(item.displayNom,
+                          style: AppTypography.labelMd,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis),
                     ),
-                  ),
+                    if (item.photos.isNotEmpty) ...[
+                      const SizedBox(width: AppSpacing.xs),
+                      Tooltip(
+                        message: '${item.photos.length} photo(s)',
+                        child: Icon(Icons.photo_outlined,
+                            size: 14, color: AppColors.onSurfaceVariant),
+                      ),
+                    ],
+                    if (item.dansAnnonce) ...[
+                      const SizedBox(width: AppSpacing.xs),
+                      Tooltip(
+                        message: "Affiché dans l'annonce",
+                        child: Icon(Icons.storefront_outlined,
+                            size: 14, color: AppColors.primary),
+                      ),
+                    ],
+                  ],
+                ),
               ],
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              item.meubleCategorie ?? '—',
+              style: AppTypography.bodyMd
+                  .copyWith(color: AppColors.onSurfaceVariant),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
           Expanded(
@@ -509,6 +655,141 @@ class _InventaireRow extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Carte verticale d'un article (affichée sous ~760px à la place du tableau).
+class _InventaireCard extends StatelessWidget {
+  final InventaireModel item;
+  final String immeubleNom;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  const _InventaireCard({
+    required this.item,
+    required this.immeubleNom,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final valeur = item.valeur != null ? formatEuros(item.valeur!) : '—';
+
+    Widget infoLine(IconData icon, String label, String value) => Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(icon, size: 14, color: AppColors.onSurfaceVariant),
+              const SizedBox(width: AppSpacing.xs),
+              Text('$label : ',
+                  style: AppTypography.labelSm
+                      .copyWith(color: AppColors.onSurfaceVariant)),
+              Expanded(
+                child: Text(value,
+                    style: AppTypography.bodyMd, maxLines: 2,
+                    overflow: TextOverflow.ellipsis),
+              ),
+            ],
+          ),
+        );
+
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surfaceContainerLowest,
+        borderRadius: AppRadius.borderLg,
+        border: Border.all(color: AppColors.outlineVariant),
+      ),
+      padding: const EdgeInsets.fromLTRB(
+          AppSpacing.md, AppSpacing.md, AppSpacing.sm, AppSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // En-tête : nom + actions
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Row(
+                  children: [
+                    Flexible(
+                      child: Text(item.displayNom,
+                          style: AppTypography.labelMd,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis),
+                    ),
+                    if (item.photos.isNotEmpty) ...[
+                      const SizedBox(width: AppSpacing.xs),
+                      Icon(Icons.photo_outlined,
+                          size: 14, color: AppColors.onSurfaceVariant),
+                    ],
+                    if (item.dansAnnonce) ...[
+                      const SizedBox(width: AppSpacing.xs),
+                      Icon(Icons.storefront_outlined,
+                          size: 14, color: AppColors.primary),
+                    ],
+                  ],
+                ),
+              ),
+              PermissionGate(
+                permission: Perm.inventaireEdit,
+                child: IconButton(
+                  icon: const Icon(Icons.edit_outlined, size: 18),
+                  tooltip: 'Modifier',
+                  visualDensity: VisualDensity.compact,
+                  onPressed: onEdit,
+                ),
+              ),
+              PermissionGate(
+                permission: Perm.inventaireDelete,
+                child: IconButton(
+                  icon: const Icon(Icons.delete_outline, size: 18),
+                  tooltip: 'Supprimer',
+                  color: AppColors.error,
+                  visualDensity: VisualDensity.compact,
+                  onPressed: onDelete,
+                ),
+              ),
+            ],
+          ),
+          infoLine(Icons.category_outlined, 'Catégorie',
+              item.meubleCategorie ?? '—'),
+          infoLine(Icons.apartment_outlined, 'Immeuble', immeubleNom),
+          infoLine(Icons.place_outlined, 'Lieu', item.displayLieu),
+          Padding(
+            padding: const EdgeInsets.only(top: AppSpacing.sm),
+            child: Row(
+              children: [
+                _CardStat(label: 'Qté', value: '${item.quantite}'),
+                const SizedBox(width: AppSpacing.lg),
+                _CardStat(label: 'Valeur', value: valeur),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Petit bloc « libellé / valeur » utilisé dans la carte d'inventaire.
+class _CardStat extends StatelessWidget {
+  final String label;
+  final String value;
+  const _CardStat({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label,
+            style: AppTypography.labelSm
+                .copyWith(color: AppColors.onSurfaceVariant)),
+        Text(value, style: AppTypography.labelMd),
+      ],
     );
   }
 }
@@ -612,16 +893,40 @@ class _InventaireFormState extends State<_InventaireForm> {
   ImmeublesModel? _immeuble;
   ChambreModel? _chambre;
   PieceModel? _piece;
+
+  /// Référence catalogue choisie (si le nom saisi correspond à une entrée de
+  /// `Meubles_Reference`) ; null si l'utilisateur a saisi un nom libre.
   MeubleReferenceModel? _meubleRef;
+
+  /// Texte du nom de l'article (saisie libre ou nom choisi dans la liste).
+  String _nomText = '';
 
   final _valeurCtrl = TextEditingController();
   final _qtCtrl = TextEditingController(text: '1');
   final _descCtrl = TextEditingController();
 
+  // ── Vétusté ──
+  final _valeurAchatCtrl = TextEditingController();
+  DateTime? _dateAcquisition;
+  String? _categorieVetuste;
+
+  List<String> _photos = [];
+
+  /// Afficher cet article dans l'annonce de la chambre. Décoché par défaut.
+  bool _dansAnnonce = false;
+
   List<ChambreModel> _chambresForImmeuble = [];
   List<PieceModel> _piecesForImmeuble = [];
 
   bool _isSaving = false;
+  bool _dirty = false;
+
+  void _markDirty() {
+    if (!_dirty) _dirty = true;
+  }
+
+  String _fmtDate(DateTime d) =>
+      '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
 
   @override
   void initState() {
@@ -635,6 +940,7 @@ class _InventaireFormState extends State<_InventaireForm> {
     _valeurCtrl.dispose();
     _qtCtrl.dispose();
     _descCtrl.dispose();
+    _valeurAchatCtrl.dispose();
     super.dispose();
   }
 
@@ -649,6 +955,8 @@ class _InventaireFormState extends State<_InventaireForm> {
       );
     }
     final refs = await InventaireDatasource.listMeubleReferences();
+    final categories =
+        (await MeubleCategoriesDatasource.listAll()).map((c) => c.nom).toList();
     final immeubles = await ImmeublesDatasource.listByOwner(ownerId);
     final ids = immeubles.map((i) => i.id).toList();
     final chambres = ids.isEmpty
@@ -665,6 +973,7 @@ class _InventaireFormState extends State<_InventaireForm> {
       allChambres: chambres,
       allPieces: pieces,
       refs: refs,
+      categories: categories,
     );
 
     // Pre-fill immeuble/chambre after loading
@@ -703,9 +1012,60 @@ class _InventaireFormState extends State<_InventaireForm> {
   void _initFromExisting() {
     final e = widget.existing;
     if (e == null) return;
-    _valeurCtrl.text = e.valeur?.toStringAsFixed(2) ?? '';
+    _nomText = e.displayNom == '—' ? '' : e.displayNom;
+    _valeurCtrl.text = e.valeur != null ? formatEuros(e.valeur!) : '';
     _qtCtrl.text = '${e.quantite}';
     _descCtrl.text = e.description ?? '';
+    _photos = List.from(e.photos);
+    _valeurAchatCtrl.text =
+        e.valeurAchat != null ? formatEuros(e.valeurAchat!) : '';
+    _dateAcquisition = e.dateAcquisition;
+    _categorieVetuste = e.categorieVetuste;
+    _dansAnnonce = e.dansAnnonce;
+  }
+
+  /// Vérifie qu'un article du même nom n'existe pas déjà au même emplacement
+  /// (immeuble + chambre/pièce). Retourne true si l'enregistrement peut
+  /// continuer (pas de doublon, ou l'utilisateur confirme malgré tout).
+  Future<bool> _checkDuplicate(String nom) async {
+    try {
+      final existing =
+          await InventaireDatasource.listByImmeuble(_immeuble!.id);
+      final n = nom.toLowerCase().trim();
+      final dup = existing.where((it) =>
+          it.id != (widget.existing?.id ?? -1) &&
+          it.chambreId == _chambre?.id &&
+          it.pieceId == _piece?.id &&
+          it.displayNom.toLowerCase().trim() == n);
+      if (dup.isEmpty) return true;
+      if (!mounted) return false;
+      final lieu = _chambre?.roomName ?? _piece?.nom ?? 'parties communes';
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          icon: const Icon(Icons.copy_all_outlined,
+              color: AppColors.secondary, size: 32),
+          title: const Text('Article déjà présent'),
+          content: Text(
+            "« $nom » existe déjà dans « $lieu » de cet immeuble.\n\n"
+            "Voulez-vous quand même l'ajouter une seconde fois ?",
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Annuler'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Ajouter quand même'),
+            ),
+          ],
+        ),
+      );
+      return ok == true;
+    } catch (_) {
+      return true; // en cas d'erreur de lecture, ne pas bloquer
+    }
   }
 
   Future<void> _save() async {
@@ -713,10 +1073,15 @@ class _InventaireFormState extends State<_InventaireForm> {
       _snack('Sélectionnez un immeuble.');
       return;
     }
-    if (_meubleRef == null) {
-      _snack('Sélectionnez un type de meuble.');
+    final nom = _nomText.trim();
+    if (nom.isEmpty) {
+      _snack("Saisissez le nom de l'article.");
       return;
     }
+
+    // Vérification de doublon (nom + emplacement).
+    if (!await _checkDuplicate(nom)) return;
+    if (!mounted) return;
 
     setState(() => _isSaving = true);
     try {
@@ -725,15 +1090,20 @@ class _InventaireFormState extends State<_InventaireForm> {
         immeubleId: _immeuble!.id,
         chambreId: _chambre?.id,
         pieceId: _piece?.id,
+        // Nom choisi dans le catalogue → meubleRefId ; sinon nom libre.
         meubleRefId: _meubleRef?.id,
-        valeur: double.tryParse(
-            _valeurCtrl.text.trim().replaceAll(',', '.')),
+        nomCustom: _meubleRef == null ? nom : null,
+        valeur: parseEuros(_valeurCtrl.text),
         quantite: int.tryParse(_qtCtrl.text.trim()) ?? 1,
         description: _descCtrl.text.trim().isEmpty
             ? null
             : _descCtrl.text.trim(),
-        photos: [],
+        photos: _photos,
         createdAt: widget.existing?.createdAt ?? DateTime.now(),
+        dansAnnonce: _dansAnnonce,
+        dateAcquisition: _dateAcquisition,
+        valeurAchat: parseEuros(_valeurAchatCtrl.text),
+        categorieVetusteCustom: _categorieVetuste,
       );
 
       if (widget.isEditing) {
@@ -742,11 +1112,32 @@ class _InventaireFormState extends State<_InventaireForm> {
         await InventaireDatasource.create(model);
       }
 
-      if (mounted) widget.onClose(true);
+      if (mounted) {
+        _dirty = false;
+        widget.onClose(true);
+      }
     } catch (e) {
       if (mounted) _snack('Erreur : $e');
     } finally {
       if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  /// Fermeture avec garde « modifications non enregistrées ».
+  Future<void> _handleClose() async {
+    if (!_dirty) {
+      widget.onClose(false);
+      return;
+    }
+    final choice = await showUnsavedChangesDialog(context);
+    if (!mounted) return;
+    switch (choice) {
+      case UnsavedChoice.cancel:
+        return;
+      case UnsavedChoice.discard:
+        widget.onClose(false);
+      case UnsavedChoice.save:
+        await _save();
     }
   }
 
@@ -756,14 +1147,24 @@ class _InventaireFormState extends State<_InventaireForm> {
 
   String _meubleDisplayText(MeubleReferenceModel r) => r.nom;
 
-  Widget _label(String text) => Padding(
+  Widget _label(String text, {String? help}) => Padding(
         padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-        child: Text(
-          text,
-          style: AppTypography.labelSm.copyWith(
-            color: AppColors.onSurfaceVariant,
-            letterSpacing: 1.2,
-          ),
+        child: Row(
+          children: [
+            Flexible(
+              child: Text(
+                text,
+                style: AppTypography.labelSm.copyWith(
+                  color: AppColors.onSurfaceVariant,
+                  letterSpacing: 1.2,
+                ),
+              ),
+            ),
+            if (help != null) ...[
+              const SizedBox(width: AppSpacing.xs),
+              fieldHelpIcon(help),
+            ],
+          ],
         ),
       );
 
@@ -795,7 +1196,7 @@ class _InventaireFormState extends State<_InventaireForm> {
                 children: [
                   IconButton.outlined(
                     icon: const Icon(Icons.arrow_back),
-                    onPressed: () => widget.onClose(false),
+                    onPressed: _handleClose,
                     tooltip: 'Retour',
                   ),
                   const SizedBox(width: AppSpacing.md),
@@ -819,45 +1220,63 @@ class _InventaireFormState extends State<_InventaireForm> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        // ── Type de meuble ────────────────────────────
-                        _label('TYPE DE MEUBLE'),
+                        // ── Nom de l'article ──────────────────────────
+                        _label("NOM DE L'ARTICLE"),
                         Autocomplete<MeubleReferenceModel>(
-                          initialValue: _meubleRef != null
-                              ? TextEditingValue(
-                                  text: _meubleDisplayText(_meubleRef!))
-                              : TextEditingValue.empty,
+                          initialValue: TextEditingValue(text: _nomText),
                           displayStringForOption: _meubleDisplayText,
                           optionsBuilder: (tev) {
-                            final q = tev.text.toLowerCase();
-                            if (q.isEmpty) return bundle.refs;
+                            final q = tev.text.toLowerCase().trim();
+                            if (q.isEmpty) return bundle.refs.take(30);
                             return bundle.refs.where((r) =>
                                 r.nom.toLowerCase().contains(q) ||
                                 (r.categorie?.toLowerCase().contains(q) ??
                                     false));
                           },
-                          onSelected: (r) => setState(() => _meubleRef = r),
+                          onSelected: (r) => setState(() {
+                            _meubleRef = r;
+                            _nomText = r.nom;
+                            // Hérite de la catégorie du meuble pour la vétusté.
+                            if (r.categorie != null) _categorieVetuste = r.categorie;
+                            _markDirty();
+                          }),
                           fieldViewBuilder: (ctx, ctrl, focus, submit) {
                             return TextField(
                               controller: ctrl,
                               focusNode: focus,
                               decoration: InputDecoration(
-                                hintText: 'Rechercher un type de meuble…',
-                                suffixIcon: _meubleRef != null
+                                hintText: 'Saisir ou choisir un nom…',
+                                helperText:
+                                    "Choisissez un nom existant ou saisissez-en un nouveau.",
+                                suffixIcon: ctrl.text.isNotEmpty
                                     ? IconButton(
                                         icon: const Icon(Icons.clear, size: 18),
                                         tooltip: 'Effacer',
                                         onPressed: () {
                                           ctrl.clear();
-                                          setState(() => _meubleRef = null);
+                                          setState(() {
+                                            _meubleRef = null;
+                                            _nomText = '';
+                                            _markDirty();
+                                          });
                                         },
                                       )
                                     : null,
                               ),
                               onChanged: (v) {
-                                if (_meubleRef != null &&
-                                    v != _meubleDisplayText(_meubleRef!)) {
-                                  setState(() => _meubleRef = null);
-                                }
+                                // Le texte saisi devient le nom ; s'il correspond
+                                // exactement à une référence du catalogue, on la lie
+                                // (meubleRefId), sinon c'est un nom libre (nomCustom).
+                                final match = bundle.refs
+                                    .where((r) =>
+                                        r.nom.toLowerCase() ==
+                                        v.toLowerCase().trim())
+                                    .firstOrNull;
+                                setState(() {
+                                  _nomText = v;
+                                  _meubleRef = match;
+                                  _markDirty();
+                                });
                               },
                             );
                           },
@@ -884,6 +1303,7 @@ class _InventaireFormState extends State<_InventaireForm> {
                               ? null
                               : (v) {
                                   setState(() {
+                                    _markDirty();
                                     _immeuble = v;
                                     _chambre = null;
                                     _piece = null;
@@ -941,8 +1361,7 @@ class _InventaireFormState extends State<_InventaireForm> {
                                                 widget.prefilledChambreId !=
                                                     null)
                                             ? null
-                                            : (v) => setState(
-                                                () => _chambre = v),
+                                            : (v) => setState(() { _markDirty(); _chambre = v; }),
                                         decoration:
                                             const InputDecoration(),
                                       ),
@@ -977,7 +1396,7 @@ class _InventaireFormState extends State<_InventaireForm> {
                                         ],
                                         onChanged:
                                             _chambre != null ? null : (v) =>
-                                                setState(() => _piece = v),
+                                                setState(() { _markDirty(); _piece = v; }),
                                         decoration:
                                             const InputDecoration(),
                                       ),
@@ -1007,7 +1426,7 @@ class _InventaireFormState extends State<_InventaireForm> {
                               ],
                               onChanged: widget.prefilledChambreId != null
                                   ? null
-                                  : (v) => setState(() => _chambre = v),
+                                  : (v) => setState(() { _markDirty(); _chambre = v; }),
                               decoration: const InputDecoration(),
                             ),
                           ] else ...[
@@ -1029,7 +1448,7 @@ class _InventaireFormState extends State<_InventaireForm> {
                                   ),
                                 ),
                               ],
-                              onChanged: (v) => setState(() => _piece = v),
+                              onChanged: (v) => setState(() { _markDirty(); _piece = v; }),
                               decoration: const InputDecoration(),
                             ),
                           ],
@@ -1037,20 +1456,33 @@ class _InventaireFormState extends State<_InventaireForm> {
                         ],
 
                         // ── Valeur ────────────────────────────────────
-                        _label('VALEUR (€)'),
+                        _label('VALEUR (€)',
+                            help:
+                                "Valeur actuelle (de remplacement) du bien, affichée dans l'inventaire."),
                         TextField(
                           controller: _valeurCtrl,
                           keyboardType: const TextInputType.numberWithOptions(
                               decimal: true),
-                          inputFormatters: [
-                            FilteringTextInputFormatter.allow(
-                                RegExp(r'^\d*[,.]?\d{0,2}')),
-                          ],
+                          inputFormatters: [CurrencyInputFormatter()],
+                          onChanged: (_) => setState(_markDirty),
                           decoration: const InputDecoration(
                             prefixText: '€ ',
-                            hintText: '0.00',
+                            hintText: '0,00',
                           ),
                         ),
+                        // Aperçu formaté (lisible) sous le champ.
+                        Builder(builder: (_) {
+                          final v = parseEuros(_valeurCtrl.text);
+                          if (v == null || v <= 0) return const SizedBox.shrink();
+                          return Padding(
+                            padding: const EdgeInsets.only(top: AppSpacing.xs),
+                            child: Text(
+                              '= ${formatEuros(v)}',
+                              style: AppTypography.labelSm
+                                  .copyWith(color: AppColors.onSurfaceVariant),
+                            ),
+                          );
+                        }),
                         const SizedBox(height: AppSpacing.md),
 
                         // ── Quantité ──────────────────────────────────
@@ -1061,6 +1493,7 @@ class _InventaireFormState extends State<_InventaireForm> {
                           inputFormatters: [
                             FilteringTextInputFormatter.digitsOnly,
                           ],
+                          onChanged: (_) => _markDirty(),
                           decoration: const InputDecoration(hintText: '1'),
                         ),
                         const SizedBox(height: AppSpacing.md),
@@ -1070,10 +1503,126 @@ class _InventaireFormState extends State<_InventaireForm> {
                         TextField(
                           controller: _descCtrl,
                           maxLines: 3,
+                          onChanged: (_) => _markDirty(),
                           decoration: const InputDecoration(
                             hintText: 'État, marque, remarques…',
                             alignLabelWithHint: true,
                           ),
+                        ),
+                        const SizedBox(height: AppSpacing.md),
+
+                        // ── Afficher dans l'annonce ───────────────────
+                        CheckboxListTile(
+                          value: _dansAnnonce,
+                          onChanged: (v) => setState(() {
+                            _dansAnnonce = v ?? false;
+                            _markDirty();
+                          }),
+                          title: const Text("Afficher dans l'annonce"),
+                          subtitle: const Text(
+                            "Cet article apparaîtra sur la carte publique de la chambre.",
+                          ),
+                          activeColor: AppColors.primary,
+                          contentPadding: EdgeInsets.zero,
+                          controlAffinity: ListTileControlAffinity.leading,
+                        ),
+                        const SizedBox(height: AppSpacing.md),
+
+                        // ── Vétusté (pour le décompte de réparations) ──
+                        _label('VALEUR D\'ACHAT (€) — vétusté',
+                            help:
+                                "Prix d'achat d'origine. Avec la date d'acquisition, sert au calcul de la vétusté (abattement) à la sortie. Différent de la « Valeur » (valeur actuelle)."),
+                        TextField(
+                          controller: _valeurAchatCtrl,
+                          keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true),
+                          inputFormatters: [CurrencyInputFormatter()],
+                          onChanged: (_) => setState(_markDirty),
+                          decoration: const InputDecoration(
+                            prefixText: '€ ',
+                            hintText: '0,00',
+                            helperText:
+                                "Prix d'achat — sert au calcul de la valeur résiduelle.",
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.md),
+
+                        _label('DATE D\'ACQUISITION'),
+                        InkWell(
+                          onTap: () async {
+                            final d = await showDatePicker(
+                              context: context,
+                              initialDate: _dateAcquisition ?? DateTime.now(),
+                              firstDate: DateTime(2000),
+                              lastDate: DateTime.now(),
+                              locale: const Locale('fr', 'FR'),
+                            );
+                            if (d != null) {
+                              setState(() {
+                                _dateAcquisition = d;
+                                _markDirty();
+                              });
+                            }
+                          },
+                          child: InputDecorator(
+                            decoration: InputDecoration(
+                              prefixIcon: const Icon(Icons.event_outlined),
+                              suffixIcon: _dateAcquisition != null
+                                  ? IconButton(
+                                      icon: const Icon(Icons.clear, size: 18),
+                                      tooltip: 'Effacer',
+                                      onPressed: () => setState(() {
+                                        _dateAcquisition = null;
+                                        _markDirty();
+                                      }),
+                                    )
+                                  : null,
+                            ),
+                            child: Text(
+                              _dateAcquisition != null
+                                  ? _fmtDate(_dateAcquisition!)
+                                  : 'Sélectionner une date…',
+                              style: _dateAcquisition != null
+                                  ? AppTypography.bodyMd
+                                  : AppTypography.bodyMd.copyWith(
+                                      color: AppColors.onSurfaceVariant),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.md),
+
+                        _label('CATÉGORIE DE VÉTUSTÉ'),
+                        DropdownButtonFormField<String>(
+                          key: ValueKey('catvet_$_categorieVetuste'),
+                          initialValue: bundle.categories.contains(_categorieVetuste)
+                              ? _categorieVetuste
+                              : null,
+                          isExpanded: true,
+                          hint: const Text('Choisir une catégorie…'),
+                          decoration: const InputDecoration(
+                            helperText:
+                                'Détermine le barème de vétusté appliqué.',
+                          ),
+                          items: bundle.categories
+                              .map((c) => DropdownMenuItem(
+                                  value: c, child: Text(c)))
+                              .toList(),
+                          onChanged: (v) => setState(() {
+                            _categorieVetuste = v;
+                            _markDirty();
+                          }),
+                        ),
+                        const SizedBox(height: AppSpacing.md),
+
+                        // ── Photos ────────────────────────────────────
+                        _label('PHOTOS (optionnel)'),
+                        PhotoPickerField(
+                          folder: 'inventaire',
+                          initialPhotos: _photos,
+                          onChanged: (urls) => setState(() {
+                            _photos = urls;
+                            _markDirty();
+                          }),
                         ),
                         const SizedBox(height: AppSpacing.xl),
 
@@ -1122,11 +1671,13 @@ class _FormBundle {
   final List<ChambreModel> allChambres;
   final List<PieceModel> allPieces;
   final List<MeubleReferenceModel> refs;
+  final List<String> categories;
 
   const _FormBundle({
     required this.immeubles,
     required this.allChambres,
     required this.allPieces,
     required this.refs,
+    this.categories = const [],
   });
 }

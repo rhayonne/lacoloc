@@ -15,7 +15,7 @@ import 'package:lacoloc_front/presentation/finances/fournisseurs_page.dart';
 import 'package:lacoloc_front/presentation/finances/nouvelle_facture_page.dart';
 import 'package:lacoloc_front/presentation/nav/app_sidebar.dart';
 import 'package:lacoloc_front/presentation/users/proprietaires/creer_chambre_page.dart';
-import 'package:lacoloc_front/presentation/users/proprietaires/agenda_visites_page.dart';
+import 'package:lacoloc_front/presentation/users/proprietaires/agenda_page.dart';
 import 'package:lacoloc_front/presentation/users/proprietaires/documentation_page.dart';
 import 'package:lacoloc_front/presentation/users/proprietaires/etat_de_lieux_page.dart';
 import 'package:lacoloc_front/presentation/users/proprietaires/interactions_page.dart';
@@ -26,8 +26,10 @@ import 'package:lacoloc_front/presentation/users/proprietaires/inventaire_page.d
 import 'package:lacoloc_front/presentation/users/proprietaires/mes_chambres_page.dart';
 import 'package:lacoloc_front/presentation/users/proprietaires/mes_immeubles_page.dart';
 import 'package:lacoloc_front/presentation/users/proprietaires/nouveau_immeuble_page.dart';
+import 'package:lacoloc_front/presentation/tour/guided_tours.dart';
 import 'package:lacoloc_front/presentation/widgets/unsaved_changes_dialog.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
+import 'package:lacoloc_front/theme/app_theme.dart';
 import 'package:lacoloc_front/theme/app_radius.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
 import 'package:lacoloc_front/theme/app_typography.dart';
@@ -43,16 +45,18 @@ import 'package:lacoloc_front/theme/app_typography.dart';
 // 7 = Mon Profil
 const _idxVueGenerale = 0;
 const _idxGestion = 1;
-const _idxFinances = 2;
-const _idxFournisseurs = 3;
-const _idxEtatDesLieux = 4;
-const _idxDocumentation = 5;
-const _idxInteractions = 6;
-const _idxMonProfil = 7;
+const _idxAgenda = 2;
+const _idxFinances = 3;
+const _idxFournisseurs = 4;
+const _idxEtatDesLieux = 5;
+const _idxDocumentation = 6;
+const _idxInteractions = 7;
+const _idxMonProfil = 8;
 
 enum _Section {
   vueGenerale,
   gestion,
+  agenda,
   finances,
   fournisseurs,
   etatDesLieux,
@@ -64,6 +68,7 @@ enum _Section {
 int _sectionToIndex(_Section s) => switch (s) {
   _Section.vueGenerale => _idxVueGenerale,
   _Section.gestion => _idxGestion,
+  _Section.agenda => _idxAgenda,
   _Section.finances => _idxFinances,
   _Section.fournisseurs => _idxFournisseurs,
   _Section.etatDesLieux => _idxEtatDesLieux,
@@ -74,6 +79,7 @@ int _sectionToIndex(_Section s) => switch (s) {
 
 _Section _indexToSection(int i) => switch (i) {
   _idxVueGenerale => _Section.vueGenerale,
+  _idxAgenda => _Section.agenda,
   _idxFinances => _Section.finances,
   _idxFournisseurs => _Section.fournisseurs,
   _idxEtatDesLieux => _Section.etatDesLieux,
@@ -116,6 +122,11 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage>
   // Formulário chambre
   bool _showChambreForm = false;
   ChambreModel? _editingChambre;
+  // Immeuble pré-rempli quand on crée une chambre depuis le détail d'immeuble.
+  int? _chambrePrefilledImmeubleId;
+  // Vrai si le formulaire chambre a été ouvert depuis le détail d'immeuble
+  // (→ on y revient après enregistrement/annulation).
+  bool _chambreFromDetail = false;
 
   // Formulário / detalhe facture
   bool _showFactureForm = false;
@@ -168,7 +179,7 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage>
     super.initState();
     _loadProfile();
     _refreshBadges();
-    _gestionTabCtrl = TabController(length: 4, vsync: this);
+    _gestionTabCtrl = TabController(length: 3, vsync: this);
     _navCtrl = SidebarXController(
       selectedIndex: _idxVueGenerale,
       extended: true,
@@ -177,9 +188,10 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage>
     _searchCtrl.addListener(
       () => setState(() => _searchQuery = _searchCtrl.text.trim()),
     );
-    // Deep-link depuis le manuel (« Tour guidé ») : ?tour=immeuble ouvre le
-    // formulaire de création d'immeuble avec le tour guidé automatiquement.
-    if (Uri.base.queryParameters['tour'] == 'immeuble') {
+    // Deep-link depuis le manuel (« Tour guidé ») : `?tour=immeuble` ouvre le
+    // formulaire de création d'immeuble avec le tour guidé automatiquement. Le
+    // paramètre a été mémorisé dans PendingTour (l'URL l'a perdu au redirect).
+    if (PendingTour.consume() == 'immeuble') {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _openImmeubleCreation(tour: true);
       });
@@ -312,6 +324,80 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage>
     _showFactureForm = false;
   });
 
+  // Crée une chambre depuis le détail d'un immeuble : l'immeuble est
+  // pré-rempli et on revient au détail après enregistrement/annulation.
+  void _openChambreCreationFromDetail(int immeubleId) => setState(() {
+    _editingChambre = null;
+    _chambrePrefilledImmeubleId = immeubleId;
+    _chambreFromDetail = true;
+    _showChambreForm = true;
+    _showImmeubleForm = false;
+    _showFactureForm = false;
+  });
+
+  // Supprime une chambre depuis la fiche immeuble (après confirmation) puis
+  // recharge la liste. Comme `immeuble_id` est NOT NULL, retirer la chambre de
+  // l'immeuble revient à la supprimer du système.
+  Future<void> _deleteChambreFromDetail(ChambreModel c) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Supprimer la chambre'),
+        content: Text(
+          'La chambre « ${c.roomName} » sera supprimée définitivement '
+          '(avec son inventaire). Cette action est irréversible.',
+        ),
+        actions: [
+          OutlinedButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: AppTheme.deleteButtonStyle,
+            child: const Text('Supprimer'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+    try {
+      await ChambresDatasource.delete(c.id);
+      final imm = _detailImmeuble;
+      final chambres = imm == null
+          ? <ChambreModel>[]
+          : await ChambresDatasource.listByImmeubles([imm.id]);
+      if (!mounted) return;
+      setState(() => _detailChambres = chambres);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Erreur : $e')));
+      }
+    }
+  }
+
+  // Recharge les chambres du détail puis revient à la fiche immeuble.
+  Future<void> _returnToDetailReloadChambres() async {
+    final imm = _detailImmeuble;
+    if (imm == null) {
+      _closeForm();
+      return;
+    }
+    List<ChambreModel> chambres = _detailChambres;
+    try {
+      chambres = await ChambresDatasource.listByImmeubles([imm.id]);
+    } catch (_) {}
+    if (!mounted) return;
+    setState(() {
+      _detailChambres = chambres;
+      _showChambreForm = false;
+      _editingChambre = null;
+      _chambrePrefilledImmeubleId = null;
+      _chambreFromDetail = false;
+    });
+  }
+
   void _openFactureCreation({int? immeubleId}) => setState(() {
     _factureTarget = null;
     _factureReadOnly = false;
@@ -425,10 +511,17 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage>
       );
     }
     if (_showChambreForm) {
+      // Si la chambre est créée depuis le détail d'immeuble, on y revient
+      // (en rechargeant les chambres) au lieu de fermer toute la vue.
       return CreerChambrePage(
         chambre: _editingChambre,
-        onSaved: _closeForm,
-        onBack: _closeChambreForm,
+        prefilledImmeubleId: _chambreFromDetail
+            ? _chambrePrefilledImmeubleId
+            : null,
+        onSaved:
+            _chambreFromDetail ? _returnToDetailReloadChambres : _closeForm,
+        onBack:
+            _chambreFromDetail ? _returnToDetailReloadChambres : _closeChambreForm,
       );
     }
     if (_showEntrepriseConfig && _profile?.entrepriseId != null) {
@@ -440,6 +533,9 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage>
         chambres: _detailChambres,
         onModifierImmeuble: () => _openImmeubleEdition(_detailImmeuble!),
         onModifierChambre: _openChambreEdition,
+        onAjouterChambre: () =>
+            _openChambreCreationFromDetail(_detailImmeuble!.id),
+        onSupprimerChambre: _deleteChambreFromDetail,
         onAjouterFacture: () =>
             _openFactureCreation(immeubleId: _detailImmeuble!.id),
         onBack: _closeImmeubleDetail,
@@ -450,6 +546,7 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage>
         onCompleterProfil: () => _changeSection(_Section.monProfil),
         onCreerImmeuble: () => _openImmeubleCreation(),
         onGererChambres: () => _changeSection(_Section.gestion),
+        onAllerEtatsDesLieux: () => _changeSection(_Section.etatDesLieux),
       );
     }
     if (_section == _Section.monProfil) return const MonProfilProprietairePage();
@@ -460,6 +557,7 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage>
         onAjouterRecette: _openRecetteCreation,
       );
     }
+    if (_section == _Section.agenda) return const AgendaPage();
     if (_section == _Section.fournisseurs) return const FournisseursPage();
     if (_section == _Section.etatDesLieux) return const EtatDesLieuxPage();
     if (_section == _Section.documentation) return const DocumentationPage();
@@ -481,7 +579,6 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage>
             tabs: const [
               Tab(text: 'Mes Propriétés'),
               Tab(text: 'Mes Chambres'),
-              Tab(text: 'Agenda — Visites'),
               Tab(text: 'Inventaire'),
             ],
           ),
@@ -506,7 +603,6 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage>
                   onCreerChambre: _openChambreCreation,
                 ),
               ),
-              const _GestionCard(child: AgendaVisitesPage()),
               const _GestionCard(child: InventairePage()),
             ],
           ),
@@ -526,6 +622,10 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage>
       badgedSidebarItem(
           icon: Icons.home_work_outlined,
           label: 'Gestion Immobilière',
+          extended: extended),
+      badgedSidebarItem(
+          icon: Icons.calendar_month_outlined,
+          label: 'Agenda',
           extended: extended),
       badgedSidebarItem(
           icon: Icons.receipt_long_outlined,
@@ -624,6 +724,7 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage>
         appBar: AppBar(
           leading: IconButton(
             icon: const Icon(Icons.menu),
+            tooltip: 'Ouvrir le menu',
             onPressed: () {
               if (!_navCtrl.extended) _navCtrl.setExtended(true);
               _scaffoldKey.currentState?.openDrawer();

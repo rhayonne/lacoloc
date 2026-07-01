@@ -3,7 +3,8 @@ enum BailTypeFilter { collectif, individuel }
 
 /// Estado imutável dos filtros avançados de pesquisa.
 class ChambreFilter {
-  final Set<int> optionIds;
+  /// Noms des équipements (articles d'inventaire « dans l'annonce »).
+  final Set<String> equipements;
   final String city;
   final String region;
   final String department;
@@ -23,7 +24,7 @@ class ChambreFilter {
   final bool? avecCharges;
 
   const ChambreFilter({
-    this.optionIds = const {},
+    this.equipements = const {},
     this.city = '',
     this.region = '',
     this.department = '',
@@ -38,7 +39,7 @@ class ChambreFilter {
   });
 
   bool get isEmpty =>
-      optionIds.isEmpty &&
+      equipements.isEmpty &&
       city.isEmpty &&
       region.isEmpty &&
       department.isEmpty &&
@@ -52,7 +53,7 @@ class ChambreFilter {
       avecCharges == null;
 
   int get activeCount =>
-      (optionIds.isNotEmpty ? 1 : 0) +
+      (equipements.isNotEmpty ? 1 : 0) +
       (city.isNotEmpty ? 1 : 0) +
       (region.isNotEmpty ? 1 : 0) +
       (department.isNotEmpty ? 1 : 0) +
@@ -64,7 +65,7 @@ class ChambreFilter {
       (avecCharges != null ? 1 : 0);
 
   ChambreFilter copyWith({
-    Set<int>? optionIds,
+    Set<String>? equipements,
     String? city,
     String? region,
     String? department,
@@ -78,7 +79,7 @@ class ChambreFilter {
     Object? avecCharges = _sentinel,
   }) =>
       ChambreFilter(
-        optionIds: optionIds ?? this.optionIds,
+        equipements: equipements ?? this.equipements,
         city: city ?? this.city,
         region: region ?? this.region,
         department: department ?? this.department,

@@ -38,6 +38,11 @@ class LocataireSearchField extends StatefulWidget {
   /// Convidar um novo locataire. `null` esconde a opção « Enregistrer un
   /// nouveau locataire » (ex.: usuário sem a permissão `locataires.invite`).
   final VoidCallback? onCreateNew;
+
+  /// Libellé de l'option « créer / inviter ». Par défaut « Enregistrer un
+  /// nouveau locataire » (contexte EDL) ; l'agenda passe « Inviter un contact
+  /// par e-mail ».
+  final String createNewLabel;
   final Future<List<UsersClient>> Function(String query)? search;
   final String hintText;
   final bool enabled;
@@ -46,6 +51,7 @@ class LocataireSearchField extends StatefulWidget {
     super.key,
     required this.onSelect,
     this.onCreateNew,
+    this.createNewLabel = 'Enregistrer un nouveau locataire',
     this.multiSelect = true,
     this.selectedIds = const {},
     this.search,
@@ -146,6 +152,7 @@ class _LocataireSearchFieldState extends State<LocataireSearchField> {
                 : (_ctrl.text.isNotEmpty
                     ? IconButton(
                         icon: const Icon(Icons.close, size: 18),
+                        tooltip: 'Effacer la recherche',
                         onPressed: _clear,
                       )
                     : null),
@@ -217,7 +224,7 @@ class _LocataireSearchFieldState extends State<LocataireSearchField> {
               dense: true,
               leading: const Icon(Icons.person_add_outlined,
                   size: 20, color: AppColors.primary),
-              title: Text('Enregistrer un nouveau locataire',
+              title: Text(widget.createNewLabel,
                   style:
                       AppTypography.labelMd.copyWith(color: AppColors.primary)),
               onTap: widget.onCreateNew,

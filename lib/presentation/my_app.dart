@@ -14,6 +14,7 @@ import 'package:lacoloc_front/presentation/users/locataires/confirmation_locatai
 import 'package:lacoloc_front/presentation/users/locataires/creer_compte_locataire_page.dart';
 import 'package:lacoloc_front/presentation/users/proprietaires/creer_compte_proprietaire_page.dart';
 import 'package:lacoloc_front/presentation/users/proprietaires/proprietaire_profil.dart';
+import 'package:lacoloc_front/presentation/tour/guided_tours.dart';
 import 'package:lacoloc_front/theme/app_theme.dart';
 import 'package:responsive_framework/responsive_framework.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -81,11 +82,13 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   /// Lien `?tour=...` (depuis le manuel « Tour guidé ») : amène l'utilisateur
   /// connecté à son espace (AuthGate route par type) pour que le tour démarre.
-  /// Le paramètre `tour` reste dans l'URL (Uri.base) et est lu par la page
-  /// cible (ex. ProprietaireProfil) pour lancer le bon tour.
+  /// La navigation efface les query params de l'URL, donc on **mémorise** le
+  /// tour dans [PendingTour] ; la page cible (ex. ProprietaireProfil) le
+  /// consomme à son montage pour lancer le bon tour.
   void _handleTourLink() {
     final tour = Uri.base.queryParameters['tour'];
     if (tour == null || tour.isEmpty) return;
+    PendingTour.value = tour;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _navigatorKey.currentState?.pushReplacementNamed('/profile');
     });

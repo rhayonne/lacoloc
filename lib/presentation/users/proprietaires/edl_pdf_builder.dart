@@ -8,6 +8,7 @@ import 'package:lacoloc_front/data/datasources/storage_service.dart';
 import 'package:lacoloc_front/data/models/edl_details.dart';
 import 'package:lacoloc_front/data/models/observation_edl.dart';
 import 'edl_pdf_data.dart';
+import 'signature_proof.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Palette & typographie
@@ -186,13 +187,56 @@ List<pw.Widget> _buildContent(
         ..._sectionObservations(orphans),
       ],
   ],
+  if (_diversObservations(data).isNotEmpty) ...[
+    pw.SizedBox(height: 12),
+    ..._sectionDivers(_diversObservations(data)),
+  ],
   if (data.additions.isNotEmpty) ...[
     pw.SizedBox(height: 12),
     ..._sectionAdditions(data.additions),
   ],
   pw.SizedBox(height: 16),
   _sectionSignatures(data, propSigBytes: propSigBytes, locSigBytes: locSigBytes),
+  _sectionProof(data),
 ];
+
+// Cachet de preuve de signature électronique (faisceau d'indices).
+pw.Widget _sectionProof(EdlPdfData data) {
+  final edl = data.edl;
+  final base = pw.TextStyle(fontSize: 9);
+  final bold = pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold);
+  return buildSignatureProofBlock(
+    base: base,
+    bold: bold,
+    signers: [
+      ProofSigner(
+        role: 'Le bailleur',
+        name: edl.bailleurNom ?? edl.proprietaireNom,
+        signedAt: edl.proprietaireSignedAtFormatted,
+      ),
+      ProofSigner(
+        role: 'Le(s) locataire(s)',
+        name: data.preneurs.isNotEmpty
+            ? data.preneurs.map((p) => p.nom ?? '—').join(', ')
+            : edl.locataireNom,
+        signedAt: edl.locataireSignedAtFormatted,
+      ),
+    ],
+    fingerprint: integrityFingerprint([
+      'EDL',
+      edl.id,
+      edl.typeEdl,
+      edl.partie,
+      edl.bailleurNom ?? edl.proprietaireNom,
+      for (final p in data.preneurs) p.nom,
+      edl.locataireNom,
+      edl.proprietaireSignatureUrl,
+      edl.locataireSignatureUrl,
+      edl.proprietaireSignedAtFormatted,
+      edl.locataireSignedAtFormatted,
+    ]),
+  );
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // En-tête
@@ -559,10 +603,15 @@ String? _obsRoomName(ObservationEdl o, EdlPdfData data) => o.pieceId != null
 List<ObservationEdl> _orphanObservations(EdlPdfData data) {
   return data.observations.where((o) {
     if (!o.hasContent) return false;
+    if (o.isDivers) return false; // rendues dans la section « DIVERS »
     final n = _obsRoomName(o, data)?.trim();
     return n == null || n.isEmpty;
   }).toList();
 }
+
+/// Observations libres « Divers » (wall_key = 'divers'), avec contenu.
+List<ObservationEdl> _diversObservations(EdlPdfData data) =>
+    data.observations.where((o) => o.isDivers && o.hasContent).toList();
 
 /// Observations dont la pièce/chambre (via piece_id/chambre_id → nom) correspond
 /// au nom de la section. Rendues juste sous la table de la section.
@@ -616,6 +665,19 @@ List<pw.Widget> _observationsForSection(EdlSection section, EdlPdfData data) {
         ],
       ),
     ),
+  ];
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Section DIVERS (observations libres) — flottante
+
+List<pw.Widget> _sectionDivers(List<ObservationEdl> observations) {
+  final list = observations.where((o) => o.hasContent).toList();
+  if (list.isEmpty) return const [];
+  return [
+    _titleBar('DIVERS'),
+    pw.SizedBox(height: 4),
+    ...list.map((o) => _observationRow(o)),
   ];
 }
 

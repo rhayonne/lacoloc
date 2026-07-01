@@ -187,6 +187,7 @@ class _SuperAdminProfilPageState extends State<SuperAdminProfilPage> {
           ? AppBar(
               leading: IconButton(
                 icon: const Icon(Icons.menu),
+                tooltip: 'Ouvrir le menu',
                 onPressed: () {
                   if (!_navCtrl.extended) _navCtrl.setExtended(true);
                   _scaffoldKey.currentState?.openDrawer();

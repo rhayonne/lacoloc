@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:lacoloc_front/data/datasources/chambre_charges.dart';
 import 'package:lacoloc_front/data/datasources/chambres.dart';
-import 'package:lacoloc_front/data/datasources/reference.dart';
+import 'package:lacoloc_front/data/datasources/inventaire.dart';
 import 'package:lacoloc_front/data/models/chambre.dart';
 import 'package:lacoloc_front/data/models/chambre_charge.dart';
 import 'package:lacoloc_front/data/models/filter_state.dart';
@@ -34,19 +34,10 @@ class ChambresList extends StatefulWidget {
 class _ChambresListState extends State<ChambresList> {
   late Future<_ListData> _future;
 
-  Map<int, String> _optionNames = const {};
-
   @override
   void initState() {
     super.initState();
-    _loadOptionNames();
     _future = _loadData();
-  }
-
-  Future<void> _loadOptionNames() async {
-    final opts = await ReferenceDatasource.roomOptions();
-    if (!mounted) return;
-    setState(() => _optionNames = {for (final o in opts) o.id: o.name});
   }
 
   Future<_ListData> _loadData() async {
@@ -54,10 +45,13 @@ class _ChambresListState extends State<ChambresList> {
     widget.onDataLoaded?.call(chambres);
     final ids = chambres.map((c) => c.id).toList();
     final chargesMap = await ChambreChargesDatasource.listByChambres(ids);
-    return _ListData(chambres: chambres, chargesMap: chargesMap);
+    final equipMap = await InventaireDatasource.annonceLabelsByChambre(ids);
+    return _ListData(
+        chambres: chambres, chargesMap: chargesMap, equipMap: equipMap);
   }
 
-  bool _matches(ChambreModel c, List<ChambreChargeModel> charges) {
+  bool _matches(
+      ChambreModel c, List<ChambreChargeModel> charges, List<String> equip) {
     final f = widget.chambreFilter;
 
     // Filtro de texto da barra de busca
@@ -70,8 +64,8 @@ class _ChambresListState extends State<ChambresList> {
     }
 
     // Équipements (AND: todos os chips selecionados devem estar presentes)
-    if (f.optionIds.isNotEmpty &&
-        !f.optionIds.every((id) => c.selectedOptionIds.contains(id))) {
+    if (f.equipements.isNotEmpty &&
+        !f.equipements.every((name) => equip.contains(name))) {
       return false;
     }
 
@@ -135,7 +129,8 @@ class _ChambresListState extends State<ChambresList> {
 
         final data = snapshot.data!;
         final filtered = data.chambres
-            .where((c) => _matches(c, data.chargesMap[c.id] ?? []))
+            .where((c) => _matches(
+                c, data.chargesMap[c.id] ?? [], data.equipMap[c.id] ?? []))
             .toList();
 
         if (filtered.isEmpty) {
@@ -163,7 +158,7 @@ class _ChambresListState extends State<ChambresList> {
             final charges = data.chargesMap[chambre.id] ?? [];
             return ChambreCard(
               chambre: chambre,
-              optionNames: _optionNames,
+              equipementLabels: data.equipMap[chambre.id] ?? const [],
               charges: charges,
               onTap: () {
                 if (widget.onTapChambre != null) {
@@ -183,5 +178,10 @@ class _ChambresListState extends State<ChambresList> {
 class _ListData {
   final List<ChambreModel> chambres;
   final Map<int, List<ChambreChargeModel>> chargesMap;
-  _ListData({required this.chambres, required this.chargesMap});
+  final Map<int, List<String>> equipMap;
+  _ListData({
+    required this.chambres,
+    required this.chargesMap,
+    required this.equipMap,
+  });
 }

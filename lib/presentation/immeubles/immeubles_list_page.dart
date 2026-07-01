@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:lacoloc_front/data/datasources/chambres.dart';
+import 'package:lacoloc_front/data/datasources/inventaire.dart';
 import 'package:lacoloc_front/data/datasources/immeubles.dart';
 import 'package:lacoloc_front/data/models/chambre.dart';
 import 'package:lacoloc_front/data/models/immeubles.dart';
@@ -26,10 +27,9 @@ class _ImmeublesListPageState extends State<ImmeublesListPage> {
   late Future<List<ImmeublesModel>> _future;
   ChambreFilter _filter = ChambreFilter.empty;
 
-  /// immeubleId → union des options de ses chambres actives (pour le filtre
-  /// `équipements` côté immeubles : un immeuble matche s'il a au moins une
-  /// chambre couvrant toutes les options choisies).
-  Map<int, Set<int>> _immeubleOptions = const {};
+  /// immeubleId → union des équipements (« dans l'annonce ») de ses chambres
+  /// actives (pour le filtre `équipements` côté immeubles).
+  Map<int, Set<String>> _immeubleOptions = const {};
 
   @override
   void initState() {
@@ -45,16 +45,20 @@ class _ImmeublesListPageState extends State<ImmeublesListPage> {
     final immeubles = results[0] as List<ImmeublesModel>;
     final chambres = results[1] as List<ChambreModel>;
 
-    // Mapa immeubleId → conjuntos de opções (uma entrada por chambre) +
-    // ids de imóveis com ao menos uma chambre ativa.
+    // ids de imóveis com ao menos uma chambre ativa + mapa
+    // immeubleId → équipements (nomes) « dans l'annonce » das suas chambres.
     final activeIds = <int>{};
-    final optsByImmeuble = <int, Set<int>>{};
-    for (final c in chambres) {
-      if (!c.isActive) continue;
+    final activeChambres = chambres.where((c) => c.isActive).toList();
+    for (final c in activeChambres) {
       activeIds.add(c.immeubleId);
-      optsByImmeuble
-          .putIfAbsent(c.immeubleId, () => <int>{})
-          .addAll(c.selectedOptionIds);
+    }
+    final equipByChambre = await InventaireDatasource.annonceLabelsByChambre(
+        activeChambres.map((c) => c.id).toList());
+    final optsByImmeuble = <int, Set<String>>{};
+    for (final c in activeChambres) {
+      final labels = equipByChambre[c.id];
+      if (labels == null || labels.isEmpty) continue;
+      optsByImmeuble.putIfAbsent(c.immeubleId, () => <String>{}).addAll(labels);
     }
     _immeubleOptions = optsByImmeuble;
 
@@ -93,9 +97,9 @@ class _ImmeublesListPageState extends State<ImmeublesListPage> {
     if (f.immeubleTypeId != null && imm.typeId != f.immeubleTypeId) {
       return false;
     }
-    if (f.optionIds.isNotEmpty) {
-      final opts = _immeubleOptions[imm.id] ?? const <int>{};
-      if (!f.optionIds.every(opts.contains)) return false;
+    if (f.equipements.isNotEmpty) {
+      final opts = _immeubleOptions[imm.id] ?? const <String>{};
+      if (!f.equipements.every(opts.contains)) return false;
     }
     return true;
   }

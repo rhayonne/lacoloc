@@ -259,6 +259,27 @@ class EtatDesLieuxDatasource {
     return row == null ? null : EtatDesLieuxModel.fromMap(row);
   }
 
+  /// EDL privatifs d'**entrée** d'un immeuble, indexés par `chambre_id`.
+  /// Sert à afficher le statut détaillé (phase du processus) de chaque chambre.
+  static Future<Map<int, EtatDesLieuxModel>> entreePrivatifsByImmeuble(
+    int immeubleId,
+  ) async {
+    final rows = await _db
+        .from(_table)
+        .select(_select)
+        .eq('immeuble_id', immeubleId)
+        .eq('partie', 'privative')
+        .eq('type_edl', 'entree')
+        .order('created_at');
+    final map = <int, EtatDesLieuxModel>{};
+    for (final r in rows) {
+      final edl = EtatDesLieuxModel.fromMap(r);
+      final cid = edl.chambreId;
+      if (cid != null) map[cid] = edl; // le dernier (par date) prévaut
+    }
+    return map;
+  }
+
   /// Garante a existência do EDL privatif da chambre (idempotente) e devolve-o.
   /// Evita duplicação em caso de double-clic / réentrance.
   static Future<EtatDesLieuxModel> ensurePrivatif(EtatDesLieuxModel privatif) async {
@@ -565,7 +586,29 @@ class EtatDesLieuxDatasource {
       body: "Un état des lieux finalisé attend votre signature.",
     );
     await notifyASigner(edlId: id);
+    // Journal d'audit de signature (le propriétaire valide/signe en finalisant).
+    await recordSignatureAudit(edlId: id, documentType: 'edl', role: 'proprietaire');
     invalidate();
+  }
+
+  /// Enregistre une entrée d'audit de signature (faisceau d'indices) via l'Edge
+  /// Function `record-signature-audit` : l'identité (compte), l'horodatage,
+  /// l'IP/user-agent et l'empreinte du document sont consignés côté serveur de
+  /// façon non falsifiable et immuable. Best-effort : n'interrompt jamais le
+  /// flux de signature si l'enregistrement échoue.
+  static Future<void> recordSignatureAudit({
+    required int edlId,
+    required String documentType, // 'edl' | 'bail'
+    required String role, // 'proprietaire' | 'locataire'
+  }) async {
+    try {
+      await Supabase.instance.client.functions.invoke(
+        'record-signature-audit',
+        body: {'edlId': edlId, 'documentType': documentType, 'role': role},
+      );
+    } catch (_) {
+      // best-effort
+    }
   }
 
   /// Le propriétaire (re)demande au locataire de signer un EDL finalisé non
@@ -587,10 +630,9 @@ class EtatDesLieuxDatasource {
             'Réessayez dans ${5 - days} jour(s).');
       }
     }
-    await _db.from(_table).update({
-      'last_signature_request_at': DateTime.now().toIso8601String(),
-    }).eq('id', id);
-
+    // On notifie D'ABORD : si l'envoi échoue, on ne pose pas l'horodatage
+    // anti-spam → le bouton « Demander signature » reste actif (l'utilisateur
+    // peut réessayer) au lieu d'être bloqué 5 jours par une demande ratée.
     await NotificationsDatasource.notifyEdlLocataire(
       edlId: id,
       type: 'edl_a_signer',
@@ -599,6 +641,10 @@ class EtatDesLieuxDatasource {
           "urgence. Merci de l'accepter et le signer dès que possible.",
     );
     await notifyASigner(edlId: id);
+
+    await _db.from(_table).update({
+      'last_signature_request_at': DateTime.now().toIso8601String(),
+    }).eq('id', id);
     invalidate();
   }
 
@@ -620,10 +666,7 @@ class EtatDesLieuxDatasource {
             'Réessayez dans ${5 - days} jour(s).');
       }
     }
-    await _db.from(_table).update({
-      'last_signature_request_at': DateTime.now().toIso8601String(),
-    }).eq('id', id);
-
+    // Notifier d'abord (cf. requestSignature) : pas d'horodatage si l'envoi rate.
     await NotificationsDatasource.notifyEdlLocataire(
       edlId: id,
       type: 'bail_remplissage',
@@ -633,6 +676,10 @@ class EtatDesLieuxDatasource {
               "de votre bail (garant et/ou signature).",
     );
     await notifyASigner(edlId: id);
+
+    await _db.from(_table).update({
+      'last_signature_request_at': DateTime.now().toIso8601String(),
+    }).eq('id', id);
     invalidate();
   }
 
@@ -762,7 +809,28 @@ class EtatDesLieuxDatasource {
       'locataire_signed_at': now.toIso8601String(),
       'locataire_signature_url': ?locataireSignatureUrl,
     }).eq('id', id);
+    // Journal d'audit : best-effort — un échec d'audit ne doit pas faire
+    // croire que l'acceptation/signature a échoué (elle est déjà enregistrée).
+    try {
+      await recordSignatureAudit(
+          edlId: id, documentType: 'edl', role: 'locataire');
+    } catch (_) {}
     invalidate();
+  }
+
+  /// Vérifie que la signature du locataire est bien posée sur l'EDL [id] :
+  /// `locataire_accepte = true` **et** une `locataire_signature_url` présente.
+  /// Sert à confirmer côté UI que la signature a réellement été enregistrée.
+  static Future<bool> isLocataireSigned(int id) async {
+    final row = await _db
+        .from(_table)
+        .select('locataire_accepte, locataire_signature_url')
+        .eq('id', id)
+        .maybeSingle();
+    if (row == null) return false;
+    final accepte = row['locataire_accepte'] == true;
+    final url = row['locataire_signature_url'];
+    return accepte && url != null && '$url'.isNotEmpty;
   }
 
   /// Enregistre le choix du propriétaire « ce bail nécessite-t-il un garant ? »
@@ -794,6 +862,8 @@ class EtatDesLieuxDatasource {
       '${col}_signature_url': materialized,
       '${col}_signed_at': DateTime.now().toIso8601String(),
     }).eq('id', id);
+    // Journal d'audit : signature du bail par ce rôle.
+    await recordSignatureAudit(edlId: id, documentType: 'bail', role: role);
     invalidate();
     return materialized;
   }
@@ -1000,6 +1070,21 @@ class EtatDesLieuxDatasource {
         'mailTo': ?mailTo,
         if (fullName != null && fullName.isNotEmpty) 'fullName': fullName,
       },
+    );
+    final data = res.data;
+    if (data is Map && data['error'] != null) {
+      throw Exception(data['error']);
+    }
+  }
+
+  /// Annule (supprime) l'invitation d'un locataire **pas encore activé** :
+  /// supprime le compte via l'edge function (mode `del`). Réservé côté serveur
+  /// au propriétaire émetteur / admin / super admin ; refuse un compte déjà
+  /// activé ou lié à des contrats.
+  static Future<void> cancelInvitation({required String userId}) async {
+    final res = await Supabase.instance.client.functions.invoke(
+      'invite-locataire',
+      body: {'del': true, 'userId': userId},
     );
     final data = res.data;
     if (data is Map && data['error'] != null) {

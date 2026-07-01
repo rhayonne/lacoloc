@@ -306,6 +306,9 @@ class _CompleterInscriptionPageState extends State<CompleterInscriptionPage> {
                                     ? Icons.visibility_outlined
                                     : Icons.visibility_off_outlined,
                               ),
+                              tooltip: _obscurePwd
+                                  ? 'Afficher le mot de passe'
+                                  : 'Masquer le mot de passe',
                               onPressed: () =>
                                   setState(() => _obscurePwd = !_obscurePwd),
                             ),
@@ -333,6 +336,9 @@ class _CompleterInscriptionPageState extends State<CompleterInscriptionPage> {
                                     ? Icons.visibility_outlined
                                     : Icons.visibility_off_outlined,
                               ),
+                              tooltip: _obscureConfirm
+                                  ? 'Afficher le mot de passe'
+                                  : 'Masquer le mot de passe',
                               onPressed: () => setState(
                                 () => _obscureConfirm = !_obscureConfirm,
                               ),

@@ -12,20 +12,21 @@ class ChambreCard extends StatelessWidget {
   final ChambreModel chambre;
   final VoidCallback onTap;
 
-  /// Mapa optionId → nom para exibir os nomes das options. Vazio = só contagem.
-  final Map<int, String> optionNames;
+  /// Équipements à afficher (articles d'inventaire « dans l'annonce » de cette
+  /// chambre). Vide = aucun chip d'équipement.
+  final List<String> equipementLabels;
 
   /// Charges locatives associées à cette chambre.
   final List<ChambreChargeModel> charges;
 
-  /// Máximo de chips de options listados antes do indicador "+N".
+  /// Máximo de chips de équipements listados antes do indicador "+N".
   static const _maxOptionChips = 4;
 
   const ChambreCard({
     super.key,
     required this.chambre,
     required this.onTap,
-    this.optionNames = const {},
+    this.equipementLabels = const [],
     this.charges = const [],
   });
 
@@ -33,12 +34,8 @@ class ChambreCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final cover = chambre.roomPhotos.isNotEmpty ? chambre.roomPhotos.first : null;
 
-    final optionLabels = [
-      for (final id in chambre.selectedOptionIds)
-        if (optionNames[id] != null) optionNames[id]!,
-    ];
-    final shown = optionLabels.take(_maxOptionChips).toList();
-    final extra = optionLabels.length - shown.length;
+    final shown = equipementLabels.take(_maxOptionChips).toList();
+    final extra = equipementLabels.length - shown.length;
 
     // Résumé des charges (inclus + variable + fixe avec montant)
     final inclus    = charges.where((c) => c.type == 'inclus').toList();
@@ -114,10 +111,7 @@ class ChambreCard extends StatelessWidget {
                             children: [
                               if (chambre.m2 != null)
                                 _Pill(label: '${chambre.m2!.toStringAsFixed(0)} m²'),
-                              if (shown.isNotEmpty)
-                                ...shown.map((l) => _Pill(label: l))
-                              else if (chambre.selectedOptionIds.isNotEmpty)
-                                _Pill(label: '${chambre.selectedOptionIds.length} options'),
+                              ...shown.map((l) => _Pill(label: l)),
                               if (extra > 0) _Pill(label: '+$extra', highlighted: true),
                             ],
                           ),

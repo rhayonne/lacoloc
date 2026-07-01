@@ -3,7 +3,9 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:lacoloc_front/data/datasources/storage_service.dart';
+import 'package:lacoloc_front/data/models/vetuste.dart';
 import 'bail_pdf_data.dart';
+import 'signature_proof.dart';
 
 /// Génère un document PDF de bail conforme aux contrats-types obligatoires
 /// (Décret n° 2015-587 du 29 mai 2015, loi 89-462 du 6 juillet 1989).
@@ -12,7 +14,13 @@ class BailPdfBuilder {
 
   const BailPdfBuilder(this.data);
 
-  Future<pw.Document> build() async {
+  Future<pw.Document> build({BailPdfScope scope = BailPdfScope.complet}) async {
+    // Portée d'impression (miroir de l'EDL) : la section « Parties communes »
+    // n'apparaît pas en portée « chambre » ; en portée « communes » on imprime
+    // un extrait centré sur les parties communes.
+    final showCommunes =
+        scope != BailPdfScope.chambre && data.hasPartiesCommunes;
+    final communesOnly = scope == BailPdfScope.communes;
     final font = await PdfGoogleFonts.notoSansRegular();
     final fontBold = await PdfGoogleFonts.notoSansBold();
     final fontItalic = await PdfGoogleFonts.notoSansItalic();
@@ -157,6 +165,8 @@ class BailPdfBuilder {
             if (d.preneurs.isEmpty) row('Preneur(s)', prenomsList),
           ]),
 
+          // Sections II–IX : omises en portée « parties communes » (extrait).
+          if (!communesOnly) ...[
           // ══ II — LE BIEN LOUÉ ═══════════════════════════════════════════════
           section('II. Le bien loué', [
             row('Type de bien', imm.type?.typeName ?? '—'),
@@ -336,6 +346,15 @@ class BailPdfBuilder {
                 'avant la date d\'échéance du contrat.',
               ),
             ]),
+            article('6.3', 'Clause résolutoire', [
+              para(
+                'Le présent bail sera résilié de plein droit, à défaut de paiement '
+                'du loyer ou des charges aux échéances convenues, du dépôt de garantie, '
+                "ou en cas de défaut d'assurance des risques locatifs, deux (2) mois "
+                'après un commandement de payer ou de justifier d\'une assurance demeuré '
+                'infructueux (article 24 de la loi du 6 juillet 1989).',
+              ),
+            ]),
           ]),
 
           if (d.isColocation) ...[
@@ -364,25 +383,134 @@ class BailPdfBuilder {
             ]),
           ],
 
-          // ══ VIII — ÉTAT DES LIEUX ═══════════════════════════════════════════
-          section('VIII. État des lieux', [
+          // ══ VIII — ÉTAT DES LIEUX & VÉTUSTÉ ═════════════════════════════════
+          section('VIII. État des lieux et vétusté', [
             para(
               'Un état des lieux contradictoire sera établi, en autant d\'exemplaires qu\'il y a de parties, '
               'lors de la remise et de la restitution des clés, conformément aux articles 3-2 et 3-3 '
               'de la loi du 6 juillet 1989.',
             ),
             row("Date de l'état des lieux d'entrée", _dateStr(edl.dateEtatLieux)),
+            pw.SizedBox(height: 6),
+            article('8.1', 'Définition de la vétusté', [
+              para(
+                "La vétusté s'entend de l'état d'usure ou de dégradation résultant "
+                "du temps ou de l'usage normal des matériaux, équipements et "
+                "meubles du logement, indépendamment de tout défaut d'entretien "
+                "du locataire (article 1er du décret n° 2016-382 du 30 mars 2016).",
+              ),
+            ]),
+            article('8.2', 'Répartition des réparations', [
+              para(
+                "Les réparations rendues nécessaires par la seule vétusté, ainsi "
+                "que les réparations relevant de la responsabilité du bailleur, "
+                "demeurent à sa charge. À l'inverse, les dégradations, pertes ou "
+                "détériorations qui surviennent pendant la durée du bail et qui "
+                "sont imputables au locataire — au-delà de l'usage normal — sont à "
+                "sa charge (article 7 d) et e) de la loi du 6 juillet 1989), sauf "
+                "lorsqu'elles résultent de la vétusté, d'un vice de construction, "
+                "d'un cas de force majeure ou de la faute du bailleur.",
+              ),
+            ]),
+            article('8.3', "Inventaire et état d'usure des biens", [
+              para(
+                "Le mobilier et les équipements faisant l'objet du présent bail sont "
+                "décrits dans l'inventaire et l'état des lieux d'entrée, qui "
+                "mentionnent pour chaque bien son état d'usure (neuf, bon état, "
+                "état d'usage, mauvais état). Cet inventaire, établi et tenu à jour "
+                "par le bailleur, fait foi entre les parties pour apprécier "
+                "l'évolution de l'état des biens.",
+              ),
+            ]),
+            article('8.4', 'Décompte de fin de bail', [
+              para(
+                "Au départ du locataire, l'état des lieux de sortie est comparé à "
+                "l'état des lieux d'entrée. Seules les dégradations imputables au "
+                "locataire peuvent donner lieu à retenue sur le dépôt de garantie. "
+                "Le montant éventuellement dû par le locataire est calculé en tenant "
+                "compte de la vétusté : la valeur d'un bien dégradé est diminuée en "
+                "fonction de son ancienneté et de sa durée de vie théorique, selon la "
+                "grille de vétusté ci-dessous. Aucune somme ne peut être réclamée au "
+                "titre de l'usure normale.",
+              ),
+              pw.SizedBox(height: 4),
+              para(
+                "Mode de calcul : pour chaque bien, un abattement de vétusté est "
+                "appliqué à sa valeur d'achat. "
+                "Abattement (%) = (ancienneté en années − franchise) × coefficient "
+                "annuel, plafonné de sorte qu'il reste toujours une valeur "
+                "résiduelle minimale. "
+                "Valeur résiduelle = valeur d'achat × (1 − abattement). Seule cette "
+                "valeur résiduelle, le cas échéant, peut être mise à la charge du "
+                "locataire pour un bien dégradé au-delà de l'usage normal.",
+              ),
+              if (d.baremeVetuste.isNotEmpty) ...[
+                pw.SizedBox(height: 6),
+                pw.Text('Grille de vétusté appliquée :', style: bold),
+                pw.SizedBox(height: 3),
+                _baremeTable(d.baremeVetuste, fontBold, font),
+                pw.SizedBox(height: 3),
+                pw.Text(
+                  "Barème indicatif établi par le bailleur ; il ne fait pas "
+                  "obstacle à l'appréciation amiable ou judiciaire de chaque "
+                  "situation.",
+                  style: pw.TextStyle(font: font, fontSize: 7.5, color: PdfColors.grey700),
+                ),
+              ],
+            ]),
           ]),
 
-          // ══ IX — CLAUSES DIVERSES ══════════════════════════════════════════
-          section('IX. Clauses diverses', [
-            para(
-              'Toute modification au présent contrat devra faire l\'objet d\'un avenant '
-              'écrit signé par les deux parties. '
-              'En cas de litige, les parties s\'engagent à tenter une résolution amiable '
-              'avant tout recours judiciaire.',
-            ),
+          // ══ IX — DIAGNOSTICS, ANNEXES & CLAUSES DIVERSES ═══════════════════
+          section('IX. Diagnostics, annexes et clauses diverses', [
+            article('9.1', 'Dossier de diagnostics techniques (annexes)', [
+              para(
+                'Sont annexés au présent contrat et remis au locataire, conformément '
+                "à l'article 3-3 de la loi du 6 juillet 1989 : le diagnostic de "
+                "performance énergétique (DPE)${imm.dpeClasse != null ? ' — classe ${imm.dpeClasse}' : ''}, "
+                "l'état des risques (naturels, miniers, technologiques, sismiques, "
+                'radon), le constat de risque d\'exposition au plomb (logements '
+                'construits avant 1949), ainsi que, le cas échéant, l\'état de '
+                "l'installation intérieure d'électricité et de gaz et le diagnostic "
+                'amiante. Une notice d\'information relative aux droits et obligations '
+                'des parties est également annexée.',
+              ),
+            ]),
+            article('9.2', 'Modifications et litiges', [
+              para(
+                'Toute modification au présent contrat devra faire l\'objet d\'un avenant '
+                'écrit signé par les deux parties. '
+                'En cas de litige, les parties s\'engagent à tenter une résolution amiable '
+                '(le cas échéant devant la commission départementale de conciliation) '
+                'avant tout recours judiciaire.',
+              ),
+            ]),
           ]),
+          ], // fin du bloc « sections II–IX »
+
+          // ══ PARTIES COMMUNES (miroir de l'EDL collectif) ════════════════════
+          if (showCommunes)
+            section('Parties communes (annexe collective)', [
+              para(
+                "Le présent bail individuel donne au preneur l'accès et la "
+                "jouissance des parties communes de l'immeuble listées ci-dessous, "
+                "dans les conditions définies par le règlement intérieur. Leur état "
+                "est constaté dans l'état des lieux collectif (partie commune), "
+                "annexé au présent contrat.",
+              ),
+              pw.SizedBox(height: 4),
+              pw.Text('Pièces et espaces communs :', style: bold),
+              pw.SizedBox(height: 2),
+              para(d.piecesCommunes
+                  .map((p) => p.nom)
+                  .where((n) => n.trim().isNotEmpty)
+                  .join(' · ')),
+              pw.SizedBox(height: 4),
+              para(
+                "L'entretien courant des parties communes est assuré conformément "
+                "au règlement intérieur ; les réparations dues à la vétusté restent "
+                "à la charge du bailleur.",
+              ),
+            ]),
 
           // ══ X — SIGNATURES ═════════════════════════════════════════════════
           // NewPage : les signatures démarrent toujours sur une page dédiée
@@ -397,6 +525,7 @@ class BailPdfBuilder {
                   role: 'Le bailleur',
                   name: d.bailleur.displayName,
                   sigBytes: bailleurSig,
+                  signedAt: d.edl.proprietaireSignedAtFormatted,
                   bold: bold,
                   base: base,
                 ),
@@ -406,15 +535,56 @@ class BailPdfBuilder {
                       : 'Le(s) locataire(s)',
                   name: d.preneurs.isNotEmpty ? d.preneurs.first.displayName : '',
                   sigBytes: preneurSig,
+                  signedAt: d.edl.locataireSignedAtFormatted,
                   bold: bold,
                   base: base,
                 ),
               ],
             ),
             pw.SizedBox(height: 12),
-            pw.Text('Fait à ${imm.city ?? '___________'}, le _______________', style: base),
+            pw.Text(
+                'Fait à ${imm.city ?? '___________'}, le '
+                '${d.edl.proprietaireSignedAtFormatted ?? '_______________'}',
+                style: base),
             pw.SizedBox(height: 4),
             pw.Text('En deux exemplaires originaux.', style: italic),
+            // Cachet de preuve de signature électronique (faisceau d'indices).
+            buildSignatureProofBlock(
+              base: base,
+              bold: bold,
+              signers: [
+                ProofSigner(
+                  role: 'Le bailleur',
+                  name: d.bailleur.displayName,
+                  email: d.bailleur.email,
+                  signedAt: d.edl.proprietaireSignedAtFormatted,
+                ),
+                ProofSigner(
+                  role: d.isColocation ? 'Le colocataire' : 'Le locataire',
+                  name: d.preneurs.isNotEmpty
+                      ? d.preneurs.first.displayName
+                      : null,
+                  email: d.preneurs.isNotEmpty ? d.preneurs.first.email : null,
+                  signedAt: d.edl.locataireSignedAtFormatted,
+                ),
+              ],
+              fingerprint: integrityFingerprint([
+                'BAIL',
+                d.edl.id,
+                d.bailleur.displayName,
+                d.bailleur.email,
+                for (final p in d.preneurs) '${p.displayName}/${p.email}',
+                d.adresseBien,
+                loyer,
+                charges,
+                depot,
+                dateEntree,
+                d.edl.proprietaireSignatureUrl,
+                d.edl.locataireSignatureUrl,
+                d.edl.proprietaireSignedAtFormatted,
+                d.edl.locataireSignedAtFormatted,
+              ]),
+            ),
           ]),
 
         ],
@@ -444,6 +614,7 @@ class BailPdfBuilder {
     required Uint8List? sigBytes,
     required pw.TextStyle bold,
     required pw.TextStyle base,
+    String? signedAt,
   }) {
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -452,7 +623,10 @@ class BailPdfBuilder {
         pw.SizedBox(height: 4),
         if (name.isNotEmpty) pw.Text(name, style: base),
         pw.SizedBox(height: 8),
-        pw.Text('Signature :', style: base),
+        pw.Text(
+          signedAt != null ? 'Signature (le $signedAt) :' : 'Signature :',
+          style: base,
+        ),
         pw.SizedBox(height: 4),
         if (sigBytes != null)
           pw.Container(
@@ -477,7 +651,7 @@ class BailPdfBuilder {
   String _buildChargesDetail(BailPdfData d) {
     final parts = <String>[];
 
-    final chargesRef = d.isColocation
+    final chargesRef = d.useChambreCharges
         ? [
             ...d.chambreChargesIncluses.map((c) => '${c.chargeRef?.nom ?? "Charge"} : incluse dans le loyer'),
             ...d.chambreChargesFixes.map((c) =>
@@ -507,4 +681,54 @@ class BailPdfBuilder {
 
   static String _dateStr(DateTime dt) =>
       '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}';
+
+  /// Tableau de la grille de vétusté (article 8.4) : une ligne par catégorie.
+  pw.Widget _baremeTable(
+    List<VetusteBaremeModel> bareme,
+    pw.Font fontBold,
+    pw.Font font,
+  ) {
+    final headStyle = pw.TextStyle(font: fontBold, fontSize: 7.5);
+    final cellStyle = pw.TextStyle(font: font, fontSize: 7.5);
+    String pct(double v) => '${v.toStringAsFixed(v == v.roundToDouble() ? 0 : 1)} %';
+
+    pw.Widget cell(String t, {pw.TextStyle? style, pw.Alignment? align}) => pw.Container(
+          alignment: align ?? pw.Alignment.centerLeft,
+          padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+          child: pw.Text(t, style: style ?? cellStyle),
+        );
+
+    final rows = <pw.TableRow>[
+      pw.TableRow(
+        decoration: const pw.BoxDecoration(color: PdfColors.grey200),
+        children: [
+          cell('Catégorie', style: headStyle),
+          cell('Durée de vie', style: headStyle, align: pw.Alignment.center),
+          cell('Franchise', style: headStyle, align: pw.Alignment.center),
+          cell('Abattement / an', style: headStyle, align: pw.Alignment.center),
+          cell('Valeur résiduelle min.', style: headStyle, align: pw.Alignment.center),
+        ],
+      ),
+      for (final b in bareme)
+        pw.TableRow(children: [
+          cell(b.categorie),
+          cell('${b.dureeVieAnnees} ans', align: pw.Alignment.center),
+          cell('${b.franchiseAnnees} ans', align: pw.Alignment.center),
+          cell(pct(b.coefficientAnnuel), align: pw.Alignment.center),
+          cell(pct(b.residuelMinPct), align: pw.Alignment.center),
+        ]),
+    ];
+
+    return pw.Table(
+      border: pw.TableBorder.all(color: PdfColors.grey400, width: 0.5),
+      columnWidths: const {
+        0: pw.FlexColumnWidth(2.2),
+        1: pw.FlexColumnWidth(1.3),
+        2: pw.FlexColumnWidth(1.3),
+        3: pw.FlexColumnWidth(1.5),
+        4: pw.FlexColumnWidth(1.8),
+      },
+      children: rows,
+    );
+  }
 }

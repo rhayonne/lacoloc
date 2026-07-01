@@ -58,10 +58,15 @@ erDiagram
         jsonb common_photos
         text main_photo
         bool is_active
-        bool bail_collectif
+        bool bail_location
         bool bail_individuel
         float prix_loyer
         bool location_meuble
+        text code_postal
+        numeric depot_garantie_mois
+        int duree_bail_mois
+        text dpe_classe
+        text irl_reference
         timestamp created_at
     }
 
@@ -106,6 +111,12 @@ erDiagram
         text categorie
     }
 
+    Meuble_Categories_Reference {
+        int id PK
+        text nom
+        int ordre
+    }
+
     Inventaire {
         int id PK
         int immeuble_id FK
@@ -117,6 +128,10 @@ erDiagram
         int quantite
         text description
         jsonb photos
+        bool dans_annonce
+        date date_acquisition
+        numeric valeur_achat
+        text categorie_vetuste
         timestamp created_at
     }
 
@@ -223,8 +238,12 @@ erDiagram
         text wall_key
         text description
         jsonb photos
+        boolean is_addition
+        text author_role
         timestamp created_at
     }
+    %% wall_key: fond/gauche/droit/porte/sol/plafond (plan 2D), null=général,
+    %% ou 'divers' = observation libre de l'onglet « Divers » (sans piece/chambre).
 
     etat_de_lieux_preneurs {
         int id PK
@@ -276,6 +295,72 @@ erDiagram
         text etat_usure
         text fonctionnement
         text commentaires
+        int ordre
+    }
+
+    Charges_Reference {
+        int id PK
+        text nom
+        text icone
+        text description
+        bool is_active
+        int ordre
+    }
+
+    Recettes {
+        int id PK
+        uuid owner_id FK
+        uuid locataire_id FK
+        int etat_de_lieux_id FK
+        int immeuble_id FK
+        int chambre_id FK
+        numeric montant
+        date date_echeance
+        date date_paiement
+        text statut
+        text notes
+        timestamp created_at
+    }
+
+    vetuste_bareme {
+        int id PK
+        uuid owner_id FK
+        text categorie
+        int duree_vie_annees
+        int franchise_annees
+        numeric coefficient_annuel
+        numeric residuel_min_pct
+        timestamp created_at
+    }
+
+    vetuste_decompte {
+        int id PK
+        uuid owner_id FK
+        int immeuble_id FK
+        int chambre_id FK
+        uuid locataire_id FK
+        int etat_de_lieux_id FK
+        text titre
+        text statut
+        numeric total_montant
+        int recette_id FK
+        timestamp created_at
+    }
+
+    vetuste_decompte_ligne {
+        int id PK
+        int decompte_id FK
+        text equipement
+        text categorie
+        numeric valeur_achat
+        date date_acquisition
+        numeric age_annees
+        text etat_entree
+        text etat_sortie
+        numeric abattement_pct
+        numeric valeur_residuelle
+        bool imputable
+        text notes
         int ordre
     }
 
@@ -347,12 +432,26 @@ erDiagram
     Immeubles }o--|| Users_Client : "pertence a (owner)"
     Immeubles }o--o| Immeuble_Types_Reference : "tem tipo"
     Chambres }o--|| Immeubles : "pertence a"
-    Chambres }o--o{ Options_Reference : "selecionou (jsonb ids)"
+    Chambres }o--o{ Options_Reference : "selected_options (legado — substituído por Inventaire dans_annonce)"
     Pieces }o--|| Immeubles : "pertence a"
     Inventaire }o--|| Immeubles : "pertence a"
     Inventaire }o--o| Chambres : "localizado em quarto"
     Inventaire }o--o| Pieces : "localizado em peça"
     Inventaire }o--o| Meubles_Reference : "tipo de móvel"
+    Meubles_Reference }o--o| Meuble_Categories_Reference : "categoria (por nome)"
+    Recettes }o--|| Users_Client : "pertence a (owner)"
+    Recettes }o--o| Users_Client : "à recevoir do locataire"
+    Recettes }o--o| etat_de_lieux : "origem (bail/sortie)"
+    Recettes }o--o| Immeubles : "referencia imóvel"
+    Recettes }o--o| Chambres : "referencia quarto"
+    vetuste_bareme }o--|| Users_Client : "barème do proprietaire"
+    vetuste_decompte }o--|| Users_Client : "pertence a (owner)"
+    vetuste_decompte }o--|| Immeubles : "referencia imóvel"
+    vetuste_decompte }o--o| Chambres : "referencia quarto"
+    vetuste_decompte }o--o| Users_Client : "locataire concernido"
+    vetuste_decompte }o--o| etat_de_lieux : "origem (EDL sortie)"
+    vetuste_decompte }o--o| Recettes : "gera à recevoir"
+    vetuste_decompte_ligne }o--|| vetuste_decompte : "linhas do décompte"
     Demandes_Contact }o--|| Users_Client : "feita por locataire"
     Demandes_Contact }o--o| Chambres : "referencia quarto"
     Demandes_Contact }o--|| Immeubles : "referencia imóvel"
@@ -387,10 +486,16 @@ erDiagram
 |---|---|---|
 | `User_Types_Reference` | id, **code** (`locataire`/`proprietaire`/`super_admin`), label, description | (seed) |
 | `Immeuble_Types_Reference` | id, name | Super Admin |
-| `Options_Reference` | id, name | Super Admin |
+| `Options_Reference` | id, name | **Legado** — os « équipements » da chambre migraram para `Inventaire` (itens com `chambre_id` + `dans_annonce=true`, catalogados em `Meubles_Reference` categoria « Équipement »). `selected_options` é preservado mas não mais editado/lido na UI. |
 | `Payment_Types_Reference` | id, code, label, description | Super Admin (`PaymentTypesPage`) |
 | `Meubles_Reference` | id, nom, categorie | Super Admin (`MeubleTypesPage`) |
+| `Meuble_Categories_Reference` | id, nom, ordre | Super Admin (`MeubleCategoriesPage`) — onglet « Catégories » de Config Immeuble |
+| `Charges_Reference` | id, nom, icone, description, is_active, ordre | Super Admin (`ChargesReferencePage`) — onglet « Charges locatives » |
 | `Permissions_Reference` | id, key, label, description, category | (seed) |
+
+> **Catégories de meuble** : `Inventaire`/`Meubles_Reference.categorie` est un texte qui doit
+> correspondre au `nom` d'une ligne de `Meuble_Categories_Reference`. Ces catégories servent
+> aussi de **clé du barème de vétusté** (`vetuste_bareme.categorie`).
 
 ---
 
@@ -434,3 +539,17 @@ erDiagram
 - **Trigger de criação de usuário**: `auth.users` → trigger `SECURITY DEFINER` cria a
   linha em `Users_Client`, lendo `raw_user_meta_data` (`full_name`, `type_code`, `phone`,
   `date_of_birth`).
+- **Vétusté (Option B)**: três tabelas.
+  - `vetuste_bareme` — barème por proprietaire (1 linha por categoria de meuble): `duree_vie_annees`,
+    `franchise_annees`, `coefficient_annuel` (%/an), `residuel_min_pct` (%). Seed automático na 1ª leitura.
+  - `vetuste_decompte` — um « décompte de réparations locatives » ligado a um imóvel (+ chambre/locataire/EDL
+    opcionais). `statut` ∈ {`brouillon`, `genere`}; `recette_id` preenchido após « Générer l'à recevoir ».
+  - `vetuste_decompte_ligne` — linhas do décompte (equipamento dégradé): `valeur_achat`, `age_annees`,
+    `etat_entree`/`etat_sortie`, `abattement_pct`, `valeur_residuelle` (= valeur_achat × (1 − abattement/100)),
+    `imputable`. Fórmula: `abattement% = clamp((âge − franchise) × coef_annuel, 0, 100 − résiduel_min)`.
+  - **Cálculo** em `lib/utils/vetuste_calc.dart` (`VetusteCalc`). **Détection** entrée→sortie em
+    `VetusteDatasource.buildCandidatesForSortie` (compara `etat_usure` das lignes; rangs N<B<U<M).
+  - **À recevoir**: « Générer l'à recevoir » cria uma `Recettes` (statut `a_recevoir`) — aparece em Finances
+    do proprietaire **e** do locataire (RLS `locataire_select_recettes`).
+- **`Inventaire` vétusté**: `valeur_achat` (preço de compra), `date_acquisition` e `categorie_vetuste`
+  (sobrepõe a categoria do meuble para itens `nom_custom`). Alimentam o pré-preenchimento do décompte.

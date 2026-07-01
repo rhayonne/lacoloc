@@ -2,12 +2,11 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:lacoloc_front/data/datasources/auth_service.dart';
 import 'package:lacoloc_front/data/datasources/chambres.dart';
+import 'package:lacoloc_front/data/datasources/inventaire.dart';
 import 'package:lacoloc_front/data/datasources/demandes_contact.dart';
 import 'package:lacoloc_front/data/datasources/immeubles.dart';
-import 'package:lacoloc_front/data/datasources/reference.dart';
 import 'package:lacoloc_front/data/models/chambre.dart';
 import 'package:lacoloc_front/data/models/immeubles.dart';
-import 'package:lacoloc_front/data/models/reference.dart';
 import 'package:lacoloc_front/data/models/users_client.dart';
 import 'package:lacoloc_front/presentation/login_dialog.dart';
 import 'package:lacoloc_front/presentation/nav/app_sidebar.dart';
@@ -26,11 +25,15 @@ class ChambreDetailView extends StatefulWidget {
   final int chambreId;
   /// Callback du bouton "Retour". Si null, utilise Navigator.pop().
   final VoidCallback? onBack;
+  /// « Voir l'immeuble » : si fourni, navigue vers la fiche de l'immeuble
+  /// (in-frame) au lieu d'ouvrir un pop-up. Reçoit l'id de l'immeuble.
+  final ValueChanged<int>? onVoirImmeuble;
 
   const ChambreDetailView({
     super.key,
     required this.chambreId,
     this.onBack,
+    this.onVoirImmeuble,
   });
 
   @override
@@ -59,10 +62,11 @@ class _ChambreDetailViewState extends State<ChambreDetailView> {
     if (chambre == null) throw Exception('Chambre introuvable');
     final results = await Future.wait([
       ImmeublesDatasource.byId(chambre.immeubleId),
-      ReferenceDatasource.roomOptions(),
+      InventaireDatasource.annonceLabelsByChambre([chambre.id]),
       AuthService.loadCurrentProfile(),
     ]);
     final profile = results[2] as UsersClient?;
+    final equipMap = results[1] as Map<int, List<String>>;
     bool hasPendingDemande = false;
     if (profile?.resolvedType == UserType.locataire) {
       hasPendingDemande = await DemandesContactDatasource.hasDemandeEnAttente(
@@ -73,7 +77,7 @@ class _ChambreDetailViewState extends State<ChambreDetailView> {
     return _DetailBundle(
       chambre: chambre,
       immeuble: results[0] as ImmeublesModel?,
-      options: results[1] as List<ReferenceItem>,
+      equipements: equipMap[chambre.id] ?? const [],
       currentProfile: profile,
       hasPendingDemande: hasPendingDemande,
     );
@@ -96,6 +100,7 @@ class _ChambreDetailViewState extends State<ChambreDetailView> {
           );
         }
         return _DetailContent(
+          onVoirImmeuble: widget.onVoirImmeuble,
           bundle: snapshot.data!,
           onBack: widget.onBack,
           onContactSent: () => setState(() => _future = _load()),
@@ -204,6 +209,7 @@ class _ChambreDetailPageState extends State<ChambreDetailPage> {
         appBar: AppBar(
           leading: IconButton(
             icon: const Icon(Icons.menu),
+            tooltip: 'Ouvrir le menu',
             onPressed: () {
               if (!_navCtrl.extended) _navCtrl.setExtended(true);
               _scaffoldKey.currentState?.openDrawer();
@@ -231,13 +237,13 @@ class _ChambreDetailPageState extends State<ChambreDetailPage> {
 class _DetailBundle {
   final ChambreModel chambre;
   final ImmeublesModel? immeuble;
-  final List<ReferenceItem> options;
+  final List<String> equipements;
   final UsersClient? currentProfile;
   final bool hasPendingDemande;
   _DetailBundle({
     required this.chambre,
     required this.immeuble,
-    required this.options,
+    required this.equipements,
     this.currentProfile,
     this.hasPendingDemande = false,
   });
@@ -249,7 +255,13 @@ class _DetailContent extends StatelessWidget {
   final _DetailBundle bundle;
   final VoidCallback? onBack;
   final VoidCallback? onContactSent;
-  const _DetailContent({required this.bundle, this.onBack, this.onContactSent});
+  final ValueChanged<int>? onVoirImmeuble;
+  const _DetailContent({
+    required this.bundle,
+    this.onBack,
+    this.onContactSent,
+    this.onVoirImmeuble,
+  });
 
   List<String> _orderedPhotos(ChambreModel c) {
     if (c.mainPhoto == null || !c.roomPhotos.contains(c.mainPhoto)) {
@@ -261,8 +273,7 @@ class _DetailContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final chambre = bundle.chambre;
-    final selected =
-        bundle.options.where((o) => chambre.selectedOptionIds.contains(o.id));
+    final selected = bundle.equipements;
     final photos = _orderedPhotos(chambre);
 
     return SingleChildScrollView(
@@ -347,14 +358,17 @@ class _DetailContent extends StatelessWidget {
                 else
                   Column(
                     children:
-                        selected.map((o) => _OptionRow(label: o.name)).toList(),
+                        selected.map((name) => _OptionRow(label: name)).toList(),
                   ),
 
                 if (bundle.immeuble != null) ...[
                   const SizedBox(height: AppSpacing.xl),
                   OutlinedButton.icon(
-                    onPressed: () =>
-                        _showImmeuble(context, bundle.immeuble!),
+                    // En contexte intégré (accueil), navigue vers la fiche de
+                    // l'immeuble (Retour ramène à la chambre) ; sinon pop-up.
+                    onPressed: () => onVoirImmeuble != null
+                        ? onVoirImmeuble!(bundle.immeuble!.id)
+                        : _showImmeuble(context, bundle.immeuble!),
                     icon: const Icon(Icons.location_city),
                     label: const Text("Voir l'immeuble"),
                   ),
@@ -452,6 +466,7 @@ class _DetailContent extends StatelessWidget {
                     ),
                     IconButton(
                       icon: const Icon(Icons.close),
+                      tooltip: 'Fermer',
                       onPressed: () => Navigator.of(ctx).pop(),
                     ),
                   ],
@@ -635,6 +650,7 @@ class _ContactConfirmDialogState extends State<_ContactConfirmDialog> {
                   ),
                   IconButton(
                     icon: const Icon(Icons.close),
+                    tooltip: 'Fermer',
                     onPressed:
                         _loading ? null : () => Navigator.of(context).pop(),
                   ),

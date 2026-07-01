@@ -652,6 +652,24 @@ paths:
       responses:
         '200': { description: OK }
 
+  /rest/v1/rpc/chambre_equipements_annonce:
+    post:
+      tags: [RPC]
+      summary: Équipements « dans l'annonce » par chambre (InventaireDatasource.annonceLabelsByChambre / annonceEquipementNames)
+      description: |
+        `SECURITY DEFINER` (stable). Expose **uniquement les noms** des articles
+        d'inventaire marqués `dans_annonce = true` (jointe à `Meubles_Reference`
+        pour le `nom`, ou `nom_custom`), pour les chambres **actives** d'immeubles
+        **actifs**. Ne fuite **aucune** donnée financière (valeur/valeur_achat) →
+        `EXECUTE` accordé à `anon` + `authenticated` (la table `Inventaire` reste,
+        elle, privée au propriétaire via RLS). Alimente la carte/fiche publique de
+        la chambre et les chips du filtre « Équipements ».
+        `p_chambre_ids = NULL` → toutes les chambres (liste distincte pour le filtre).
+      requestBody:
+        content: { application/json: { schema: { type: object, properties: { p_chambre_ids: { type: array, items: { type: integer }, nullable: true } } } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { type: object, properties: { chambre_id: { type: integer }, nom: { type: string } } } } } } }
+
   # ──────────────────────── EDGE FUNCTIONS ────────────────────────
   /functions/v1/invite-locataire:
     post:
@@ -1050,6 +1068,10 @@ components:
         quantite: { type: integer, default: 1 }
         description: { type: string, nullable: true }
         photos: { type: array, items: { type: string } }
+        dans_annonce: { type: boolean, default: false, description: "Si true, l'article (ex-« équipement » de chambre) apparaît sur la carte/fiche publique de la chambre. Les équipements migrés depuis Chambres.selected_options sont à true ; un nouvel article est créé décoché." }
+        date_acquisition: { type: string, format: date, nullable: true, description: "Vétusté: date d'achat" }
+        valeur_achat: { type: number, nullable: true, description: "Vétusté: prix d'achat (sert au calcul de la valeur résiduelle)" }
+        categorie_vetuste: { type: string, nullable: true, description: "Catégorie de vétusté (override de la catégorie du meuble pour nom_custom)" }
         created_at: { type: string, format: date-time }
         meuble_ref: { $ref: '#/components/schemas/MeubleReference' }
         chambre: { type: object, properties: { id: { type: integer }, room_name: { type: string } } }
@@ -1067,6 +1089,90 @@ components:
         quantite: { type: integer }
         description: { type: string }
         photos: { type: array, items: { type: string } }
+        dans_annonce: { type: boolean, default: false, description: "Afficher dans l'annonce de la chambre (décoché par défaut)" }
+        date_acquisition: { type: string, format: date, nullable: true }
+        valeur_achat: { type: number, nullable: true }
+        categorie_vetuste: { type: string, nullable: true }
+    MeubleCategory:
+      type: object
+      description: "Modelo Dart: MeubleCategoryModel (tabela Meuble_Categories_Reference). Editada pelo Super Admin (MeubleCategoriesPage)."
+      properties:
+        id: { type: integer }
+        nom: { type: string }
+        ordre: { type: integer }
+    # ───────── Vétusté (Option B) ─────────
+    VetusteBareme:
+      type: object
+      description: "Modelo Dart: VetusteBaremeModel (tabela vetuste_bareme). Barème par proprietaire, 1 ligne par catégorie de meuble."
+      properties:
+        id: { type: integer }
+        owner_id: { type: string, format: uuid }
+        categorie: { type: string }
+        duree_vie_annees: { type: integer }
+        franchise_annees: { type: integer }
+        coefficient_annuel: { type: number, description: "%/an" }
+        residuel_min_pct: { type: number, description: "% résiduel minimum" }
+        created_at: { type: string, format: date-time }
+    VetusteDecompte:
+      type: object
+      description: "Modelo Dart: VetusteDecompteModel (tabela vetuste_decompte). Décompte de réparations locatives lié à un immeuble (+ chambre/locataire/EDL)."
+      properties:
+        id: { type: integer }
+        owner_id: { type: string, format: uuid }
+        immeuble_id: { type: integer }
+        chambre_id: { type: integer, nullable: true }
+        locataire_id: { type: string, format: uuid, nullable: true }
+        etat_de_lieux_id: { type: integer, nullable: true, description: "EDL de sortie d'origine (auto)" }
+        titre: { type: string, nullable: true }
+        statut: { type: string, enum: [brouillon, genere] }
+        total_montant: { type: number }
+        recette_id: { type: integer, nullable: true, description: "Recette « à recevoir » générée" }
+        created_at: { type: string, format: date-time }
+        vetuste_decompte_ligne: { type: array, items: { $ref: '#/components/schemas/VetusteDecompteLigne' } }
+    VetusteDecompteLigne:
+      type: object
+      description: "Modelo Dart: VetusteDecompteLigneModel (tabela vetuste_decompte_ligne). valeur_residuelle = valeur_achat × (1 − abattement_pct/100)."
+      properties:
+        id: { type: integer }
+        decompte_id: { type: integer }
+        equipement: { type: string }
+        categorie: { type: string, nullable: true }
+        valeur_achat: { type: number }
+        date_acquisition: { type: string, format: date, nullable: true }
+        age_annees: { type: number }
+        etat_entree: { type: string, nullable: true, description: "N/B/U/M" }
+        etat_sortie: { type: string, nullable: true, description: "N/B/U/M" }
+        abattement_pct: { type: number }
+        valeur_residuelle: { type: number }
+        imputable: { type: boolean }
+        notes: { type: string, nullable: true }
+        ordre: { type: integer }
+    ChargeReference:
+      type: object
+      description: "Modelo Dart: ChargeReferenceModel (tabela Charges_Reference). Éditée par le Super Admin (ChargesReferencePage)."
+      properties:
+        id: { type: integer }
+        nom: { type: string }
+        icone: { type: string }
+        description: { type: string, nullable: true }
+        is_active: { type: boolean }
+        ordre: { type: integer }
+    Recette:
+      type: object
+      description: "Modelo Dart: RecetteModel (tabela Recettes). Échéance « à recevoir » (loyer, ou décompte de vétusté). Visible côté proprietaire et locataire (RLS)."
+      properties:
+        id: { type: integer }
+        owner_id: { type: string, format: uuid }
+        locataire_id: { type: string, format: uuid, nullable: true }
+        etat_de_lieux_id: { type: integer, nullable: true }
+        immeuble_id: { type: integer, nullable: true }
+        chambre_id: { type: integer, nullable: true }
+        montant: { type: number }
+        date_echeance: { type: string, format: date }
+        date_paiement: { type: string, format: date, nullable: true }
+        statut: { type: string, enum: [a_recevoir, recu, en_retard] }
+        notes: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
 
     # ───────── Finances ─────────
     PaymentTypeRef:

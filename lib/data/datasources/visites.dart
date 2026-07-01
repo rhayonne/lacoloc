@@ -1,3 +1,5 @@
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:lacoloc_front/config/env_config.dart';
 import 'package:lacoloc_front/data/cache/data_cache.dart';
 import 'package:lacoloc_front/data/cache/realtime_service.dart';
 import 'package:lacoloc_front/data/models/visite.dart';
@@ -17,7 +19,7 @@ class VisitesDatasource {
       final rows = await _db
           .from(_table)
           .select()
-          .order('date_visite', ascending: true);
+          .order('heure_debut', ascending: true, nullsFirst: false);
       return rows
           .map((r) => VisiteModel.fromMap(Map<String, dynamic>.from(r)))
           .toList();
@@ -45,5 +47,27 @@ class VisitesDatasource {
   static Future<void> delete(int id) async {
     await _db.from(_table).delete().eq('id', id);
     _invalidate();
+  }
+
+  /// Envoie l'e-mail d'invitation au contact du rendez-vous (locataire lié ou
+  /// invité hors système). Best-effort. En dev, redirigé vers la boîte de test.
+  static Future<void> notifyRendezvous(int visiteId) async {
+    try {
+      await _db.functions.invoke(
+        'notify-rendezvous',
+        body: {
+          'visiteId': visiteId,
+          'mailTo': ?_devMailOverride,
+        },
+      );
+    } catch (_) {
+      // best-effort
+    }
+  }
+
+  static String? get _devMailOverride {
+    if (!EnvConfig.isDev) return null;
+    final addr = dotenv.get('ADDR_MAIL_CONFIRMATION', fallback: '').trim();
+    return addr.isEmpty ? null : addr;
   }
 }

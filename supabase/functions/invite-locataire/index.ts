@@ -212,6 +212,7 @@ Deno.serve(async (req) => {
       dateOfBirth,
       proprietaireId,
       resend,
+      del,
       userId: existingUserId,
       redirectTo,
       mailTo,
@@ -344,6 +345,83 @@ Deno.serve(async (req) => {
       if (emailSent) await markEmailStatus(supabase, existingUserId);
 
       return json({ emailSent, ...(smtpError ? { smtpError } : {}) });
+    }
+
+    // ── Delete mode (annuler une invitation en attente) ──────────────────────
+    // Supprime le compte d'un locataire **invité mais pas encore activé**.
+    // RÉSERVÉ : super_admin, admin_groupe (même entreprise) ou le propriétaire
+    // qui a émis l'invitation (invited_by_proprietaire_id). On refuse de
+    // supprimer un compte déjà activé ou lié à des contrats (etat_de_lieux).
+    if (del === true) {
+      const denied = await requireManager(supabase, req);
+      if (denied) return denied;
+      if (!existingUserId) return json({ error: 'userId est obligatoire.' }, 400);
+
+      const authHeader = req.headers.get('Authorization') ?? '';
+      const token = authHeader.replace(/^Bearer\s+/i, '').trim();
+      const { data: caller } = await supabase.auth.getUser(token);
+      const callerId = caller?.user?.id;
+      if (!callerId) return json({ error: 'Jeton invalide ou expiré.' }, 401);
+
+      const { data: callerProfile } = await supabase
+        .from('Users_Client')
+        .select('entreprise_id, User_Types_Reference(code)')
+        .eq('id', callerId)
+        .maybeSingle();
+      // deno-lint-ignore no-explicit-any
+      const callerType = (callerProfile as any)?.User_Types_Reference?.code;
+
+      const { data: targetProfile } = await supabase
+        .from('Users_Client')
+        .select('invited_by_proprietaire_id, entreprise_id')
+        .eq('id', existingUserId)
+        .maybeSingle();
+      if (!targetProfile) return json({ error: 'Utilisateur introuvable.' }, 404);
+
+      // Refuse la suppression d'un compte déjà activé (needs_completion=false).
+      const { data: targetAuth } = await supabase.auth.admin.getUserById(existingUserId);
+      // deno-lint-ignore no-explicit-any
+      const needsCompletion = (targetAuth as any)?.user?.user_metadata?.needs_completion;
+      if (needsCompletion === false) {
+        return json(
+          { error: 'Ce compte est déjà activé ; il ne peut pas être supprimé ici.' },
+          400,
+        );
+      }
+
+      // Sécurité : aucun contrat (etat_de_lieux) lié au locataire.
+      const { count } = await supabase
+        .from('etat_de_lieux')
+        .select('id', { count: 'exact', head: true })
+        .eq('locataire_id', existingUserId);
+      if (count && count > 0) {
+        return json(
+          { error: 'Ce compte est associé à des contrats — suppression impossible.' },
+          400,
+        );
+      }
+
+      // Autorisation fine.
+      // deno-lint-ignore no-explicit-any
+      const targetEntreprise = (targetProfile as any).entreprise_id;
+      // deno-lint-ignore no-explicit-any
+      const callerEntreprise = (callerProfile as any)?.entreprise_id;
+      const isSuper = callerType === 'super_admin';
+      const isSameEntreprise =
+        callerType === 'admin_groupe' && callerEntreprise &&
+        callerEntreprise === targetEntreprise;
+      // deno-lint-ignore no-explicit-any
+      const isInviter = (targetProfile as any).invited_by_proprietaire_id === callerId;
+      if (!isSuper && !isSameEntreprise && !isInviter) {
+        return json(
+          { error: 'Vous ne pouvez supprimer que les invitations que vous avez émises.' },
+          403,
+        );
+      }
+
+      const { error: delErr } = await supabase.auth.admin.deleteUser(existingUserId);
+      if (delErr) return json({ error: delErr.message }, 500);
+      return json({ deleted: true });
     }
 
     // ── Create mode ────────────────────────────────────────────────────────

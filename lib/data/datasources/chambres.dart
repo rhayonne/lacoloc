@@ -1,5 +1,6 @@
 import 'package:lacoloc_front/data/cache/data_cache.dart';
 import 'package:lacoloc_front/data/cache/realtime_service.dart';
+import 'package:lacoloc_front/data/datasources/inventaire.dart';
 import 'package:lacoloc_front/data/models/chambre.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -88,6 +89,16 @@ class ChambresDatasource {
         .single();
     _invalidate();
     return ChambreModel.fromMap(updated);
+  }
+
+  /// Supprime une chambre du système. Comme `Chambres.immeuble_id` est
+  /// NOT NULL, une chambre appartient toujours à un immeuble : la « détacher »
+  /// n'existe pas → supprimer = retirer la chambre du système.
+  /// L'inventaire rattaché à la chambre est supprimé d'abord.
+  static Future<void> delete(int id) async {
+    await InventaireDatasource.deleteByChambre(id);
+    await _client.from(_table).delete().eq('id', id);
+    _invalidate();
   }
 
   /// Marca ou desmarca a chambre como ocupada sem carregar o modelo completo.

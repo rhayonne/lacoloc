@@ -55,8 +55,8 @@ void main() {
         expect(const ChambreFilter(prixMax: 900.0).isEmpty, isFalse);
       });
 
-      test('false quando optionIds não vazio', () {
-        expect(const ChambreFilter(optionIds: {1, 2}).isEmpty, isFalse);
+      test('false quando equipements não vazio', () {
+        expect(const ChambreFilter(equipements: {'Wifi', 'Douche'}).isEmpty, isFalse);
       });
     });
 
@@ -73,7 +73,7 @@ void main() {
           bailType: BailTypeFilter.individuel,
           meuble: false,
           immeubleTypeId: 1,
-          optionIds: {3, 5},
+          equipements: {'Wifi', 'Douche'},
         );
         // 7 campos individuais = 7
         expect(filter.activeCount, 7);
@@ -107,7 +107,7 @@ void main() {
           bailType: BailTypeFilter.collectif,
           meuble: true,
           immeubleTypeId: 2,
-          optionIds: {1},
+          equipements: {'Wifi'},
           m2Min: 10.0,
           m2Max: 40.0,
           prixMin: 200.0,
@@ -184,10 +184,10 @@ void main() {
         expect(cleared.prixMax, isNull);
       });
 
-      test('atualiza optionIds', () {
-        const original = ChambreFilter(optionIds: {1, 2});
-        final updated = original.copyWith(optionIds: {3, 4, 5});
-        expect(updated.optionIds, {3, 4, 5});
+      test('atualiza equipements', () {
+        const original = ChambreFilter(equipements: {'Wifi', 'Douche'});
+        final updated = original.copyWith(equipements: {'Balcon', 'Fenêtre'});
+        expect(updated.equipements, {'Balcon', 'Fenêtre'});
       });
 
       test('não altera original (imutabilidade)', () {

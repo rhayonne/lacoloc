@@ -47,8 +47,12 @@ class ObservationEdl {
     'porte'   => "Mur d'entrée / Porte",
     'sol'     => 'Sol',
     'plafond' => 'Plafond',
+    'divers'  => 'Divers',
     _         => 'Général',
   };
+
+  /// Observation libre « Divers » (ni mur, ni pièce/chambre ciblée).
+  bool get isDivers => wallKey == 'divers';
 
   factory ObservationEdl.fromMap(Map<String, dynamic> map) => ObservationEdl(
     id: map['id'] as int?,

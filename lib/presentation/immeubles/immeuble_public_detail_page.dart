@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:lacoloc_front/data/datasources/chambres.dart';
+import 'package:lacoloc_front/data/datasources/inventaire.dart';
 import 'package:lacoloc_front/data/datasources/immeubles.dart';
-import 'package:lacoloc_front/data/datasources/reference.dart';
 import 'package:lacoloc_front/data/models/chambre.dart';
 import 'package:lacoloc_front/data/models/immeubles.dart';
 import 'package:lacoloc_front/presentation/chambres/chambre_card.dart';
@@ -47,21 +47,15 @@ class _ImmeublePublicDetailViewState extends State<ImmeublePublicDetailView> {
   }
 
   Future<_Bundle> _load() async {
-    final results = await Future.wait([
-      ImmeublesDatasource.byId(widget.immeubleId),
-      ChambresDatasource.listByImmeuble(widget.immeubleId),
-      ReferenceDatasource.roomOptions(),
-    ]);
-    final immeuble = results[0] as ImmeublesModel?;
+    final immeuble = await ImmeublesDatasource.byId(widget.immeubleId);
     if (immeuble == null) throw Exception('Immeuble introuvable');
-    final chambres =
-        (results[1] as List<ChambreModel>).where((c) => c.isActive).toList();
-    final options = results[2] as List<dynamic>;
-    final optionNames = <int, String>{
-      for (final o in options) (o.id as int): (o.name as String),
-    };
+    final chambres = (await ChambresDatasource.listByImmeuble(widget.immeubleId))
+        .where((c) => c.isActive)
+        .toList();
+    final equipMap = await InventaireDatasource.annonceLabelsByChambre(
+        chambres.map((c) => c.id).toList());
     return _Bundle(
-        immeuble: immeuble, chambres: chambres, optionNames: optionNames);
+        immeuble: immeuble, chambres: chambres, equipMap: equipMap);
   }
 
   List<String> _photos(ImmeublesModel imm) {
@@ -194,7 +188,7 @@ class _ImmeublePublicDetailViewState extends State<ImmeublePublicDetailView> {
                       final c = b.chambres[i];
                       return ChambreCard(
                         chambre: c,
-                        optionNames: b.optionNames,
+                        equipementLabels: b.equipMap[c.id] ?? const [],
                         onTap: () => Navigator.of(context)
                             .pushNamed('/chambre', arguments: c.id),
                       );
@@ -212,11 +206,11 @@ class _ImmeublePublicDetailViewState extends State<ImmeublePublicDetailView> {
 class _Bundle {
   final ImmeublesModel immeuble;
   final List<ChambreModel> chambres;
-  final Map<int, String> optionNames;
+  final Map<int, List<String>> equipMap;
   const _Bundle({
     required this.immeuble,
     required this.chambres,
-    required this.optionNames,
+    required this.equipMap,
   });
 }
 

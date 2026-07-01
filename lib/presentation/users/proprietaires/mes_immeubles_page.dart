@@ -90,12 +90,14 @@ class _MesImmeublesPageState extends State<MesImmeublesPage>
                       style: AppTypography.headlineMd,
                     ),
                   ),
-                  if (widget.onTourGuide != null)
-                    IconButton(
+                  if (widget.onTourGuide != null) ...[
+                    OutlinedButton.icon(
                       onPressed: widget.onTourGuide,
-                      icon: const Icon(Icons.help_outline),
-                      tooltip: 'Tour guidé — créer un immeuble',
+                      icon: const Icon(Icons.school_outlined, size: 18),
+                      label: const Text('Faire tour guidé'),
                     ),
+                    const SizedBox(width: AppSpacing.sm),
+                  ],
                   PermissionGate(
                     permission: Perm.immeublesCreate,
                     child: FilledButton.icon(
@@ -157,11 +159,16 @@ class _Grid extends StatelessWidget {
                   : constraints.maxWidth < 820
                   ? 2
                   : 3;
+              // Cartes réduites de ~15 % : on part de la largeur naturelle
+              // par colonne et on la rétrécit de 15 % (maxCrossAxisExtent).
+              final natural =
+                  (constraints.maxWidth - (cols - 1) * AppSpacing.md) / cols;
+              final extent = natural * 0.85;
               return GridView.builder(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: cols,
+                gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+                  maxCrossAxisExtent: extent,
                   crossAxisSpacing: AppSpacing.md,
                   mainAxisSpacing: AppSpacing.md,
                   childAspectRatio: 1.4,
@@ -346,21 +353,29 @@ class _ImmeubleCard extends StatelessWidget {
                   style: FilledButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 0),
                   ),
-                  child: const Text('Voir détails'),
+                  child: const Text(
+                    'Voir détails',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
               ),
               const SizedBox(width: AppSpacing.sm),
               PermissionGate(
                 permission: Perm.immeublesEdit,
-                child: OutlinedButton(
-                  onPressed: onModifier,
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.sm,
-                      vertical: 0,
+                child: Tooltip(
+                  message: "Modifier l'immeuble",
+                  child: OutlinedButton.icon(
+                    onPressed: onModifier,
+                    icon: const Icon(Icons.edit_outlined, size: 18),
+                    label: const Text('Édition'),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.md,
+                        vertical: 0,
+                      ),
                     ),
                   ),
-                  child: const Icon(Icons.edit_outlined, size: 16),
                 ),
               ),
             ],
@@ -379,15 +394,15 @@ class _ChambreThumbnailStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final shown = chambres.take(5).toList();
+    final shown = chambres.take(4).toList();
     return Row(
       children: shown.map((c) {
         final photo = c.roomPhotos.isNotEmpty ? c.roomPhotos.first : null;
         return Padding(
           padding: const EdgeInsets.only(right: 4),
           child: Container(
-            width: 36,
-            height: 36,
+            width: 41,
+            height: 41,
             decoration: BoxDecoration(
               color: AppColors.surfaceContainerLow,
               borderRadius: AppRadius.borderSm,
@@ -401,13 +416,13 @@ class _ChambreThumbnailStrip extends StatelessWidget {
                       fit: BoxFit.cover,
                       errorWidget: (_, _, _) => const Icon(
                         Icons.bed_outlined,
-                        size: 18,
+                        size: 21,
                         color: AppColors.outline,
                       ),
                     )
                   : const Icon(
                       Icons.bed_outlined,
-                      size: 18,
+                      size: 21,
                       color: AppColors.outline,
                     ),
             ),

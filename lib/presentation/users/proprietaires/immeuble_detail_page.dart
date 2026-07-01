@@ -3,7 +3,10 @@ import 'package:intl/intl.dart';
 import 'package:lacoloc_front/data/datasources/factures.dart';
 import 'package:lacoloc_front/data/datasources/inventaire.dart';
 import 'package:lacoloc_front/data/datasources/pieces.dart';
+import 'package:lacoloc_front/data/datasources/etat_de_lieux.dart';
 import 'package:lacoloc_front/data/models/chambre.dart';
+import 'package:lacoloc_front/data/models/chambre_statut.dart';
+import 'package:lacoloc_front/data/models/etat_de_lieux.dart';
 import 'package:lacoloc_front/data/models/facture.dart';
 import 'package:lacoloc_front/data/models/immeubles.dart';
 import 'package:lacoloc_front/data/models/inventaire.dart';
@@ -23,6 +26,8 @@ class ImmeubleDetailPage extends StatefulWidget {
   final List<ChambreModel> chambres;
   final VoidCallback onModifierImmeuble;
   final ValueChanged<ChambreModel> onModifierChambre;
+  final VoidCallback? onAjouterChambre;
+  final ValueChanged<ChambreModel>? onSupprimerChambre;
   final VoidCallback onAjouterFacture;
   final VoidCallback? onBack;
 
@@ -32,6 +37,8 @@ class ImmeubleDetailPage extends StatefulWidget {
     required this.chambres,
     required this.onModifierImmeuble,
     required this.onModifierChambre,
+    this.onAjouterChambre,
+    this.onSupprimerChambre,
     required this.onAjouterFacture,
     this.onBack,
   });
@@ -44,6 +51,8 @@ class _ImmeubleDetailPageState extends State<ImmeubleDetailPage> {
   late Future<List<FactureModel>> _facturesFuture;
   late Future<List<PieceModel>> _piecesFuture;
   late Future<List<InventaireModel>> _inventaireFuture;
+  // EDL d'entrée privatif par chambre → statut détaillé (phase du processus).
+  Map<int, EtatDesLieuxModel> _entreeEdls = {};
 
   @override
   void initState() {
@@ -51,6 +60,7 @@ class _ImmeubleDetailPageState extends State<ImmeubleDetailPage> {
     _facturesFuture = FacturesDatasource.listByImmeuble(widget.immeuble.id);
     _piecesFuture = PiecesDatasource.listByImmeuble(widget.immeuble.id);
     _inventaireFuture = InventaireDatasource.listByImmeuble(widget.immeuble.id);
+    _loadStatuts();
   }
 
   @override
@@ -61,8 +71,20 @@ class _ImmeubleDetailPageState extends State<ImmeubleDetailPage> {
       _piecesFuture = PiecesDatasource.listByImmeuble(widget.immeuble.id);
       _inventaireFuture =
           InventaireDatasource.listByImmeuble(widget.immeuble.id);
+      _loadStatuts();
     }
   }
+
+  Future<void> _loadStatuts() async {
+    try {
+      final map = await EtatDesLieuxDatasource.entreePrivatifsByImmeuble(
+          widget.immeuble.id);
+      if (mounted) setState(() => _entreeEdls = map);
+    } catch (_) {/* statut = repli sur est_loue */}
+  }
+
+  ChambreStatut _statutFor(ChambreModel c) =>
+      ChambreStatut.from(entree: _entreeEdls[c.id], estLoue: c.estLoue);
 
   void _reloadPieces() {
     setState(() {
@@ -216,7 +238,22 @@ class _ImmeubleDetailPageState extends State<ImmeubleDetailPage> {
           const SizedBox(height: AppSpacing.xl),
 
           // ── Tableau des chambres ───────────────────────────────────────────
-          Text('Chambres', style: AppTypography.titleLg),
+          Row(
+            children: [
+              Expanded(
+                child: Text('Chambres', style: AppTypography.titleLg),
+              ),
+              if (widget.onAjouterChambre != null)
+                PermissionGate(
+                  permission: Perm.chambresCreate,
+                  child: FilledButton.icon(
+                    onPressed: widget.onAjouterChambre,
+                    icon: const Icon(Icons.add, size: 16),
+                    label: const Text('Ajouter chambre'),
+                  ),
+                ),
+            ],
+          ),
           const SizedBox(height: AppSpacing.sm),
 
           if (widget.chambres.isEmpty)
@@ -233,7 +270,9 @@ class _ImmeubleDetailPageState extends State<ImmeubleDetailPage> {
           else
             _ChambresTable(
               chambres: widget.chambres,
+              statutOf: _statutFor,
               onModifier: widget.onModifierChambre,
+              onSupprimer: widget.onSupprimerChambre,
             ),
 
           const SizedBox(height: AppSpacing.xl),
@@ -567,9 +606,16 @@ class _PiecesTable extends StatelessWidget {
 
 class _ChambresTable extends StatelessWidget {
   final List<ChambreModel> chambres;
+  final ChambreStatut Function(ChambreModel) statutOf;
   final ValueChanged<ChambreModel> onModifier;
+  final ValueChanged<ChambreModel>? onSupprimer;
 
-  const _ChambresTable({required this.chambres, required this.onModifier});
+  const _ChambresTable({
+    required this.chambres,
+    required this.statutOf,
+    required this.onModifier,
+    this.onSupprimer,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -606,7 +652,7 @@ class _ChambresTable extends StatelessWidget {
 
   TableRow _buildChambreRow(ChambreModel c) {
     final loyer =
-        c.prixLoyer != null ? formatFrenchCurrency(c.prixLoyer!.round()) : '—';
+        c.prixLoyer != null ? formatEuros(c.prixLoyer!) : '—';
 
     return TableRow(
       decoration:
@@ -636,17 +682,32 @@ class _ChambresTable extends StatelessWidget {
         ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-          child: _StatutBadge(estLoue: c.estLoue),
+          child: _StatutBadge(statut: statutOf(c)),
         ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
-          child: PermissionGate(
-            permission: Perm.chambresEdit,
-            child: IconButton(
-              icon: const Icon(Icons.edit_outlined, size: 18),
-              tooltip: 'Modifier',
-              onPressed: () => onModifier(c),
-            ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              PermissionGate(
+                permission: Perm.chambresEdit,
+                child: IconButton(
+                  icon: const Icon(Icons.edit_outlined, size: 18),
+                  tooltip: 'Modifier',
+                  onPressed: () => onModifier(c),
+                ),
+              ),
+              if (onSupprimer != null)
+                PermissionGate(
+                  permission: Perm.chambresDelete,
+                  child: IconButton(
+                    icon: const Icon(Icons.delete_outline, size: 18),
+                    tooltip: 'Supprimer',
+                    color: AppColors.error,
+                    onPressed: () => onSupprimer!(c),
+                  ),
+                ),
+            ],
           ),
         ),
       ],
@@ -696,7 +757,7 @@ class _FacturesTable extends StatelessWidget {
 
   TableRow _buildFactureRow(FactureModel f) {
     final montant = f.montantTtc != null
-        ? formatFrenchCurrency(f.montantTtc!.round())
+        ? formatEuros(f.montantTtc!)
         : '—';
     final date = f.dateEcheance != null
         ? DateFormat('dd/MM/yyyy').format(f.dateEcheance!)
@@ -769,24 +830,27 @@ class _HeaderCell extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _StatutBadge extends StatelessWidget {
-  final bool estLoue;
-  const _StatutBadge({required this.estLoue});
+  final ChambreStatut statut;
+  const _StatutBadge({required this.statut});
 
   @override
   Widget build(BuildContext context) {
+    // Couleur par phase : libre=ambre, en cours=bleu, à signer=orange, loué=vert.
+    final color = switch (statut) {
+      ChambreStatut.libre => AppColors.secondary,
+      ChambreStatut.edlEntreeEnCours => AppColors.primary,
+      ChambreStatut.attenteSignature => AppColors.error,
+      ChambreStatut.loue => AppColors.tertiary,
+    };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: estLoue
-            ? AppColors.tertiary.withValues(alpha: 0.15)
-            : AppColors.secondary.withValues(alpha: 0.15),
+        color: color.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
-        estLoue ? 'Louée' : 'Libre',
-        style: AppTypography.labelSm.copyWith(
-          color: estLoue ? AppColors.tertiary : AppColors.secondary,
-        ),
+        statut.label,
+        style: AppTypography.labelSm.copyWith(color: color),
       ),
     );
   }
@@ -866,6 +930,7 @@ class _InventaireDetailTableState extends State<_InventaireDetailTable> {
         suffixIcon: _query.isNotEmpty
             ? IconButton(
                 icon: const Icon(Icons.close, size: 18),
+                tooltip: 'Effacer la recherche',
                 onPressed: () => setState(() => _query = ''),
               )
             : null,
@@ -1046,7 +1111,7 @@ class _InvDataRow extends StatelessWidget {
             flex: _kFlexValeur,
             child: Text(
               item.valeur != null
-                  ? formatFrenchCurrency(item.valeur!.round())
+                  ? formatEuros(item.valeur!)
                   : '—',
               style: AppTypography.bodyMd,
             ),
