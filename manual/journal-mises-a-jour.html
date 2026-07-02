@@ -233,8 +233,65 @@
         </summary>
         <div class="major-body">
 
-          <!-- 1.0.2 -->
+          <!-- 1.2.0 -->
           <details class="version" open>
+            <summary>
+              <span>📄</span>
+              <span class="vnum">v1.2.0</span>
+              <span class="vdate">24 juin 2026</span>
+              <span class="vtitle">Bail, communication & expérience</span>
+            </summary>
+            <div class="version-body">
+              <h4>📄 Contrat de bail</h4>
+              <ul>
+                <li>Génération du <b>bail</b> depuis l'état des lieux. Le bouton d'action dépend de l'état : <b>Continuer</b> (non finalisé), <b>Demander signature</b> (finalisé non signé — e-mail au locataire, 1 demande tous les 5 jours), <b>Générer bail</b> (finalisé et signé).</li>
+                <li>Les <b>garants actifs</b> du locataire sont ajoutés au bail (cautionnement). À la génération, on choisit si le bail nécessite un garant ; sans garant, <b>l'impression est bloquée</b> et le locataire est prévenu.</li>
+                <li>Vérification des <b>signatures</b> (bailleur/locataire) avant l'impression.</li>
+              </ul>
+              <h4>🧑‍🤝‍🧑 Garants & caution</h4>
+              <ul>
+                <li>« Enregistrer un garant » devient <b>obligatoire</b> dans les conditions pour louer.</li>
+                <li>Les garants <b>activés</b> sont ajoutés automatiquement aux baux ; infobulle sur l'interrupteur.</li>
+                <li>Dépôt de garantie et durée du bail : <b>champs numériques à flèches</b> ; aperçu du montant du dépôt (loyer × mois).</li>
+              </ul>
+              <h4>📣 Communication (super admin)</h4>
+              <ul>
+                <li>Nouveau menu pour <b>diffuser un message</b> (texte Markdown + <b>image</b> ou <b>vidéo YouTube</b>) à tous, par type, par groupe ou à des utilisateurs précis.</li>
+                <li><b>Historique</b> des envois ; les messages apparaissent dans le tableau de bord et les « Interactions » des destinataires.</li>
+              </ul>
+              <h4>🏠 Expérience</h4>
+              <ul>
+                <li><b>Checklist « Conditions pour louer »</b> sur le tableau de bord (locataire & propriétaire), avec liens directs pour résoudre chaque point.</li>
+                <li>Fiches immeuble/chambre <b>responsives</b>, ouvertes dans le cadre latéral ; <b>carrousel</b> photos (défilement auto 5 s + zoom avec flèches).</li>
+                <li>Menu locataire « Messages » → <b>« Interactions »</b> ; corrections d'affichage (charges, navigation).</li>
+              </ul>
+            </div>
+          </details>
+
+          <!-- 1.1.0 -->
+          <details class="version">
+            <summary>
+              <span>📄</span>
+              <span class="vnum">v1.1.0</span>
+              <span class="vdate">19 juin 2026</span>
+              <span class="vtitle">Tour guidé</span>
+            </summary>
+            <div class="version-body">
+              <h4>🧭 Tour guidé (nouveauté)</h4>
+              <ul>
+                <li>Tour <b>interactif dans l'application</b> pour <b>créer un immeuble</b> : chaque étape est mise en surbrillance avec une explication.</li>
+                <li>Lancement via le bouton <b>« ? »</b> sur « Mes Propriétés », le bouton <b>« Tour guidé »</b> du formulaire, ou depuis le manuel.</li>
+                <li>À la fin : choix de <b>conserver</b> l'immeuble créé ou de le <b>supprimer</b> (essai).</li>
+              </ul>
+              <h4>📖 Manuel</h4>
+              <ul>
+                <li>Nouvelle section <b>« Tour guidé »</b>.</li>
+              </ul>
+            </div>
+          </details>
+
+          <!-- 1.0.2 -->
+          <details class="version">
             <summary>
               <span>📄</span>
               <span class="vnum">v1.0.2</span>
