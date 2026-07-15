@@ -7,6 +7,32 @@ import 'app_typography.dart';
 
 /// Tema unificado do app. Componentes Flutter herdam daqui automaticamente,
 /// então alterar uma cor/fonte aqui propaga para toda a aplicação.
+///
+/// ── ONDE CADA COISA É USADA ─────────────────────────────────────────────────
+/// **Tokens de cor** ficam em [AppColors]; **espaçamentos** em `AppSpacing`;
+/// **raios** em `AppRadius`; **tipografia** em `AppTypography`. Aqui só montamos
+/// o [ThemeData] e alguns *styles* de botão nomeados.
+///
+/// `AppTheme.light` (usado no `MaterialApp`) define os defaults herdados:
+///   • `elevatedButtonTheme` / `filledButtonTheme` → botões primários (azul
+///     `AppColors.primary`) — ação principal padrão.
+///   • `outlinedButtonTheme` → botões secundários bordés (contorno cinza).
+///   • `textButtonTheme` → ações discretas (liens).
+///   • `inputDecorationTheme` → aparência de TODOS os campos de formulário
+///     (borda, foco azul, erro vermelho).
+///   • `cardTheme`, `dialogTheme`, `chipTheme`, `snackBarTheme`, etc. → cada
+///     componente Material correspondente.
+///
+/// **Styles de botão nomeados** (aplicar explicitamente no botão):
+///   • [saveButtonStyle]     → botão « Enregistrer / Sauvegarder » (vert clair,
+///                             `tertiaryFixed`). Semântica de sucesso/positiva.
+///   • [cancelButtonStyle]   → botão « Annuler / Fermer » (bordé neutre).
+///   • [deleteButtonStyle]   → botão « Supprimer » (rouge `AppColors.error`).
+///   • [editButtonStyle]     → botão « Modifier » / édição (bordé bleu primaire).
+///   • [documentButtonStyle] → botão « Document » / impressão PDF (bordé azul),
+///                             via o widget `DocumentPdfButton`.
+/// Cor de **sucesso** (selos, ícones ✓) = `AppColors.success` (verde, calcado
+/// no Tertiary). Cor de **hover de célula** (agenda) = `AppColors.hoverCell`.
 class AppTheme {
   AppTheme._();
 
@@ -79,6 +105,40 @@ class AppTheme {
           ),
           shape: RoundedRectangleBorder(borderRadius: AppRadius.borderMd),
           minimumSize: const Size(0, 48),
+        ),
+      ),
+
+      // ── Onglets (TabBar) — style « groupe de boutons » STANDARD du système ──
+      // Rendu unique appliqué à TOUTES les `TabBar` de tous les profils
+      // (proprietaire, locataire, super admin). Aucune `TabBar` ne doit
+      // surcharger `indicator` / `labelColor` : elles héritent d'ici pour rester
+      // cohérentes. Pour changer l'allure des onglets partout, MODIFIER ICI.
+      //
+      // Les onglets doivent se lire comme des **boutons** (et non comme une
+      // simple ligne de mots) : chaque `TabBar` est enveloppée dans le widget
+      // [AppTabBar] ([lib/theme/app_tab_bar.dart]) qui ajoute une **piste**
+      // (fond clair + bord + coins arrondis = « segmented control »). Ici, le
+      // thème définit la **pastille** de l'onglet actif :
+      //  • onglet **sélectionné** = pastille pleine couleur primaire (teal),
+      //    entièrement arrondie, libellé **blanc** et gras ;
+      //  • onglets **non sélectionnés** = libellé discret
+      //    ([AppColors.onSurfaceVariant]), posés dans la piste.
+      // `indicatorSize: tab` fait remplir tout l'onglet par la pastille ; le
+      // trait séparateur natif est retiré (la piste structure déjà la barre).
+      tabBarTheme: TabBarThemeData(
+        indicatorSize: TabBarIndicatorSize.tab,
+        indicator: BoxDecoration(
+          color: AppColors.primary,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        dividerColor: Colors.transparent,
+        dividerHeight: 0,
+        labelColor: AppColors.onPrimary,
+        unselectedLabelColor: AppColors.onSurfaceVariant,
+        labelStyle: AppTypography.labelMd.copyWith(fontWeight: FontWeight.w700),
+        unselectedLabelStyle: AppTypography.labelMd,
+        overlayColor: WidgetStatePropertyAll(
+          AppColors.primary.withValues(alpha: 0.06),
         ),
       ),
 
@@ -213,6 +273,21 @@ class AppTheme {
     minimumSize: const Size(0, 48),
   );
 
+  /// Style bordé (couleur primaire) pour tous les boutons "Modifier" / édition
+  /// de l'app. Action secondaire distincte du vert « Enregistrer » : bord bleu
+  /// primaire. À utiliser sur tout bouton « Modifier » (avec `Icons.edit_outlined`).
+  static ButtonStyle get editButtonStyle => OutlinedButton.styleFrom(
+    foregroundColor: AppColors.primary,
+    side: const BorderSide(color: AppColors.primary),
+    textStyle: AppTypography.labelMd,
+    padding: const EdgeInsets.symmetric(
+      horizontal: AppSpacing.lg,
+      vertical: AppSpacing.md,
+    ),
+    shape: RoundedRectangleBorder(borderRadius: AppRadius.borderMd),
+    minimumSize: const Size(0, 48),
+  );
+
   /// Style bordé (couleur primaire) pour tous les boutons "Document" / impression
   /// PDF de l'app. À utiliser via le widget [DocumentPdfButton].
   static ButtonStyle get documentButtonStyle => OutlinedButton.styleFrom(
@@ -225,5 +300,21 @@ class AppTheme {
     ),
     shape: RoundedRectangleBorder(borderRadius: AppRadius.borderMd),
     minimumSize: const Size(0, 48),
+  );
+
+  // ── Barre de titre standard (AppTopBar / FormPageHeader) ───────────────────
+  /// Décoration **standard** d'une barre de titre : fond distinct du fond de
+  /// page ([AppColors.barBackground]) + **ombre portée** en bas
+  /// ([AppColors.barShadow]). Toute barre de titre du système doit l'utiliser
+  /// (via le widget `AppTopBar`), pour un rendu uniforme et modifiable ici.
+  static BoxDecoration get barDecoration => BoxDecoration(
+    color: AppColors.barBackground,
+    boxShadow: [
+      BoxShadow(
+        color: AppColors.barShadow,
+        blurRadius: 6,
+        offset: const Offset(0, 2),
+      ),
+    ],
   );
 }

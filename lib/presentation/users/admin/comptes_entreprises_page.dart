@@ -6,8 +6,10 @@ import 'package:lacoloc_front/data/models/entreprise.dart';
 import 'package:lacoloc_front/data/models/users_client.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_radius.dart';
+import 'package:lacoloc_front/presentation/widgets/app_top_bar.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
 import 'package:lacoloc_front/theme/app_typography.dart';
+import 'package:lacoloc_front/theme/app_theme.dart';
 import 'package:lacoloc_front/utils/email_field.dart';
 import 'package:lacoloc_front/utils/phone_field.dart';
 
@@ -46,26 +48,20 @@ class _ComptesEntreprisesPageState extends State<ComptesEntreprisesPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text('Comptes Entreprises',
-                    style: AppTypography.headlineMd),
-              ),
-              FilledButton.icon(
-                onPressed: _createEntreprise,
-                icon: const Icon(Icons.domain_add_outlined, size: 18),
-                label: const Text('Créer une entreprise'),
-              ),
-            ],
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        AppTopBar(
+          title: 'Comptes Entreprises',
+          trailing: FilledButton.icon(
+            onPressed: _createEntreprise,
+            icon: const Icon(Icons.domain_add_outlined, size: 18),
+            label: const Text('Créer une entreprise'),
           ),
-          const SizedBox(height: AppSpacing.md),
-          Expanded(
+        ),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.lg),
             child: FutureBuilder<List<Entreprise>>(
               future: _future,
               builder: (context, snap) {
@@ -96,8 +92,8 @@ class _ComptesEntreprisesPageState extends State<ComptesEntreprisesPage> {
               },
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
@@ -443,6 +439,7 @@ class _EntrepriseDialogState extends State<_EntrepriseDialog> {
           child: const Text('Annuler'),
         ),
         FilledButton(
+          style: AppTheme.saveButtonStyle,
           onPressed: _loading ? null : _submit,
           child: _loading
               ? const SizedBox(
@@ -531,6 +528,7 @@ class _AdminGroupeDialogState extends State<_AdminGroupeDialog> {
           child: const Text('Annuler'),
         ),
         FilledButton(
+          style: AppTheme.saveButtonStyle,
           onPressed: _loading ? null : _submit,
           child: _loading
               ? const SizedBox(

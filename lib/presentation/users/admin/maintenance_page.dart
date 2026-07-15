@@ -4,45 +4,42 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:lacoloc_front/data/datasources/etat_de_lieux.dart';
 import 'package:lacoloc_front/presentation/users/admin/connection_logs_page.dart';
+import 'package:lacoloc_front/presentation/widgets/app_top_bar.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_radius.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
 import 'package:lacoloc_front/theme/app_typography.dart';
+import 'package:lacoloc_front/theme/app_tab_bar.dart';
 
 /// Section **Maintenance** du super admin. Regroupe en onglets :
 ///  - **Connexions** : le journal des connexions ([ConnectionLogsPage]).
 ///  - **Services** : des outils de maintenance (ex. test d'envoi d'e-mail).
 class MaintenancePage extends StatelessWidget {
-  const MaintenancePage({super.key});
+  final int initialTab;
+  final bool showTabBar;
+  const MaintenancePage(
+      {super.key, this.initialTab = 0, this.showTabBar = true});
 
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
       length: 2,
+      initialIndex: initialTab,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.xl, AppSpacing.xl, AppSpacing.xl, AppSpacing.md,
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.build_outlined, size: 28),
-                const SizedBox(width: AppSpacing.md),
-                Text('Maintenance', style: AppTypography.titleLg),
+          // Les sous-pages (Connexions / Services) fournissent leur propre
+          // barre de titre (AppTopBar) ; pas de double en-tête « Maintenance ».
+          if (showTabBar) ...[
+            AppTabBar(
+              isScrollable: true,
+              tabs: [
+                Tab(text: 'Connexions'),
+                Tab(text: 'Services'),
               ],
             ),
-          ),
-          const TabBar(
-            isScrollable: true,
-            tabAlignment: TabAlignment.start,
-            tabs: [
-              Tab(text: 'Connexions'),
-              Tab(text: 'Services'),
-            ],
-          ),
-          const Divider(height: 1),
+            const Divider(height: 1),
+          ],
           const Expanded(
             child: TabBarView(
               children: [
@@ -64,10 +61,18 @@ class _ServicesTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.all(AppSpacing.xl),
-      children: const [
-        _EmailTestService(),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const AppTopBar(title: 'Services'),
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.all(AppSpacing.xl),
+            children: const [
+              _EmailTestService(),
+            ],
+          ),
+        ),
       ],
     );
   }

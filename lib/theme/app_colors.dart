@@ -76,6 +76,56 @@ class AppColors {
   // Tonalidade para sombras (mantém aspecto profissional, não preto puro)
   static const Color shadowTint = Color(0xFF1E293B);
 
+  // ── Interactions / survol ───────────────────────────────────────────────
+  /// Couleur de **survol (hover)** d'une cellule cliquable — utilisée par la
+  /// grille de l'agenda (`AgendaPage`, créneaux de 30 min) et réutilisable
+  /// partout où l'on veut un retour visuel de survol **bien marqué**
+  /// (« sobressaliente »). C'est une teinte primaire semi-opaque posée
+  /// **par-dessus** le fond de la cellule (dispo/pause/hors plage), donc elle
+  /// se voit quel que soit ce fond. Pour la rendre plus/moins voyante, ajuster
+  /// le canal alpha (les 2 premiers hex : `0x33` ≈ 20 %).
+  static const Color hoverCell = Color(0x40006685); // primary @ ~25 %
+
+  /// Bordure de survol de la cellule (accentue le contour au hover).
+  static const Color hoverCellBorder = primary;
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // TOKENS SÉMANTIQUES — Barre de titre & menu latéral (sous-menus)
+  // ───────────────────────────────────────────────────────────────────────────
+  // Point unique de configuration : changez ces valeurs pour modifier
+  // l'apparence de TOUTES les barres de titre (FormPageHeader / AppTopBar) et du
+  // menu latéral (AppNavSidebar) d'un seul coup. La décoration prête à l'emploi
+  // de la barre est dans `AppTheme.barDecoration`.
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // ── Barre de titre (FormPageHeader / AppTopBar) ────────────────────────────
+  /// Fond de la barre — volontairement **distinct** du fond de page (`surface`)
+  /// pour la détacher visuellement.
+  static const Color barBackground = surfaceContainerLowest;
+
+  /// Couleur (déjà semi-transparente) de l'**ombre portée** sous la barre.
+  /// Pour une ombre plus/moins marquée, ajustez l'alpha (0.12 ≈ 12 %).
+  static final Color barShadow = shadowTint.withValues(alpha: 0.12);
+
+  // ── Menu latéral (AppNavSidebar) ───────────────────────────────────────────
+  /// Fond d'un **item de menu sélectionné** (feuille).
+  static final Color navItemSelected = primaryFixed.withValues(alpha: 0.45);
+
+  /// Fond du **bloc d'un groupe déplié** (en-tête + sous-menus).
+  static final Color navGroupBackground = primaryFixed.withValues(alpha: 0.22);
+
+  /// Fond du **sous-menu sélectionné** — un peu plus foncé que le fond du groupe.
+  static final Color navChildSelected = primaryFixed.withValues(alpha: 0.60);
+
+  /// Survol (hover) des items / sous-menus du menu latéral.
+  static const Color navHover = surfaceContainerLow;
+
+  /// Trait d'arborescence des sous-menus (partie neutre).
+  static const Color navConnector = outlineVariant;
+
+  /// Trait d'arborescence coloré (du haut jusqu'au sous-menu actif) + tiret actif.
+  static const Color navConnectorActive = primary;
+
   /// [ColorScheme] derivado da paleta. Material 3 distribui automaticamente
   /// essas cores nos componentes que usam o tema.
   static const ColorScheme lightScheme = ColorScheme(

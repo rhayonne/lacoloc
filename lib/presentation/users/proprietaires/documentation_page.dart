@@ -6,6 +6,7 @@ import 'package:lacoloc_front/data/datasources/signatures.dart';
 import 'package:lacoloc_front/data/models/etat_de_lieux.dart';
 import 'package:lacoloc_front/presentation/users/proprietaires/bail_pdf_preview_page.dart';
 import 'package:lacoloc_front/presentation/widgets/app_list_search_field.dart';
+import 'package:lacoloc_front/presentation/widgets/app_top_bar.dart';
 import 'package:lacoloc_front/presentation/widgets/bail_signature_flow.dart';
 import 'package:lacoloc_front/presentation/widgets/private_image.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
@@ -13,10 +14,15 @@ import 'package:lacoloc_front/theme/app_radius.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
 import 'package:lacoloc_front/theme/app_theme.dart';
 import 'package:lacoloc_front/theme/app_typography.dart';
+import 'package:lacoloc_front/theme/app_tab_bar.dart';
 import 'package:lacoloc_front/utils/signature_pad.dart';
 
 class DocumentationPage extends StatefulWidget {
-  const DocumentationPage({super.key});
+  /// Onglet initial (piloté par le sous-menu de la sidebar).
+  final int initialTab;
+  /// Masque la barre d'onglets interne quand la navigation se fait par sous-menu.
+  final bool showTabBar;
+  const DocumentationPage({super.key, this.initialTab = 0, this.showTabBar = true});
 
   @override
   State<DocumentationPage> createState() => _DocumentationPageState();
@@ -29,7 +35,8 @@ class _DocumentationPageState extends State<DocumentationPage>
   @override
   void initState() {
     super.initState();
-    _tabCtrl = TabController(length: 3, vsync: this);
+    _tabCtrl = TabController(
+        length: 3, vsync: this, initialIndex: widget.initialTab);
   }
 
   @override
@@ -43,66 +50,36 @@ class _DocumentationPageState extends State<DocumentationPage>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.lg,
-            AppSpacing.lg,
-            AppSpacing.lg,
-            0,
+        if (widget.showTabBar) ...[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.lg,
+              AppSpacing.lg,
+              AppSpacing.lg,
+              0,
+            ),
+            child: AppTabBar(
+              controller: _tabCtrl,
+              tabs: const [
+                Tab(text: 'Vue générale'),
+                Tab(text: 'Baux'),
+                Tab(text: 'Ma signature'),
+              ],
+            ),
           ),
-          child: TabBar(
-            controller: _tabCtrl,
-            tabs: const [
-              Tab(text: 'Vue générale'),
-              Tab(text: 'Baux'),
-              Tab(text: 'Ma signature'),
-            ],
-          ),
-        ),
-        const Divider(height: 1),
+          const Divider(height: 1),
+        ],
         Expanded(
           child: TabBarView(
             controller: _tabCtrl,
             children: const [
-              _DocCard(child: _VisionGeneralePage()),
-              _DocCard(child: _BauxPage()),
-              _DocCard(child: _SignaturePage()),
+              _VisionGeneralePage(),
+              _BauxPage(),
+              _SignaturePage(),
             ],
           ),
         ),
       ],
-    );
-  }
-}
-
-/// Frame en carte (bord arrondi + ombre) — identique à la section
-/// « Gestion Immobilière », pour une présentation homogène entre les pages.
-class _DocCard extends StatelessWidget {
-  final Widget child;
-  const _DocCard({required this.child});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      child: Container(
-        decoration: BoxDecoration(
-          color: AppColors.surfaceContainerLowest,
-          borderRadius: AppRadius.borderLg,
-          border: Border.all(color: AppColors.outlineVariant),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.shadowTint.withValues(alpha: 0.06),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: AppRadius.borderLg,
-          child: child,
-        ),
-      ),
     );
   }
 }
@@ -115,9 +92,14 @@ class _VisionGeneralePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.all(AppSpacing.lg),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        const AppTopBar(title: 'Vue générale'),
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            children: [
         Container(
           padding: const EdgeInsets.all(AppSpacing.md),
           decoration: BoxDecoration(
@@ -166,6 +148,9 @@ class _VisionGeneralePage extends StatelessWidget {
         ),
         const SizedBox(height: AppSpacing.xl),
         const ESignatureNoticeCard(),
+            ],
+          ),
+        ),
       ],
     );
   }
@@ -358,30 +343,19 @@ class _BauxPageState extends State<_BauxPage> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         // ── En-tête ─────────────────────────────────────────────────────────
+        const AppTopBar(title: 'Contrats de location'),
         Padding(
           padding: const EdgeInsets.fromLTRB(
-              AppSpacing.xl, AppSpacing.xl, AppSpacing.xl, AppSpacing.md),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Contrats de location', style: AppTypography.headlineLg),
-                    const SizedBox(height: AppSpacing.xs),
-                    Text(
-                      "Un bail est généré après l'acceptation de l'état des lieux "
-                      "par le locataire. Le bail est valable tant que l'état des "
-                      "lieux de sortie n'est pas finalisé.",
-                      style: AppTypography.bodyMd
-                          .copyWith(color: AppColors.onSurfaceVariant),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+              AppSpacing.xl, AppSpacing.md, AppSpacing.xl, 0),
+          child: Text(
+            "Un bail est généré après l'acceptation de l'état des lieux "
+            "par le locataire. Le bail est valable tant que l'état des "
+            "lieux de sortie n'est pas finalisé.",
+            style: AppTypography.bodyMd
+                .copyWith(color: AppColors.onSurfaceVariant),
           ),
         ),
+        const SizedBox(height: AppSpacing.md),
 
         // ── Recherche ────────────────────────────────────────────────────────
         AppListSearchField(
@@ -442,12 +416,24 @@ class _BauxPageState extends State<_BauxPage> {
                     padding: const EdgeInsets.symmetric(
                         horizontal: AppSpacing.xl, vertical: AppSpacing.sm),
                     itemCount: items.length,
-                    separatorBuilder: (_, _) => const Divider(height: 1),
-                    itemBuilder: (_, i) => _BailRow(
-                      edl: items[i],
-                      wide: wide,
-                      dateFmt: _dateFmt,
-                      onViewPdf: () => _openBail(items[i]),
+                    separatorBuilder: (_, _) =>
+                        const SizedBox(height: AppSpacing.sm),
+                    // Chaque bail dans une carte (bord arrondi + bordure),
+                    // homogène avec la liste des utilisateurs.
+                    itemBuilder: (_, i) => Container(
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceContainerLowest,
+                        borderRadius: AppRadius.borderLg,
+                        border: Border.all(color: AppColors.outlineVariant),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+                      child: _BailRow(
+                        edl: items[i],
+                        wide: wide,
+                        dateFmt: _dateFmt,
+                        onViewPdf: () => _openBail(items[i]),
+                      ),
                     ),
                   );
                 },
@@ -685,9 +671,14 @@ class _SignaturePageState extends State<_SignaturePage> {
       future: _future,
       builder: (context, snap) {
         final url = snap.data;
-        return ListView(
-          padding: const EdgeInsets.all(AppSpacing.lg),
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            const AppTopBar(title: 'Ma signature'),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.all(AppSpacing.lg),
+                children: [
             Text('Ma signature par défaut', style: AppTypography.titleLg),
             const SizedBox(height: AppSpacing.sm),
             Text(
@@ -700,25 +691,30 @@ class _SignaturePageState extends State<_SignaturePage> {
             if (snap.connectionState == ConnectionState.waiting)
               const Center(child: CircularProgressIndicator())
             else if (url != null && url.isNotEmpty) ...[
-              Container(
-                height: 120,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  border: Border.all(color: AppColors.outlineVariant),
-                  borderRadius: AppRadius.borderMd,
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Container(
+                  width: 320,
+                  height: 90,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    border: Border.all(color: AppColors.outlineVariant),
+                    borderRadius: AppRadius.borderMd,
+                  ),
+                  child: PrivateImage(ref: url, fit: BoxFit.contain),
                 ),
-                child: PrivateImage(ref: url, fit: BoxFit.contain),
               ),
               const SizedBox(height: AppSpacing.md),
               Row(
                 children: [
-                  FilledButton.icon(
+                  OutlinedButton.icon(
                     onPressed: _saving ? null : _update,
+                    style: AppTheme.editButtonStyle,
                     icon: const Icon(Icons.edit_outlined, size: 18),
                     label: const Text('Modifier'),
                   ),
                   const SizedBox(width: AppSpacing.md),
-                  OutlinedButton.icon(
+                  FilledButton.icon(
                     onPressed: _saving ? null : () => _delete(url),
                     style: AppTheme.deleteButtonStyle,
                     icon: const Icon(Icons.delete_outline, size: 18),
@@ -748,6 +744,9 @@ class _SignaturePageState extends State<_SignaturePage> {
                 label: const Text('Ajouter ma signature'),
               ),
             ],
+          ],
+              ),
+            ),
           ],
         );
       },

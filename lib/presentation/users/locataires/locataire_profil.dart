@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lacoloc_front/presentation/widgets/app_date_picker.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:intl/intl.dart';
 import 'package:lacoloc_front/data/cache/realtime_refresh_mixin.dart';
@@ -28,7 +29,9 @@ import 'package:lacoloc_front/presentation/users/proprietaires/etat_de_lieux_pag
 import 'package:lacoloc_front/presentation/users/proprietaires/interactions_page.dart'
     show NotificationCard;
 import 'package:lacoloc_front/presentation/chambres/chambre_detail_page.dart';
+import 'package:lacoloc_front/presentation/nav/app_nav_sidebar.dart';
 import 'package:lacoloc_front/presentation/nav/app_sidebar.dart';
+import 'package:lacoloc_front/presentation/widgets/app_top_bar.dart';
 import 'package:lacoloc_front/presentation/users/locataires/garants_page.dart';
 import 'package:lacoloc_front/presentation/users/proprietaires/bail_pdf_preview_page.dart';
 import 'package:lacoloc_front/presentation/users/proprietaires/documentation_page.dart'
@@ -43,6 +46,7 @@ import 'package:lacoloc_front/theme/app_radius.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
 import 'package:lacoloc_front/theme/app_theme.dart';
 import 'package:lacoloc_front/theme/app_typography.dart';
+import 'package:lacoloc_front/theme/app_tab_bar.dart';
 
 class LocataireProfilPage extends StatefulWidget {
   const LocataireProfilPage({super.key});
@@ -67,6 +71,7 @@ class _LocataireProfilPageState extends State<LocataireProfilPage>
   int _edlBadge = 0; // EDL finalisés non signés
   int _msgBadge = 0; // notifications non lues
   List<EtatDesLieuxModel> _pendingEdls = const [];
+  List<EtatDesLieuxModel> _pendingBails = const [];
   List<NotificationModel> _unreadNotifs = const [];
 
   /// Au moins un bail exige un garant alors que le locataire n'en a aucun.
@@ -78,13 +83,18 @@ class _LocataireProfilPageState extends State<LocataireProfilPage>
 
   /// Onglet initial de la section Documents (0 = Baux, 1 = Garants) — utilisé
   /// pour ouvrir directement les Garants depuis le raccourci du tableau de bord.
-  int _documentsInitialTab = 0;
 
   int? _selectedChambreId;
 
   /// Dernier index de menu sélectionné (pour ne rafraîchir que sur un vrai
   /// changement de section, pas au collapse/expand de la sidebar).
-  int _lastNavIndex = _idxDashboard;
+  // Source de vérité de la section courante (le sidebar personnalisé pilote via
+  // onTap, plus par selectedIndex).
+  int _navIndex = _idxDashboard;
+  // Sous-onglet de la section Documents (0 = Mes baux, 1 = Garants).
+  int _docSub = 0;
+  // Sous-onglet État des lieux (0 = Vision générale, 1 = Entrée, 2 = Sortie).
+  int _edlSub = 0;
 
   // Ordre du menu : Rechercher location (0) · Tableau de bord (1) ·
   // État des lieux (2) · Messages (3) · Documents (4) · Finances (5) ·
@@ -107,14 +117,12 @@ class _LocataireProfilPageState extends State<LocataireProfilPage>
   void initState() {
     super.initState();
     // Atterrissage par défaut sur le Tableau de bord (ce qui est en attente).
-    _navCtrl = SidebarXController(selectedIndex: _idxDashboard, extended: true);
-    _navCtrl.addListener(_onNavChanged);
+    _navCtrl = SidebarXController(selectedIndex: 0, extended: true);
     _refresh();
   }
 
   @override
   void dispose() {
-    _navCtrl.removeListener(_onNavChanged);
     _navCtrl.dispose();
     super.dispose();
   }
@@ -139,19 +147,32 @@ class _LocataireProfilPageState extends State<LocataireProfilPage>
       final signatureUrl = results[5] as String?;
       final available = all.where((c) => !c.estLoue && c.isActive).toList();
       final pending = edls
+          .where(
+            (e) => e.situation == SituationEdl.finalise && !e.locataireAccepte,
+          )
+          .toList();
+      // Baux à signer : l'EDL est signé des DEUX parties (annexe complète) mais
+      // le locataire n'a pas encore signé le bail (document distinct).
+      final pendingBails = edls
           .where((e) =>
-              e.situation == SituationEdl.finalise && !e.locataireAccepte)
+              e.typeEdl == 'entree' &&
+              e.edlFullySigned &&
+              !e.bailSignedBy('locataire'))
           .toList();
       final unread = notifs.where((n) => !n.isRead).toList();
       // Un bail exige un garant mais le locataire n'en a aucun → alerte.
       final needsGarant =
           garants.isEmpty && edls.any((e) => e.bailAvecGarant == true);
       setState(() {
-        _data =
-            _LocBundle(available: available, total: all.length, profile: profile);
+        _data = _LocBundle(
+          available: available,
+          total: all.length,
+          profile: profile,
+        );
         _pendingEdls = pending;
+        _pendingBails = pendingBails;
         _unreadNotifs = unread;
-        _edlBadge = pending.length;
+        _edlBadge = pending.length + pendingBails.length;
         _msgBadge = unread.length;
         _needsGarant = needsGarant;
         _hasSignature = signatureUrl != null;
@@ -163,16 +184,14 @@ class _LocataireProfilPageState extends State<LocataireProfilPage>
     }
   }
 
-  void _onNavChanged() {
-    if (!mounted) return;
-    final idx = _navCtrl.selectedIndex;
-    // Le listener se déclenche aussi au collapse/expand de la sidebar (sans
-    // changer d'index) : on ne rafraîchit que lors d'un vrai changement de
-    // section. Revenir sur le tableau de bord après avoir agi ailleurs (profil,
-    // signature, garant…) recharge la checklist « Conditions pour louer ».
-    final changed = idx != _lastNavIndex;
-    _lastNavIndex = idx;
-    setState(() => _selectedChambreId = null);
+  /// Change de section (piloté par le sidebar personnalisé). Revenir sur le
+  /// tableau de bord recharge la checklist « Conditions pour louer ».
+  void _go(int idx) {
+    final changed = idx != _navIndex;
+    setState(() {
+      _navIndex = idx;
+      _selectedChambreId = null;
+    });
     if (changed && idx == _idxDashboard) _refresh();
   }
 
@@ -183,11 +202,11 @@ class _LocataireProfilPageState extends State<LocataireProfilPage>
     }
   }
 
-  void _goToChambres() => _navCtrl.selectIndex(_idxChambres);
-  void _goToEdl() => _navCtrl.selectIndex(_idxEdl);
-  void _goToMessages() => _navCtrl.selectIndex(_idxMessages);
+  void _goToChambres() => _go(_idxChambres);
+  void _goToEdl() => _go(_idxEdl);
+  void _goToMessages() => _go(_idxMessages);
 
-  void _goToProfil() => _navCtrl.selectIndex(_idxProfil);
+  void _goToProfil() => _go(_idxProfil);
 
   /// Ouvre le pop-up de création de signature et l'enregistre comme signature
   /// par défaut, puis rafraîchit la checklist.
@@ -199,65 +218,118 @@ class _LocataireProfilPageState extends State<LocataireProfilPage>
       await _refresh();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur : $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
       }
     }
   }
 
-  /// Ouvre la section Documents directement sur l'onglet « Garants ».
+  /// Ouvre la section Documents directement sur le sous-menu « Garants ».
   void _goToGarants() {
-    setState(() => _documentsInitialTab = 1);
-    _navCtrl.selectIndex(_idxDocuments);
-    // Remet l'onglet par défaut (Baux) pour les prochaines ouvertures via menu,
-    // sans perturber l'onglet déjà affiché (l'état du TabController est conservé).
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) setState(() => _documentsInitialTab = 0);
-    });
+    setState(() => _docSub = 1);
+    _go(_idxDocuments);
   }
 
   Widget _buildSidebar({required bool isNarrow}) {
-    return AppSidebar(
+    void go(int idx) {
+      if (isNarrow) Navigator.of(context).pop();
+      _go(idx);
+    }
+
+    void goDoc(int sub) {
+      if (isNarrow) Navigator.of(context).pop();
+      setState(() => _docSub = sub);
+      _go(_idxDocuments);
+    }
+
+    void goEdl(int sub) {
+      if (isNarrow) Navigator.of(context).pop();
+      setState(() => _edlSub = sub);
+      _go(_idxEdl);
+    }
+
+    return AppNavSidebar(
       controller: _navCtrl,
       showToggleButton: !isNarrow,
       userEmail: AuthService.currentUser?.email,
       userTypeLabel: 'Locataire',
-      items: [
+      entries: [
         // Label court : un libellé trop long dépasse la largeur de la sidebar
         // (240 px) une fois en gras (sélectionné). Le titre de page reste long.
-        badgedSidebarItem(
-            icon: Icons.search_outlined,
-            label: 'Rechercher location',
-            extended: _navCtrl.extended),
-        badgedSidebarItem(
-            icon: Icons.dashboard_outlined,
-            label: 'Tableau de bord',
-            extended: _navCtrl.extended),
-        badgedSidebarItem(
+        NavEntry(
+          icon: Icons.search_outlined,
+          label: 'Rechercher location',
+          selected: _navIndex == _idxChambres,
+          onTap: () => go(_idxChambres),
+        ),
+        NavEntry(
+          icon: Icons.dashboard_outlined,
+          label: 'Tableau de bord',
+          selected: _navIndex == _idxDashboard,
+          onTap: () => go(_idxDashboard),
+        ),
+        NavEntry(
           icon: Icons.assignment_outlined,
           label: 'État des lieux',
           count: _edlBadge,
-          extended: _navCtrl.extended,
+          selected: _navIndex == _idxEdl,
+          onTap: () => go(_idxEdl),
+          children: [
+            NavChild(
+              label: 'Vision générale',
+              selected: _navIndex == _idxEdl && _edlSub == 0,
+              onTap: () => goEdl(0),
+            ),
+            NavChild(
+              label: 'Entrée',
+              selected: _navIndex == _idxEdl && _edlSub == 1,
+              onTap: () => goEdl(1),
+            ),
+            NavChild(
+              label: 'Sortie',
+              selected: _navIndex == _idxEdl && _edlSub == 2,
+              onTap: () => goEdl(2),
+            ),
+          ],
         ),
-        badgedSidebarItem(
+        NavEntry(
           icon: Icons.mail_outline,
           label: 'Interactions',
           count: _msgBadge,
-          extended: _navCtrl.extended,
+          selected: _navIndex == _idxMessages,
+          onTap: () => go(_idxMessages),
         ),
-        badgedSidebarItem(
-            icon: Icons.folder_outlined,
-            label: 'Documents',
-            extended: _navCtrl.extended),
-        badgedSidebarItem(
-            icon: Icons.payments_outlined,
-            label: 'Finances',
-            extended: _navCtrl.extended),
-        badgedSidebarItem(
-            icon: Icons.person_outline,
-            label: 'Mon Profil',
-            extended: _navCtrl.extended),
+        NavEntry(
+          icon: Icons.folder_outlined,
+          label: 'Documents',
+          selected: _navIndex == _idxDocuments,
+          onTap: () => go(_idxDocuments),
+          children: [
+            NavChild(
+              label: 'Mes baux',
+              selected: _navIndex == _idxDocuments && _docSub == 0,
+              onTap: () => goDoc(0),
+            ),
+            NavChild(
+              label: 'Garants',
+              selected: _navIndex == _idxDocuments && _docSub == 1,
+              onTap: () => goDoc(1),
+            ),
+          ],
+        ),
+        NavEntry(
+          icon: Icons.payments_outlined,
+          label: 'Finances',
+          selected: _navIndex == _idxFinances,
+          onTap: () => go(_idxFinances),
+        ),
+        NavEntry(
+          icon: Icons.person_outline,
+          label: 'Mon Profil',
+          selected: _navIndex == _idxProfil,
+          onTap: () => go(_idxProfil),
+        ),
       ],
       footerBuilder: (ctx, extended) => Column(
         mainAxisSize: MainAxisSize.min,
@@ -301,29 +373,38 @@ class _LocataireProfilPageState extends State<LocataireProfilPage>
     if (bundle == null) {
       return const Center(child: CircularProgressIndicator());
     }
-    return switch (_navCtrl.selectedIndex) {
+    return switch (_navIndex) {
       _idxDashboard => _DashboardSection(
-          bundle: bundle,
-          pendingEdls: _pendingEdls,
-          unreadNotifs: _unreadNotifs,
-          needsGarant: _needsGarant,
-          hasSignature: _hasSignature,
-          hasGarant: _hasGarant,
-          onVoirChambres: _goToChambres,
-          onVoirEdl: _goToEdl,
-          onVoirMessages: _goToMessages,
-          onVoirGarants: _goToGarants,
-          onCompleterProfil: _goToProfil,
-          onCreerSignature: _createSignature,
-        ),
+        bundle: bundle,
+        pendingEdls: _pendingEdls,
+        pendingBails: _pendingBails,
+        unreadNotifs: _unreadNotifs,
+        needsGarant: _needsGarant,
+        hasSignature: _hasSignature,
+        hasGarant: _hasGarant,
+        onVoirChambres: _goToChambres,
+        onVoirEdl: _goToEdl,
+        onVoirMessages: _goToMessages,
+        onVoirGarants: _goToGarants,
+        onCompleterProfil: _goToProfil,
+        onCreerSignature: _createSignature,
+      ),
       _idxChambres => _ChambresSection(
-          chambres: bundle.available,
-          onTap: _openChambre,
-        ),
+        chambres: bundle.available,
+        onTap: _openChambre,
+      ),
       _idxProfil => _ProfilSection(profile: bundle.profile),
-      _idxEdl => const _InteractionsSection(),
+      _idxEdl => _InteractionsSection(
+          key: ValueKey('edl$_edlSub'),
+          initialTab: _edlSub,
+          showTabBar: false,
+        ),
       _idxMessages => const _MessagesSection(),
-      _idxDocuments => _DocumentsSection(initialTab: _documentsInitialTab),
+      _idxDocuments => _DocumentsSection(
+        key: ValueKey('doc$_docSub'),
+        initialTab: _docSub,
+        showTabBar: false,
+      ),
       _idxFinances => const _FinancesSection(),
       _ => const SizedBox.shrink(),
     };
@@ -389,26 +470,12 @@ class _LocataireSectionBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.lg,
-        AppSpacing.sm,
-        AppSpacing.sm,
-        AppSpacing.sm,
-      ),
-      decoration: const BoxDecoration(
-        color: AppColors.surfaceContainerLowest,
-        border: Border(bottom: BorderSide(color: AppColors.outlineVariant)),
-      ),
-      child: SizedBox(
-        height: 48,
-        child: Row(
-          children: [
-            Expanded(child: Text(title, style: AppTypography.titleLg)),
-            ...actions,
-          ],
-        ),
-      ),
+    // Barre standard du système (fond distinct + ombre en bas via le thème).
+    return AppTopBar(
+      title: title,
+      trailing: actions.isEmpty
+          ? null
+          : Row(mainAxisSize: MainAxisSize.min, children: actions),
     );
   }
 }
@@ -419,6 +486,7 @@ class _LocataireSectionBar extends StatelessWidget {
 class _DashboardSection extends StatelessWidget {
   final _LocBundle bundle;
   final List<EtatDesLieuxModel> pendingEdls;
+  final List<EtatDesLieuxModel> pendingBails;
   final List<NotificationModel> unreadNotifs;
   final bool needsGarant;
   final bool hasSignature;
@@ -433,6 +501,7 @@ class _DashboardSection extends StatelessWidget {
   const _DashboardSection({
     required this.bundle,
     required this.pendingEdls,
+    required this.pendingBails,
     required this.unreadNotifs,
     required this.needsGarant,
     required this.hasSignature,
@@ -448,7 +517,8 @@ class _DashboardSection extends StatelessWidget {
   /// Construit les conditions « prêt à louer » du locataire.
   List<ChecklistItem> _checklistItems() {
     final p = bundle.profile;
-    final profilComplet = (p?.fullName?.trim().isNotEmpty ?? false) &&
+    final profilComplet =
+        (p?.fullName?.trim().isNotEmpty ?? false) &&
         (p?.phone?.trim().isNotEmpty ?? false) &&
         p?.dateOfBirth != null;
     return [
@@ -484,10 +554,13 @@ class _DashboardSection extends StatelessWidget {
     final profile = bundle.profile;
     final rawName = profile?.fullName?.trim() ?? '';
     final firstName = rawName.isNotEmpty ? rawName.split(' ').first : '';
-    final greeting =
-        firstName.isNotEmpty ? 'Bonjour, $firstName !' : 'Bienvenue !';
-    final nbActions =
-        pendingEdls.length + unreadNotifs.length + (needsGarant ? 1 : 0);
+    final greeting = firstName.isNotEmpty
+        ? 'Bonjour, $firstName !'
+        : 'Bienvenue !';
+    final nbActions = pendingEdls.length +
+        pendingBails.length +
+        unreadNotifs.length +
+        (needsGarant ? 1 : 0);
     final aJour = nbActions == 0;
 
     return Column(
@@ -532,7 +605,7 @@ class _DashboardSection extends StatelessWidget {
                                   aJour
                                       ? "Vous êtes à jour, rien en attente."
                                       : '$nbActions élément${nbActions > 1 ? 's' : ''} '
-                                          'en attente de votre part.',
+                                            'en attente de votre part.',
                                   style: AppTypography.bodyMd.copyWith(
                                     color: AppColors.onPrimaryFixedVariant
                                         .withValues(alpha: 0.75),
@@ -583,8 +656,33 @@ class _DashboardSection extends StatelessWidget {
                         const SizedBox(height: AppSpacing.md),
                         ...pendingEdls.map(
                           (e) => Padding(
-                            padding:
-                                const EdgeInsets.only(bottom: AppSpacing.sm),
+                            padding: const EdgeInsets.only(
+                              bottom: AppSpacing.sm,
+                            ),
+                            child: _DashboardEdlTile(
+                              edl: e,
+                              dateFmt: _dateFmt,
+                              onTap: onVoirEdl,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.xl),
+                      ],
+
+                      // ── Baux à signer (document distinct de l'EDL) ────────
+                      if (pendingBails.isNotEmpty) ...[
+                        _sectionHeader(
+                          icon: Icons.description_outlined,
+                          title: 'Baux à signer',
+                          actionLabel: 'Voir tout',
+                          onAction: onVoirEdl,
+                        ),
+                        const SizedBox(height: AppSpacing.md),
+                        ...pendingBails.map(
+                          (e) => Padding(
+                            padding: const EdgeInsets.only(
+                              bottom: AppSpacing.sm,
+                            ),
                             child: _DashboardEdlTile(
                               edl: e,
                               dateFmt: _dateFmt,
@@ -606,8 +704,9 @@ class _DashboardSection extends StatelessWidget {
                         const SizedBox(height: AppSpacing.md),
                         ...unreadNotifs.map(
                           (n) => Padding(
-                            padding:
-                                const EdgeInsets.only(bottom: AppSpacing.sm),
+                            padding: const EdgeInsets.only(
+                              bottom: AppSpacing.sm,
+                            ),
                             child: NotificationCard(
                               notification: n,
                               onTap: onVoirMessages,
@@ -648,29 +747,34 @@ class _DashboardSection extends StatelessWidget {
   }
 
   Widget _emptyState() => Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: AppSpacing.xl),
-          child: Column(
-            children: [
-              const Icon(Icons.check_circle_outline,
-                  size: 56, color: AppColors.success),
-              const SizedBox(height: AppSpacing.md),
-              Text(
-                'Vous êtes à jour ✓',
-                style: AppTypography.titleLg
-                    .copyWith(color: AppColors.onSurfaceVariant),
-              ),
-              const SizedBox(height: AppSpacing.xs),
-              Text(
-                "Aucun état des lieux à signer, aucun message en attente.",
-                style: AppTypography.bodyMd
-                    .copyWith(color: AppColors.onSurfaceVariant),
-                textAlign: TextAlign.center,
-              ),
-            ],
+    child: Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.xl),
+      child: Column(
+        children: [
+          const Icon(
+            Icons.check_circle_outline,
+            size: 56,
+            color: AppColors.success,
           ),
-        ),
-      );
+          const SizedBox(height: AppSpacing.md),
+          Text(
+            'Vous êtes à jour ✓',
+            style: AppTypography.titleLg.copyWith(
+              color: AppColors.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            "Aucun état des lieux à signer, aucun message en attente.",
+            style: AppTypography.bodyMd.copyWith(
+              color: AppColors.onSurfaceVariant,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 /// Tuile compacte (lecture seule) d'un EDL à signer affichée dans le tableau de
@@ -688,9 +792,10 @@ class _DashboardEdlTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final lieu = [edl.immeubleNom, edl.chambreNom]
-        .where((s) => s != null && s.isNotEmpty)
-        .join(' · ');
+    final lieu = [
+      edl.immeubleNom,
+      edl.chambreNom,
+    ].where((s) => s != null && s.isNotEmpty).join(' · ');
     final dateStr = edl.dateFinalisation != null
         ? 'Finalisé le ${dateFmt.format(edl.dateFinalisation!)}'
         : 'Finalisé';
@@ -714,15 +819,17 @@ class _DashboardEdlTile extends StatelessWidget {
                 children: [
                   Text(
                     lieu.isEmpty ? 'État des lieux' : lieu,
-                    style: AppTypography.bodyMd
-                        .copyWith(fontWeight: FontWeight.w600),
+                    style: AppTypography.bodyMd.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
                   Text(
                     '${edl.typeLabel} · $dateStr',
-                    style: AppTypography.labelSm
-                        .copyWith(color: AppColors.onSurfaceVariant),
+                    style: AppTypography.labelSm.copyWith(
+                      color: AppColors.onSurfaceVariant,
+                    ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -799,8 +906,11 @@ class _MessagesSectionState extends State<_MessagesSection>
       'edl_a_signer',
     };
     if (n.etatDeLieuxId != null && bailTypes.contains(n.type)) {
-      await showBailRequirementsDialog(context,
-          edlId: n.etatDeLieuxId!, asProprietaire: false);
+      await showBailRequirementsDialog(
+        context,
+        edlId: n.etatDeLieuxId!,
+        asProprietaire: false,
+      );
       if (mounted) _load();
     }
   }
@@ -818,7 +928,11 @@ class _MessagesSectionState extends State<_MessagesSection>
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(
-              AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, AppSpacing.md),
+            AppSpacing.lg,
+            AppSpacing.lg,
+            AppSpacing.lg,
+            AppSpacing.md,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -826,8 +940,9 @@ class _MessagesSectionState extends State<_MessagesSection>
               const SizedBox(height: AppSpacing.xs),
               Text(
                 'Suivi de vos échanges et notifications.',
-                style: AppTypography.bodyMd
-                    .copyWith(color: AppColors.onSurfaceVariant),
+                style: AppTypography.bodyMd.copyWith(
+                  color: AppColors.onSurfaceVariant,
+                ),
               ),
             ],
           ),
@@ -851,12 +966,18 @@ class _MessagesSectionState extends State<_MessagesSection>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.mail_outline,
-                  size: 48, color: AppColors.onSurfaceVariant),
+              const Icon(
+                Icons.mail_outline,
+                size: 48,
+                color: AppColors.onSurfaceVariant,
+              ),
               const SizedBox(height: AppSpacing.md),
-              Text('Aucun message.',
-                  style: AppTypography.bodyMd
-                      .copyWith(color: AppColors.onSurfaceVariant)),
+              Text(
+                'Aucun message.',
+                style: AppTypography.bodyMd.copyWith(
+                  color: AppColors.onSurfaceVariant,
+                ),
+              ),
             ],
           ),
         ),
@@ -884,7 +1005,9 @@ class _MessagesSectionState extends State<_MessagesSection>
                 Padding(
                   padding: const EdgeInsets.only(bottom: AppSpacing.sm),
                   child: NotificationCard(
-                      notification: n, onTap: () => _onNotifTap(n)),
+                    notification: n,
+                    onTap: () => _onNotifTap(n),
+                  ),
                 ),
             ],
           ),
@@ -921,7 +1044,8 @@ class _ChambresSectionState extends State<_ChambresSection> {
 
   Future<void> _loadEquip() async {
     final map = await InventaireDatasource.annonceLabelsByChambre(
-        widget.chambres.map((c) => c.id).toList());
+      widget.chambres.map((c) => c.id).toList(),
+    );
     if (mounted) setState(() => _equip = map);
   }
 
@@ -951,16 +1075,17 @@ class _ChambresSectionState extends State<_ChambresSection> {
         return false;
       }
       if (f.department.isNotEmpty &&
-          !(c.immeubleDepartment
-                  ?.toLowerCase()
-                  .contains(f.department.toLowerCase()) ??
+          !(c.immeubleDepartment?.toLowerCase().contains(
+                f.department.toLowerCase(),
+              ) ??
               false)) {
         return false;
       }
       if (f.bailType == BailTypeFilter.collectif && !c.immeubleBailLocation) {
         return false;
       }
-      if (f.bailType == BailTypeFilter.individuel && !c.immeubleBailIndividuel) {
+      if (f.bailType == BailTypeFilter.individuel &&
+          !c.immeubleBailIndividuel) {
         return false;
       }
       if (f.m2Min != null && (c.m2 == null || c.m2! < f.m2Min!)) {
@@ -999,125 +1124,127 @@ class _ChambresSectionState extends State<_ChambresSection> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Barre de recherche
-              Container(
-                height: 44,
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceContainerLowest,
-                  borderRadius: AppRadius.borderFull,
-                  border: Border.all(color: AppColors.outlineVariant),
-                ),
-                child: TextField(
-                  onChanged: (v) => setState(() => _query = v),
-                  decoration: InputDecoration(
-                    hintText: 'Rechercher une chambre, immeuble, ville…',
-                    border: InputBorder.none,
-                    enabledBorder: InputBorder.none,
-                    focusedBorder: InputBorder.none,
-                    filled: false,
-                    contentPadding: const EdgeInsets.symmetric(
-                      vertical: 10,
-                      horizontal: AppSpacing.md,
-                    ),
-                    prefixIcon: const Icon(Icons.search, size: 20),
-                    suffixIcon: _query.isNotEmpty
-                        ? IconButton(
-                            icon: const Icon(Icons.close, size: 18),
-                            tooltip: 'Effacer la recherche',
-                            onPressed: () => setState(() => _query = ''),
-                          )
-                        : null,
-                  ),
-                ),
-              ),
-              const SizedBox(height: AppSpacing.sm),
-
-              FilterPanel(
-                filter: _filter,
-                onChanged: (f) => setState(() => _filter = f),
-                modules: const {
-                  FilterModule.localisation,
-                  FilterModule.bail,
-                  FilterModule.meuble,
-                  FilterModule.typeImmeuble,
-                  FilterModule.surface,
-                  FilterModule.prix,
-                  FilterModule.equipements,
-                },
-              ),
-              const SizedBox(height: AppSpacing.sm),
-
-              Text(
-                filtered.isEmpty
-                    ? 'Aucune chambre ne correspond à la recherche.'
-                    : '${filtered.length} chambre${filtered.length > 1 ? 's' : ''} '
-                        'disponible${filtered.length > 1 ? 's' : ''}',
-                style: AppTypography.bodyMd.copyWith(
-                  color: AppColors.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(height: AppSpacing.md),
-
-              if (widget.chambres.isEmpty)
-                Center(
-                  child: Column(
-                    children: [
-                      const SizedBox(height: AppSpacing.xl),
-                      const Icon(
-                        Icons.bed_outlined,
-                        size: 64,
-                        color: AppColors.outline,
+                    Container(
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceContainerLowest,
+                        borderRadius: AppRadius.borderFull,
+                        border: Border.all(color: AppColors.outlineVariant),
                       ),
-                      const SizedBox(height: AppSpacing.md),
-                      Text(
-                        'Revenez bientôt — de nouvelles chambres\nseront disponibles prochainement.',
-                        style: AppTypography.bodyMd.copyWith(
-                          color: AppColors.onSurfaceVariant,
+                      child: TextField(
+                        onChanged: (v) => setState(() => _query = v),
+                        decoration: InputDecoration(
+                          hintText: 'Rechercher une chambre, immeuble, ville…',
+                          border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                          filled: false,
+                          contentPadding: const EdgeInsets.symmetric(
+                            vertical: 10,
+                            horizontal: AppSpacing.md,
+                          ),
+                          prefixIcon: const Icon(Icons.search, size: 20),
+                          suffixIcon: _query.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(Icons.close, size: 18),
+                                  tooltip: 'Effacer la recherche',
+                                  onPressed: () => setState(() => _query = ''),
+                                )
+                              : null,
                         ),
-                        textAlign: TextAlign.center,
                       ),
-                    ],
-                  ),
-                )
-              else if (filtered.isEmpty)
-                Center(
-                  child: Padding(
-                    padding: const EdgeInsets.only(top: AppSpacing.xl),
-                    child: Text(
-                      'Aucun résultat pour « $_query »',
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+
+                    FilterPanel(
+                      filter: _filter,
+                      onChanged: (f) => setState(() => _filter = f),
+                      modules: const {
+                        FilterModule.localisation,
+                        FilterModule.bail,
+                        FilterModule.meuble,
+                        FilterModule.typeImmeuble,
+                        FilterModule.surface,
+                        FilterModule.prix,
+                        FilterModule.equipements,
+                      },
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+
+                    Text(
+                      filtered.isEmpty
+                          ? 'Aucune chambre ne correspond à la recherche.'
+                          : '${filtered.length} chambre${filtered.length > 1 ? 's' : ''} '
+                                'disponible${filtered.length > 1 ? 's' : ''}',
                       style: AppTypography.bodyMd.copyWith(
                         color: AppColors.onSurfaceVariant,
                       ),
                     ),
-                  ),
-                )
-              else
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    final cols = constraints.maxWidth > 700 ? 3 : 2;
-                    return GridView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: cols,
-                        crossAxisSpacing: AppSpacing.md,
-                        mainAxisSpacing: AppSpacing.md,
-                        childAspectRatio: 0.72,
+                    const SizedBox(height: AppSpacing.md),
+
+                    if (widget.chambres.isEmpty)
+                      Center(
+                        child: Column(
+                          children: [
+                            const SizedBox(height: AppSpacing.xl),
+                            const Icon(
+                              Icons.bed_outlined,
+                              size: 64,
+                              color: AppColors.outline,
+                            ),
+                            const SizedBox(height: AppSpacing.md),
+                            Text(
+                              'Revenez bientôt — de nouvelles chambres\nseront disponibles prochainement.',
+                              style: AppTypography.bodyMd.copyWith(
+                                color: AppColors.onSurfaceVariant,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
+                      )
+                    else if (filtered.isEmpty)
+                      Center(
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: AppSpacing.xl),
+                          child: Text(
+                            'Aucun résultat pour « $_query »',
+                            style: AppTypography.bodyMd.copyWith(
+                              color: AppColors.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
+                      )
+                    else
+                      LayoutBuilder(
+                        builder: (context, constraints) {
+                          final cols = constraints.maxWidth > 700 ? 3 : 2;
+                          return GridView.builder(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            gridDelegate:
+                                SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: cols,
+                                  crossAxisSpacing: AppSpacing.md,
+                                  mainAxisSpacing: AppSpacing.md,
+                                  childAspectRatio: 0.72,
+                                ),
+                            itemCount: filtered.length,
+                            itemBuilder: (context, i) => ChambreCard(
+                              chambre: filtered[i],
+                              equipementLabels:
+                                  _equip[filtered[i].id] ?? const [],
+                              onTap: () => widget.onTap(filtered[i].id),
+                            ),
+                          );
+                        },
                       ),
-                      itemCount: filtered.length,
-                      itemBuilder: (context, i) => ChambreCard(
-                        chambre: filtered[i],
-                        equipementLabels: _equip[filtered[i].id] ?? const [],
-                        onTap: () => widget.onTap(filtered[i].id),
-                      ),
-                    );
-                  },
+                  ],
                 ),
-            ],
-          ),
-        ),
-      ),
+              ),
             ),
           ),
+        ),
       ],
     );
   }
@@ -1200,12 +1327,11 @@ class _ProfilSectionState extends State<_ProfilSection> {
 
   Future<void> _pickDate() async {
     final now = DateTime.now();
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _editDob ?? DateTime(now.year - 25),
+    final picked = await showAppDatePicker(
+      context,
+      initial: _editDob ?? DateTime(now.year - 25),
       firstDate: DateTime(1920),
       lastDate: DateTime(now.year - 16, now.month, now.day),
-      locale: const Locale('fr'),
     );
     if (picked != null && mounted) {
       setState(() => _editDob = picked);
@@ -1247,8 +1373,9 @@ class _ProfilSectionState extends State<_ProfilSection> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _isDeleting = false);
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Erreur : $e')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
     }
   }
 
@@ -1275,21 +1402,21 @@ class _ProfilSectionState extends State<_ProfilSection> {
         _isSaving = false;
         _phoneFormKey = GlobalKey<FormBuilderState>();
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Profil mis à jour')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Profil mis à jour')));
     } catch (e) {
       if (!mounted) return;
       setState(() => _isSaving = false);
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Erreur : $e')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final email =
-        widget.profile?.email ?? AuthService.currentUser?.email ?? '';
+    final email = widget.profile?.email ?? AuthService.currentUser?.email ?? '';
     final createdAt = widget.profile?.createdAt;
     final initial = (_displayName.isNotEmpty ? _displayName : email)
         .substring(0, 1)
@@ -1382,8 +1509,9 @@ class _ProfilSectionState extends State<_ProfilSection> {
                       controller: _nameCtrl,
                       enabled: _isEditing,
                       textCapitalization: TextCapitalization.words,
-                      decoration:
-                          const InputDecoration(hintText: 'Jean Dupont'),
+                      decoration: const InputDecoration(
+                        hintText: 'Jean Dupont',
+                      ),
                     ),
                     const SizedBox(height: AppSpacing.lg),
 
@@ -1403,9 +1531,7 @@ class _ProfilSectionState extends State<_ProfilSection> {
                         ),
                       )
                     else
-                      _staticField(
-                        _displayPhone.isEmpty ? '—' : _displayPhone,
-                      ),
+                      _staticField(_displayPhone.isEmpty ? '—' : _displayPhone),
                     const SizedBox(height: AppSpacing.lg),
 
                     // ── Date de naissance ────────────────────────────────
@@ -1437,12 +1563,13 @@ class _ProfilSectionState extends State<_ProfilSection> {
                                 currentDob != null
                                     ? _dateFmt.format(currentDob)
                                     : _isEditing
-                                        ? 'Sélectionner une date'
-                                        : 'Non renseignée',
+                                    ? 'Sélectionner une date'
+                                    : 'Non renseignée',
                                 style: AppTypography.bodyMd.copyWith(
                                   color: currentDob == null
-                                      ? AppColors.onSurfaceVariant
-                                          .withValues(alpha: 0.5)
+                                      ? AppColors.onSurfaceVariant.withValues(
+                                          alpha: 0.5,
+                                        )
                                       : null,
                                 ),
                               ),
@@ -1543,36 +1670,39 @@ class _ProfilSectionState extends State<_ProfilSection> {
   }
 
   Widget _fieldLabel(String text) => Padding(
-        padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-        child: Text(
-          text,
-          style: AppTypography.labelSm.copyWith(
-            color: AppColors.onSurfaceVariant,
-            letterSpacing: 1.2,
-          ),
-        ),
-      );
+    padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+    child: Text(
+      text,
+      style: AppTypography.labelSm.copyWith(
+        color: AppColors.onSurfaceVariant,
+        letterSpacing: 1.2,
+      ),
+    ),
+  );
 
   Widget _staticField(String value) => Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.md,
-          vertical: 14,
-        ),
-        decoration: BoxDecoration(
-          color: AppColors.surfaceContainerLow,
-          borderRadius: AppRadius.borderSm,
-          border: Border.all(color: AppColors.outlineVariant),
-        ),
-        child: Text(value, style: AppTypography.bodyMd),
-      );
+    width: double.infinity,
+    padding: const EdgeInsets.symmetric(
+      horizontal: AppSpacing.md,
+      vertical: 14,
+    ),
+    decoration: BoxDecoration(
+      color: AppColors.surfaceContainerLow,
+      borderRadius: AppRadius.borderSm,
+      border: Border.all(color: AppColors.outlineVariant),
+    ),
+    child: Text(value, style: AppTypography.bodyMd),
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Section État des lieux (onglet du locataire)
 
 class _InteractionsSection extends StatefulWidget {
-  const _InteractionsSection();
+  final int initialTab;
+  final bool showTabBar;
+  const _InteractionsSection(
+      {super.key, this.initialTab = 0, this.showTabBar = true});
 
   @override
   State<_InteractionsSection> createState() => _InteractionsSectionState();
@@ -1590,7 +1720,11 @@ class _InteractionsSectionState extends State<_InteractionsSection>
   @override
   void initState() {
     super.initState();
-    _tabCtrl = TabController(length: 3, vsync: this);
+    _tabCtrl = TabController(
+      length: 3,
+      vsync: this,
+      initialIndex: widget.initialTab,
+    );
     _future = _load();
   }
 
@@ -1628,8 +1762,9 @@ class _InteractionsSectionState extends State<_InteractionsSection>
       final imm = await ImmeublesDatasource.byId(edl.immeubleId);
       ChambreModel? chambre;
       try {
-        final chambres =
-            await ChambresDatasource.listByImmeubles([edl.immeubleId]);
+        final chambres = await ChambresDatasource.listByImmeubles([
+          edl.immeubleId,
+        ]);
         chambre = chambres.where((c) => c.id == edl.chambreId).firstOrNull;
       } catch (_) {}
       if (!mounted || imm == null || chambre == null) return;
@@ -1647,12 +1782,12 @@ class _InteractionsSectionState extends State<_InteractionsSection>
       return;
     }
     // EDL privatif (single-room / legado) → vue détaillée (route dédiée).
-    Navigator.of(context).push(MaterialPageRoute<void>(
-      builder: (_) => _EdlDetailPage(
-        edl: edl,
-        onAccepter: () => _accepter(edl),
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) =>
+            _EdlDetailPage(edl: edl, onAccepter: () => _accepter(edl)),
       ),
-    ));
+    );
   }
 
   @override
@@ -1691,10 +1826,12 @@ class _InteractionsSectionState extends State<_InteractionsSection>
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(ok
-              ? 'État des lieux accepté et signé ✓'
-              : 'Accepté, mais la signature n\'a pas pu être confirmée — '
-                  'rouvrez le document pour vérifier.'),
+          content: Text(
+            ok
+                ? 'État des lieux accepté et signé ✓'
+                : 'Accepté, mais la signature n\'a pas pu être confirmée — '
+                      'rouvrez le document pour vérifier.',
+          ),
         ),
       );
       setState(() {
@@ -1723,55 +1860,69 @@ class _InteractionsSectionState extends State<_InteractionsSection>
     final imm = await ImmeublesDatasource.byId(edl.immeubleId);
     ChambreModel? chambre;
     try {
-      final chambres =
-          await ChambresDatasource.listByImmeubles([edl.immeubleId]);
+      final chambres = await ChambresDatasource.listByImmeubles([
+        edl.immeubleId,
+      ]);
       chambre = chambres.where((c) => c.id == edl.chambreId).firstOrNull;
     } catch (_) {}
     if (!mounted || imm == null || chambre == null) return;
-    await Navigator.of(context).push(MaterialPageRoute<void>(
-      builder: (_) => Scaffold(
-        body: SafeArea(
-          child: EdlIndividuelMeubleePage(
-            immeuble: imm,
-            chambre: chambre!,
-            typeEdl: edl.typeEdl,
-            existingEdl: edl,
-            isLocataire: true,
-            meublee: imm.locationMeuble == true,
-            initialTabIndex: 4,
-            onClose: (_) => Navigator.of(context).maybePop(),
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => Scaffold(
+          body: SafeArea(
+            child: EdlIndividuelMeubleePage(
+              immeuble: imm,
+              chambre: chambre!,
+              typeEdl: edl.typeEdl,
+              existingEdl: edl,
+              isLocataire: true,
+              meublee: imm.locationMeuble == true,
+              initialTabIndex: 4,
+              onClose: (_) => Navigator.of(context).maybePop(),
+            ),
           ),
         ),
       ),
-    ));
-    if (mounted) setState(() { _future = _load(); });
+    );
+    if (mounted) {
+      setState(() {
+        _future = _load();
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     // Fiche ouverte in-frame → on l'affiche à la place de la liste/onglets.
     if (_detailView != null) return _detailView!;
+    const subLabels = ['Vision générale', 'Entrée', 'Sortie'];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const _LocataireSectionBar(title: 'État des lieux'),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.lg,
-            AppSpacing.md,
-            AppSpacing.lg,
-            0,
-          ),
-          child: TabBar(
-            controller: _tabCtrl,
-            tabs: const [
-              Tab(text: 'Vision générale'),
-              Tab(text: 'Entrée'),
-              Tab(text: 'Sortie'),
-            ],
-          ),
+        _LocataireSectionBar(
+          title: widget.showTabBar
+              ? 'État des lieux'
+              : subLabels[widget.initialTab.clamp(0, 2)],
         ),
-        const Divider(height: 1),
+        if (widget.showTabBar) ...[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.lg,
+              AppSpacing.md,
+              AppSpacing.lg,
+              0,
+            ),
+            child: AppTabBar(
+              controller: _tabCtrl,
+              tabs: const [
+                Tab(text: 'Vision générale'),
+                Tab(text: 'Entrée'),
+                Tab(text: 'Sortie'),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+        ],
         Expanded(
           child: FutureBuilder<List<EtatDesLieuxModel>>(
             future: _future,
@@ -1790,10 +1941,8 @@ class _InteractionsSectionState extends State<_InteractionsSection>
                         !e.locataireAccepte,
                   )
                   .toList();
-              final entrees =
-                  all.where((e) => e.typeEdl == 'entree').toList();
-              final sorties =
-                  all.where((e) => e.typeEdl == 'sortie').toList();
+              final entrees = all.where((e) => e.typeEdl == 'entree').toList();
+              final sorties = all.where((e) => e.typeEdl == 'sortie').toList();
 
               // EDL ouverts à un avenant (fenêtre d'avenant encore ouverte).
               final avenantables = all.where(_isAvenantOpen).toList();
@@ -1878,9 +2027,7 @@ class _EdlVisionGeneraleTab extends StatelessWidget {
                 const SizedBox(width: AppSpacing.sm),
                 Text(
                   'Important',
-                  style: AppTypography.titleLg.copyWith(
-                    color: AppColors.error,
-                  ),
+                  style: AppTypography.titleLg.copyWith(color: AppColors.error),
                 ),
               ],
             ),
@@ -1888,10 +2035,7 @@ class _EdlVisionGeneraleTab extends StatelessWidget {
             ...pending.map(
               (e) => Padding(
                 padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                child: _PendingEdlCard(
-                  edl: e,
-                  onAccepter: () => onAccepter(e),
-                ),
+                child: _PendingEdlCard(edl: e, onAccepter: () => onAccepter(e)),
               ),
             ),
             const SizedBox(height: AppSpacing.md),
@@ -1902,8 +2046,10 @@ class _EdlVisionGeneraleTab extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: Text('Tous les états des lieux',
-                    style: AppTypography.titleLg),
+                child: Text(
+                  'Tous les états des lieux',
+                  style: AppTypography.titleLg,
+                ),
               ),
               if (avenantables.isNotEmpty)
                 _AvenantButton(
@@ -1999,7 +2145,8 @@ class _SelectAvenantDialog extends StatelessWidget {
             Text(
               'Sélectionnez le contrat pour lequel vous souhaitez faire un avenant :',
               style: AppTypography.bodyMd.copyWith(
-                  color: AppColors.onSurfaceVariant),
+                color: AppColors.onSurfaceVariant,
+              ),
             ),
             const SizedBox(height: AppSpacing.md),
             ...edls.map(
@@ -2008,14 +2155,16 @@ class _SelectAvenantDialog extends StatelessWidget {
                 leading: const Icon(Icons.description_outlined),
                 title: Text(
                   edl.immeubleNom ?? '—',
-                  style: AppTypography.bodyMd
-                      .copyWith(fontWeight: FontWeight.w600),
+                  style: AppTypography.bodyMd.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 subtitle: Text(
                   '${edl.chambreNom ?? '—'} · Finalisé le '
                   '${edl.dateFinalisation != null ? _fmt.format(edl.dateFinalisation!) : '—'}',
-                  style: AppTypography.labelSm
-                      .copyWith(color: AppColors.onSurfaceVariant),
+                  style: AppTypography.labelSm.copyWith(
+                    color: AppColors.onSurfaceVariant,
+                  ),
                 ),
                 onTap: () => Navigator.pop(context, edl),
               ),
@@ -2103,8 +2252,9 @@ class _EdlListTab extends StatelessWidget {
               child: Text(
                 emptyMessage,
                 textAlign: TextAlign.center,
-                style: AppTypography.bodyMd
-                    .copyWith(color: AppColors.onSurfaceVariant),
+                style: AppTypography.bodyMd.copyWith(
+                  color: AppColors.onSurfaceVariant,
+                ),
               ),
             )
           else
@@ -2197,8 +2347,9 @@ class _EdlLocataireTableState extends State<_EdlLocataireTable> {
                   widget.edls.isEmpty
                       ? 'Aucun état des lieux.'
                       : 'Aucun résultat pour ces filtres.',
-                  style: AppTypography.bodyMd
-                      .copyWith(color: AppColors.onSurfaceVariant),
+                  style: AppTypography.bodyMd.copyWith(
+                    color: AppColors.onSurfaceVariant,
+                  ),
                 ),
               ),
             )
@@ -2262,8 +2413,12 @@ const double _kColAction = 96;
 class _EdlLocataireHeaderRow extends StatelessWidget {
   const _EdlLocataireHeaderRow();
 
-  Widget _h(String s,
-      {double? width, int? flex, TextAlign align = TextAlign.start}) {
+  Widget _h(
+    String s, {
+    double? width,
+    int? flex,
+    TextAlign align = TextAlign.start,
+  }) {
     final t = Text(
       s,
       textAlign: align,
@@ -2281,8 +2436,10 @@ class _EdlLocataireHeaderRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding:
-          const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 6),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: 6,
+      ),
       child: Row(
         children: [
           _h('IMMEUBLE / CHAMBRE', flex: 3),
@@ -2321,7 +2478,9 @@ class _EdlLocataireRow extends StatelessWidget {
     final jours = _avenantJoursRestants(edl);
     return Padding(
       padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
+      ),
       child: Row(
         children: [
           Expanded(
@@ -2331,16 +2490,18 @@ class _EdlLocataireRow extends StatelessWidget {
               children: [
                 Text(
                   edl.immeubleNom ?? edl.lieuLabel,
-                  style:
-                      AppTypography.bodyMd.copyWith(fontWeight: FontWeight.w600),
+                  style: AppTypography.bodyMd.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
                 if (edl.chambreNom != null)
                   Text(
                     edl.chambreNom!,
-                    style: AppTypography.labelSm
-                        .copyWith(color: AppColors.onSurfaceVariant),
+                    style: AppTypography.labelSm.copyWith(
+                      color: AppColors.onSurfaceVariant,
+                    ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -2361,13 +2522,19 @@ class _EdlLocataireRow extends StatelessWidget {
           const SizedBox(width: AppSpacing.sm),
           SizedBox(
             width: _kColType,
-            child: Text(edl.typeLabel,
-                textAlign: TextAlign.center, style: AppTypography.labelSm),
+            child: Text(
+              edl.typeLabel,
+              textAlign: TextAlign.center,
+              style: AppTypography.labelSm,
+            ),
           ),
           SizedBox(
             width: _kColSens,
-            child: Text(edl.sensLabel,
-                textAlign: TextAlign.center, style: AppTypography.labelSm),
+            child: Text(
+              edl.sensLabel,
+              textAlign: TextAlign.center,
+              style: AppTypography.labelSm,
+            ),
           ),
           SizedBox(
             width: _kColSit,
@@ -2375,17 +2542,23 @@ class _EdlLocataireRow extends StatelessWidget {
           ),
           SizedBox(
             width: _kColDate,
-            child: Text(_fmt.format(edl.dateEtatLieux),
-                textAlign: TextAlign.center, style: AppTypography.labelSm),
+            child: Text(
+              _fmt.format(edl.dateEtatLieux),
+              textAlign: TextAlign.center,
+              style: AppTypography.labelSm,
+            ),
           ),
           SizedBox(
             width: _kColAvenant,
             child: Center(
               child: jours != null
                   ? _AvenantInfoChip(jours: jours)
-                  : Text('—',
-                      style: AppTypography.labelSm
-                          .copyWith(color: AppColors.onSurfaceVariant)),
+                  : Text(
+                      '—',
+                      style: AppTypography.labelSm.copyWith(
+                        color: AppColors.onSurfaceVariant,
+                      ),
+                    ),
             ),
           ),
           SizedBox(
@@ -2396,8 +2569,10 @@ class _EdlLocataireRow extends StatelessWidget {
                 IconButton(
                   onPressed: onVisualiser,
                   tooltip: 'Visualiser',
-                  constraints:
-                      const BoxConstraints(minWidth: 44, minHeight: 44),
+                  constraints: const BoxConstraints(
+                    minWidth: 44,
+                    minHeight: 44,
+                  ),
                   padding: EdgeInsets.zero,
                   icon: const Icon(Icons.visibility_outlined, size: 20),
                 ),
@@ -2405,8 +2580,10 @@ class _EdlLocataireRow extends StatelessWidget {
                   IconButton(
                     onPressed: onVoir,
                     tooltip: 'Éditer',
-                    constraints:
-                        const BoxConstraints(minWidth: 44, minHeight: 44),
+                    constraints: const BoxConstraints(
+                      minWidth: 44,
+                      minHeight: 44,
+                    ),
                     padding: EdgeInsets.zero,
                     color: AppColors.primary,
                     icon: const Icon(Icons.edit_outlined, size: 20),
@@ -2415,8 +2592,10 @@ class _EdlLocataireRow extends StatelessWidget {
                   IconButton(
                     onPressed: onSigner,
                     tooltip: 'Signer',
-                    constraints:
-                        const BoxConstraints(minWidth: 44, minHeight: 44),
+                    constraints: const BoxConstraints(
+                      minWidth: 44,
+                      minHeight: 44,
+                    ),
                     padding: EdgeInsets.zero,
                     color: AppColors.tertiary,
                     icon: const Icon(Icons.draw_outlined, size: 20),
@@ -2477,8 +2656,10 @@ class _AvenantInfoChip extends StatelessWidget {
           Flexible(
             child: Text(
               'Avenant : $jours j',
-              style: AppTypography.labelSm
-                  .copyWith(color: color, fontWeight: FontWeight.w600),
+              style: AppTypography.labelSm.copyWith(
+                color: color,
+                fontWeight: FontWeight.w600,
+              ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
@@ -2692,7 +2873,8 @@ class _EdlLocataireCard extends StatelessWidget {
                   child: FilledButton.icon(
                     onPressed: onSigner,
                     style: FilledButton.styleFrom(
-                        backgroundColor: AppColors.tertiary),
+                      backgroundColor: AppColors.tertiary,
+                    ),
                     icon: const Icon(Icons.draw_outlined, size: 16),
                     label: const Text('Signer'),
                   ),
@@ -2848,10 +3030,7 @@ class _EdlDetailPage extends StatefulWidget {
   final EtatDesLieuxModel edl;
   final Future<void> Function() onAccepter;
 
-  const _EdlDetailPage({
-    required this.edl,
-    required this.onAccepter,
-  });
+  const _EdlDetailPage({required this.edl, required this.onAccepter});
 
   @override
   State<_EdlDetailPage> createState() => _EdlDetailPageState();
@@ -2876,8 +3055,9 @@ class _EdlDetailPageState extends State<_EdlDetailPage> {
     } catch (e) {
       if (mounted) {
         setState(() => _accepting = false);
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Erreur : $e')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
       }
     }
   }
@@ -2901,10 +3081,7 @@ class _EdlDetailPageState extends State<_EdlDetailPage> {
       borderRadius: AppRadius.borderMd,
       border: Border.all(color: AppColors.outlineVariant),
     ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: rows,
-    ),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: rows),
   );
 
   Widget _infoRow(String label, String value) => Padding(
@@ -3022,10 +3199,7 @@ class _EdlDetailPageState extends State<_EdlDetailPage> {
                       _fmt.format(edl.dateFinalisation!),
                     ),
                   if (edl.montant != null)
-                    _infoRow(
-                      'Montant',
-                      '€ ${edl.montant!.toStringAsFixed(2)}',
-                    ),
+                    _infoRow('Montant', '€ ${edl.montant!.toStringAsFixed(2)}'),
                 ]),
                 const SizedBox(height: AppSpacing.lg),
 
@@ -3117,8 +3291,7 @@ class _EdlDetailPageState extends State<_EdlDetailPage> {
                             ),
                             borderRadius: AppRadius.borderMd,
                             border: Border.all(
-                              color:
-                                  AppColors.secondary.withValues(alpha: 0.4),
+                              color: AppColors.secondary.withValues(alpha: 0.4),
                             ),
                           ),
                           child: Row(
@@ -3193,10 +3366,12 @@ class _LocataireSignatureSection extends StatefulWidget {
   const _LocataireSignatureSection();
 
   @override
-  State<_LocataireSignatureSection> createState() => _LocataireSignatureSectionState();
+  State<_LocataireSignatureSection> createState() =>
+      _LocataireSignatureSectionState();
 }
 
-class _LocataireSignatureSectionState extends State<_LocataireSignatureSection> {
+class _LocataireSignatureSectionState
+    extends State<_LocataireSignatureSection> {
   late Future<String?> _future;
   bool _saving = false;
 
@@ -3212,11 +3387,18 @@ class _LocataireSignatureSectionState extends State<_LocataireSignatureSection> 
     setState(() => _saving = true);
     try {
       await SignaturesDatasource.saveUrl(sig.url);
-      if (mounted) setState(() { _future = SignaturesDatasource.getSavedUrl(); _saving = false; });
+      if (mounted) {
+        setState(() {
+          _future = SignaturesDatasource.getSavedUrl();
+          _saving = false;
+        });
+      }
     } catch (e) {
       if (mounted) {
         setState(() => _saving = false);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur : $e')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
       }
     }
   }
@@ -3228,7 +3410,10 @@ class _LocataireSignatureSectionState extends State<_LocataireSignatureSection> 
         title: const Text('Supprimer la signature ?'),
         content: const Text('La signature sauvegardée sera supprimée.'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Annuler')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Annuler'),
+          ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
             style: AppTheme.deleteButtonStyle,
@@ -3242,7 +3427,12 @@ class _LocataireSignatureSectionState extends State<_LocataireSignatureSection> 
     try {
       await SignaturesDatasource.deleteSignature();
     } catch (_) {}
-    if (mounted) setState(() { _future = SignaturesDatasource.getSavedUrl(); _saving = false; });
+    if (mounted) {
+      setState(() {
+        _future = SignaturesDatasource.getSavedUrl();
+        _saving = false;
+      });
+    }
   }
 
   @override
@@ -3254,7 +3444,9 @@ class _LocataireSignatureSectionState extends State<_LocataireSignatureSection> 
         const SizedBox(height: AppSpacing.xs),
         Text(
           'Signature utilisée lors de l\'acceptation des états des lieux.',
-          style: AppTypography.bodyMd.copyWith(color: AppColors.onSurfaceVariant),
+          style: AppTypography.bodyMd.copyWith(
+            color: AppColors.onSurfaceVariant,
+          ),
         ),
         const SizedBox(height: AppSpacing.md),
         FutureBuilder<String?>(
@@ -3269,6 +3461,7 @@ class _LocataireSignatureSectionState extends State<_LocataireSignatureSection> 
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
+                    width: 320,
                     height: 80,
                     decoration: BoxDecoration(
                       color: Colors.white,
@@ -3280,13 +3473,14 @@ class _LocataireSignatureSectionState extends State<_LocataireSignatureSection> 
                   const SizedBox(height: AppSpacing.sm),
                   Row(
                     children: [
-                      FilledButton.icon(
+                      OutlinedButton.icon(
                         onPressed: _saving ? null : _update,
+                        style: AppTheme.editButtonStyle,
                         icon: const Icon(Icons.edit_outlined, size: 16),
                         label: const Text('Modifier'),
                       ),
                       const SizedBox(width: AppSpacing.sm),
-                      OutlinedButton.icon(
+                      FilledButton.icon(
                         onPressed: _saving ? null : _delete,
                         style: AppTheme.deleteButtonStyle,
                         icon: const Icon(Icons.delete_outline, size: 16),
@@ -3352,8 +3546,9 @@ class _DangerZoneSection extends StatelessWidget {
                 children: [
                   Text(
                     'Supprimer mon compte',
-                    style: AppTypography.bodyMd
-                        .copyWith(fontWeight: FontWeight.w600),
+                    style: AppTypography.bodyMd.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                   const SizedBox(height: AppSpacing.xs),
                   Text(
@@ -3373,8 +3568,9 @@ class _DangerZoneSection extends StatelessWidget {
                         foregroundColor: AppColors.error,
                         side: const BorderSide(color: AppColors.error),
                       ),
-                      onPressed:
-                          (hasContracts || loading || isDeleting) ? null : onDelete,
+                      onPressed: (hasContracts || loading || isDeleting)
+                          ? null
+                          : onDelete,
                       icon: isDeleting
                           ? const SizedBox(
                               width: 16,
@@ -3442,7 +3638,12 @@ class _EdlSituationBadge extends StatelessWidget {
 class _DocumentsSection extends StatefulWidget {
   /// Onglet ouvert à l'entrée : 0 = Mes baux, 1 = Garants.
   final int initialTab;
-  const _DocumentsSection({this.initialTab = 0});
+  final bool showTabBar;
+  const _DocumentsSection({
+    super.key,
+    this.initialTab = 0,
+    this.showTabBar = true,
+  });
 
   @override
   State<_DocumentsSection> createState() => _DocumentsSectionState();
@@ -3474,23 +3675,21 @@ class _DocumentsSectionState extends State<_DocumentsSection>
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _LocataireSectionBar(title: 'Documents'),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
-          child: TabBar(
-            controller: _tabCtrl,
-            tabs: const [
-              Tab(text: 'Mes baux'),
-              Tab(text: 'Garants'),
-            ],
+        if (widget.showTabBar)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
+            child: AppTabBar(
+              controller: _tabCtrl,
+              tabs: const [
+                Tab(text: 'Mes baux'),
+                Tab(text: 'Garants'),
+              ],
+            ),
           ),
-        ),
         Expanded(
           child: TabBarView(
             controller: _tabCtrl,
-            children: const [
-              _BauxLocataireTab(),
-              GarantsPage(),
-            ],
+            children: const [_BauxLocataireTab(), GarantsPage()],
           ),
         ),
       ],
@@ -3523,31 +3722,41 @@ class _BauxLocataireTabState extends State<_BauxLocataireTab> {
   Future<void> _openBail(EtatDesLieuxModel edl) async {
     // Bail déjà signé par les deux parties → consultation seule (verrouillé).
     if (edl.bailFullySigned) {
-      await Navigator.of(context).push(MaterialPageRoute(
-        builder: (_) => BailPdfPreviewPage(
-          edl: edl, role: 'locataire', readOnly: true),
-      ));
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) =>
+              BailPdfPreviewPage(edl: edl, role: 'locataire', readOnly: true),
+        ),
+      );
       if (mounted) _reload();
       return;
     }
     final signed = await ensureBailSignature(context, edl, role: 'locataire');
     if (signed == null || !mounted) return;
-    await Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => BailPdfPreviewPage(edl: signed, role: 'locataire'),
-    ));
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => BailPdfPreviewPage(edl: signed, role: 'locataire'),
+      ),
+    );
     if (mounted) _reload();
   }
 
   void _reload() {
     final uid = AuthService.currentUser?.id ?? '';
     final f = EtatDesLieuxDatasource.listForLocataire(uid).then(
-      (list) => list
-          .where((e) => e.typeEdl == 'entree' && e.locataireAccepte)
-          .toList()
-        ..sort((a, b) => (b.dateDebutBail ?? b.dateEtatLieux)
-            .compareTo(a.dateDebutBail ?? a.dateEtatLieux)),
+      (list) =>
+          list
+              .where((e) => e.typeEdl == 'entree' && e.locataireAccepte)
+              .toList()
+            ..sort(
+              (a, b) => (b.dateDebutBail ?? b.dateEtatLieux).compareTo(
+                a.dateDebutBail ?? a.dateEtatLieux,
+              ),
+            ),
     );
-    setState(() { _future = f; });
+    setState(() {
+      _future = f;
+    });
   }
 
   @override
@@ -3568,15 +3777,19 @@ class _BauxLocataireTabState extends State<_BauxLocataireTab> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.description_outlined,
-                    size: 56, color: AppColors.outline),
+                const Icon(
+                  Icons.description_outlined,
+                  size: 56,
+                  color: AppColors.outline,
+                ),
                 const SizedBox(height: AppSpacing.md),
                 Text('Aucun bail signé', style: AppTypography.titleLg),
                 const SizedBox(height: AppSpacing.xs),
                 Text(
                   'Vos baux apparaissent ici après avoir\naccepté et signé un état des lieux.',
-                  style: AppTypography.bodyMd
-                      .copyWith(color: AppColors.onSurfaceVariant),
+                  style: AppTypography.bodyMd.copyWith(
+                    color: AppColors.onSurfaceVariant,
+                  ),
                   textAlign: TextAlign.center,
                 ),
               ],
@@ -3586,7 +3799,9 @@ class _BauxLocataireTabState extends State<_BauxLocataireTab> {
 
         return ListView.separated(
           padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.xl, vertical: AppSpacing.md),
+            horizontal: AppSpacing.xl,
+            vertical: AppSpacing.md,
+          ),
           itemCount: list.length,
           separatorBuilder: (_, _) => const Divider(height: 1),
           itemBuilder: (_, i) {
@@ -3597,18 +3812,23 @@ class _BauxLocataireTabState extends State<_BauxLocataireTab> {
                 ? '${edl.immeubleNom ?? ''} · ${edl.chambreNom}'
                 : (edl.immeubleNom ?? '—');
             return ListTile(
-              contentPadding:
-                  const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+              contentPadding: const EdgeInsets.symmetric(
+                vertical: AppSpacing.sm,
+              ),
               leading: const CircleAvatar(
                 backgroundColor: AppColors.primaryFixed,
-                child: Icon(Icons.description_outlined,
-                    color: AppColors.primary, size: 18),
+                child: Icon(
+                  Icons.description_outlined,
+                  color: AppColors.primary,
+                  size: 18,
+                ),
               ),
               title: Text(lieu, style: AppTypography.bodyMd),
               subtitle: Text(
                 '${_dateFmt.format(debut)}  →  ${fin != null ? _dateFmt.format(fin) : "En cours"}',
-                style: AppTypography.labelSm
-                    .copyWith(color: AppColors.onSurfaceVariant),
+                style: AppTypography.labelSm.copyWith(
+                  color: AppColors.onSurfaceVariant,
+                ),
               ),
               trailing: OutlinedButton.icon(
                 onPressed: () => _openBail(edl),
@@ -3638,8 +3858,11 @@ class _FinancesSectionState extends State<_FinancesSection> {
   late Future<List<RecetteModel>> _future;
   String? _filtreStatut;
 
-  static final _currFmt =
-      NumberFormat.currency(locale: 'fr_FR', symbol: '€', decimalDigits: 2);
+  static final _currFmt = NumberFormat.currency(
+    locale: 'fr_FR',
+    symbol: '€',
+    decimalDigits: 2,
+  );
 
   @override
   void initState() {
@@ -3691,12 +3914,18 @@ class _FinancesSectionState extends State<_FinancesSection> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.payments_outlined,
-                          size: 56, color: AppColors.outline),
+                      const Icon(
+                        Icons.payments_outlined,
+                        size: 56,
+                        color: AppColors.outline,
+                      ),
                       const SizedBox(height: AppSpacing.md),
-                      Text('Aucun loyer enregistré.',
-                          style: AppTypography.bodyMd.copyWith(
-                              color: AppColors.onSurfaceVariant)),
+                      Text(
+                        'Aucun loyer enregistré.',
+                        style: AppTypography.bodyMd.copyWith(
+                          color: AppColors.onSurfaceVariant,
+                        ),
+                      ),
                     ],
                   ),
                 );
@@ -3717,28 +3946,33 @@ class _FinancesSectionState extends State<_FinancesSection> {
                           amount: _total(all, 'a_recevoir'),
                           color: AppColors.primary,
                           selected: _filtreStatut == 'a_recevoir',
-                          onTap: () => setState(() => _filtreStatut =
-                              _filtreStatut == 'a_recevoir'
-                                  ? null
-                                  : 'a_recevoir'),
+                          onTap: () => setState(
+                            () => _filtreStatut = _filtreStatut == 'a_recevoir'
+                                ? null
+                                : 'a_recevoir',
+                          ),
                         ),
                         _LocFinanceChip(
                           label: 'Payé',
                           amount: _total(all, 'recu'),
                           color: AppColors.tertiary,
                           selected: _filtreStatut == 'recu',
-                          onTap: () => setState(() => _filtreStatut =
-                              _filtreStatut == 'recu' ? null : 'recu'),
+                          onTap: () => setState(
+                            () => _filtreStatut = _filtreStatut == 'recu'
+                                ? null
+                                : 'recu',
+                          ),
                         ),
                         _LocFinanceChip(
                           label: 'En retard',
                           amount: _total(all, 'en_retard'),
                           color: AppColors.error,
                           selected: _filtreStatut == 'en_retard',
-                          onTap: () => setState(() => _filtreStatut =
-                              _filtreStatut == 'en_retard'
-                                  ? null
-                                  : 'en_retard'),
+                          onTap: () => setState(
+                            () => _filtreStatut = _filtreStatut == 'en_retard'
+                                ? null
+                                : 'en_retard',
+                          ),
                         ),
                       ],
                     ),
@@ -3751,61 +3985,89 @@ class _FinancesSectionState extends State<_FinancesSection> {
                               child: Text(
                                 'Aucune échéance pour ce filtre.',
                                 style: AppTypography.bodyMd.copyWith(
-                                    color: AppColors.onSurfaceVariant),
+                                  color: AppColors.onSurfaceVariant,
+                                ),
                               ),
                             )
-                          : LayoutBuilder(builder: (ctx, constraints) {
-                              final narrow = constraints.maxWidth < 650;
-                              return SingleChildScrollView(
-                                child: SingleChildScrollView(
-                                  scrollDirection: Axis.horizontal,
-                                  child: ConstrainedBox(
-                                    constraints: BoxConstraints(
-                                        minWidth: constraints.maxWidth),
-                                    child: DataTable(
-                                      columnSpacing: AppSpacing.lg,
-                                      headingRowColor:
-                                          WidgetStateProperty.all(
-                                              AppColors.surfaceContainerLow),
-                                      columns: [
-                                        const DataColumn(label: Text('Mois')),
-                                        if (!narrow)
-                                          const DataColumn(
-                                              label: Text('Bien')),
-                                        DataColumn(
+                          : LayoutBuilder(
+                              builder: (ctx, constraints) {
+                                final narrow = constraints.maxWidth < 650;
+                                return SingleChildScrollView(
+                                  child: SingleChildScrollView(
+                                    scrollDirection: Axis.horizontal,
+                                    child: ConstrainedBox(
+                                      constraints: BoxConstraints(
+                                        minWidth: constraints.maxWidth,
+                                      ),
+                                      child: DataTable(
+                                        columnSpacing: AppSpacing.lg,
+                                        headingRowColor:
+                                            WidgetStateProperty.all(
+                                              AppColors.surfaceContainerLow,
+                                            ),
+                                        columns: [
+                                          const DataColumn(label: Text('Mois')),
+                                          if (!narrow)
+                                            const DataColumn(
+                                              label: Text('Bien'),
+                                            ),
+                                          DataColumn(
                                             label: const Text('Loyer (€)'),
-                                            numeric: true),
-                                        const DataColumn(
-                                            label: Text('Statut')),
-                                        if (!narrow)
+                                            numeric: true,
+                                          ),
                                           const DataColumn(
-                                              label: Text('Payé le')),
-                                      ],
-                                      rows: filtered.map((r) {
-                                        return DataRow(cells: [
-                                          DataCell(Text(r.moisLabel,
-                                              style: AppTypography.bodyMd)),
+                                            label: Text('Statut'),
+                                          ),
                                           if (!narrow)
-                                            DataCell(Text(r.lieuLabel,
-                                                style: AppTypography.bodyMd,
-                                                overflow:
-                                                    TextOverflow.ellipsis)),
-                                          DataCell(Text(
-                                              _currFmt.format(r.montant),
-                                              style: AppTypography.bodyMd)),
-                                          DataCell(
-                                              _LocStatutBadge(statut: r.statut)),
-                                          if (!narrow)
-                                            DataCell(Text(
-                                                r.paiementLabel ?? '—',
-                                                style: AppTypography.bodyMd)),
-                                        ]);
-                                      }).toList(),
+                                            const DataColumn(
+                                              label: Text('Payé le'),
+                                            ),
+                                        ],
+                                        rows: filtered.map((r) {
+                                          return DataRow(
+                                            cells: [
+                                              DataCell(
+                                                Text(
+                                                  r.moisLabel,
+                                                  style: AppTypography.bodyMd,
+                                                ),
+                                              ),
+                                              if (!narrow)
+                                                DataCell(
+                                                  Text(
+                                                    r.lieuLabel,
+                                                    style: AppTypography.bodyMd,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                  ),
+                                                ),
+                                              DataCell(
+                                                Text(
+                                                  _currFmt.format(r.montant),
+                                                  style: AppTypography.bodyMd,
+                                                ),
+                                              ),
+                                              DataCell(
+                                                _LocStatutBadge(
+                                                  statut: r.statut,
+                                                ),
+                                              ),
+                                              if (!narrow)
+                                                DataCell(
+                                                  Text(
+                                                    r.paiementLabel ?? '—',
+                                                    style: AppTypography.bodyMd,
+                                                  ),
+                                                ),
+                                            ],
+                                          );
+                                        }).toList(),
+                                      ),
                                     ),
                                   ),
-                                ),
-                              );
-                            }),
+                                );
+                              },
+                            ),
                     ),
                   ],
                 ),
@@ -3835,8 +4097,11 @@ class _LocFinanceChip extends StatelessWidget {
     required this.onTap,
   });
 
-  static final _fmt =
-      NumberFormat.currency(locale: 'fr_FR', symbol: '€', decimalDigits: 2);
+  static final _fmt = NumberFormat.currency(
+    locale: 'fr_FR',
+    symbol: '€',
+    decimalDigits: 2,
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -3845,26 +4110,36 @@ class _LocFinanceChip extends StatelessWidget {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.sm,
+        ),
         decoration: BoxDecoration(
           color: selected
               ? color.withValues(alpha: 0.12)
               : AppColors.surfaceContainerLowest,
           border: Border.all(
-              color: selected ? color : AppColors.outlineVariant,
-              width: selected ? 2 : 1),
+            color: selected ? color : AppColors.outlineVariant,
+            width: selected ? 2 : 1,
+          ),
           borderRadius: AppRadius.borderMd,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(label,
-                style: AppTypography.labelSm
-                    .copyWith(color: AppColors.onSurfaceVariant)),
-            Text(_fmt.format(amount),
-                style: AppTypography.titleLs
-                    .copyWith(color: color, fontWeight: FontWeight.w700)),
+            Text(
+              label,
+              style: AppTypography.labelSm.copyWith(
+                color: AppColors.onSurfaceVariant,
+              ),
+            ),
+            Text(
+              _fmt.format(amount),
+              style: AppTypography.titleLs.copyWith(
+                color: color,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
           ],
         ),
       ),
@@ -3882,26 +4157,27 @@ class _LocStatutBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final (label, bg, fg) = switch (statut) {
       'recu' => (
-          'Payé',
-          AppColors.tertiaryFixed,
-          AppColors.onTertiaryFixedVariant
-        ),
+        'Payé',
+        AppColors.tertiaryFixed,
+        AppColors.onTertiaryFixedVariant,
+      ),
       'en_retard' => (
-          'En retard',
-          AppColors.errorContainer,
-          AppColors.onErrorContainer
-        ),
+        'En retard',
+        AppColors.errorContainer,
+        AppColors.onErrorContainer,
+      ),
       _ => (
-          'À payer',
-          AppColors.secondaryFixed,
-          AppColors.onSecondaryFixedVariant
-        ),
+        'À payer',
+        AppColors.secondaryFixed,
+        AppColors.onSecondaryFixedVariant,
+      ),
     };
     return Container(
-      padding:
-          const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 2),
-      decoration: BoxDecoration(
-          color: bg, borderRadius: AppRadius.borderFull),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: 2,
+      ),
+      decoration: BoxDecoration(color: bg, borderRadius: AppRadius.borderFull),
       child: Text(label, style: AppTypography.labelSm.copyWith(color: fg)),
     );
   }

@@ -10,6 +10,7 @@ import 'package:lacoloc_front/data/permissions/permissions_service.dart';
 import 'package:lacoloc_front/presentation/widgets/permission_gate.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_radius.dart';
+import 'package:lacoloc_front/presentation/widgets/app_top_bar.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
 import 'package:lacoloc_front/theme/app_typography.dart';
 
@@ -75,21 +76,11 @@ class _MesImmeublesPageState extends State<MesImmeublesPage>
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.lg,
-                AppSpacing.lg,
-                AppSpacing.sm,
-                AppSpacing.md,
-              ),
-              child: Row(
+            AppTopBar(
+              title: 'Mes Propriétés',
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Expanded(
-                    child: Text(
-                      'Mes Propriétés',
-                      style: AppTypography.headlineMd,
-                    ),
-                  ),
                   if (widget.onTourGuide != null) ...[
                     OutlinedButton.icon(
                       onPressed: widget.onTourGuide,
@@ -106,11 +97,9 @@ class _MesImmeublesPageState extends State<MesImmeublesPage>
                       label: const Text('Ajouter'),
                     ),
                   ),
-                  const SizedBox(width: AppSpacing.sm),
                 ],
               ),
             ),
-            const Divider(height: 1),
             Expanded(
               child: bundle.immeubles.isEmpty
                   ? _EmptyState(onAjouter: widget.onAjouter)
@@ -171,7 +160,11 @@ class _Grid extends StatelessWidget {
                   maxCrossAxisExtent: extent,
                   crossAxisSpacing: AppSpacing.md,
                   mainAxisSpacing: AppSpacing.md,
-                  childAspectRatio: 1.4,
+                  // Hauteur fixe (indépendante de la largeur) : un
+                  // childAspectRatio couplait la hauteur à la largeur et
+                  // écrasait la carte sur mobile → overflow. Le Spacer de la
+                  // carte comble la place restante.
+                  mainAxisExtent: 250,
                 ),
                 itemCount: bundle.immeubles.length,
                 itemBuilder: (context, index) {
@@ -272,19 +265,21 @@ class _ImmeubleCard extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(),
-                        if (immeuble.bailLocation == true)
-                          Text('Location', style: AppTypography.labelMd)
-                        else if (immeuble.bailIndividuel == true)
-                          Text('Bail individuel (Colocation)',
-                              style: AppTypography.labelMd)
-                        else
-                          Text('Type de bail non définit.'),
-                      ],
-                    ),
+                    if (immeuble.bailLocation == true)
+                      Text('Location',
+                          style: AppTypography.labelMd,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis)
+                    else if (immeuble.bailIndividuel == true)
+                      Text('Bail individuel (Colocation)',
+                          style: AppTypography.labelMd,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis)
+                    else
+                      Text('Type de bail non défini.',
+                          style: AppTypography.labelMd,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis),
                   ],
                 ),
               ),

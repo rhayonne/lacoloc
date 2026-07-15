@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:lacoloc_front/presentation/widgets/app_date_picker.dart';
 import 'dart:math' as math;
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -10,14 +11,18 @@ import 'package:lacoloc_front/data/datasources/auth_service.dart';
 import 'package:lacoloc_front/data/datasources/chambres.dart';
 import 'package:lacoloc_front/data/datasources/edl_details.dart';
 import 'package:lacoloc_front/data/datasources/etat_de_lieux.dart';
+import 'package:lacoloc_front/data/datasources/garants.dart';
 import 'package:lacoloc_front/data/datasources/immeubles.dart';
 import 'package:lacoloc_front/data/datasources/inventaire.dart';
 import 'package:lacoloc_front/data/datasources/notifications.dart';
 import 'package:lacoloc_front/data/datasources/observations_edl.dart';
 import 'package:lacoloc_front/data/datasources/pieces.dart';
+import 'package:lacoloc_front/data/datasources/signatures.dart';
 import 'package:lacoloc_front/data/models/chambre.dart';
 import 'package:lacoloc_front/data/models/edl_details.dart';
+import 'package:lacoloc_front/data/models/edl_readiness.dart';
 import 'package:lacoloc_front/data/models/etat_de_lieux.dart';
+import 'package:lacoloc_front/data/models/garant.dart';
 import 'package:lacoloc_front/data/models/immeubles.dart';
 import 'package:lacoloc_front/data/models/inventaire.dart';
 import 'package:lacoloc_front/data/models/observation_edl.dart';
@@ -36,6 +41,7 @@ import 'package:lacoloc_front/presentation/users/proprietaires/edl_pdf_preview_p
 import 'package:lacoloc_front/presentation/widgets/bail_signature_flow.dart';
 import 'package:lacoloc_front/presentation/widgets/document_pdf_button.dart';
 import 'package:lacoloc_front/presentation/widgets/edl_filter_bar.dart';
+import 'package:lacoloc_front/presentation/widgets/app_top_bar.dart';
 import 'package:lacoloc_front/presentation/widgets/form_page_header.dart';
 import 'package:lacoloc_front/presentation/widgets/permission_gate.dart';
 import 'package:lacoloc_front/presentation/widgets/locataire_search_field.dart';
@@ -51,19 +57,23 @@ import 'package:lacoloc_front/theme/app_radius.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
 import 'package:lacoloc_front/theme/app_theme.dart';
 import 'package:lacoloc_front/theme/app_typography.dart';
+import 'package:lacoloc_front/theme/app_tab_bar.dart';
 
 final _dateFmt = DateFormat('dd/MM/yyyy');
 
 // Larguras fixes des colonnes du tableau EDL (partagées entre header et lignes)
 
-const double _colType = 124.0; // Type immeuble + meublé + Collectif/Individuel
-const double _colSens = 84.0; // Entrée / Sortie
-const double _colEtat = 92.0;
-const double _colFin = 104.0;
-const double _colSit = 140.0;
+// Largeurs de colonnes compactées pour que la table tienne sans débordement
+// dès que le menu latéral est déployé (≈ 940 px utiles). En dessous de 950 px
+// la table bascule en cartes (voir `isNarrow`).
+const double _colType = 100.0; // Type immeuble + meublé + Collectif/Individuel
+const double _colSens = 74.0; // Entrée / Sortie
+const double _colEtat = 82.0;
+const double _colFin = 84.0;
+const double _colSit = 100.0;
 const double _colBtn = 130.0; // bouton d'action (Continuer / Signature / Bail)
-const double _colDel = 36.0;
-const double _colEye = 46.0; // bouton « visualiser » (œil + libellé « EDL »)
+const double _colDel = 32.0;
+const double _colEye = 44.0; // bouton « visualiser » (œil + libellé « EDL »)
 const double _colLink =
     20.0; // icône de lien de contrat (collectif ↔ privatifs)
 
@@ -146,7 +156,12 @@ Widget _edlDateBlock({
 // ─────────────────────────────────────────────────────────────────────────────
 
 class EtatDesLieuxPage extends StatefulWidget {
-  const EtatDesLieuxPage({super.key});
+  /// Onglet initial (piloté par le sous-menu de la sidebar) : 0=Vision générale,
+  /// 1=Entrée, 2=Sortie, 3=Vétusté.
+  final int initialTab;
+  /// Masque la barre d'onglets interne quand la navigation se fait par sous-menu.
+  final bool showTabBar;
+  const EtatDesLieuxPage({super.key, this.initialTab = 0, this.showTabBar = true});
 
   @override
   State<EtatDesLieuxPage> createState() => _EtatDesLieuxPageState();
@@ -653,7 +668,8 @@ class _EtatDesLieuxPageState extends State<EtatDesLieuxPage>
   @override
   void initState() {
     super.initState();
-    _tabCtrl = TabController(length: 4, vsync: this);
+    _tabCtrl = TabController(
+        length: 4, vsync: this, initialIndex: widget.initialTab);
     _tabCtrl.addListener(() => setState(() {}));
     _future = _load();
   }
@@ -821,27 +837,32 @@ class _EtatDesLieuxPageState extends State<EtatDesLieuxPage>
           _openExistingEdl(edl);
         }
 
+        const subLabels = ['Vision générale', 'Entrée', 'Sortie', 'Vétusté'];
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.lg,
-                AppSpacing.lg,
-                AppSpacing.lg,
-                0,
+            if (widget.showTabBar) ...[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.lg,
+                  AppSpacing.lg,
+                  AppSpacing.lg,
+                  0,
+                ),
+                child: AppTabBar(
+                  controller: _tabCtrl,
+                  tabs: const [
+                    Tab(text: 'Vision générale'),
+                    Tab(text: 'Entrée'),
+                    Tab(text: 'Sortie'),
+                    Tab(text: 'Vétusté'),
+                  ],
+                ),
               ),
-              child: TabBar(
-                controller: _tabCtrl,
-                tabs: const [
-                  Tab(text: 'Vision générale'),
-                  Tab(text: 'Entrée'),
-                  Tab(text: 'Sortie'),
-                  Tab(text: 'Vétusté'),
-                ],
-              ),
-            ),
-            const Divider(height: 1),
+              const Divider(height: 1),
+            ] else
+              // Navigation par sous-menus : barre de titre standard du sous-item.
+              AppTopBar(title: subLabels[widget.initialTab.clamp(0, 3)]),
             Expanded(
               child: TabBarView(
                 controller: _tabCtrl,
@@ -975,7 +996,8 @@ class _VisionGeneraleTab extends StatelessWidget {
                 locataires: invitedLocataires,
                 onChanged: onInviteChanged,
               );
-              const avenant = _AvenantWindowCard();
+              // La fenêtre d'avenant est désormais choisie **dans chaque EDL**
+              // (onglet Bail), plus globalement ici.
               if (stack) {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -983,40 +1005,21 @@ class _VisionGeneraleTab extends StatelessWidget {
                     stat,
                     const SizedBox(height: AppSpacing.md),
                     invites,
-                    const SizedBox(height: AppSpacing.md),
-                    avenant,
                   ],
                 );
               }
-              // Largeur du card invités = nb de colonnes (3 par colonne) × 300,
-              // pour qu'il occupe juste le nécessaire et ne s'étire pas.
+              // Largeur du card invités = nb de colonnes (3 par colonne).
               final invCols = invitedLocataires.isEmpty
                   ? 1
                   : ((invitedLocataires.length + 2) ~/ 3);
-              // 360 par colonne : titre complet + séparateurs bord à bord.
               final invitesWidth = invCols * 360.0;
-              // IntrinsicHeight + stretch : les cartes ont la même hauteur.
-              return IntrinsicHeight(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    SizedBox(width: 280, child: stat),
-                    const SizedBox(width: AppSpacing.md),
-                    ConstrainedBox(
-                      constraints: BoxConstraints(maxWidth: invitesWidth),
-                      child: invites,
-                    ),
-                    const SizedBox(width: AppSpacing.md),
-                    // Hugs son contenu (largeur + hauteur), aligné en haut —
-                    // ne s'étire pas sur toute la hauteur de la rangée.
-                    Flexible(
-                      child: Align(
-                        alignment: Alignment.topLeft,
-                        child: avenant,
-                      ),
-                    ),
-                  ],
-                ),
+              return Wrap(
+                spacing: AppSpacing.md,
+                runSpacing: AppSpacing.md,
+                children: [
+                  SizedBox(width: 280, child: stat),
+                  SizedBox(width: invitesWidth, child: invites),
+                ],
               );
             },
           ),
@@ -1032,153 +1035,6 @@ class _VisionGeneraleTab extends StatelessWidget {
             onVisualiser: onVisualiser,
             shrinkWrap: true,
           ),
-        ],
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Card « Fenêtre d'avenant / additions »
-//
-// Préférence du propriétaire : nombre de jours, après la finalisation d'un EDL,
-// pendant lesquels un **avenant** (nouveau locataire sur une chambre libre) et
-// des **additions** restent possibles. La valeur est figée (snapshot) sur l'EDL
-// au moment de sa finalisation.
-
-class _AvenantWindowCard extends StatefulWidget {
-  const _AvenantWindowCard();
-
-  @override
-  State<_AvenantWindowCard> createState() => _AvenantWindowCardState();
-}
-
-class _AvenantWindowCardState extends State<_AvenantWindowCard> {
-  // Choix proposés : libellé + durée (jours). 0 = « Sans avenant » (aucune
-  // fenêtre). Affichés en grille 3 × 2. kDefaultAvenantWindowDays (30) inclus.
-  static const _choices = <(String, int)>[
-    ('Sans avenant', 0),
-    ('7 jours', 7),
-    ('15 jours', 15),
-    ('30 jours', 30),
-    ('60 jours', 60),
-    ('90 jours', 90),
-  ];
-
-  int? _days;
-  bool _loading = true;
-  bool _saving = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  Future<void> _load() async {
-    try {
-      final d = await EtatDesLieuxDatasource.getAvenantWindowDays();
-      if (mounted) setState(() => _days = d);
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  Future<void> _select(int days) async {
-    if (_saving || days == _days) return;
-    final previous = _days;
-    setState(() {
-      _days = days;
-      _saving = true;
-    });
-    try {
-      await EtatDesLieuxDatasource.setAvenantWindowDays(days);
-      if (mounted) {
-        final msg = days <= 0
-            ? 'Avenants désactivés après finalisation.'
-            : 'Fenêtre fixée à $days jours.';
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(msg)));
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _days = previous);
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
-      }
-    } finally {
-      if (mounted) setState(() => _saving = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceContainerLowest,
-        borderRadius: AppRadius.borderMd,
-        border: Border.all(color: AppColors.outlineVariant),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(
-                Icons.event_repeat_outlined,
-                size: 20,
-                color: AppColors.primary,
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              Text(
-                "Nombre jours avenant",
-                style: AppTypography.titleLg,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.md),
-          if (_loading)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: AppSpacing.sm),
-              child: SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-            )
-          else
-            // Grille 3 × 2 : (Sans avenant · 7 · 15) / (30 · 60 · 90).
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                for (var row = 0; row < 2; row++) ...[
-                  if (row > 0) const SizedBox(height: AppSpacing.sm),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      for (var i = row * 3; i < row * 3 + 3; i++) ...[
-                        if (i > row * 3) const SizedBox(width: AppSpacing.sm),
-                        ChoiceChip(
-                          label: Text(_choices[i].$1),
-                          selected: _days == _choices[i].$2,
-                          onSelected: _saving
-                              ? null
-                              : (_) => _select(_choices[i].$2),
-                        ),
-                      ],
-                    ],
-                  ),
-                ],
-              ],
-            ),
         ],
       ),
     );
@@ -1693,7 +1549,7 @@ class _EdlTableCardState extends State<_EdlTableCard> {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) =>
-          _buildCard(context, isNarrow: constraints.maxWidth < 900),
+          _buildCard(context, isNarrow: constraints.maxWidth < 950),
     );
   }
 
@@ -1848,7 +1704,7 @@ class _EdlTableCardState extends State<_EdlTableCard> {
           const SizedBox(width: AppSpacing.md),
           _colHeader('DATE EDL', _colEtat),
           const SizedBox(width: AppSpacing.md),
-          _colHeader('FINALISATION', _colFin),
+          _colHeader('DT SIG. BAIL', _colFin),
           const SizedBox(width: AppSpacing.md),
           SizedBox(width: _colEye),
           const SizedBox(width: AppSpacing.sm),
@@ -2249,9 +2105,9 @@ class _EdlRow extends StatelessWidget {
               Expanded(child: _kv('ÉTAT', edl.dateEdlFormatted)),
               Expanded(
                 child: _kv(
-                  'FINALISATION',
-                  edl.dateFinalisationFormatted ?? '—',
-                  muted: edl.dateFinalisation == null,
+                  'DT Sig. Bail',
+                  edl.bailSignedAtFormatted ?? '—',
+                  muted: edl.bailSignedAt == null,
                 ),
               ),
               Column(
@@ -2509,14 +2365,14 @@ class _EdlRow extends StatelessWidget {
           ),
           const SizedBox(width: AppSpacing.md),
 
-          // FINALISATION (date ou —)
+          // DT Sig. Bail (date de signature du bail, ou —)
           SizedBox(
             width: _colFin,
             child: Text(
-              edl.dateFinalisationFormatted ?? '—',
+              edl.bailSignedAtFormatted ?? '—',
               textAlign: TextAlign.center,
               style: AppTypography.bodyMd.copyWith(
-                color: edl.dateFinalisation == null
+                color: edl.bailSignedAt == null
                     ? AppColors.onSurfaceVariant
                     : null,
               ),
@@ -2909,12 +2765,11 @@ class _EdlFormOverlayState extends State<_EdlFormOverlay> {
   SituationEdl get _computedSituation => SituationEdl.fromDate(_dateEdl);
 
   Future<void> _pickDate() async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _dateEdl,
+    final picked = await showAppDatePicker(
+      context,
+      initial: _dateEdl,
       firstDate: DateTime(2000),
       lastDate: DateTime(2100),
-      locale: const Locale('fr'),
     );
     if (picked != null && mounted) setState(() => _dateEdl = picked);
   }
@@ -6191,6 +6046,7 @@ class _WallObsDialogState extends State<_WallObsDialog> {
           child: const Text('Annuler'),
         ),
         FilledButton(
+          style: AppTheme.saveButtonStyle,
           onPressed: () => Navigator.pop(context, (
             description: _descCtrl.text.trim().isEmpty
                 ? null
@@ -6285,6 +6141,7 @@ class _GeneralObsDialogState extends State<_GeneralObsDialog> {
           child: const Text('Annuler'),
         ),
         FilledButton(
+          style: AppTheme.saveButtonStyle,
           onPressed: () => Navigator.pop(context, (
             description: _descCtrl.text.trim().isEmpty
                 ? null
@@ -6393,6 +6250,7 @@ class _AdditionDialogState extends State<_AdditionDialog> {
           child: const Text('Annuler'),
         ),
         FilledButton(
+          style: AppTheme.saveButtonStyle,
           onPressed: () {
             final c = widget.comodos[_comodoIndex];
             Navigator.pop(context, (
@@ -6432,6 +6290,8 @@ class EdlCollectifNonMeubleePage extends StatefulWidget {
   // s'éditent pas ici (ils viennent des EDL individuels) → section read-only +
   // section « Avenants ».
   final bool lockLocataires;
+  // Mode super admin : bypass des verrous (édition possible même finalisé).
+  final bool superAdmin;
 
   const EdlCollectifNonMeubleePage({
     super.key,
@@ -6442,6 +6302,7 @@ class EdlCollectifNonMeubleePage extends StatefulWidget {
     this.isLocataire = false,
     this.meublee = false,
     this.lockLocataires = false,
+    this.superAdmin = false,
   });
 
   @override
@@ -6458,6 +6319,17 @@ class _EdlCollectifNonMeubleePageState
   bool _isFinalising = false;
   SituationEdl _situation = SituationEdl.enCours;
   bool _locataireAccepte = false;
+
+  // Signature du BAIL (document distinct de l'EDL). État réactif local.
+  bool _bailSignedProprio = false;
+  bool _bailSignedLocataire = false;
+  DateTime? _bailSignedAt;
+  bool _isSigningBail = false;
+
+  // Conditions obligatoires (bail location) : fenêtre d'avenant + caution.
+  int? _avenantWindowSel;
+  CautionMode? _cautionMode;
+  Map<String, dynamic>? _cautionDetails;
 
   List<PieceModel> _pieces = [];
   List<ChambreModel> _chambres = [];
@@ -6485,6 +6357,12 @@ class _EdlCollectifNonMeubleePageState
       _dateFinalisation = edl.dateFinalisation;
       _situation = edl.situation;
       _locataireAccepte = edl.locataireAccepte;
+      _bailSignedProprio = edl.bailSignedBy('proprietaire');
+      _bailSignedLocataire = edl.bailSignedBy('locataire');
+      _bailSignedAt = edl.bailSignedAt;
+      _avenantWindowSel = edl.avenantWindowDays;
+      _cautionMode = CautionMode.fromRaw(edl.cautionMode);
+      _cautionDetails = edl.cautionDetails;
     }
     _loadRooms();
     if (edl != null) {
@@ -6648,12 +6526,11 @@ class _EdlCollectifNonMeubleePageState
   }
 
   Future<void> _pickDate() async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _date,
+    final picked = await showAppDatePicker(
+      context,
+      initial: _date,
       firstDate: DateTime(2000),
       lastDate: DateTime(2100),
-      locale: const Locale('fr'),
     );
     if (picked != null && mounted) setState(() => _date = picked);
   }
@@ -6907,6 +6784,20 @@ class _EdlCollectifNonMeubleePageState
       final ok = await _saveEdl();
       if (!ok || !mounted) return;
     }
+    // Verrou : champs obligatoires du bail (avenant + caution) avant finalisation.
+    if (widget.typeEdl == 'entree') {
+      final missing = _missingBailLoc;
+      if (missing.isNotEmpty) {
+        _snack('Champs obligatoires manquants : ${missing.join(', ')}.');
+        // Descend jusqu'à la configuration du bail (bas de page).
+        if (_scrollCtrl.hasClients) {
+          _scrollCtrl.animateTo(_scrollCtrl.position.maxScrollExtent,
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeOut);
+        }
+        return;
+      }
+    }
     final confirm = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
@@ -6978,28 +6869,15 @@ class _EdlCollectifNonMeubleePageState
     if (sigUrl == null || !mounted) return;
     setState(() => _isFinalising = true);
     try {
+      // La notification au propriétaire (in-app + e-mail) est centralisée dans
+      // locataireAccepter → elle part quel que soit le chemin d'UI.
       await EtatDesLieuxDatasource.locataireAccepter(
         _edlId!,
         locataireSignatureUrl: sigUrl,
+        locataireNom:
+            AuthService.currentUser?.userMetadata?['full_name'] as String?,
+        lieuLabel: widget.immeuble.name,
       );
-      // Notifications au propriétaire (in-app + e-mail) : best-effort. Un échec
-      // ne doit PAS faire croire que la signature a échoué — elle est posée.
-      final nom =
-          AuthService.currentUser?.userMetadata?['full_name'] as String?;
-      try {
-        await NotificationsDatasource.notifyEdlProprietaire(
-          edlId: _edlId!,
-          type: 'edl_accepte',
-          title: 'État des lieux accepté',
-          body:
-              '${nom ?? 'Le locataire'} a accepté et signé '
-              "l'état des lieux de ${widget.immeuble.name}.",
-        );
-        await EtatDesLieuxDatasource.notifyAccepte(
-          edlId: _edlId!,
-          locataireNom: nom,
-        );
-      } catch (_) {/* notification best-effort */}
       // Vérifie que la signature est bien enregistrée sur l'EDL.
       final ok = await EtatDesLieuxDatasource.isLocataireSigned(_edlId!);
       if (mounted) setState(() => _locataireAccepte = true);
@@ -7012,6 +6890,69 @@ class _EdlCollectifNonMeubleePageState
     } finally {
       if (mounted) setState(() => _isFinalising = false);
     }
+  }
+
+  // ── Signatures : EDL vs BAIL (deux documents distincts) ────────────────────
+  String get _myRole => _isLocataire ? 'locataire' : 'proprietaire';
+  bool get _edlSignedByMe =>
+      _isLocataire ? _locataireAccepte : _situation == SituationEdl.finalise;
+  bool get _edlFullySigned =>
+      _situation == SituationEdl.finalise && _locataireAccepte;
+  bool get _bailSignedByMe =>
+      _isLocataire ? _bailSignedLocataire : _bailSignedProprio;
+  bool get _bailFullySigned => _bailSignedProprio && _bailSignedLocataire;
+
+  /// « Signer bail » (bail location) : disponible une fois l'EDL signé des deux
+  /// parties. Réutilise la signature du profil (aperçu + apposition bail_).
+  /// Une fois signé des deux côtés → échéances générées (à recevoir / à payer).
+  Future<void> _signerBail() async {
+    final edl = widget.existingEdl;
+    if (edl == null || _edlId == null) return;
+    setState(() => _isSigningBail = true);
+    try {
+      final garantRes = await ensureBailGarant(context, edl);
+      if (garantRes == null || !mounted) return;
+      final signed =
+          await ensureBailSignature(context, garantRes.edl, role: _myRole);
+      if (signed == null || !mounted) return;
+      if (signed.bailSignedBy(_myRole)) {
+        setState(() {
+          if (_isLocataire) {
+            _bailSignedLocataire = true;
+          } else {
+            _bailSignedProprio = true;
+          }
+          _bailSignedAt = signed.bailSignedAt ?? DateTime.now();
+        });
+        _snack('Bail signé.');
+      }
+    } catch (e) {
+      if (mounted) _snack('Erreur : $e');
+    } finally {
+      if (mounted) setState(() => _isSigningBail = false);
+    }
+  }
+
+  /// Bouton « Document » avec choix EDL / Bail (popover). Le bail n'est proposé
+  /// qu'une fois l'EDL signé des deux parties.
+  Widget _documentButton() {
+    final edl = widget.existingEdl;
+    final canBail =
+        edl != null && widget.typeEdl == 'entree' && _edlFullySigned;
+    return DocumentChoiceButton(
+      onEdl: () =>
+          openEdlCollectifPdfPreview(context: context, edlId: _edlId!),
+      onBail: canBail
+          ? () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => BailPdfPreviewPage(
+                  edl: edl,
+                  role: _myRole,
+                  readOnly: _bailFullySigned,
+                ),
+              ))
+          : null,
+      bailLabel: _bailFullySigned ? 'Bail (signé)' : 'Bail',
+    );
   }
 
   /// Bandeau d'état (situation + acceptation) affiché en haut du corps.
@@ -7058,102 +6999,62 @@ class _EdlCollectifNonMeubleePageState
   }
 
   Widget? _headerAction() {
+    final isEntree = widget.typeEdl == 'entree';
+    // Le collectif d'un bail individuel (lockLocataires) ne se signe pas ici :
+    // seuls les EDL individuels (privatifs) sont signés.
+    final signable = _saved && !_lockLocataires;
+    // 1) « Signer EDL » tant que l'utilisateur courant n'a pas signé l'EDL.
+    final showSignEdl = signable && !_edlSignedByMe;
+    // 2) « Signer bail » une fois l'EDL signé des DEUX parties (annexe complète)
+    //    et si l'utilisateur n'a pas encore signé le bail. EDL d'entrée seul.
+    final showSignBail =
+        signable && isEntree && _edlFullySigned && !_bailSignedByMe;
+
+    final signPerm = _isLocataire ? Perm.edlAccepter : Perm.edlFinaliser;
+    final signEdlAction = _isLocataire ? _accepter : _finaliser;
+
+    Widget spinner() => const SizedBox(
+        width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2));
+
+    final actions = <Widget>[
+      if (_saved) _documentButton(),
+      if (showSignEdl)
+        PermissionGate(
+          permission: signPerm,
+          child: FilledButton.icon(
+            onPressed: _isFinalising ? null : signEdlAction,
+            style: AppTheme.saveButtonStyle,
+            icon: _isFinalising ? spinner() : const Icon(Icons.draw_outlined),
+            label: const Text('Signer EDL'),
+          ),
+        ),
+      if (showSignBail)
+        PermissionGate(
+          permission: signPerm,
+          child: FilledButton.icon(
+            onPressed: _isSigningBail ? null : _signerBail,
+            style: AppTheme.saveButtonStyle,
+            icon: _isSigningBail
+                ? spinner()
+                : const Icon(Icons.assignment_turned_in_outlined),
+            label: const Text('Signer bail'),
+          ),
+        ),
+    ];
+
+    // Locataire : lecture seule (obs. sauvegardées inline) → pas d'Enregistrer.
     if (_isLocataire) {
-      // Locataire : lecture seule — pas d'Enregistrer (obs. sauvegardées
-      // inline). Boutons : Fermer · | · Document · Bail · Accepter et signer.
       return FormHeaderActions(
         onClose: _handleClose,
         isSaving: _isSaving,
-        extraActions: [
-          if (_saved)
-            DocumentPdfButton(
-              onPressed: () =>
-                  openEdlCollectifPdfPreview(context: context, edlId: _edlId!),
-            ),
-          if (_saved && _locataireAccepte && widget.existingEdl != null &&
-              widget.existingEdl!.typeEdl == 'entree')
-            OutlinedButton.icon(
-              onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => BailPdfPreviewPage(
-                  edl: widget.existingEdl!,
-                  role: 'locataire',
-                  readOnly: widget.existingEdl!.bailFullySigned,
-                ),
-              )),
-              icon: Icon(widget.existingEdl!.bailFullySigned
-                  ? Icons.visibility_outlined
-                  : Icons.description_outlined),
-              label: Text(widget.existingEdl!.bailFullySigned
-                  ? 'Visualiser le bail'
-                  : 'Bail'),
-            ),
-          if (_saved &&
-              _situation == SituationEdl.finalise &&
-              !_locataireAccepte)
-            PermissionGate(
-              permission: Perm.edlAccepter,
-              child: FilledButton.icon(
-                onPressed: _isFinalising ? null : _accepter,
-                style: AppTheme.saveButtonStyle,
-                icon: _isFinalising
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.check_circle_outline),
-                label: const Text('Accepter et signer'),
-              ),
-            ),
-        ],
+        extraActions: actions,
       );
     }
-    // Proprietaire : ordre standard Enregistrer · Fermer · | · Document · Bail · Finaliser.
-    final finalise = _situation == SituationEdl.finalise;
     return FormHeaderActions(
       onSave: _onSavePressed,
       onClose: _handleClose,
       isSaving: _isSaving,
-      extraActions: [
-        if (_saved)
-          DocumentPdfButton(
-            onPressed: () =>
-                openEdlCollectifPdfPreview(context: context, edlId: _edlId!),
-          ),
-        if (_saved && finalise && _locataireAccepte && widget.existingEdl != null && widget.existingEdl!.typeEdl == 'entree')
-          OutlinedButton.icon(
-            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-              builder: (_) => BailPdfPreviewPage(
-                edl: widget.existingEdl!,
-                role: 'proprietaire',
-                readOnly: widget.existingEdl!.bailFullySigned,
-              ),
-            )),
-            icon: Icon(widget.existingEdl!.bailFullySigned
-                ? Icons.visibility_outlined
-                : Icons.description_outlined),
-            label: Text(widget.existingEdl!.bailFullySigned
-                ? 'Visualiser le bail'
-                : 'Bail'),
-          ),
-        // Le collectif d'un bail individuel ne se finalise pas : seuls les EDL
-        // individuels (privatifs) sont finalisés.
-        if (!finalise && !_lockLocataires)
-          PermissionGate(
-            permission: Perm.edlFinaliser,
-            child: OutlinedButton.icon(
-              onPressed: _isFinalising ? null : _finaliser,
-              icon: _isFinalising
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.lock_outline),
-              label: const Text('Finaliser'),
-            ),
-          ),
-      ],
+      extraActions: actions,
     );
   }
 
@@ -7193,6 +7094,135 @@ class _EdlCollectifNonMeubleePageState
                   const SizedBox(height: AppSpacing.xl),
                   _buildDiversSection(),
                 ],
+                if (_saved && widget.typeEdl == 'entree') ...[
+                  const SizedBox(height: AppSpacing.xl),
+                  _buildBailConfigLoc(),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── Configuration du bail (obligatoire) : fenêtre d'avenant + caution ───────
+
+  List<String> get _missingBailLoc => [
+        if (_avenantWindowSel == null) "Fenêtre d'avenant",
+        if (_cautionMode == null) 'Mode de règlement de la caution',
+      ];
+
+  Future<void> _setAvenantLoc(int days) async {
+    if (_edlId == null) return;
+    setState(() => _avenantWindowSel = days);
+    try {
+      await EtatDesLieuxDatasource.setEdlAvenantWindow(_edlId!, days);
+    } catch (e) {
+      if (mounted) _snack('Erreur : $e');
+    }
+  }
+
+  Future<void> _setCautionLoc(CautionMode m, Map<String, dynamic>? d) async {
+    if (_edlId == null) return;
+    setState(() {
+      _cautionMode = m;
+      _cautionDetails = d;
+    });
+    try {
+      await EtatDesLieuxDatasource.setCaution(_edlId!, mode: m.raw, details: d);
+    } catch (e) {
+      if (mounted) _snack('Erreur : $e');
+    }
+  }
+
+  Widget _reqHeaderLoc(String title, bool done) => Row(
+        children: [
+          Expanded(
+            child: Text.rich(TextSpan(children: [
+              TextSpan(
+                  text: title,
+                  style: Theme.of(context).textTheme.titleMedium),
+              const TextSpan(
+                  text: '  *',
+                  style: TextStyle(
+                      color: AppColors.error, fontWeight: FontWeight.bold)),
+            ])),
+          ),
+          if (done)
+            const Icon(Icons.check_circle, color: AppColors.success, size: 20)
+          else
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: AppColors.errorContainer,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Text('Obligatoire',
+                  style: TextStyle(
+                      color: AppColors.onErrorContainer,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600)),
+            ),
+        ],
+      );
+
+  Widget _buildBailConfigLoc() {
+    const options = [0, 7, 15, 30, 60, 90];
+    final finalise = _situation == SituationEdl.finalise;
+    final canAvenant = !_isLocataire && !finalise;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Configuration du bail', style: AppTypography.titleLg),
+        const SizedBox(height: AppSpacing.sm),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _reqHeaderLoc("Fenêtre d'avenant", _avenantWindowSel != null),
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  'Délai après finalisation pendant lequel des additions '
+                  'restent possibles. À choisir avant de finaliser.',
+                  style: AppTypography.labelSm
+                      .copyWith(color: AppColors.onSurfaceVariant),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final d in options)
+                      ChoiceChip(
+                        label: Text(d == 0 ? 'Sans avenant' : '$d jours'),
+                        selected: _avenantWindowSel == d,
+                        onSelected:
+                            canAvenant ? (_) => _setAvenantLoc(d) : null,
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _reqHeaderLoc('Règlement de la caution', _cautionMode != null),
+                const SizedBox(height: AppSpacing.sm),
+                _CautionEditor(
+                  initialMode: _cautionMode,
+                  initialDetails: _cautionDetails,
+                  readOnly: finalise,
+                  onChanged: _setCautionLoc,
+                ),
               ],
             ),
           ),
@@ -7216,7 +7246,8 @@ class _EdlCollectifNonMeubleePageState
         const SizedBox(height: AppSpacing.sm),
         EdlDiversSection(
           edlId: _edlId!,
-          readOnly: _isLocataire || _situation == SituationEdl.finalise,
+          readOnly: !widget.superAdmin &&
+              (_isLocataire || _situation == SituationEdl.finalise),
           authorRole: _isLocataire ? 'locataire' : 'proprietaire',
         ),
       ],
@@ -7228,18 +7259,18 @@ class _EdlCollectifNonMeubleePageState
       builder: (context, constraints) {
         final wide = constraints.maxWidth >= 640;
         if (wide) {
-          // BIEN (75%) et DATES (25%) à la même hauteur (IntrinsicHeight +
-          // stretch). Les chips de BIEN sont en Row (et non Wrap) pour rester
-          // compatibles avec les dimensions intrinsèques.
-          return IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(flex: 3, child: _buildBienCard()),
-                const SizedBox(width: AppSpacing.md),
-                Expanded(flex: 1, child: _buildDatesCard()),
-              ],
-            ),
+          // Pas d'IntrinsicHeight : la carte DATES contient une Row de blocs
+          // avec Expanded, incompatible avec le calcul de dimensions
+          // intrinsèques. Alignement en haut à la place.
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(flex: 3, child: _buildBienCard()),
+              const SizedBox(width: AppSpacing.md),
+              // DATES élargi : dates de l'EDL sur une ligne + date du bail sur
+              // une autre.
+              Expanded(flex: 2, child: _buildDatesCard()),
+            ],
           );
         }
         return Column(
@@ -7492,26 +7523,51 @@ class _EdlCollectifNonMeubleePageState
   }
 
   Widget _buildDatesCard() {
+    final isEntree = widget.typeEdl == 'entree';
+    final sensLabel = isEntree ? 'entrée' : 'sortie';
     return _sectionCard(
       title: 'DATES',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _edlDateBlock(
-            label: "Date de l'état des lieux",
-            value: _dateFmt.format(_date),
-            icon: Icons.calendar_today_outlined,
-            onTap: _isLocataire ? null : _pickDate,
+          // Ligne 1 — dates de l'EDL (établissement + signature de l'EDL).
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: _edlDateBlock(
+                  label: "Date de l'état des lieux",
+                  value: _dateFmt.format(_date),
+                  icon: Icons.calendar_today_outlined,
+                  onTap: _isLocataire ? null : _pickDate,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: _edlDateBlock(
+                  // Ex-« Date de finalisation » : date de signature de l'EDL.
+                  label: "Date signature de l'EDL $sensLabel",
+                  value: _dateFinalisation != null
+                      ? _dateFmt.format(_dateFinalisation!)
+                      : 'En attente',
+                  icon: Icons.event_available_outlined,
+                  muted: _dateFinalisation == null,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: AppSpacing.md),
-          _edlDateBlock(
-            label: 'Date de finalisation',
-            value: _dateFinalisation != null
-                ? _dateFmt.format(_dateFinalisation!)
-                : 'En attente',
-            icon: Icons.event_available_outlined,
-            muted: _dateFinalisation == null,
-          ),
+          // Ligne 2 — date de signature du BAIL (document distinct).
+          if (isEntree) ...[
+            const SizedBox(height: AppSpacing.md),
+            _edlDateBlock(
+              label: 'Date de signature du bail',
+              value: _bailSignedAt != null
+                  ? _dateFmt.format(_bailSignedAt!)
+                  : 'En attente',
+              icon: Icons.assignment_turned_in_outlined,
+              muted: _bailSignedAt == null,
+            ),
+          ],
         ],
       ),
     );
@@ -7982,6 +8038,68 @@ class _TenantCard extends StatelessWidget {
   }
 }
 
+/// Petite carte d'un garant du bail (même gabarit que [_TenantCard] pour le
+/// locataire) : pastille + nom + type + suppression. Utilisée dans l'onglet
+/// « Bail », sous « avec garant ».
+class _GarantCard extends StatelessWidget {
+  final GarantModel garant;
+  final String name;
+  final VoidCallback? onDelete;
+
+  const _GarantCard({required this.garant, required this.name, this.onDelete});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFCFE0E7)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          CircleAvatar(
+            radius: 14,
+            backgroundColor: AppColors.success.withValues(alpha: 0.14),
+            child: const Icon(Icons.verified_user_outlined,
+                size: 15, color: AppColors.success),
+          ),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  name,
+                  style:
+                      AppTypography.labelMd.copyWith(fontWeight: FontWeight.w600),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  garant.typeGarant == 'morale'
+                      ? 'Personne morale'
+                      : 'Personne physique',
+                  style: const TextStyle(fontSize: 11, color: Color(0xFF5B6772)),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          if (onDelete != null) ...[
+            const SizedBox(width: 6),
+            CardDeleteButton(onPressed: onDelete!),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 // ═════════════════════════════════════════════════════════════════════════════
 // EDL Individuel + meublée — l'unité louée est la chambre
 // ═════════════════════════════════════════════════════════════════════════════
@@ -8021,6 +8139,9 @@ class EdlIndividuelMeubleePage extends StatefulWidget {
   /// diretamente na aba Additions (atalho do locataire).
   final int initialTabIndex;
 
+  // Mode super admin : bypass des verrous (édition possible même finalisé).
+  final bool superAdmin;
+
   const EdlIndividuelMeubleePage({
     super.key,
     required this.immeuble,
@@ -8034,6 +8155,7 @@ class EdlIndividuelMeubleePage extends StatefulWidget {
     this.avenantCollectifId,
     this.forceNewCollectif = false,
     this.initialTabIndex = 0,
+    this.superAdmin = false,
   });
 
   @override
@@ -8057,6 +8179,28 @@ class _EdlIndividuelMeubleePageState extends State<EdlIndividuelMeubleePage>
   SituationEdl _situation = SituationEdl.enCours;
   bool _locataireAccepte = false;
 
+  // Configuration/résiliation du bail (onglet « Bail »).
+  int? _preavisMois;
+  DateTime? _bailCongeDate;
+  DateTime? _bailFinEffective;
+  String? _bailResilieMotif;
+
+  // Signature du BAIL (document distinct de l'EDL). État réactif local.
+  bool _bailSignedProprio = false;
+  bool _bailSignedLocataire = false;
+  DateTime? _bailSignedAt; // date de signature du bail (la plus récente)
+  bool _isSigningBail = false;
+
+  // Conditions obligatoires (readiness) : avenant, garant, caution.
+  int? _avenantWindowSel; // fenêtre d'avenant choisie (null = non choisie)
+  bool? _bailAvecGarant; // avec/sans garant (null = non choisi)
+  CautionMode? _cautionMode; // mode de règlement de la caution
+  Map<String, dynamic>? _cautionDetails;
+  List<int> _garantIds = []; // garants rattachés à cet EDL
+  List<GarantModel> _activeGarants = []; // garants actifs du locataire
+  bool _garantPromptShown = false; // pop-up « insérer le garant » déjà proposé
+  String? _profileSignatureUrl; // signature par défaut du profil (aperçu auto)
+
   List<PieceModel> _pieces = [];
   List<EdlPreneur> _preneurs = [];
   // Locataire de CETTE chambre (= locataire_id du privatif). Sert à n'afficher
@@ -8079,7 +8223,8 @@ class _EdlIndividuelMeubleePageState extends State<EdlIndividuelMeubleePage>
   /// Une fois finalisé, l'EDL ne peut plus être modifié (seuls les ajouts via
   /// l'onglet Additions restent possibles, dans la fenêtre).
   bool get _finalise => _situation == SituationEdl.finalise;
-  bool get _readOnly => _isLocataire || _finalise;
+  bool get _readOnly =>
+      !widget.superAdmin && (_isLocataire || _finalise);
 
   /// Durée (jours) de la fenêtre avenant/additions, fixée à la finalisation
   /// depuis la préférence du propriétaire (Vision générale).
@@ -8102,9 +8247,11 @@ class _EdlIndividuelMeubleePageState extends State<EdlIndividuelMeubleePage>
   void initState() {
     super.initState();
     _tabCtrl = TabController(
-      length: 6,
+      // 7 onglets : le garant est fusionné dans l'onglet « Bail » (plus d'onglet
+      // « Garant » séparé) — EDL et bail restent deux documents distincts.
+      length: 7,
       vsync: this,
-      initialIndex: widget.initialTabIndex,
+      initialIndex: widget.initialTabIndex.clamp(0, 6),
     );
     _tabCtrl.addListener(() {
       if (mounted) setState(() {});
@@ -8118,6 +8265,17 @@ class _EdlIndividuelMeubleePageState extends State<EdlIndividuelMeubleePage>
       _dateFinalisation = edl.dateFinalisation;
       _situation = edl.situation;
       _locataireAccepte = edl.locataireAccepte;
+      _bailSignedProprio = edl.bailSignedBy('proprietaire');
+      _bailSignedLocataire = edl.bailSignedBy('locataire');
+      _bailSignedAt = edl.bailSignedAt;
+      _preavisMois = edl.preavisMois;
+      _bailCongeDate = edl.bailCongeDate;
+      _bailFinEffective = edl.bailFinEffective;
+      _bailResilieMotif = edl.bailResilieMotif;
+      _avenantWindowSel = edl.avenantWindowDays;
+      _bailAvecGarant = edl.bailAvecGarant;
+      _cautionMode = CautionMode.fromRaw(edl.cautionMode);
+      _cautionDetails = edl.cautionDetails;
       _loadRooms();
       _loadAll();
     } else if (!widget.isLocataire) {
@@ -8153,8 +8311,53 @@ class _EdlIndividuelMeubleePageState extends State<EdlIndividuelMeubleePage>
   }
 
   Future<void> _loadAll() async {
-    await Future.wait([_loadObservations(), _loadPreneurs(), _loadSections()]);
+    await Future.wait([
+      _loadObservations(),
+      _loadPreneurs(),
+      _loadSections(),
+      _loadGarants(),
+    ]);
   }
+
+  /// Charge les garants rattachés à l'EDL + les garants actifs du locataire
+  /// (pour l'onglet « Garant » : sélection parmi les garants actifs).
+  Future<void> _loadGarants() async {
+    try {
+      final ids = _privatifId != null
+          ? await EtatDesLieuxDatasource.listGarantIdsForEdl(_privatifId!)
+          : <int>[];
+      final active = _privatifLocataireId != null
+          ? await GarantsDatasource.activeByLocataire(_privatifLocataireId!)
+          : <GarantModel>[];
+      final sig = await SignaturesDatasource.getSavedUrl();
+      if (mounted) {
+        setState(() {
+          _garantIds = ids;
+          _activeGarants = active;
+          _profileSignatureUrl = sig;
+        });
+        // Côté locataire : proposer d'insérer son garant dans ce bail.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _maybePromptInsertGarant();
+        });
+      }
+    } catch (_) {}
+  }
+
+  /// Conditions obligatoires manquantes (avenant, garant, caution).
+  List<EdlRequirement> get _missingReq => EdlReadiness.missing(
+        avenantWindowDays: _avenantWindowSel,
+        bailAvecGarant: _bailAvecGarant,
+        garantsCount: _garantIds.length,
+        cautionMode: _cautionMode?.raw,
+      );
+
+  // Badges par onglet : Bail regroupe bail + caution ; Garant à part.
+  int get _bailBadge =>
+      EdlReadiness.countForSection(_missingReq, EdlReqSection.bail) +
+      EdlReadiness.countForSection(_missingReq, EdlReqSection.caution);
+  int get _garantBadge =>
+      EdlReadiness.countForSection(_missingReq, EdlReqSection.garant);
 
   // Inventaire (sections + lignes), chargé une fois, intégré DANS les accordéons.
   List<EdlSection> _privatifSections = [];
@@ -8289,12 +8492,11 @@ class _EdlIndividuelMeubleePageState extends State<EdlIndividuelMeubleePage>
   }
 
   Future<void> _pickDate() async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _date,
+    final picked = await showAppDatePicker(
+      context,
+      initial: _date,
       firstDate: DateTime(2000),
       lastDate: DateTime(2100),
-      locale: const Locale('fr'),
     );
     if (picked != null && mounted) setState(() => _date = picked);
   }
@@ -8717,6 +8919,18 @@ class _EdlIndividuelMeubleePageState extends State<EdlIndividuelMeubleePage>
   /// Finaliser (proprietaire) sur le privatif de la chambre.
   /// Ouvre le dialogue de bail pour saisir début, durée et date de fin.
   Future<void> _finaliser() async {
+    // Verrou : conditions obligatoires (avenant, garant, caution) avant de
+    // pouvoir signer/finaliser. Ouvre l'onglet concerné si quelque chose manque.
+    if (widget.typeEdl == 'entree') {
+      final missing = _missingReq;
+      if (missing.isNotEmpty) {
+        _snack('Champs obligatoires manquants : '
+            '${missing.map((r) => r.label).join(', ')}.');
+        // Bail + garant sont désormais dans le même onglet « Bail » (index 6).
+        _tabCtrl.animateTo(6);
+        return;
+      }
+    }
     final ok = await _saveEdl();
     if (!ok || !mounted || _privatifId == null) return;
 
@@ -8768,23 +8982,13 @@ class _EdlIndividuelMeubleePageState extends State<EdlIndividuelMeubleePage>
     if (sigUrl == null || !mounted) return;
     setState(() => _isFinalising = true);
     try {
+      // Notification au propriétaire centralisée dans locataireAccepter.
       await EtatDesLieuxDatasource.locataireAccepter(
         _privatifId!,
         locataireSignatureUrl: sigUrl,
-      );
-      final nom =
-          AuthService.currentUser?.userMetadata?['full_name'] as String?;
-      await NotificationsDatasource.notifyEdlProprietaire(
-        edlId: _privatifId!,
-        type: 'edl_accepte',
-        title: 'État des lieux accepté',
-        body:
-            '${nom ?? 'Le locataire'} a accepté et signé '
-            "l'état des lieux de ${widget.chambre.roomName}.",
-      );
-      await EtatDesLieuxDatasource.notifyAccepte(
-        edlId: _privatifId!,
-        locataireNom: nom,
+        locataireNom:
+            AuthService.currentUser?.userMetadata?['full_name'] as String?,
+        lieuLabel: widget.chambre.roomName,
       );
       if (mounted) setState(() => _locataireAccepte = true);
       _snack('État des lieux accepté.');
@@ -8794,6 +8998,85 @@ class _EdlIndividuelMeubleePageState extends State<EdlIndividuelMeubleePage>
       if (mounted) setState(() => _isFinalising = false);
     }
   }
+
+  // ── Signatures : helpers d'état (EDL vs BAIL, deux documents distincts) ─────
+  String get _myRole => _isLocataire ? 'locataire' : 'proprietaire';
+
+  /// L'utilisateur courant a-t-il signé l'EDL ? (proprio = finalisé ; locataire
+  /// = accepté).
+  bool get _edlSignedByMe =>
+      _isLocataire ? _locataireAccepte : _situation == SituationEdl.finalise;
+
+  /// L'EDL est-il signé par les DEUX parties ? Condition pour signer le bail.
+  bool get _edlFullySigned =>
+      _situation == SituationEdl.finalise && _locataireAccepte;
+
+  bool get _bailSignedByMe =>
+      _isLocataire ? _bailSignedLocataire : _bailSignedProprio;
+
+  /// « Signer bail » (proprio ou locataire) : n'est disponible qu'une fois l'EDL
+  /// signé des deux côtés. Réutilise la signature du profil (aperçu + apposition
+  /// dans les colonnes bail_). Une fois signé des deux côtés → échéances générées.
+  Future<void> _signerBail() async {
+    final edl = widget.existingEdl;
+    if (edl == null || _privatifId == null) return;
+    // Garant obligatoire (si « avec garant ») avant de signer le bail.
+    if (_bailAvecGarant == true && _garantIds.isEmpty) {
+      _snack('Rattachez un garant avant de signer le bail.');
+      _tabCtrl.animateTo(6);
+      return;
+    }
+    setState(() => _isSigningBail = true);
+    try {
+      final garantRes = await ensureBailGarant(context, edl);
+      if (garantRes == null || !mounted) return;
+      final signed =
+          await ensureBailSignature(context, garantRes.edl, role: _myRole);
+      if (signed == null || !mounted) return;
+      if (signed.bailSignedBy(_myRole)) {
+        setState(() {
+          if (_isLocataire) {
+            _bailSignedLocataire = true;
+          } else {
+            _bailSignedProprio = true;
+          }
+          _bailSignedAt = signed.bailSignedAt ?? DateTime.now();
+        });
+        _snack('Bail signé.');
+      }
+    } catch (e) {
+      if (mounted) _snack('Erreur : $e');
+    } finally {
+      if (mounted) setState(() => _isSigningBail = false);
+    }
+  }
+
+  /// Bouton « Document » avec choix EDL / Bail (popover). Le bail n'est
+  /// proposé qu'une fois l'EDL signé des deux parties (annexe complète).
+  Widget _documentButton() {
+    final edl = widget.existingEdl;
+    final canBail =
+        edl != null && widget.typeEdl == 'entree' && _edlFullySigned;
+    return DocumentChoiceButton(
+      onEdl: () => openEdlIndividuelPdfPreview(
+        context: context,
+        collectifId: _collectifId!,
+        privatifId: _privatifId!,
+      ),
+      onBail: canBail
+          ? () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => BailPdfPreviewPage(
+                  edl: edl,
+                  role: _myRole,
+                  readOnly: _bailFullySigned,
+                ),
+              ))
+          : null,
+      bailLabel: _bailFullySigned ? 'Bail (signé)' : 'Bail',
+    );
+  }
+
+  bool get _bailFullySigned => _bailSignedProprio && _bailSignedLocataire;
 
   /// Bandeau « Avenant » : explique que ce locataire entre après l'EDL collectif.
   Widget _avenantBanner() {
@@ -8869,99 +9152,62 @@ class _EdlIndividuelMeubleePageState extends State<EdlIndividuelMeubleePage>
   }
 
   Widget? _headerAction() {
+    final canDocument =
+        _saved && _collectifId != null && _privatifId != null;
+    final isEntree = widget.typeEdl == 'entree';
+    // 1) « Signer EDL » : tant que l'utilisateur courant n'a pas signé l'EDL.
+    final showSignEdl = _saved && !_edlSignedByMe;
+    // 2) « Signer bail » : seulement une fois l'EDL signé des DEUX parties
+    //    (l'EDL est l'annexe du bail) et si l'utilisateur n'a pas encore signé
+    //    le bail. Uniquement pour un EDL d'entrée.
+    final showSignBail =
+        _saved && isEntree && _edlFullySigned && !_bailSignedByMe;
+
+    final signPerm = _isLocataire ? Perm.edlAccepter : Perm.edlFinaliser;
+    final signEdlAction = _isLocataire ? _accepter : _finaliser;
+
+    Widget spinner() => const SizedBox(
+        width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2));
+
+    final actions = <Widget>[
+      if (canDocument) _documentButton(),
+      if (showSignEdl)
+        PermissionGate(
+          permission: signPerm,
+          child: FilledButton.icon(
+            onPressed: _isFinalising ? null : signEdlAction,
+            style: AppTheme.saveButtonStyle,
+            icon: _isFinalising ? spinner() : const Icon(Icons.draw_outlined),
+            label: const Text('Signer EDL'),
+          ),
+        ),
+      if (showSignBail)
+        PermissionGate(
+          permission: signPerm,
+          child: FilledButton.icon(
+            onPressed: _isSigningBail ? null : _signerBail,
+            style: AppTheme.saveButtonStyle,
+            icon: _isSigningBail
+                ? spinner()
+                : const Icon(Icons.assignment_turned_in_outlined),
+            label: const Text('Signer bail'),
+          ),
+        ),
+    ];
+
+    // Locataire : lecture seule (obs. sauvegardées inline) → pas d'Enregistrer.
     if (_isLocataire) {
-      final canAccepter =
-          _saved && _situation == SituationEdl.finalise && !_locataireAccepte;
-      final canDocument = _saved && _collectifId != null && _privatifId != null;
-      // Locataire : lecture seule — pas d'Enregistrer (obs. sauvegardées
-      // inline). Boutons : Fermer · | · Document · Bail · Accepter et signer.
       return FormHeaderActions(
         onClose: _handleClose,
         isSaving: _isSaving,
-        extraActions: [
-          if (canDocument)
-            DocumentPdfButton(
-              onPressed: () => openEdlIndividuelPdfPreview(
-                context: context,
-                collectifId: _collectifId!,
-                privatifId: _privatifId!,
-              ),
-            ),
-          if (_saved && _locataireAccepte && widget.existingEdl != null &&
-              widget.existingEdl!.typeEdl == 'entree')
-            OutlinedButton.icon(
-              onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => BailPdfPreviewPage(
-                  edl: widget.existingEdl!,
-                  role: 'locataire',
-                  readOnly: widget.existingEdl!.bailFullySigned,
-                ),
-              )),
-              icon: Icon(widget.existingEdl!.bailFullySigned
-                  ? Icons.visibility_outlined
-                  : Icons.description_outlined),
-              label: Text(widget.existingEdl!.bailFullySigned
-                  ? 'Visualiser le bail'
-                  : 'Bail'),
-            ),
-          if (canAccepter)
-            PermissionGate(
-              permission: Perm.edlAccepter,
-              child: FilledButton.icon(
-                onPressed: _isFinalising ? null : _accepter,
-                style: AppTheme.saveButtonStyle,
-                icon: _isFinalising
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.check_circle_outline),
-                label: const Text('Accepter et signer'),
-              ),
-            ),
-        ],
+        extraActions: actions,
       );
     }
-    // Proprietaire : ordre standard Enregistrer · Fermer · | · Document · Bail · Finaliser.
-    final finalise = _situation == SituationEdl.finalise;
     return FormHeaderActions(
       onSave: _onSavePressed,
       onClose: _handleClose,
       isSaving: _isSaving,
-      extraActions: [
-        if (_saved && _collectifId != null)
-          DocumentPdfButton(
-            onPressed: () => openEdlIndividuelPdfPreview(
-              context: context,
-              collectifId: _collectifId!,
-              privatifId: _privatifId!,
-            ),
-          ),
-        if (finalise && _locataireAccepte && widget.existingEdl != null && widget.existingEdl!.typeEdl == 'entree')
-          OutlinedButton.icon(
-            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-              builder: (_) => BailPdfPreviewPage(edl: widget.existingEdl!),
-            )),
-            icon: const Icon(Icons.description_outlined),
-            label: const Text('Bail'),
-          ),
-        if (!finalise)
-          PermissionGate(
-            permission: Perm.edlFinaliser,
-            child: OutlinedButton.icon(
-              onPressed: _isFinalising ? null : _finaliser,
-              icon: _isFinalising
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.lock_outline),
-              label: const Text('Finaliser'),
-            ),
-          ),
-      ],
+      extraActions: actions,
     );
   }
 
@@ -8999,17 +9245,17 @@ class _EdlIndividuelMeubleePageState extends State<EdlIndividuelMeubleePage>
                         )
                       : _docHint())
                 else ...[
-                  TabBar(
+                  AppTabBar(
                     controller: _tabCtrl,
                     isScrollable: true,
-                    tabAlignment: TabAlignment.start,
-                    tabs: const [
-                      Tab(text: 'La chambre'),
-                      Tab(text: 'Parties communes'),
-                      Tab(text: 'Relevés'),
-                      Tab(text: 'Clés'),
-                      Tab(text: 'Divers'),
-                      Tab(text: 'Avenants'),
+                    tabs: [
+                      const Tab(text: 'La chambre'),
+                      const Tab(text: 'Parties communes'),
+                      const Tab(text: 'Relevés'),
+                      const Tab(text: 'Clés'),
+                      const Tab(text: 'Divers'),
+                      const Tab(text: 'Avenants'),
+                      _tabWithBadge('Bail', _bailBadge + _garantBadge),
                     ],
                   ),
                   const SizedBox(height: AppSpacing.md),
@@ -9023,7 +9269,8 @@ class _EdlIndividuelMeubleePageState extends State<EdlIndividuelMeubleePage>
                     2 => _buildRelevesTab(),
                     3 => _buildClesTab(),
                     4 => _buildDiversTab(),
-                    _ => _buildAdditionsTab(),
+                    5 => _buildAdditionsTab(),
+                    _ => _buildBailConfigTab(),
                   },
                 ],
               ],
@@ -9073,9 +9320,11 @@ class _EdlIndividuelMeubleePageState extends State<EdlIndividuelMeubleePage>
             children: [
               Expanded(flex: 3, child: bien),
               const SizedBox(width: AppSpacing.md),
-              Expanded(flex: 3, child: loc),
+              // LOCATAIRE réduit, DATES élargi pour tenir les dates de l'EDL sur
+              // une ligne + la date du bail sur une autre.
+              Expanded(flex: 2, child: loc),
               const SizedBox(width: AppSpacing.md),
-              SizedBox(width: 200, child: dates),
+              Expanded(flex: 4, child: dates),
             ],
           );
         }
@@ -9229,29 +9478,54 @@ class _EdlIndividuelMeubleePageState extends State<EdlIndividuelMeubleePage>
   }
 
   Widget _buildDatesCard() {
+    final isEntree = widget.typeEdl == 'entree';
+    final sensLabel = isEntree ? 'entrée' : 'sortie';
     return _sectionCard(
       title: 'DATES',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _edlDateBlock(
-            label: "Date de l'état des lieux",
-            value: _dateFmt.format(_date),
-            icon: Icons.calendar_today_outlined,
-            onTap: _isLocataire ? null : _pickDate,
+          // Ligne 1 — dates de l'EDL (établissement + signature de l'EDL).
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: _edlDateBlock(
+                  label: "Date de l'état des lieux",
+                  value: _dateFmt.format(_date),
+                  icon: Icons.calendar_today_outlined,
+                  onTap: _isLocataire ? null : _pickDate,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: _edlDateBlock(
+                  // Ex-« Date de finalisation » : c'est la date de signature de
+                  // l'EDL (renseignée quand l'EDL est signé des deux parties).
+                  label: "Date signature de l'EDL $sensLabel",
+                  value: _dateFinalisation != null
+                      ? _dateFmt.format(_dateFinalisation!)
+                      : 'En attente',
+                  icon: Icons.event_available_outlined,
+                  muted: _dateFinalisation == null,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: AppSpacing.md),
-          _edlDateBlock(
-            label: 'Date de finalisation',
-            value: _dateFinalisation != null
-                ? _dateFmt.format(_dateFinalisation!)
-                : 'En attente',
-            icon: Icons.event_available_outlined,
-            muted: _dateFinalisation == null,
-          ),
+          // Ligne 2 — date de signature du BAIL (document distinct de l'EDL).
+          if (isEntree) ...[
+            const SizedBox(height: AppSpacing.md),
+            _edlDateBlock(
+              label: 'Date de signature du bail',
+              value: _bailSignedAt != null
+                  ? _dateFmt.format(_bailSignedAt!)
+                  : 'En attente',
+              icon: Icons.assignment_turned_in_outlined,
+              muted: _bailSignedAt == null,
+            ),
+          ],
           // Date limite d'avenant : visible UNIQUEMENT après finalisation, et
-          // seulement si une fenêtre est configurée (> 0 jour). Calculée à partir
-          // de la date de finalisation + le nombre de jours fixé par le propriétaire.
+          // seulement si une fenêtre est configurée (> 0 jour).
           if (_finalise && _avenantWindowDays > 0) ...[
             const SizedBox(height: AppSpacing.md),
             _edlDateBlock(
@@ -9423,45 +9697,56 @@ class _EdlIndividuelMeubleePageState extends State<EdlIndividuelMeubleePage>
         'État des lieux finalisé — les relevés sont verrouillés.',
       );
     }
+    // Deux sections en cartes distinctes (même présentation que l'onglet Bail
+    // / Clés) : compteurs partagés de l'immeuble + relevé d'entrée individuel.
     return SingleChildScrollView(
       padding: const EdgeInsets.all(AppSpacing.lg),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _relevesHeader(
-            "Compteurs de l'immeuble",
-            'Partagés entre les colocataires (eau, gaz, électricité, chauffage…).',
+          _relevesCard(
+            title: "Compteurs de l'immeuble",
+            subtitle:
+                'Partagés entre les colocataires (eau, gaz, électricité, chauffage…).',
+            child: EdlRelevesSection(edlId: _collectifId!),
           ),
-          EdlRelevesSection(edlId: _collectifId!),
-          const SizedBox(height: AppSpacing.lg),
-          const Divider(),
           const SizedBox(height: AppSpacing.md),
-          _relevesHeader(
-            "Relevé d'entrée individuel",
-            "Index des compteurs à l'entrée de ce locataire — peut différer d'un "
-                'colocataire entré à une autre date.',
+          _relevesCard(
+            title: "Relevé d'entrée individuel",
+            subtitle:
+                "Index des compteurs à l'entrée de ce locataire — peut différer "
+                "d'un colocataire entré à une autre date.",
+            child: EdlRelevesSection(edlId: _privatifId!),
           ),
-          EdlRelevesSection(edlId: _privatifId!),
         ],
       ),
     );
   }
 
-  Widget _relevesHeader(String title, String subtitle) => Padding(
-        padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(title,
-                style:
-                    AppTypography.bodyMd.copyWith(fontWeight: FontWeight.w700)),
-            const SizedBox(height: 2),
-            Text(
-              subtitle,
-              style: AppTypography.labelSm
-                  .copyWith(color: AppColors.onSurfaceVariant),
-            ),
-          ],
+  /// Carte d'une section de relevés (même gabarit que les cartes de l'onglet
+  /// Bail) : titre + sous-titre + contenu.
+  Widget _relevesCard({
+    required String title,
+    required String subtitle,
+    required Widget child,
+  }) =>
+      Card(
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                subtitle,
+                style: AppTypography.labelSm
+                    .copyWith(color: AppColors.onSurfaceVariant),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              child,
+            ],
+          ),
         ),
       );
 
@@ -9731,6 +10016,647 @@ class _EdlIndividuelMeubleePageState extends State<EdlIndividuelMeubleePage>
     }
   }
 
+  // ── Onglet Bail (configuration du préavis + résiliation) ────────────────────
+
+  /// Préavis légal par défaut selon la modalité (meublé = 1 mois, vide = 3).
+  int get _preavisDefaut => widget.meublee ? 1 : 3;
+  int get _preavisEffectif => _preavisMois ?? _preavisDefaut;
+
+  Future<void> _setPreavis(int? mois) async {
+    if (_privatifId == null) return;
+    setState(() => _preavisMois = mois);
+    try {
+      await EtatDesLieuxDatasource.setBailPreavis(_privatifId!, mois);
+    } catch (e) {
+      if (mounted) _snack('Erreur : $e');
+    }
+  }
+
+  Future<void> _rompreBail() async {
+    if (_privatifId == null) return;
+    final res = await showDialog<({DateTime conge, String? motif})>(
+      context: context,
+      builder: (_) => _RompreBailDialog(preavisMois: _preavisEffectif),
+    );
+    if (res == null || !mounted) return;
+    try {
+      await EtatDesLieuxDatasource.resilierBail(
+        _privatifId!,
+        congeDate: res.conge,
+        preavisMois: _preavisEffectif,
+        motif: res.motif,
+      );
+      final fin = EtatDesLieuxModel.finPreavis(res.conge, _preavisEffectif);
+      setState(() {
+        _bailCongeDate = res.conge;
+        _bailFinEffective = fin;
+        _bailResilieMotif = res.motif;
+      });
+      _snack('Bail résilié — fin effective le '
+          '${DateFormat('dd/MM/yyyy').format(fin)}.');
+    } catch (e) {
+      if (mounted) _snack('Erreur : $e');
+    }
+  }
+
+  Future<void> _annulerResiliation() async {
+    if (_privatifId == null) return;
+    try {
+      await EtatDesLieuxDatasource.annulerResiliation(_privatifId!);
+      setState(() {
+        _bailCongeDate = null;
+        _bailFinEffective = null;
+        _bailResilieMotif = null;
+      });
+      _snack('Résiliation annulée. Régénérez les échéances si besoin.');
+    } catch (e) {
+      if (mounted) _snack('Erreur : $e');
+    }
+  }
+
+  // ── Champs obligatoires (avenant, garant, caution, signature) ───────────────
+
+  Future<void> _setAvenant(int days) async {
+    if (_privatifId == null) return;
+    setState(() => _avenantWindowSel = days);
+    try {
+      await EtatDesLieuxDatasource.setEdlAvenantWindow(_privatifId!, days);
+    } catch (e) {
+      if (mounted) _snack('Erreur : $e');
+    }
+  }
+
+  Future<void> _setAvecGarant(bool v) async {
+    if (_privatifId == null) return;
+    setState(() => _bailAvecGarant = v);
+    try {
+      await EtatDesLieuxDatasource.setBailAvecGarant(_privatifId!, v);
+      // « Avec garant » → le garant vient du locataire : on rattache
+      // automatiquement ses garants actifs. Si aucun → on le prévient.
+      if (v) await _autoRattacherGarants();
+    } catch (e) {
+      if (mounted) _snack('Erreur : $e');
+    }
+  }
+
+  /// Rattache automatiquement **tous** les garants actifs du locataire au bail
+  /// (idempotent). Si le locataire n'a aucun garant actif, il est prévenu
+  /// (notification in-app) qu'il doit en ajouter/activer un.
+  Future<void> _autoRattacherGarants() async {
+    if (_privatifId == null) return;
+    if (_activeGarants.isEmpty) {
+      try {
+        await NotificationsDatasource.notifyEdlLocataire(
+          edlId: _privatifId!,
+          type: 'bail_garant_requis',
+          title: 'Garant requis pour votre bail',
+          body: 'Votre bail nécessite un garant. Ajoutez un garant ou '
+              'activez-en un existant dans « Documents › Garants ».',
+        );
+      } catch (_) {}
+      if (mounted) {
+        _snack('Aucun garant actif : le locataire a été invité à en ajouter.');
+      }
+      return;
+    }
+    final toLink =
+        _activeGarants.where((g) => !_garantIds.contains(g.id)).toList();
+    for (final g in toLink) {
+      try {
+        await EtatDesLieuxDatasource.linkGarant(_privatifId!, g.id);
+      } catch (_) {}
+    }
+    if (mounted && toLink.isNotEmpty) {
+      setState(() => _garantIds = [..._garantIds, ...toLink.map((g) => g.id)]);
+    }
+  }
+
+  /// Côté locataire : propose (une fois) d'insérer ses garants actifs dans ce
+  /// bail, avec un récapitulatif des données de l'EDL, quand le bail est
+  /// « avec garant » mais qu'aucun garant n'est encore rattaché.
+  Future<void> _maybePromptInsertGarant() async {
+    if (_garantPromptShown) return;
+    if (!_isLocataire || _bailAvecGarant != true) return;
+    if (_garantIds.isNotEmpty || _activeGarants.isEmpty) return;
+    _garantPromptShown = true;
+    if (!mounted) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => _ConfirmInsertGarantDialog(
+        garants: _activeGarants,
+        bienLabel: '${widget.immeuble.name} · ${widget.chambre.roomName}',
+        dateLabel: _dateFmt.format(_date),
+      ),
+    );
+    if (ok == true) await _autoRattacherGarants();
+  }
+
+  Future<void> _setCautionMode(CautionMode m, Map<String, dynamic>? d) async {
+    if (_privatifId == null) return;
+    setState(() {
+      _cautionMode = m;
+      _cautionDetails = d;
+    });
+    try {
+      await EtatDesLieuxDatasource.setCaution(_privatifId!, mode: m.raw, details: d);
+    } catch (e) {
+      if (mounted) _snack('Erreur : $e');
+    }
+  }
+
+  /// Crée / modifie la signature **par défaut du profil** (reprise
+  /// automatiquement à la signature de l'EDL et du bail). N'appose PAS de
+  /// signature sur le bail : l'apposition se fait via « Signer bail ».
+  Future<void> _editSignature() async {
+    final res = await showSignatureDialog(context,
+        existingUrl: _profileSignatureUrl);
+    if (res == null || !mounted) return;
+    try {
+      // On enregistre comme signature par défaut du profil.
+      await SignaturesDatasource.saveUrl(res.url);
+      setState(() => _profileSignatureUrl = res.url);
+      _snack('Signature enregistrée.');
+    } catch (e) {
+      if (mounted) _snack('Erreur : $e');
+    }
+  }
+
+  /// En-tête d'un champ obligatoire : titre + astérisque rouge + pastille
+  /// « Obligatoire » (ou coche verte si [done]).
+  Widget _reqHeader(String title, bool done) => Row(
+        children: [
+          Expanded(
+            child: Text.rich(TextSpan(children: [
+              TextSpan(
+                  text: title,
+                  style: Theme.of(context).textTheme.titleMedium),
+              const TextSpan(
+                  text: '  *',
+                  style: TextStyle(
+                      color: AppColors.error, fontWeight: FontWeight.bold)),
+            ])),
+          ),
+          if (done)
+            const Icon(Icons.check_circle, color: AppColors.success, size: 20)
+          else
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: AppColors.errorContainer,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Text('Obligatoire',
+                  style: TextStyle(
+                      color: AppColors.onErrorContainer,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600)),
+            ),
+        ],
+      );
+
+  Widget _avenantSection() {
+    const options = [0, 7, 15, 30, 60, 90];
+    final canEdit = !_isLocataire && !_finalise;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _reqHeader("Fenêtre d'avenant", _avenantWindowSel != null),
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              'Délai après finalisation pendant lequel des avenants/additions '
+              'restent possibles. À choisir avant de finaliser.',
+              style: AppTypography.labelSm
+                  .copyWith(color: AppColors.onSurfaceVariant),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final d in options)
+                  ChoiceChip(
+                    label: Text(d == 0 ? 'Sans avenant' : '$d jours'),
+                    selected: _avenantWindowSel == d,
+                    onSelected: canEdit ? (_) => _setAvenant(d) : null,
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Bloc UNIQUE « Bail avec garant ? » + garant(s) : le choix avec/sans et la
+  /// liste des garants (petites cartes) vivent dans la même carte. Le garant est
+  /// fourni par le locataire (auto-rattaché). **Obligatoire** : si aucun garant
+  /// n'est rattaché en mode « avec garant », le bail ne peut pas être signé.
+  Widget _garantChoiceSection() {
+    // Le choix avec/sans reste au propriétaire (et verrouillé après finalisation).
+    final canChoose = !_isLocataire && !_finalise;
+    // Retirer/ajouter un garant : les DEUX parties, tant que le bail n'est pas
+    // signé des deux côtés (retirer rend le champ obligatoire à nouveau).
+    final canManageGarant = !_bailFullySigned;
+    final linked = _activeGarants.where((g) => _garantIds.contains(g.id)).toList();
+    final unlinked =
+        _activeGarants.where((g) => !_garantIds.contains(g.id)).toList();
+    final garantDone = _bailAvecGarant == false ||
+        (_bailAvecGarant == true && _garantIds.isNotEmpty);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _reqHeader('Bail avec garant ?', garantDone),
+            const SizedBox(height: AppSpacing.sm),
+            Wrap(
+              spacing: 8,
+              children: [
+                ChoiceChip(
+                  label: const Text('Avec garant'),
+                  selected: _bailAvecGarant == true,
+                  onSelected: canChoose ? (_) => _setAvecGarant(true) : null,
+                ),
+                ChoiceChip(
+                  label: const Text('Sans garant'),
+                  selected: _bailAvecGarant == false,
+                  onSelected: canChoose ? (_) => _setAvecGarant(false) : null,
+                ),
+              ],
+            ),
+            // Garant(s) — dans le MÊME bloc, sous le choix « avec garant ».
+            if (_bailAvecGarant == true) ...[
+              const SizedBox(height: AppSpacing.md),
+              const Divider(height: 1),
+              const SizedBox(height: AppSpacing.md),
+              Text('Garant(s) du bail',
+                  style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                'Fourni par le locataire. Obligatoire pour signer le bail.',
+                style: AppTypography.labelSm
+                    .copyWith(color: AppColors.onSurfaceVariant),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              if (_activeGarants.isEmpty)
+                _garantRequisBanner()
+              else ...[
+                if (linked.isNotEmpty)
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: [
+                      for (final g in linked)
+                        ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 320),
+                          child: IntrinsicWidth(
+                            child: _GarantCard(
+                              garant: g,
+                              name: _garantName(g),
+                              onDelete: canManageGarant
+                                  ? () => _unlinkGarant(g.id)
+                                  : null,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                // Garants actifs pas encore rattachés (ex. après suppression) →
+                // possibilité de les (re)rattacher.
+                if (canManageGarant)
+                  for (final g in unlinked)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: TextButton.icon(
+                        icon: const Icon(Icons.add, size: 18),
+                        label: Text('Ajouter ${_garantName(g)}'),
+                        onPressed: () => _linkGarant(g.id),
+                      ),
+                    ),
+                if (linked.isEmpty && unlinked.isEmpty) _garantRequisBanner(),
+              ],
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Bandeau d'alerte « garant requis » (aucun garant actif du locataire).
+  Widget _garantRequisBanner() => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(AppSpacing.sm),
+        decoration: BoxDecoration(
+          color: AppColors.errorContainer,
+          borderRadius: AppRadius.borderMd,
+          border: Border.all(color: AppColors.error),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(Icons.warning_amber_rounded,
+                color: AppColors.error, size: 20),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Text(
+                _isLocataire
+                    ? 'Aucun garant actif. Ajoutez un garant ou activez-en un '
+                        'dans « Documents › Garants » : il sera inséré '
+                        'automatiquement dans ce bail.'
+                    : 'Aucun garant actif enregistré. Le locataire a été invité '
+                        'à en ajouter dans « Documents › Garants ».',
+                style: AppTypography.labelSm
+                    .copyWith(color: AppColors.onErrorContainer),
+              ),
+            ),
+          ],
+        ),
+      );
+
+  Widget _signatureSection() {
+    final hasSig = _profileSignatureUrl != null &&
+        _profileSignatureUrl!.isNotEmpty;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Ma signature',
+                style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: AppSpacing.sm),
+            if (hasSig) ...[
+              // Signature du profil reprise automatiquement (aperçu).
+              Container(
+                width: 320,
+                height: 90,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  border: Border.all(color: AppColors.outlineVariant),
+                  borderRadius: AppRadius.borderMd,
+                ),
+                child: PrivateImage(
+                    ref: _profileSignatureUrl!, fit: BoxFit.contain),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: OutlinedButton.icon(
+                  style: AppTheme.editButtonStyle,
+                  onPressed: _editSignature,
+                  icon: const Icon(Icons.edit_outlined, size: 18),
+                  label: const Text('Modifier'),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                'Cette signature sera utilisée automatiquement pour signer '
+                "l'état des lieux et le bail.",
+                style: AppTypography.labelSm
+                    .copyWith(color: AppColors.onSurfaceVariant),
+              ),
+            ] else ...[
+              Text(
+                'Aucune signature enregistrée. Créez-en une : elle sera reprise '
+                'automatiquement au moment de signer.',
+                style: AppTypography.labelSm
+                    .copyWith(color: AppColors.onSurfaceVariant),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: FilledButton.icon(
+                  style: AppTheme.saveButtonStyle,
+                  onPressed: _editSignature,
+                  icon: const Icon(Icons.draw_outlined, size: 18),
+                  label: const Text('Créer ma signature'),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBailConfigTab() {
+    if (widget.typeEdl != 'entree') {
+      return _emptyTab(
+          "La configuration du bail concerne l'état des lieux d'entrée.");
+    }
+    if (_privatifId == null) {
+      return _emptyTab('Enregistrez d\'abord l\'état des lieux.');
+    }
+    final df = DateFormat('dd/MM/yyyy');
+    final resilie = _bailCongeDate != null;
+    final canEditPreavis = !_isLocataire && !resilie;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Conditions obligatoires (avenant, garant, caution, signature).
+        _avenantSection(),
+        const SizedBox(height: AppSpacing.md),
+        // Bloc unique : choix « avec garant » + garant(s) (petites cartes).
+        _garantChoiceSection(),
+        const SizedBox(height: AppSpacing.md),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _reqHeader('Règlement de la caution', _cautionMode != null),
+                const SizedBox(height: AppSpacing.sm),
+                _CautionEditor(
+                  initialMode: _cautionMode,
+                  initialDetails: _cautionDetails,
+                  readOnly: _finalise,
+                  onChanged: _setCautionMode,
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        _signatureSection(),
+        const SizedBox(height: AppSpacing.md),
+        // Modalité + préavis configurable.
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Modalité & préavis',
+                    style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: AppSpacing.sm),
+                Text(widget.meublee
+                    ? 'Bail meublé — préavis légal par défaut : 1 mois.'
+                    : 'Location vide — préavis légal par défaut : 3 mois.'),
+                const SizedBox(height: AppSpacing.md),
+                Row(
+                  children: [
+                    const Expanded(child: Text('Préavis (mois)')),
+                    if (canEditPreavis)
+                      IconButton(
+                        icon: const Icon(Icons.remove_circle_outline),
+                        onPressed: _preavisEffectif <= 1
+                            ? null
+                            : () => _setPreavis(_preavisEffectif - 1),
+                      ),
+                    Text('$_preavisEffectif',
+                        style: Theme.of(context).textTheme.titleMedium),
+                    if (canEditPreavis)
+                      IconButton(
+                        icon: const Icon(Icons.add_circle_outline),
+                        onPressed: () => _setPreavis(_preavisEffectif + 1),
+                      ),
+                    if (canEditPreavis && _preavisMois != null)
+                      TextButton(
+                        onPressed: () => _setPreavis(null),
+                        child: const Text('Défaut'),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        // Résiliation.
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Résiliation du bail',
+                    style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: AppSpacing.sm),
+                if (resilie) ...[
+                  Text('Congé notifié le ${df.format(_bailCongeDate!)}.'),
+                  if (_bailFinEffective != null)
+                    Text('Fin effective : ${df.format(_bailFinEffective!)} '
+                        '(préavis $_preavisEffectif mois).'),
+                  if (_bailResilieMotif != null &&
+                      _bailResilieMotif!.isNotEmpty)
+                    Text('Motif : ${_bailResilieMotif!}'),
+                  const SizedBox(height: AppSpacing.sm),
+                  Text(
+                    'Le locataire doit le loyer jusqu\'à la fin effective ; '
+                    'les échéances au-delà ont été retirées.',
+                    style: AppTypography.labelSm
+                        .copyWith(color: AppColors.onSurfaceVariant),
+                  ),
+                  if (!_isLocataire) ...[
+                    const SizedBox(height: AppSpacing.md),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: OutlinedButton.icon(
+                        onPressed: _annulerResiliation,
+                        icon: const Icon(Icons.undo, size: 18),
+                        label: const Text('Annuler la résiliation'),
+                      ),
+                    ),
+                  ],
+                ] else ...[
+                  Text(_isLocataire
+                      ? 'Aucune résiliation en cours.'
+                      : 'Enregistrez le congé du locataire pour rompre le '
+                          'bail. La fin effective est calculée selon le '
+                          'préavis, et les loyers au-delà sont retirés.'),
+                  if (!_isLocataire) ...[
+                    const SizedBox(height: AppSpacing.md),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: FilledButton.icon(
+                        style: AppTheme.deleteButtonStyle,
+                        onPressed: _locataireAccepte ? _rompreBail : null,
+                        icon: const Icon(Icons.event_busy, size: 18),
+                        label: const Text('Rompre le bail'),
+                      ),
+                    ),
+                    if (!_locataireAccepte)
+                      Padding(
+                        padding: const EdgeInsets.only(top: AppSpacing.xs),
+                        child: Text(
+                          'Disponible une fois le bail signé par le locataire.',
+                          style: AppTypography.labelSm
+                              .copyWith(color: AppColors.onSurfaceVariant),
+                        ),
+                      ),
+                  ],
+                ],
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── Onglet Garant (sélection des garants actifs du locataire) ───────────────
+
+  Future<void> _linkGarant(int id) async {
+    if (_privatifId == null) return;
+    setState(() => _garantIds = [..._garantIds, id]);
+    try {
+      await EtatDesLieuxDatasource.linkGarant(_privatifId!, id);
+    } catch (e) {
+      if (mounted) _snack('Erreur : $e');
+    }
+  }
+
+  Future<void> _unlinkGarant(int id) async {
+    if (_privatifId == null) return;
+    setState(() => _garantIds = _garantIds.where((x) => x != id).toList());
+    try {
+      await EtatDesLieuxDatasource.unlinkGarant(_privatifId!, id);
+    } catch (e) {
+      if (mounted) _snack('Erreur : $e');
+    }
+  }
+
+  String _garantName(GarantModel g) {
+    if (g.typeGarant == 'morale') {
+      return g.raisonSociale?.trim().isNotEmpty == true
+          ? g.raisonSociale!
+          : g.nom;
+    }
+    return '${g.prenom ?? ''} ${g.nom}'.trim();
+  }
+
+  /// Onglet avec pastille rouge du nombre de champs obligatoires manquants.
+  Widget _tabWithBadge(String label, int count) => Tab(
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(label),
+            if (count > 0) ...[
+              const SizedBox(width: 6),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                decoration: const BoxDecoration(
+                  color: AppColors.error,
+                  borderRadius: BorderRadius.all(Radius.circular(10)),
+                ),
+                child: Text('$count',
+                    style: const TextStyle(
+                        color: AppColors.onError,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold)),
+              ),
+            ],
+          ],
+        ),
+      );
+
   Widget _emptyTab(String t) => Padding(
     padding: const EdgeInsets.symmetric(vertical: AppSpacing.xl),
     child: Center(
@@ -9928,6 +10854,71 @@ class _EdlIndividuelMeubleePageState extends State<EdlIndividuelMeubleePage>
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Pop-up (côté locataire) : confirmer l'insertion de son/ses garant(s) dans le
+// bail en cours, avec un récapitulatif des données de l'EDL.
+
+class _ConfirmInsertGarantDialog extends StatelessWidget {
+  final List<GarantModel> garants;
+  final String bienLabel;
+  final String dateLabel;
+
+  const _ConfirmInsertGarantDialog({
+    required this.garants,
+    required this.bienLabel,
+    required this.dateLabel,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Insérer votre garant au bail ?'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Ce bail requiert un garant. Voulez-vous y insérer '
+            '${garants.length > 1 ? 'vos garants actifs' : 'votre garant actif'} '
+            'ci-dessous ?',
+            style: AppTypography.bodyMd,
+          ),
+          const SizedBox(height: AppSpacing.md),
+          for (final g in garants)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Row(children: [
+                const Icon(Icons.verified_user_outlined, size: 18),
+                const SizedBox(width: 8),
+                Expanded(child: Text(g.displayName, style: AppTypography.bodyMd)),
+              ]),
+            ),
+          const Divider(height: AppSpacing.lg),
+          Text('Bien : $bienLabel',
+              style: AppTypography.labelSm
+                  .copyWith(color: AppColors.onSurfaceVariant)),
+          Text("Date de l'état des lieux : $dateLabel",
+              style: AppTypography.labelSm
+                  .copyWith(color: AppColors.onSurfaceVariant)),
+        ],
+      ),
+      actions: [
+        OutlinedButton(
+          style: AppTheme.cancelButtonStyle,
+          onPressed: () => Navigator.of(context).pop(false),
+          child: const Text('Annuler'),
+        ),
+        FilledButton.icon(
+          style: AppTheme.saveButtonStyle,
+          onPressed: () => Navigator.of(context).pop(true),
+          icon: const Icon(Icons.check, size: 18),
+          label: const Text('Insérer ce garant'),
+        ),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Dialogue de finalisation du bail individuel
 
 class _BailDialogResult {
@@ -9969,12 +10960,11 @@ class _FinaliserBailDialogState extends State<_FinaliserBailDialog> {
   }
 
   Future<void> _pickDateDebut() async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _dateDebut,
+    final picked = await showAppDatePicker(
+      context,
+      initial: _dateDebut,
       firstDate: DateTime(2020),
       lastDate: DateTime(2050),
-      locale: const Locale('fr'),
     );
     if (picked != null) {
       setState(() {
@@ -9985,12 +10975,11 @@ class _FinaliserBailDialogState extends State<_FinaliserBailDialog> {
   }
 
   Future<void> _pickDateFin() async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _dateFin,
+    final picked = await showAppDatePicker(
+      context,
+      initial: _dateFin,
       firstDate: _dateDebut,
       lastDate: DateTime(2060),
-      locale: const Locale('fr'),
     );
     if (picked != null) setState(() => _dateFin = picked);
   }
@@ -10114,6 +11103,181 @@ class _FinaliserBailDialogState extends State<_FinaliserBailDialog> {
           ),
           child: const Text('Confirmer'),
         ),
+      ],
+    );
+  }
+}
+
+/// Dialogue « Rompre le bail » : date du congé (défaut = aujourd'hui) + motif
+/// optionnel, avec aperçu de la fin effective (congé + préavis).
+class _RompreBailDialog extends StatefulWidget {
+  final int preavisMois;
+  const _RompreBailDialog({required this.preavisMois});
+
+  @override
+  State<_RompreBailDialog> createState() => _RompreBailDialogState();
+}
+
+class _RompreBailDialogState extends State<_RompreBailDialog> {
+  DateTime _conge = DateTime.now();
+  final _motifCtrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _motifCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final df = DateFormat('dd/MM/yyyy');
+    final fin = EtatDesLieuxModel.finPreavis(_conge, widget.preavisMois);
+    return AlertDialog(
+      title: const Text('Rompre le bail'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Expanded(child: Text('Date du congé')),
+              TextButton.icon(
+                icon: const Icon(Icons.event, size: 18),
+                label: Text(df.format(_conge)),
+                onPressed: () async {
+                  final picked = await showAppDatePicker(
+                    context,
+                    initial: _conge,
+                    firstDate: DateTime(2020),
+                    lastDate: DateTime(2100),
+                  );
+                  if (picked != null) setState(() => _conge = picked);
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          TextField(
+            controller: _motifCtrl,
+            decoration: const InputDecoration(
+              labelText: 'Motif (optionnel)',
+              border: OutlineInputBorder(),
+            ),
+            maxLines: 2,
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Text(
+            'Fin effective : ${df.format(fin)} '
+            '(préavis ${widget.preavisMois} mois).',
+            style: AppTypography.labelSm
+                .copyWith(color: AppColors.onSurfaceVariant),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Annuler'),
+        ),
+        FilledButton(
+          style: AppTheme.deleteButtonStyle,
+          onPressed: () => Navigator.of(context).pop((
+            conge: _conge,
+            motif: _motifCtrl.text.trim().isEmpty
+                ? null
+                : _motifCtrl.text.trim(),
+          )),
+          child: const Text('Rompre le bail'),
+        ),
+      ],
+    );
+  }
+}
+
+/// Sélecteur du mode de règlement de la caution + champs de détails selon le
+/// mode (chèque → banque/numéro/titulaire ; virement → IBAN ; Wero/PayPal →
+/// référence ; espèces → aucun). Émet (mode, détails) via [onChanged].
+class _CautionEditor extends StatefulWidget {
+  final CautionMode? initialMode;
+  final Map<String, dynamic>? initialDetails;
+  final bool readOnly;
+  final void Function(CautionMode mode, Map<String, dynamic>? details) onChanged;
+
+  const _CautionEditor({
+    required this.initialMode,
+    required this.initialDetails,
+    required this.readOnly,
+    required this.onChanged,
+  });
+
+  @override
+  State<_CautionEditor> createState() => _CautionEditorState();
+}
+
+class _CautionEditorState extends State<_CautionEditor> {
+  CautionMode? _mode;
+  late Map<String, dynamic> _details;
+
+  @override
+  void initState() {
+    super.initState();
+    _mode = widget.initialMode;
+    _details = Map<String, dynamic>.of(widget.initialDetails ?? const {});
+  }
+
+  void _emit() {
+    if (_mode != null) {
+      widget.onChanged(_mode!, _details.isEmpty ? null : _details);
+    }
+  }
+
+  Widget _field(String key, String label) => Padding(
+        padding: const EdgeInsets.only(top: AppSpacing.sm),
+        child: TextFormField(
+          initialValue: _details[key] as String?,
+          readOnly: widget.readOnly,
+          decoration: InputDecoration(
+            labelText: label,
+            border: const OutlineInputBorder(),
+            isDense: true,
+          ),
+          onChanged: (v) => _details[key] = v,
+          onEditingComplete: _emit,
+          onTapOutside: (_) => _emit(),
+        ),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final m in CautionMode.values)
+              ChoiceChip(
+                label: Text(m.label),
+                selected: _mode == m,
+                onSelected: widget.readOnly
+                    ? null
+                    : (_) {
+                        setState(() => _mode = m);
+                        _emit();
+                      },
+              ),
+          ],
+        ),
+        if (_mode == CautionMode.cheque) ...[
+          _field('banque', 'Banque'),
+          _field('numero', 'Numéro du chèque'),
+          _field('titulaire', 'Titulaire du compte'),
+        ] else if (_mode == CautionMode.virement) ...[
+          _field('iban', 'IBAN (optionnel)'),
+        ] else if (_mode == CautionMode.weroPaypal) ...[
+          _field('reference', 'Référence / e-mail (optionnel)'),
+        ],
       ],
     );
   }

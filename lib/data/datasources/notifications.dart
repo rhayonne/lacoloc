@@ -44,6 +44,30 @@ class NotificationsDatasource {
     _invalidate();
   }
 
+  /// Marque comme lues les notifications liées à un EDL (rappels « à signer »,
+  /// « garant requis », etc.) dès que le document est signé — quel que soit le
+  /// profil. Les policies RLS (`recipient_id = auth.uid()`) restreignent la mise
+  /// à jour aux notifications du destinataire courant : chaque partie efface
+  /// donc ses propres avis en signant. [types] optionnel = ne cible que ces
+  /// types (sinon toutes les notifications de l'EDL). Best-effort : ne bloque
+  /// jamais le flux de signature.
+  static Future<void> markReadForEdl(int edlId, {List<String>? types}) async {
+    try {
+      var q = _db
+          .from(_table)
+          .update({'is_read': true})
+          .eq('etat_de_lieux_id', edlId)
+          .eq('is_read', false);
+      if (types != null && types.isNotEmpty) {
+        q = q.inFilter('type', types);
+      }
+      await q;
+      _invalidate();
+    } catch (_) {
+      // best-effort : la signature est déjà enregistrée
+    }
+  }
+
   /// Crée une notification pour le propriétaire de l'EDL (appelé côté locataire).
   /// Best-effort : ne doit pas bloquer le flux d'acceptation.
   static Future<void> notifyEdlProprietaire({

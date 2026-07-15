@@ -7,6 +7,7 @@ import 'package:lacoloc_front/data/models/connection_log.dart';
 import 'package:lacoloc_front/presentation/widgets/edl_date_range_picker.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_radius.dart';
+import 'package:lacoloc_front/presentation/widgets/app_top_bar.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
 import 'package:lacoloc_front/theme/app_typography.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -114,33 +115,27 @@ class _ConnectionLogsPageState extends State<ConnectionLogsPage> {
   }
 
   Widget _buildHeader() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.xl, AppSpacing.xl, AppSpacing.xl, AppSpacing.md,
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.login_outlined, size: 28),
-          const SizedBox(width: AppSpacing.md),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Journal des connexions', style: AppTypography.titleLg),
-              Text(
-                'Chaque connexion réussie est enregistrée ici.',
-                style: AppTypography.bodyMd
-                    .copyWith(color: AppColors.onSurfaceVariant),
-              ),
-            ],
-          ),
-          const Spacer(),
-          IconButton.outlined(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        AppTopBar(
+          title: 'Journal des connexions',
+          trailing: IconButton.outlined(
             tooltip: 'Actualiser',
             icon: const Icon(Icons.refresh),
             onPressed: _load,
           ),
-        ],
-      ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+              AppSpacing.xl, AppSpacing.md, AppSpacing.xl, AppSpacing.md),
+          child: Text(
+            'Chaque connexion réussie est enregistrée ici.',
+            style: AppTypography.bodyMd
+                .copyWith(color: AppColors.onSurfaceVariant),
+          ),
+        ),
+      ],
     );
   }
 

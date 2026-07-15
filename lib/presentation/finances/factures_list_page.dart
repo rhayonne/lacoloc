@@ -7,22 +7,29 @@ import 'package:lacoloc_front/data/models/facture.dart';
 import 'package:lacoloc_front/data/models/recette.dart';
 import 'package:lacoloc_front/data/permissions/permissions_service.dart';
 import 'package:lacoloc_front/presentation/finances/nouvelle_facture_page.dart';
+import 'package:lacoloc_front/presentation/widgets/app_top_bar.dart';
 import 'package:lacoloc_front/presentation/widgets/permission_gate.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_radius.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
 import 'package:lacoloc_front/theme/app_typography.dart';
+import 'package:lacoloc_front/theme/app_tab_bar.dart';
 
 class FacturesListPage extends StatefulWidget {
   final VoidCallback onAjouter;
   final void Function(FactureModel, {required bool readOnly}) onOuvrir;
   final VoidCallback onAjouterRecette;
 
+  final int initialTab;
+  final bool showTabBar;
+
   const FacturesListPage({
     super.key,
     required this.onAjouter,
     required this.onOuvrir,
     required this.onAjouterRecette,
+    this.initialTab = 0,
+    this.showTabBar = true,
   });
 
   @override
@@ -40,7 +47,8 @@ class _FacturesListPageState extends State<FacturesListPage>
   @override
   void initState() {
     super.initState();
-    _tabCtrl = TabController(length: 3, vsync: this);
+    _tabCtrl = TabController(
+        length: 3, vsync: this, initialIndex: widget.initialTab);
     _future = _load();
     _futureRecettes = _loadRecettes();
     _searchCtrl.addListener(
@@ -90,24 +98,26 @@ class _FacturesListPageState extends State<FacturesListPage>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // ── Barra de abas ───────────────────────────────────────────────
-        Padding(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.lg,
-            AppSpacing.lg,
-            AppSpacing.lg,
-            0,
+        // ── Barra de abas (masquée si pilotée par les sous-menus) ─────────
+        if (widget.showTabBar) ...[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.lg,
+              AppSpacing.lg,
+              AppSpacing.lg,
+              0,
+            ),
+            child: AppTabBar(
+              controller: _tabCtrl,
+              tabs: const [
+                Tab(text: 'Vue générale'),
+                Tab(text: 'Recettes'),
+                Tab(text: 'Dépenses / Factures'),
+              ],
+            ),
           ),
-          child: TabBar(
-            controller: _tabCtrl,
-            tabs: const [
-              Tab(text: 'Vue générale'),
-              Tab(text: 'Recettes'),
-              Tab(text: 'Dépenses / Factures'),
-            ],
-          ),
-        ),
-        const Divider(height: 1),
+          const Divider(height: 1),
+        ],
         // ── Conteúdo das abas ───────────────────────────────────────────
         Expanded(
           child: TabBarView(
@@ -126,85 +136,64 @@ class _FacturesListPageState extends State<FacturesListPage>
   // ── Aba 1 : Vision générale ─────────────────────────────────────────────────
 
   Widget _buildVisionGeneraleTab() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.xl),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.bar_chart_outlined,
-              size: 64,
-              color: AppColors.outline,
-            ),
-            const SizedBox(height: AppSpacing.md),
-            Text('Vision générale', style: AppTypography.titleLg),
-            const SizedBox(height: AppSpacing.sm),
-            Text(
-              'Statistiques et résumés financiers disponibles prochainement.',
-              style: AppTypography.bodyMd.copyWith(
-                color: AppColors.onSurfaceVariant,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const AppTopBar(title: 'Vue générale'),
+        Expanded(
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.xl),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.bar_chart_outlined,
+                    size: 64,
+                    color: AppColors.outline,
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  Text(
+                    'Statistiques et résumés financiers disponibles prochainement.',
+                    style: AppTypography.bodyMd.copyWith(
+                      color: AppColors.onSurfaceVariant,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
               ),
-              textAlign: TextAlign.center,
             ),
-          ],
+          ),
         ),
-      ),
+      ],
     );
   }
 
   // ── Aba 2 : Factures ────────────────────────────────────────────────────────
 
   Widget _buildFacturesTab() {
-    return Padding(
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      child: Container(
-        decoration: BoxDecoration(
-          color: AppColors.surfaceContainerLowest,
-          borderRadius: AppRadius.borderLg,
-          border: Border.all(color: AppColors.outlineVariant),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.shadowTint.withValues(alpha: 0.06),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        AppTopBar(
+          title: 'Dépenses / Factures',
+          trailing: PermissionGate(
+            permission: Perm.facturesCreate,
+            child: FilledButton.icon(
+              onPressed: widget.onAjouter,
+              icon: const Icon(Icons.add, size: 18),
+              label: const Text('Ajouter une facture'),
             ),
-          ],
+          ),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.lg,
-                AppSpacing.md,
-                AppSpacing.lg,
-                AppSpacing.md,
-              ),
-              child: Row(
-                children: [
-                  Text('Dépenses / Factures', style: AppTypography.titleLg),
-                  const Spacer(),
-                  PermissionGate(
-                    permission: Perm.facturesCreate,
-                    child: FilledButton.icon(
-                      onPressed: widget.onAjouter,
-                      icon: const Icon(Icons.add, size: 18),
-                      label: const Text('Ajouter une facture'),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const Divider(height: 1),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.lg,
-                AppSpacing.md,
-                AppSpacing.lg,
-                AppSpacing.md,
-              ),
-              child: TextField(
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            AppSpacing.md,
+            AppSpacing.lg,
+            AppSpacing.md,
+          ),
+          child: TextField(
                 controller: _searchCtrl,
                 decoration: InputDecoration(
                   hintText:
@@ -261,9 +250,7 @@ class _FacturesListPageState extends State<FacturesListPage>
               ),
             ),
           ],
-        ),
-      ),
-    );
+        );
   }
 
   // ── Aba 2 : Recettes ────────────────────────────────────────────────────────
@@ -355,57 +342,61 @@ class _RecettesTabState extends State<_RecettesTab> {
     final recu = _total('recu');
     final enRetard = _total('en_retard');
 
-    return Padding(
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // ── Résumé financier ──────────────────────────────────────────────
-          Row(
-            children: [
-              _SummaryChip(
-                label: 'À recevoir',
-                amount: aRecevoir,
-                color: AppColors.primary,
-                selected: _filtreStatut == 'a_recevoir',
-                onTap: () => setState(() =>
-                    _filtreStatut =
-                        _filtreStatut == 'a_recevoir' ? null : 'a_recevoir'),
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              _SummaryChip(
-                label: 'Reçu',
-                amount: recu,
-                color: AppColors.tertiary,
-                selected: _filtreStatut == 'recu',
-                onTap: () => setState(() =>
-                    _filtreStatut = _filtreStatut == 'recu' ? null : 'recu'),
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              _SummaryChip(
-                label: 'En retard',
-                amount: enRetard,
-                color: AppColors.error,
-                selected: _filtreStatut == 'en_retard',
-                onTap: () => setState(() =>
-                    _filtreStatut =
-                        _filtreStatut == 'en_retard' ? null : 'en_retard'),
-              ),
-              const Spacer(),
-              PermissionGate(
-                permission: Perm.facturesCreate,
-                child: FilledButton.icon(
-                  onPressed: widget.onAjouter,
-                  icon: const Icon(Icons.add, size: 18),
-                  label: const Text('Ajouter'),
-                ),
-              ),
-            ],
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        AppTopBar(
+          title: 'Recettes',
+          trailing: PermissionGate(
+            permission: Perm.facturesCreate,
+            child: FilledButton.icon(
+              onPressed: widget.onAjouter,
+              icon: const Icon(Icons.add, size: 18),
+              label: const Text('Ajouter'),
+            ),
           ),
-          const SizedBox(height: AppSpacing.md),
+        ),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // ── Résumé financier ──────────────────────────────────────
+                Row(
+                  children: [
+                    _SummaryChip(
+                      label: 'À recevoir',
+                      amount: aRecevoir,
+                      color: AppColors.primary,
+                      selected: _filtreStatut == 'a_recevoir',
+                      onTap: () => setState(() => _filtreStatut =
+                          _filtreStatut == 'a_recevoir' ? null : 'a_recevoir'),
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    _SummaryChip(
+                      label: 'Reçu',
+                      amount: recu,
+                      color: AppColors.tertiary,
+                      selected: _filtreStatut == 'recu',
+                      onTap: () => setState(() => _filtreStatut =
+                          _filtreStatut == 'recu' ? null : 'recu'),
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    _SummaryChip(
+                      label: 'En retard',
+                      amount: enRetard,
+                      color: AppColors.error,
+                      selected: _filtreStatut == 'en_retard',
+                      onTap: () => setState(() => _filtreStatut =
+                          _filtreStatut == 'en_retard' ? null : 'en_retard'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.md),
 
-          // ── Tableau ───────────────────────────────────────────────────────
-          Expanded(
+                // ── Tableau ───────────────────────────────────────────────
+                Expanded(
             child: filtered.isEmpty
                 ? Center(
                     child: Column(
@@ -499,9 +490,12 @@ class _RecettesTabState extends State<_RecettesTab> {
                       );
                     },
                   ),
+                ),
+              ],
+            ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

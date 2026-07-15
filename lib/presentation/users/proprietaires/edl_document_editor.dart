@@ -1,4 +1,5 @@
 import 'package:flutter/gestures.dart' show PointerDeviceKind;
+import 'package:lacoloc_front/presentation/widgets/app_date_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:lacoloc_front/data/datasources/edl_details.dart';
@@ -111,7 +112,7 @@ class _EdlPreneursSectionState extends State<EdlPreneursSection> {
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Annuler')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Enregistrer')),
+          FilledButton(style: AppTheme.saveButtonStyle, onPressed: () => Navigator.pop(ctx, true), child: const Text('Enregistrer')),
         ],
       ),
     );
@@ -237,7 +238,7 @@ class _EdlRelevesSectionState extends State<EdlRelevesSection> {
           ),
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Annuler')),
-            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Enregistrer')),
+            FilledButton(style: AppTheme.saveButtonStyle, onPressed: () => Navigator.pop(ctx, true), child: const Text('Enregistrer')),
           ],
         ),
       ),
@@ -371,12 +372,11 @@ class _EdlClesSectionState extends State<EdlClesSection> {
                       ? null
                       : () async {
                           final now = DateTime.now();
-                          final picked = await showDatePicker(
-                            context: ctx,
-                            initialDate: date,
+                          final picked = await showAppDatePicker(
+                            ctx,
+                            initial: date,
                             firstDate: DateTime(now.year - 5),
                             lastDate: DateTime(now.year + 5),
-                            locale: const Locale('fr'),
                           );
                           if (picked != null) setLocal(() => date = picked);
                         },
@@ -396,7 +396,7 @@ class _EdlClesSectionState extends State<EdlClesSection> {
           ),
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Annuler')),
-            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Enregistrer')),
+            FilledButton(style: AppTheme.saveButtonStyle, onPressed: () => Navigator.pop(ctx, true), child: const Text('Enregistrer')),
           ],
         ),
       ),
@@ -649,7 +649,7 @@ class _EdlCompositionSectionState extends State<EdlCompositionSection> {
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Annuler')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Créer')),
+          FilledButton(style: AppTheme.saveButtonStyle, onPressed: () => Navigator.pop(ctx, true), child: const Text('Créer')),
         ],
       ),
     );
@@ -678,7 +678,7 @@ class _EdlCompositionSectionState extends State<EdlCompositionSection> {
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Annuler')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Enregistrer')),
+          FilledButton(style: AppTheme.saveButtonStyle, onPressed: () => Navigator.pop(ctx, true), child: const Text('Enregistrer')),
         ],
       ),
     );
@@ -744,7 +744,7 @@ class _EdlCompositionSectionState extends State<EdlCompositionSection> {
           ),
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Annuler')),
-            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Enregistrer')),
+            FilledButton(style: AppTheme.saveButtonStyle, onPressed: () => Navigator.pop(ctx, true), child: const Text('Enregistrer')),
           ],
         ),
       ),

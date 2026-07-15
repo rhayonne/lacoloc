@@ -6,6 +6,7 @@ import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_radius.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
 import 'package:lacoloc_front/theme/app_typography.dart';
+import 'package:lacoloc_front/theme/app_theme.dart';
 
 /// Sélecteur de plage de dates **personnalisé** (filtres EDL de la Vision
 /// générale). Pop-up centré avec arrière-plan flouté : champs Début/Fin, un
@@ -428,6 +429,7 @@ class _DateRangePopupState extends State<_DateRangePopup> {
         const SizedBox(width: AppSpacing.sm),
         FilledButton.icon(
           onPressed: _save,
+          style: AppTheme.saveButtonStyle,
           icon: const Icon(Icons.check, size: 18),
           label: const Text('Enregistrer'),
         ),

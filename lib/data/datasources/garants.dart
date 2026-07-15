@@ -10,6 +10,16 @@ class GarantsDatasource {
 
   static void _invalidate() => _cache.invalidatePrefix(CacheKeys.garants);
 
+  /// Garants par ids (garants rattachés à un EDL via `etat_de_lieux_garants`).
+  /// Retourne les lignes existantes (RLS-scopées).
+  static Future<List<GarantModel>> byIds(List<int> ids) async {
+    if (ids.isEmpty) return [];
+    final rows = await _db.from(_table).select().inFilter('id', ids);
+    return (rows as List)
+        .map((r) => GarantModel.fromMap(r as Map<String, dynamic>))
+        .toList();
+  }
+
   static Future<List<GarantModel>> listByLocataire(String locataireId) {
     return _cache.get('${CacheKeys.garants}loc:$locataireId', () async {
       final rows = await _db

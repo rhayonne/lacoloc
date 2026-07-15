@@ -9,9 +9,11 @@ import 'package:lacoloc_front/data/models/user_group.dart';
 import 'package:lacoloc_front/data/models/users_client.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_radius.dart';
+import 'package:lacoloc_front/presentation/widgets/app_top_bar.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
 import 'package:lacoloc_front/theme/app_theme.dart';
 import 'package:lacoloc_front/theme/app_typography.dart';
+import 'package:lacoloc_front/theme/app_tab_bar.dart';
 import 'package:lacoloc_front/utils/media_embed.dart';
 
 /// Cible de diffusion d'un message du super admin.
@@ -233,46 +235,52 @@ class _CommunicationPageState extends State<CommunicationPage>
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Communication', style: AppTypography.headlineMd),
-          const SizedBox(height: AppSpacing.xs),
-          Text(
-            'Envoyez un message (texte Markdown + média) qui apparaîtra dans le '
-            'tableau de bord et les messages des utilisateurs choisis.',
-            style:
-                AppTypography.bodyMd.copyWith(color: AppColors.onSurfaceVariant),
-          ),
-          const SizedBox(height: AppSpacing.md),
-          TabBar(
-            controller: _tab,
-            isScrollable: true,
-            tabAlignment: TabAlignment.start,
-            tabs: const [
-              Tab(text: 'Nouveau message'),
-              Tab(text: 'Historique'),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.md),
-          Expanded(
-            child: FutureBuilder<void>(
-              future: _loadFuture,
-              builder: (context, snap) {
-                if (snap.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                return TabBarView(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const AppTopBar(title: 'Communication'),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Envoyez un message (texte Markdown + média) qui apparaîtra dans le '
+                  'tableau de bord et les messages des utilisateurs choisis.',
+                  style: AppTypography.bodyMd
+                      .copyWith(color: AppColors.onSurfaceVariant),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                AppTabBar(
                   controller: _tab,
-                  children: [_composeTab(), _historyTab()],
-                );
-              },
+                  isScrollable: true,
+                  tabs: const [
+                    Tab(text: 'Nouveau message'),
+                    Tab(text: 'Historique'),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.md),
+                Expanded(
+                  child: FutureBuilder<void>(
+                    future: _loadFuture,
+                    builder: (context, snap) {
+                      if (snap.connectionState == ConnectionState.waiting) {
+                        return const Center(
+                            child: CircularProgressIndicator());
+                      }
+                      return TabBarView(
+                        controller: _tab,
+                        children: [_composeTab(), _historyTab()],
+                      );
+                    },
+                  ),
+                ),
+              ],
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 

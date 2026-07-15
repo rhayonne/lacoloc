@@ -133,7 +133,7 @@ class _CreerChambrePageState extends State<CreerChambrePage> {
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, 'cancel'), child: const Text('Continuer')),
           OutlinedButton(onPressed: () => Navigator.pop(context, 'discard'), child: const Text('Quitter sans sauvegarder')),
-          FilledButton(onPressed: () => Navigator.pop(context, 'save'), child: const Text('Sauvegarder et quitter')),
+          FilledButton(style: AppTheme.saveButtonStyle, onPressed: () => Navigator.pop(context, 'save'), child: const Text('Sauvegarder et quitter')),
         ],
       ),
     );

@@ -7,6 +7,8 @@ import 'package:lacoloc_front/data/models/users_client.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
 import 'package:lacoloc_front/theme/app_typography.dart';
+import 'package:lacoloc_front/theme/app_theme.dart';
+import 'package:lacoloc_front/theme/app_tab_bar.dart';
 import 'package:lacoloc_front/utils/phone_field.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -52,9 +54,8 @@ class _EntrepriseConfigPageState extends State<EntrepriseConfigPage> {
           child: Scaffold(
             appBar: AppBar(
               title: Text('Entreprise — ${entreprise.name}'),
-              bottom: const TabBar(
+              bottom: AppTabBar(
                 isScrollable: true,
-                tabAlignment: TabAlignment.start,
                 tabs: [Tab(text: 'Comptes')],
               ),
             ),
@@ -313,6 +314,7 @@ class _CreateCompteDialogState extends State<_CreateCompteDialog> {
           child: const Text('Annuler'),
         ),
         FilledButton(
+          style: AppTheme.saveButtonStyle,
           onPressed: _loading ? null : _submit,
           child: _loading
               ? const SizedBox(

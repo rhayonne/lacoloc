@@ -75,6 +75,19 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         default:
           break;
       }
+    }, onError: (Object error) {
+      // Au démarrage, Supabase tente de rafraîchir la session stockée. Si le
+      // refresh token n'est plus valide (expiré / révoqué / supprimé côté
+      // serveur), gotrue émet une AuthException ici. On nettoie la session
+      // locale pour retomber proprement sur l'état déconnecté au lieu de laisser
+      // l'exception remonter (« Invalid Refresh Token: Refresh Token Not Found »).
+      if (error is AuthException) {
+        Supabase.instance.client.auth.signOut();
+        RealtimeService.instance.stop();
+        PermissionsService.instance.clear();
+        ImmeublesDatasource.clearEntrepriseCache();
+        SessionScope.clear();
+      }
     });
     _handleActivationLink();
     _handleTourLink();

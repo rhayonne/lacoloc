@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lacoloc_front/presentation/widgets/app_date_picker.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:form_builder_validators/form_builder_validators.dart';
 import 'package:intl/intl.dart';
@@ -54,12 +55,11 @@ class _CompleterInscriptionPageState extends State<CompleterInscriptionPage> {
 
   Future<void> _pickDob() async {
     final now = DateTime.now();
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _selectedDob ?? DateTime(now.year - 25),
+    final picked = await showAppDatePicker(
+      context,
+      initial: _selectedDob ?? DateTime(now.year - 25),
       firstDate: DateTime(1920),
       lastDate: DateTime(now.year - 16, now.month, now.day),
-      locale: const Locale('fr'),
     );
     if (picked != null && mounted) setState(() => _selectedDob = picked);
   }

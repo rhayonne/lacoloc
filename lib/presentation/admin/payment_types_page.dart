@@ -5,6 +5,7 @@ import 'package:form_builder_validators/form_builder_validators.dart';
 import 'package:lacoloc_front/data/datasources/payment_types.dart';
 import 'package:lacoloc_front/data/models/fournisseur.dart';
 import 'package:lacoloc_front/presentation/widgets/app_list_search_field.dart';
+import 'package:lacoloc_front/presentation/widgets/app_top_bar.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
 import 'package:lacoloc_front/theme/app_theme.dart';
@@ -103,34 +104,24 @@ class _PaymentTypesPageState extends State<PaymentTypesPage> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         // ── En-tête ──────────────────────────────────────────────────────────
-        Padding(
-          padding: const EdgeInsets.fromLTRB(
-              AppSpacing.xl, AppSpacing.xl, AppSpacing.xl, AppSpacing.md),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Types de paiement', style: AppTypography.headlineLg),
-                    const SizedBox(height: AppSpacing.xs),
-                    Text(
-                      'Gérez les moyens de paiement disponibles sur la plateforme.',
-                      style: AppTypography.bodyMd
-                          .copyWith(color: AppColors.onSurfaceVariant),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: AppSpacing.md),
-              FilledButton.icon(
-                onPressed: _openCreation,
-                icon: const Icon(Icons.add),
-                label: const Text('Nouveau type'),
-              ),
-            ],
+        AppTopBar(
+          title: 'Types de paiement',
+          trailing: FilledButton.icon(
+            onPressed: _openCreation,
+            icon: const Icon(Icons.add),
+            label: const Text('Nouveau type'),
           ),
         ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+              AppSpacing.xl, AppSpacing.md, AppSpacing.xl, 0),
+          child: Text(
+            'Gérez les moyens de paiement disponibles sur la plateforme.',
+            style: AppTypography.bodyMd
+                .copyWith(color: AppColors.onSurfaceVariant),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.md),
 
         // ── Recherche ─────────────────────────────────────────────────────────
         AppListSearchField(
@@ -260,6 +251,7 @@ class _PaymentRow extends StatelessWidget {
           IconButton(
               icon: const Icon(Icons.edit_outlined),
               tooltip: 'Modifier',
+              color: AppColors.primary,
               onPressed: onEdit),
           IconButton(
               icon: const Icon(Icons.delete_outline),
@@ -438,6 +430,7 @@ class _PaymentTypeFormState extends State<_PaymentTypeForm> {
                   children: [
                     FilledButton.icon(
                       onPressed: _isSubmitting ? null : _submit,
+                      style: AppTheme.saveButtonStyle,
                       icon: _isSubmitting
                           ? const SizedBox(
                               width: 16,

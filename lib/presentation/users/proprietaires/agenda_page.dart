@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lacoloc_front/presentation/widgets/app_date_picker.dart';
 import 'package:lacoloc_front/data/datasources/auth_service.dart';
 import 'package:lacoloc_front/data/datasources/immeubles.dart';
 import 'package:lacoloc_front/data/datasources/plages_ouverture.dart';
@@ -19,7 +20,7 @@ import 'package:lacoloc_front/theme/app_typography.dart';
 // ── Constantes d'affichage ───────────────────────────────────────────────────
 const int _startHour = 7;
 const int _endHour = 21;
-const double _hourH = 48.0;
+const double _hourH = 62.4; // 30 % plus haut que 48 px
 const double _timeColW = 56.0;
 
 const _moisNoms = [
@@ -175,11 +176,10 @@ class _AgendaPageState extends State<AgendaPage> {
           AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.md),
       child: Wrap(
         crossAxisAlignment: WrapCrossAlignment.center,
-        alignment: WrapAlignment.spaceBetween,
         spacing: AppSpacing.md,
         runSpacing: AppSpacing.sm,
         children: [
-          // Groupe gauche : Aujourd'hui + navigation + période.
+          // Groupe gauche : Aujourd'hui + navigation + période (cliquable).
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -199,38 +199,48 @@ class _AgendaPageState extends State<AgendaPage> {
                   onPressed: () => _shift(1),
                 ),
               ],
-              const SizedBox(width: AppSpacing.sm),
-              Text(_periodLabel(), style: AppTypography.titleLg),
+              const SizedBox(width: AppSpacing.xs),
+              // La période ouvre un sélecteur (mois / semaines / jours).
+              if (_view == AgendaView.liste)
+                Text(_periodLabel(), style: AppTypography.titleLg)
+              else
+                InkWell(
+                  borderRadius: AppRadius.borderSm,
+                  onTapUp: (d) => _openPeriodPicker(d.globalPosition),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 6),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(_periodLabel(), style: AppTypography.titleLg),
+                        const Icon(Icons.arrow_drop_down),
+                      ],
+                    ),
+                  ),
+                ),
             ],
           ),
-          // Groupe droit : plages + sélecteur de vue.
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              PermissionGate(
-                permission: Perm.visitesEdit,
-                child: OutlinedButton.icon(
-                  onPressed: _openPlagesDialog,
-                  icon: const Icon(Icons.tune, size: 18),
-                  label: const Text("Modifier les plages d'ouverture"),
-                ),
-              ),
-              const SizedBox(width: AppSpacing.md),
-              SegmentedButton<AgendaView>(
-                segments: const [
-                  ButtonSegment(
-                      value: AgendaView.liste, label: Text('Liste')),
-                  ButtonSegment(
-                      value: AgendaView.journee, label: Text('Journée')),
-                  ButtonSegment(
-                      value: AgendaView.semaine, label: Text('Semaine')),
-                  ButtonSegment(value: AgendaView.mois, label: Text('Mois')),
-                ],
-                selected: {_view},
-                showSelectedIcon: false,
-                onSelectionChanged: (s) => setState(() => _view = s.first),
-              ),
+          // Bouton plages (peut passer à la ligne indépendamment).
+          PermissionGate(
+            permission: Perm.visitesEdit,
+            child: OutlinedButton.icon(
+              onPressed: _openPlagesDialog,
+              icon: const Icon(Icons.tune, size: 18),
+              label: const Text("Modifier les plages d'ouverture"),
+            ),
+          ),
+          // Sélecteur de vue.
+          SegmentedButton<AgendaView>(
+            segments: const [
+              ButtonSegment(value: AgendaView.liste, label: Text('Liste')),
+              ButtonSegment(value: AgendaView.journee, label: Text('Journée')),
+              ButtonSegment(value: AgendaView.semaine, label: Text('Semaine')),
+              ButtonSegment(value: AgendaView.mois, label: Text('Mois')),
             ],
+            selected: {_view},
+            showSelectedIcon: false,
+            onSelectionChanged: (s) => setState(() => _view = s.first),
           ),
         ],
       ),
@@ -305,11 +315,16 @@ class _AgendaPageState extends State<AgendaPage> {
           child: SingleChildScrollView(
             child: SizedBox(
               height: bodyH,
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              child: Stack(
                 children: [
-                  _buildTimeColumn(),
-                  ...days.map((d) => Expanded(child: _buildDayBody(d))),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildTimeColumn(),
+                      ...days.map((d) => Expanded(child: _buildDayBody(d))),
+                    ],
+                  ),
+                  ..._fullWidthNowLine(days),
                 ],
               ),
             ),
@@ -343,9 +358,6 @@ class _AgendaPageState extends State<AgendaPage> {
   }
 
   Widget _buildDayBody(DateTime day) {
-    final now = DateTime.now();
-    final isToday =
-        day.year == now.year && day.month == now.month && day.day == now.day;
     // Créneaux de fond (2 par heure).
     final slots = <Widget>[];
     for (int h = _startHour; h < _endHour; h++) {
@@ -373,8 +385,6 @@ class _AgendaPageState extends State<AgendaPage> {
           return Stack(
             children: [
               Column(children: slots),
-              // Ligne « maintenant ».
-              if (isToday) _nowLine(now),
               // Blocs de rendez-vous.
               ...dayVisites.map((v) {
                 final lane = lanes[v.id]!;
@@ -388,48 +398,42 @@ class _AgendaPageState extends State<AgendaPage> {
   }
 
   Widget _slotWidget(DateTime day, int hour, int half, _SlotKind kind) {
-    final bg = switch (kind) {
-      _SlotKind.dispo => AppColors.surfaceContainerLowest,
-      _SlotKind.pause => _cPause,
-      _SlotKind.hors => _cHors,
-    };
-    final child = Container(
-      height: _hourH / 2,
-      decoration: BoxDecoration(
-        color: kind == _SlotKind.hors ? null : bg,
-        border: Border(
-          bottom: BorderSide(
-            color: AppColors.outlineVariant.withValues(alpha: half == 1 ? 1 : 0.4),
-            width: 0.5,
-          ),
-        ),
-      ),
-      child: kind == _SlotKind.hors
-          ? CustomPaint(painter: _HatchPainter(), child: const SizedBox.expand())
-          : null,
-    );
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTapUp: (d) {
+    return _SlotCell(
+      kind: kind,
+      isHourEnd: half == 1,
+      onTap: (globalPos) {
         final start = DateTime(day.year, day.month, day.day, hour, half * 30);
-        _openRdvPopover(d.globalPosition, start: start);
+        _openRdvPopover(globalPos, start: start);
       },
-      child: MouseRegion(cursor: SystemMouseCursors.click, child: child),
     );
   }
 
-  Widget _nowLine(DateTime now) {
-    final top =
-        ((now.hour * 60 + now.minute) - _startHour * 60) * _hourH / 60;
-    if (top < 0 || top > (_endHour - _startHour) * _hourH) {
-      return const SizedBox.shrink();
-    }
-    return Positioned(
-      top: top,
-      left: 0,
-      right: 0,
-      child: Container(height: 2, color: AppColors.error),
-    );
+  /// Ligne « maintenant » traversant **toute la largeur** des colonnes de jours
+  /// (dès que la période affichée contient aujourd'hui) — pas seulement la
+  /// colonne du jour courant.
+  List<Widget> _fullWidthNowLine(List<DateTime> days) {
+    final now = DateTime.now();
+    if (!days.any((d) => _sameDay(d, now))) return const [];
+    final top = ((now.hour * 60 + now.minute) - _startHour * 60) * _hourH / 60;
+    if (top < 0 || top > (_endHour - _startHour) * _hourH) return const [];
+    return [
+      Positioned(
+        top: top - 4,
+        left: _timeColW - 4,
+        right: 0,
+        child: Row(
+          children: [
+            Container(
+              width: 8,
+              height: 8,
+              decoration: const BoxDecoration(
+                  color: AppColors.error, shape: BoxShape.circle),
+            ),
+            Expanded(child: Container(height: 2, color: AppColors.error)),
+          ],
+        ),
+      ),
+    ];
   }
 
   Widget _rdvBlock(VisiteModel v, int lane, int laneCount, double colW) {
@@ -598,8 +602,308 @@ class _AgendaPageState extends State<AgendaPage> {
     if (changed == true) await _load();
   }
 
+  // ── Sélecteur de période (menu suspendu ancré au libellé) ────────────────
+  Future<void> _openPeriodPicker(Offset globalPos) async {
+    final size = MediaQuery.sizeOf(context);
+    const w = 340.0;
+    const h = 420.0;
+    final left = globalPos.dx.clamp(8.0, size.width - w - 8).toDouble();
+    final top = (globalPos.dy + 8).clamp(8.0, size.height - h - 8).toDouble();
+
+    final picked = await showGeneralDialog<DateTime>(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'Fermer',
+      barrierColor: Colors.black.withValues(alpha: 0.12),
+      transitionDuration: const Duration(milliseconds: 120),
+      pageBuilder: (ctx, _, _) => Stack(
+        children: [
+          Positioned(
+            left: left,
+            top: top,
+            width: w,
+            child: Material(
+              elevation: 12,
+              borderRadius: AppRadius.borderLg,
+              clipBehavior: Clip.antiAlias,
+              child: _PeriodPickerContent(view: _view, anchor: _anchor),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (picked != null && mounted) {
+      setState(() => _anchor = DateTime(picked.year, picked.month, picked.day));
+    }
+  }
+
   static bool _sameDay(DateTime a, DateTime b) =>
       a.year == b.year && a.month == b.month && a.day == b.day;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Sélecteur de période (contenu du menu suspendu)
+// Mois → grille de mois (flèches = année) ; Semaine → liste de semaines
+// (flèches = mois) ; Journée → calendrier de jours (flèches = mois).
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _PeriodPickerContent extends StatefulWidget {
+  final AgendaView view;
+  final DateTime anchor;
+  const _PeriodPickerContent({required this.view, required this.anchor});
+
+  @override
+  State<_PeriodPickerContent> createState() => _PeriodPickerContentState();
+}
+
+class _PeriodPickerContentState extends State<_PeriodPickerContent> {
+  late DateTime _browse; // mois (ou année) parcouru
+
+  bool get _isMois => widget.view == AgendaView.mois;
+
+  @override
+  void initState() {
+    super.initState();
+    _browse = DateTime(widget.anchor.year, widget.anchor.month, 1);
+  }
+
+  void _step(int dir) => setState(() {
+        _browse = _isMois
+            ? DateTime(_browse.year + dir, _browse.month, 1)
+            : DateTime(_browse.year, _browse.month + dir, 1);
+      });
+
+  DateTime _weekStart(DateTime d) =>
+      DateTime(d.year, d.month, d.day).subtract(Duration(days: d.weekday - 1));
+
+  @override
+  Widget build(BuildContext context) {
+    final title = _isMois
+        ? '${_browse.year}'
+        : '${_moisNoms[_browse.month - 1]} ${_browse.year}';
+    return Padding(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.chevron_left),
+                tooltip: 'Précédent',
+                onPressed: () => _step(-1),
+              ),
+              Expanded(
+                child: Text(title,
+                    textAlign: TextAlign.center,
+                    style: AppTypography.titleLg),
+              ),
+              IconButton(
+                icon: const Icon(Icons.chevron_right),
+                tooltip: 'Suivant',
+                onPressed: () => _step(1),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          switch (widget.view) {
+            AgendaView.mois => _buildMonths(),
+            AgendaView.semaine => _buildWeeks(),
+            _ => _buildDays(),
+          },
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMonths() {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: List.generate(12, (i) {
+        final m = i + 1;
+        final selected = m == widget.anchor.month &&
+            _browse.year == widget.anchor.year;
+        return SizedBox(
+          width: 96,
+          child: selected
+              ? FilledButton(
+                  onPressed: () =>
+                      Navigator.pop(context, DateTime(_browse.year, m, 1)),
+                  child: Text(_moisNoms[i]))
+              : OutlinedButton(
+                  onPressed: () =>
+                      Navigator.pop(context, DateTime(_browse.year, m, 1)),
+                  child: Text(_moisNoms[i], overflow: TextOverflow.ellipsis)),
+        );
+      }),
+    );
+  }
+
+  Widget _buildWeeks() {
+    // Semaines (lundi→dimanche) qui intersectent le mois parcouru.
+    final firstOfMonth = DateTime(_browse.year, _browse.month, 1);
+    final lastOfMonth = DateTime(_browse.year, _browse.month + 1, 0);
+    var monday = _weekStart(firstOfMonth);
+    final anchorMonday = _weekStart(widget.anchor);
+    final rows = <Widget>[];
+    while (!monday.isAfter(lastOfMonth)) {
+      final sunday = monday.add(const Duration(days: 6));
+      final selected = monday == anchorMonday;
+      final label = 'Semaine du ${monday.day} ${_moisNoms[monday.month - 1]}'
+          ' au ${sunday.day} ${_moisNoms[sunday.month - 1]}';
+      final m = monday;
+      rows.add(Padding(
+        padding: const EdgeInsets.only(bottom: 6),
+        child: selected
+            ? FilledButton(
+                onPressed: () => Navigator.pop(context, m),
+                child: Align(
+                    alignment: Alignment.centerLeft, child: Text(label)))
+            : OutlinedButton(
+                onPressed: () => Navigator.pop(context, m),
+                child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(label, overflow: TextOverflow.ellipsis))),
+      ));
+      monday = monday.add(const Duration(days: 7));
+    }
+    return Column(mainAxisSize: MainAxisSize.min, children: rows);
+  }
+
+  Widget _buildDays() {
+    final daysInMonth = DateTime(_browse.year, _browse.month + 1, 0).day;
+    final startOffset = DateTime(_browse.year, _browse.month, 1).weekday - 1;
+    final cells = <Widget>[];
+    for (var i = 0; i < startOffset; i++) {
+      cells.add(const SizedBox.shrink());
+    }
+    for (var d = 1; d <= daysInMonth; d++) {
+      final selected = d == widget.anchor.day &&
+          _browse.month == widget.anchor.month &&
+          _browse.year == widget.anchor.year;
+      cells.add(InkWell(
+        onTap: () =>
+            Navigator.pop(context, DateTime(_browse.year, _browse.month, d)),
+        borderRadius: AppRadius.borderFull,
+        child: Container(
+          alignment: Alignment.center,
+          margin: const EdgeInsets.all(2),
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: selected ? AppColors.primary : null,
+          ),
+          child: Text('$d',
+              style: AppTypography.bodyMd.copyWith(
+                  color: selected ? Colors.white : AppColors.onSurface,
+                  fontWeight:
+                      selected ? FontWeight.bold : FontWeight.normal)),
+        ),
+      ));
+    }
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          children: _joursAbbr
+              .map((j) => Expanded(
+                    child: Center(
+                      child: Text(j[0].toUpperCase(),
+                          style: AppTypography.labelSm
+                              .copyWith(color: AppColors.onSurfaceVariant)),
+                    ),
+                  ))
+              .toList(),
+        ),
+        const SizedBox(height: 4),
+        GridView.count(
+          crossAxisCount: 7,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          childAspectRatio: 1,
+          children: cells,
+        ),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Cellule de créneau (30 min) avec survol (hover) bien marqué
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _SlotCell extends StatefulWidget {
+  final _SlotKind kind;
+  final bool isHourEnd; // seconde moitié d'heure → séparateur plus marqué
+  final void Function(Offset globalPos) onTap;
+
+  const _SlotCell({
+    required this.kind,
+    required this.isHourEnd,
+    required this.onTap,
+  });
+
+  @override
+  State<_SlotCell> createState() => _SlotCellState();
+}
+
+class _SlotCellState extends State<_SlotCell> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final kind = widget.kind;
+    final bg = switch (kind) {
+      _SlotKind.dispo => AppColors.surfaceContainerLowest,
+      _SlotKind.pause => _cPause,
+      _SlotKind.hors => _cHors,
+    };
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTapUp: (d) => widget.onTap(d.globalPosition),
+        child: Container(
+          height: _hourH / 2,
+          decoration: BoxDecoration(
+            color: kind == _SlotKind.hors ? null : bg,
+            border: Border(
+              bottom: BorderSide(
+                color: AppColors.outlineVariant
+                    .withValues(alpha: widget.isHourEnd ? 1 : 0.4),
+                width: 0.5,
+              ),
+            ),
+          ),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              if (kind == _SlotKind.hors)
+                CustomPaint(
+                    painter: _HatchPainter(), child: const SizedBox.expand()),
+              // Survol : superposition bien visible (« sobressaliente »),
+              // couleur définie dans le thème (AppColors.hoverCell).
+              if (_hover)
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: AppColors.hoverCell,
+                    border: Border.all(
+                        color: AppColors.hoverCellBorder, width: 1),
+                  ),
+                  child: const Center(
+                    child: Icon(Icons.add,
+                        size: 16, color: AppColors.hoverCellBorder),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -697,47 +1001,115 @@ class _MoisView extends StatelessWidget {
     final isToday = today.year == anchor.year &&
         today.month == anchor.month &&
         today.day == day;
-    return InkWell(
+    return _MoisDayCell(
+      day: day,
+      visites: vs,
+      isToday: isToday,
       onTap: () => onSelectDay(DateTime(anchor.year, anchor.month, day)),
-      child: Container(
-        margin: const EdgeInsets.all(2),
-        padding: const EdgeInsets.all(4),
-        decoration: BoxDecoration(
-          borderRadius: AppRadius.borderSm,
-          border: Border.all(color: AppColors.outlineVariant),
-          color: isToday
-              ? AppColors.primaryFixed.withValues(alpha: 0.4)
-              : AppColors.surfaceContainerLowest,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('$day',
-                style: AppTypography.labelMd.copyWith(
-                    fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
-                    color: isToday ? AppColors.primary : null)),
-            const SizedBox(height: 2),
-            Expanded(
-              child: Wrap(
-                spacing: 2,
-                runSpacing: 2,
-                children: vs
-                    .take(4)
-                    .map((v) => Container(
-                          width: 8,
-                          height: 8,
-                          decoration: BoxDecoration(
-                              color: typeVisiteColor(v.typeVisite),
-                              shape: BoxShape.circle),
-                        ))
-                    .toList(),
-              ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Cellule de jour de la vue Mois (survol bien marqué)
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _MoisDayCell extends StatefulWidget {
+  final int day;
+  final List<VisiteModel> visites;
+  final bool isToday;
+  final VoidCallback onTap;
+
+  const _MoisDayCell({
+    required this.day,
+    required this.visites,
+    required this.isToday,
+    required this.onTap,
+  });
+
+  @override
+  State<_MoisDayCell> createState() => _MoisDayCellState();
+}
+
+class _MoisDayCellState extends State<_MoisDayCell> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final isToday = widget.isToday;
+    final vs = widget.visites;
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 90),
+          margin: const EdgeInsets.all(2),
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            borderRadius: AppRadius.borderSm,
+            border: Border.all(
+              color: _hover ? AppColors.hoverCellBorder : AppColors.outlineVariant,
+              width: _hover ? 2 : 1,
             ),
-            if (vs.length > 4)
-              Text('+${vs.length - 4}',
-                  style: AppTypography.labelSm
-                      .copyWith(color: AppColors.onSurfaceVariant)),
-          ],
+            // Survol bien visible : superpose la teinte de hover du thème.
+            color: _hover
+                ? AppColors.hoverCell
+                : isToday
+                    ? AppColors.primaryFixed.withValues(alpha: 0.4)
+                    : AppColors.surfaceContainerLowest,
+            boxShadow: _hover
+                ? [
+                    BoxShadow(
+                      color: AppColors.primary.withValues(alpha: 0.25),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Text('${widget.day}',
+                      style: AppTypography.labelMd.copyWith(
+                          fontWeight:
+                              isToday ? FontWeight.bold : FontWeight.normal,
+                          color: isToday ? AppColors.primary : null)),
+                  const Spacer(),
+                  if (_hover)
+                    const Icon(Icons.add,
+                        size: 14, color: AppColors.hoverCellBorder),
+                ],
+              ),
+              const SizedBox(height: 2),
+              Expanded(
+                child: Wrap(
+                  spacing: 2,
+                  runSpacing: 2,
+                  children: vs
+                      .take(4)
+                      .map((v) => Container(
+                            width: 8,
+                            height: 8,
+                            decoration: BoxDecoration(
+                                color: typeVisiteColor(v.typeVisite),
+                                shape: BoxShape.circle),
+                          ))
+                      .toList(),
+                ),
+              ),
+              if (vs.length > 4)
+                Text('+${vs.length - 4}',
+                    style: AppTypography.labelSm
+                        .copyWith(color: AppColors.onSurfaceVariant)),
+            ],
+          ),
         ),
       ),
     );
@@ -934,12 +1306,11 @@ class _RdvFormState extends State<_RdvForm> {
   }
 
   Future<void> _pickDate() async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _date,
+    final picked = await showAppDatePicker(
+      context,
+      initial: _date,
       firstDate: DateTime(2020),
       lastDate: DateTime(2035),
-      locale: const Locale('fr'),
     );
     if (picked != null) setState(() => _date = picked);
   }
@@ -1187,6 +1558,7 @@ class _RdvFormState extends State<_RdvForm> {
               ),
               const SizedBox(width: AppSpacing.sm),
               FilledButton(
+                style: AppTheme.saveButtonStyle,
                 onPressed: _saving ? null : _save,
                 child: _saving
                     ? const SizedBox(
@@ -1438,6 +1810,7 @@ class _PlagesDialogState extends State<_PlagesDialog> {
           child: const Text('Annuler'),
         ),
         FilledButton(
+          style: AppTheme.saveButtonStyle,
           onPressed: _saving ? null : _save,
           child: _saving
               ? const SizedBox(
@@ -1495,10 +1868,11 @@ class _PlagesDialogState extends State<_PlagesDialog> {
       child: Row(
         children: [
           SizedBox(
-            width: 118,
+            width: 132,
             child: DropdownButtonFormField<String>(
               initialValue: p.type,
               isDense: true,
+              isExpanded: true,
               items: const [
                 DropdownMenuItem(value: 'ouverture', child: Text('Ouverture')),
                 DropdownMenuItem(value: 'pause', child: Text('Pause')),

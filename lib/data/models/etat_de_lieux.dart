@@ -106,6 +106,11 @@ class EtatDesLieuxModel {
   final Map<String, WallObservation> observations;
   final DateTime createdAt;
 
+  /// Soft-delete : `false` = EDL désactivé par le super admin. Invisible pour
+  /// proprietaire/locataire (filtré côté datasource), réactivable dans le menu
+  /// super admin. Toujours `true` par défaut.
+  final bool actif;
+
   // ── Document complet (modèles "partie commune" / "partie privée") ──────────
   final PartieEdl partie;
   final int? edlCollectifId;
@@ -129,6 +134,15 @@ class EtatDesLieuxModel {
   final DateTime? dateDebutBail;
   final DateTime? dateFinBail;
   final int? dureeBailMois;
+  // Configuration/résiliation du bail (posées par le propriétaire).
+  final int? preavisMois;
+  final DateTime? bailCongeDate;
+  final DateTime? bailFinEffective;
+  final String? bailResilieMotif;
+  final DateTime? bailResilieAt;
+  // Règlement de la caution (choisi par le locataire) : mode + détails.
+  final String? cautionMode; // cheque | virement | especes | wero_paypal
+  final Map<String, dynamic>? cautionDetails;
   /// Le bail nécessite-t-il un garant ? null = non décidé, true = requis,
   /// false = sans garant. Décidé par le propriétaire à la génération du bail.
   final bool? bailAvecGarant;
@@ -143,10 +157,18 @@ class EtatDesLieuxModel {
   final String? nombreExemplaires;
 
   // ── Signatures ─────────────────────────────────────────────────────────────
+  // Signatures de l'EDL (document « état des lieux »).
   final DateTime? proprietaireSignedAt;
   final String? proprietaireSignatureUrl;
   final DateTime? locataireSignedAt;
   final String? locataireSignatureUrl;
+
+  // Signatures du BAIL (document « contrat de location ») — distinctes de l'EDL.
+  // L'EDL et le bail sont deux documents signés séparément (loi 89-462).
+  final DateTime? bailProprietaireSignedAt;
+  final String? bailProprietaireSignatureUrl;
+  final DateTime? bailLocataireSignedAt;
+  final String? bailLocataireSignatureUrl;
 
   /// Dernière demande de signature envoyée au locataire (anti-spam 5 jours).
   final DateTime? lastSignatureRequestAt;
@@ -188,6 +210,7 @@ class EtatDesLieuxModel {
     this.notes,
     this.observations = const {},
     required this.createdAt,
+    this.actif = true,
     this.partie = PartieEdl.commune,
     this.edlCollectifId,
     this.isAvenant = false,
@@ -197,6 +220,13 @@ class EtatDesLieuxModel {
     this.dateDebutBail,
     this.dateFinBail,
     this.dureeBailMois,
+    this.preavisMois,
+    this.bailCongeDate,
+    this.bailFinEffective,
+    this.bailResilieMotif,
+    this.bailResilieAt,
+    this.cautionMode,
+    this.cautionDetails,
     this.bailAvecGarant,
     this.surfaceM2,
     this.nombrePiecesPrincipales,
@@ -224,6 +254,10 @@ class EtatDesLieuxModel {
     this.proprietaireSignatureUrl,
     this.locataireSignedAt,
     this.locataireSignatureUrl,
+    this.bailProprietaireSignedAt,
+    this.bailProprietaireSignatureUrl,
+    this.bailLocataireSignedAt,
+    this.bailLocataireSignatureUrl,
     this.lastSignatureRequestAt,
   });
 
@@ -250,17 +284,52 @@ class EtatDesLieuxModel {
       (partie == PartieEdl.privative ||
           (partie == PartieEdl.commune && typeBail == 'location'));
 
-  /// Le bail porte-t-il déjà la signature du [role] (`proprietaire`/`locataire`) ?
-  /// La signature du locataire est posée à l'acceptation de l'EDL et réutilisée
-  /// sur le bail ; celle du propriétaire est posée au moment de signer le bail.
-  bool bailSignedBy(String role) => role == 'locataire'
+  /// Préavis légal par défaut selon la modalité : **1 mois** en meublé,
+  /// **3 mois** en location vide (loi du 6 juillet 1989). Surchargé par
+  /// `preavis_mois` si le propriétaire l'a configuré.
+  int get preavisMoisDefaut => immeubleMeuble ? 1 : 3;
+
+  /// Préavis effectif = valeur configurée, sinon le défaut légal.
+  int get preavisMoisEffectif => preavisMois ?? preavisMoisDefaut;
+
+  /// Le bail a-t-il été résilié (congé enregistré) ?
+  bool get bailResilie => bailCongeDate != null;
+
+  /// Calcule la fin effective = [conge] + [mois] de préavis (même quantième).
+  static DateTime finPreavis(DateTime conge, int mois) =>
+      DateTime(conge.year, conge.month + mois, conge.day);
+
+  // ── EDL (document « état des lieux ») ──────────────────────────────────────
+  /// L'EDL porte-t-il déjà la signature du [role] (`proprietaire`/`locataire`) ?
+  bool edlSignedBy(String role) => role == 'locataire'
       ? locataireSignatureUrl != null
       : proprietaireSignatureUrl != null;
+
+  /// L'EDL est-il signé par les DEUX parties ? Condition pour ouvrir « Signer
+  /// bail » (l'EDL est l'annexe du bail : il doit être complet avant).
+  bool get edlFullySigned =>
+      proprietaireSignatureUrl != null && locataireSignatureUrl != null;
+
+  // ── BAIL (document « contrat de location ») — signatures distinctes ────────
+  /// Le bail porte-t-il déjà la signature du [role] ? Utilise les colonnes
+  /// **bail_** (indépendantes de la signature de l'EDL).
+  bool bailSignedBy(String role) => role == 'locataire'
+      ? bailLocataireSignatureUrl != null
+      : bailProprietaireSignatureUrl != null;
 
   /// Le bail est entièrement signé (les deux parties) → il est verrouillé :
   /// plus aucune modification, le bouton « Bail » devient « Visualiser ».
   bool get bailFullySigned =>
-      proprietaireSignatureUrl != null && locataireSignatureUrl != null;
+      bailProprietaireSignatureUrl != null &&
+      bailLocataireSignatureUrl != null;
+
+  /// Date de signature du bail (la plus récente des deux parties), pour l'affichage.
+  DateTime? get bailSignedAt {
+    final a = bailProprietaireSignedAt, b = bailLocataireSignedAt;
+    if (a == null) return b;
+    if (b == null) return a;
+    return a.isAfter(b) ? a : b;
+  }
 
   factory EtatDesLieuxModel.fromMap(Map<String, dynamic> map) {
     final loc = map['locataire'] as Map<String, dynamic>?;
@@ -298,6 +367,7 @@ class EtatDesLieuxModel {
       createdAt: map['created_at'] != null
           ? DateTime.parse(map['created_at'] as String)
           : DateTime.now(),
+      actif: (map['actif'] as bool?) ?? true,
       partie: PartieEdl.fromRaw(map['partie'] as String?),
       edlCollectifId: map['edl_collectif_id'] as int?,
       isAvenant: (map['is_avenant'] as bool?) ?? false,
@@ -313,6 +383,19 @@ class EtatDesLieuxModel {
           ? DateTime.parse(map['date_fin_bail'] as String)
           : null,
       dureeBailMois: map['duree_bail_mois'] as int?,
+      preavisMois: map['preavis_mois'] as int?,
+      bailCongeDate: map['bail_conge_date'] != null
+          ? DateTime.parse(map['bail_conge_date'] as String)
+          : null,
+      bailFinEffective: map['bail_fin_effective'] != null
+          ? DateTime.parse(map['bail_fin_effective'] as String)
+          : null,
+      bailResilieMotif: map['bail_resilie_motif'] as String?,
+      bailResilieAt: map['bail_resilie_at'] != null
+          ? DateTime.parse(map['bail_resilie_at'] as String)
+          : null,
+      cautionMode: map['caution_mode'] as String?,
+      cautionDetails: (map['caution_details'] as Map?)?.cast<String, dynamic>(),
       bailAvecGarant: map['bail_avec_garant'] as bool?,
       surfaceM2: (map['surface_m2'] as num?)?.toDouble(),
       nombrePiecesPrincipales: map['nombre_pieces_principales'] as int?,
@@ -343,6 +426,16 @@ class EtatDesLieuxModel {
           ? DateTime.parse(map['proprietaire_signed_at'] as String)
           : null,
       proprietaireSignatureUrl: map['proprietaire_signature_url'] as String?,
+      bailProprietaireSignedAt: map['bail_proprietaire_signed_at'] != null
+          ? DateTime.parse(map['bail_proprietaire_signed_at'] as String)
+          : null,
+      bailProprietaireSignatureUrl:
+          map['bail_proprietaire_signature_url'] as String?,
+      bailLocataireSignedAt: map['bail_locataire_signed_at'] != null
+          ? DateTime.parse(map['bail_locataire_signed_at'] as String)
+          : null,
+      bailLocataireSignatureUrl:
+          map['bail_locataire_signature_url'] as String?,
       locataireSignedAt: map['locataire_signed_at'] != null
           ? DateTime.parse(map['locataire_signed_at'] as String)
           : null,
@@ -484,6 +577,18 @@ class EtatDesLieuxModel {
       proprietaireSignedAt != null ? _dateFmt.format(proprietaireSignedAt!) : null;
   String? get locataireSignedAtFormatted =>
       locataireSignedAt != null ? _dateFmt.format(locataireSignedAt!) : null;
+
+  /// Date de signature du BAIL (la plus récente des deux parties). `null` tant
+  /// que le bail n'est pas signé.
+  String? get bailSignedAtFormatted =>
+      bailSignedAt != null ? _dateFmt.format(bailSignedAt!) : null;
+  String? get bailProprietaireSignedAtFormatted =>
+      bailProprietaireSignedAt != null
+          ? _dateFmt.format(bailProprietaireSignedAt!)
+          : null;
+  String? get bailLocataireSignedAtFormatted => bailLocataireSignedAt != null
+      ? _dateFmt.format(bailLocataireSignedAt!)
+      : null;
 
   /// Identifiant du « contrat » qui regroupe un EDL collectif et ses privatifs :
   /// l'id du collectif lui-même (partie commune) ou l'`edl_collectif_id` (privatif).

@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:lacoloc_front/presentation/widgets/app_top_bar.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
 import 'package:lacoloc_front/theme/app_theme.dart';
-import 'package:lacoloc_front/theme/app_typography.dart';
 
-/// Barra de cabeçalho padronizada para todas as páginas de formulário.
-/// Apresenta sombra suave que a eleva visualmente acima do conteúdo.
+/// Barra de cabeçalho padronizada para páginas de formulário. Delega o **layout
+/// e o estilo** à barre standard [AppTopBar] (fond distinct + ombre, tokens dans
+/// le thème) et se combine avec [FormHeaderActions] pour les actions CRUD.
 class FormPageHeader extends StatelessWidget {
   final String title;
 
@@ -24,69 +25,7 @@ class FormPageHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final titleText = Text(
-      title,
-      style: AppTypography.titleLg,
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-    );
-
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.surfaceContainerLowest,
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.shadowTint.withValues(alpha: 0.12),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.barMargin,
-        vertical: AppSpacing.md,
-      ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          // En dessous de ~640 px : on empile (titre au-dessus, actions
-          // dessous, défilables horizontalement) pour éviter que le titre
-          // soit écrasé en 1 caractère par ligne → débordement vertical.
-          final stack = constraints.maxWidth < 640 && trailing != null;
-          if (stack) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  children: [
-                    if (leading != null) ...[
-                      leading!,
-                      const SizedBox(width: AppSpacing.md),
-                    ],
-                    Expanded(child: titleText),
-                  ],
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: trailing!,
-                ),
-              ],
-            );
-          }
-          return Row(
-            children: [
-              if (leading != null) ...[
-                leading!,
-                const SizedBox(width: AppSpacing.md),
-              ],
-              Expanded(child: titleText),
-              ?trailing,
-            ],
-          );
-        },
-      ),
-    );
+    return AppTopBar(title: title, leading: leading, trailing: trailing);
   }
 }
 

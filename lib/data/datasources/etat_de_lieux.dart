@@ -4,6 +4,7 @@ import 'package:lacoloc_front/data/cache/data_cache.dart';
 import 'package:lacoloc_front/data/cache/realtime_service.dart';
 import 'package:lacoloc_front/data/datasources/chambres.dart';
 import 'package:lacoloc_front/data/datasources/edl_details.dart';
+import 'package:lacoloc_front/data/datasources/garants.dart';
 import 'package:lacoloc_front/data/datasources/notifications.dart';
 import 'package:lacoloc_front/data/datasources/recettes.dart';
 import 'package:lacoloc_front/data/datasources/signatures.dart';
@@ -58,8 +59,9 @@ class EtatDesLieuxDatasource {
       final filtered = entrepriseId != null
           ? query.eq('entreprise_id', entrepriseId)
           : query.eq('proprietaire_id', proprietaireId);
-      final rows =
-          await filtered.order('date_etat_lieux', ascending: false);
+      final rows = await filtered
+          .eq('actif', true)
+          .order('date_etat_lieux', ascending: false);
       return rows.map((r) => EtatDesLieuxModel.fromMap(r)).toList();
     }, refresh: refresh);
   }
@@ -73,6 +75,7 @@ class EtatDesLieuxDatasource {
           .from(_table)
           .select(_select)
           .eq('locataire_id', locataireId)
+          .eq('actif', true)
           .order('date_etat_lieux', ascending: false);
       return rows.map((r) => EtatDesLieuxModel.fromMap(r)).toList();
     }, refresh: refresh);
@@ -92,6 +95,7 @@ class EtatDesLieuxDatasource {
           .select(
               '$_select, pren_filter:etat_de_lieux_preneurs!inner(locataire_id)')
           .eq('pren_filter.locataire_id', locataireId)
+          .eq('actif', true)
           .order('date_etat_lieux', ascending: false);
       return rows.map((r) => EtatDesLieuxModel.fromMap(r)).toList();
     }, refresh: refresh);
@@ -162,6 +166,7 @@ class EtatDesLieuxDatasource {
         .eq('immeuble_id', immeubleId)
         .eq('partie', 'commune')
         .eq('type_edl', typeEdl)
+        .eq('actif', true)
         .order('created_at')
         .limit(1)
         .maybeSingle();
@@ -180,6 +185,7 @@ class EtatDesLieuxDatasource {
         .eq('immeuble_id', immeubleId)
         .eq('partie', 'commune')
         .eq('type_edl', typeEdl)
+        .eq('actif', true)
         .order('created_at', ascending: false);
     return rows.map((r) => EtatDesLieuxModel.fromMap(r)).toList();
   }
@@ -197,6 +203,7 @@ class EtatDesLieuxDatasource {
         .eq('immeuble_id', immeubleId)
         .eq('partie', 'commune')
         .eq('type_edl', typeEdl)
+        .eq('actif', true)
         .neq('situation', 'finalise')
         .order('created_at', ascending: false)
         .limit(1)
@@ -253,6 +260,7 @@ class EtatDesLieuxDatasource {
         .eq('chambre_id', chambreId)
         .eq('partie', 'privative')
         .eq('type_edl', typeEdl)
+        .eq('actif', true)
         .order('created_at')
         .limit(1)
         .maybeSingle();
@@ -270,6 +278,7 @@ class EtatDesLieuxDatasource {
         .eq('immeuble_id', immeubleId)
         .eq('partie', 'privative')
         .eq('type_edl', 'entree')
+        .eq('actif', true)
         .order('created_at');
     final map = <int, EtatDesLieuxModel>{};
     for (final r in rows) {
@@ -304,6 +313,7 @@ class EtatDesLieuxDatasource {
         .eq('immeuble_id', immeubleId)
         .eq('partie', 'privative')
         .eq('type_edl', typeEdl)
+        .eq('actif', true)
         .not('chambre_id', 'is', null);
     return {
       for (final r in rows)
@@ -324,6 +334,7 @@ class EtatDesLieuxDatasource {
         .inFilter('immeuble_id', immeubleIds)
         .eq('partie', 'privative')
         .eq('type_edl', typeEdl)
+        .eq('actif', true)
         .not('chambre_id', 'is', null);
     return {
       for (final r in rows)
@@ -339,6 +350,7 @@ class EtatDesLieuxDatasource {
         .from(_table)
         .select(_select)
         .eq('edl_collectif_id', collectifId)
+        .eq('actif', true)
         .order('date_etat_lieux', ascending: false);
     return rows.map((r) => EtatDesLieuxModel.fromMap(r)).toList();
   }
@@ -353,6 +365,7 @@ class EtatDesLieuxDatasource {
         .select(_select)
         .eq('edl_entree_id', entreeId)
         .eq('type_edl', 'sortie')
+        .eq('actif', true)
         .order('created_at')
         .limit(1)
         .maybeSingle();
@@ -371,6 +384,7 @@ class EtatDesLieuxDatasource {
         .eq('proprietaire_id', proprietaireId)
         .eq('type_edl', 'entree')
         .eq('situation', 'finalise')
+        .eq('actif', true)
         .order('date_etat_lieux', ascending: false);
     final entrees = rows.map((r) => EtatDesLieuxModel.fromMap(r)).toList();
     final candidates = entrees.where((e) =>
@@ -382,6 +396,7 @@ class EtatDesLieuxDatasource {
         .select('edl_entree_id')
         .eq('proprietaire_id', proprietaireId)
         .eq('type_edl', 'sortie')
+        .eq('actif', true)
         .not('edl_entree_id', 'is', null);
     final done = {
       for (final r in sortieRows)
@@ -537,10 +552,16 @@ class EtatDesLieuxDatasource {
         sourceRef: proprietaireSignatureUrl,
       );
     }
-    // Snapshot de la fenêtre avenant/additions depuis la préférence du
-    // propriétaire (Vision générale) — fixée à la finalisation pour rester
-    // stable même si la préférence change ensuite.
-    final windowDays = await getAvenantWindowDays();
+    // Fenêtre avenant/additions : on **préserve le choix fait dans l'EDL**
+    // (obligatoire avant finalisation) ; on ne retombe sur la préférence
+    // globale que si l'EDL n'a rien (compat. anciens EDL).
+    final edlRow = await _db
+        .from(_table)
+        .select('avenant_window_days')
+        .eq('id', id)
+        .maybeSingle();
+    final windowDays = (edlRow?['avenant_window_days'] as int?) ??
+        await getAvenantWindowDays();
     final updates = <String, dynamic>{
       'situation': SituationEdl.finalise.raw,
       'avenant_window_days': windowDays,
@@ -557,10 +578,10 @@ class EtatDesLieuxDatasource {
       await ChambresDatasource.setOccupied(id, occupied: typeEdl != 'sortie');
     }
 
-    if (typeEdl == 'entree') {
-      // Génère les échéances mensuelles (idempotent — ignoré si déjà créées).
-      await RecettesDatasource.generateFromBail(id);
-    } else if (typeEdl == 'sortie') {
+    // Note : les échéances (loyer + caution) « à recevoir / à payer » ne sont
+    // PAS générées ici. Le bail n'est « signé » qu'une fois **accepté par le
+    // locataire** → la génération se fait dans `locataireAccepter`.
+    if (typeEdl == 'sortie') {
       // Supprime les échéances futures de l'entrée couplée : le locataire
       // paye le mois entier du départ, mais pas les mois suivants.
       final sortieRow = await _db
@@ -721,6 +742,110 @@ class EtatDesLieuxDatasource {
     invalidate();
   }
 
+  // ─────────────────────── Super admin : gestion globale ─────────────────────
+
+  /// Tous les EDL du système (super admin) — **inclut les inactifs**. Filtre
+  /// texte optionnel sur code / locataire / proprietaire / immeuble / chambre.
+  /// RLS : réservé au super admin (is_super_admin voit tout).
+  static Future<List<EtatDesLieuxModel>> listAllForAdmin({
+    String query = '',
+  }) async {
+    final rows =
+        await _db.from(_table).select(_select).order('date_etat_lieux',
+            ascending: false);
+    var list = rows.map((r) => EtatDesLieuxModel.fromMap(r)).toList();
+    final q = query.trim().toLowerCase();
+    if (q.isNotEmpty) {
+      bool has(String? s) => (s ?? '').toLowerCase().contains(q);
+      list = list
+          .where((e) =>
+              has(e.code) ||
+              has(e.locataireNom) ||
+              has(e.locataireEmail) ||
+              has(e.proprietaireNom) ||
+              has(e.immeubleNom) ||
+              has(e.chambreNom) ||
+              e.preneursNoms.any((n) => n.toLowerCase().contains(q)))
+          .toList();
+    }
+    return list;
+  }
+
+  /// Active/désactive un EDL avec cascade (super admin) :
+  ///  • **privatif** (individuel) → ce privatif + son/ses sortie(s). Le collectif
+  ///    reste lié aux autres privatifs actifs (le collectif n'est pas touché).
+  ///  • **collectif** (individuel) → tous ses privatifs + leurs sorties (retrait
+  ///    de toute la colocation).
+  ///  • **location** (commune) → cet EDL + son/ses sortie(s) (cascade complète).
+  /// Libère (désactivation) ou ré-occupe (réactivation d'une entrée finalisée)
+  /// la chambre concernée.
+  static Future<void> setActive(int id, bool active) async {
+    final self = await _db
+        .from(_table)
+        .select('id, partie, type_bail, type_edl, chambre_id, situation')
+        .eq('id', id)
+        .maybeSingle();
+    if (self == null) return;
+
+    final ids = <int>{id};
+
+    // Sorties couplées (edl_entree_id) — toujours en cascade avec leur entrée.
+    Future<void> addSorties(int entreeId) async {
+      final s =
+          await _db.from(_table).select('id').eq('edl_entree_id', entreeId);
+      for (final r in (s as List)) {
+        ids.add(r['id'] as int);
+      }
+    }
+
+    await addSorties(id);
+
+    // Collectif d'une colocation → tous les privatifs + leurs sorties.
+    if (self['partie'] == 'commune' && self['type_bail'] == 'individuel') {
+      final privs =
+          await _db.from(_table).select('id').eq('edl_collectif_id', id);
+      for (final r in (privs as List)) {
+        final pid = r['id'] as int;
+        ids.add(pid);
+        await addSorties(pid);
+      }
+    }
+
+    await _db
+        .from(_table)
+        .update({'actif': active}).inFilter('id', ids.toList());
+
+    // Statut de la chambre : libérée si désactivée ; ré-occupée si on réactive
+    // une entrée finalisée.
+    final chambreId = self['chambre_id'] as int?;
+    if (chambreId != null) {
+      if (!active) {
+        await _db
+            .from('Chambres')
+            .update({'est_loue': false}).eq('id', chambreId);
+      } else if (self['type_edl'] == 'entree' &&
+          self['situation'] == 'finalise') {
+        await _db
+            .from('Chambres')
+            .update({'est_loue': true}).eq('id', chambreId);
+      }
+    }
+    invalidate();
+  }
+
+  /// Suppression **définitive** (super admin) — ignore les garde-fous de
+  /// [delete] (finalisé / collectif lié). Pour un collectif, supprime d'abord
+  /// ses privatifs. Les tables filles partent en cascade (ON DELETE CASCADE).
+  static Future<void> deleteHardAdmin(int id) async {
+    final row =
+        await _db.from(_table).select('partie').eq('id', id).maybeSingle();
+    if (row != null && row['partie'] == 'commune') {
+      await _db.from(_table).delete().eq('edl_collectif_id', id);
+    }
+    await _db.from(_table).delete().eq('id', id);
+    invalidate();
+  }
+
   /// Collectifs **finalisés** dont l'immeuble a encore des chambres libres
   /// (sans privatif lié au collectif) — éligibles à un **avenant**. Pour chacun,
   /// renvoie le collectif, les chambres libres et la date du 1er contrat signé.
@@ -792,6 +917,8 @@ class EtatDesLieuxDatasource {
   static Future<void> locataireAccepter(
     int id, {
     String? locataireSignatureUrl,
+    String? locataireNom,
+    String? lieuLabel,
   }) async {
     final now = DateTime.now();
     final today = now.toIso8601String().substring(0, 10);
@@ -815,6 +942,25 @@ class EtatDesLieuxDatasource {
       await recordSignatureAudit(
           edlId: id, documentType: 'edl', role: 'locataire');
     } catch (_) {}
+    // NB : les échéances (loyer + caution) ne sont PAS générées ici. L'EDL et
+    // le bail sont deux documents distincts → la génération se fait à la
+    // signature **du bail** (`setBailSignature`), une fois les deux parties
+    // signataires.
+    // Le locataire vient de signer : ses rappels « à signer » n'ont plus lieu
+    // d'être → on les marque lus pour qu'ils disparaissent des Messages/badges.
+    await NotificationsDatasource.markReadForEdl(id, types: const ['edl_a_signer']);
+    // Prévient le propriétaire que l'EDL (et donc le bail, qui réutilise la même
+    // signature) a été accepté/signé — in-app + e-mail. Centralisé ici pour que
+    // la notification parte **quel que soit** le chemin d'UI (best-effort).
+    final lieu = (lieuLabel != null && lieuLabel.isNotEmpty) ? ' de $lieuLabel' : '';
+    await NotificationsDatasource.notifyEdlProprietaire(
+      edlId: id,
+      type: 'edl_accepte',
+      title: 'État des lieux accepté',
+      body: '${locataireNom ?? 'Le locataire'} a accepté et signé '
+          "l'état des lieux$lieu.",
+    );
+    await notifyAccepte(edlId: id, locataireNom: locataireNom);
     invalidate();
   }
 
@@ -842,11 +988,150 @@ class EtatDesLieuxDatasource {
     invalidate();
   }
 
-  /// Appose la signature du [role] (`proprietaire` ou `locataire`) sur le
-  /// bail/EDL [id] : matérialise l'image dans l'espace de l'EDL (lisible par les
-  /// deux parties via `can_access_edl`) puis enregistre l'URL + l'horodatage.
-  /// Utilisé par le flux « signer le bail » (aperçu/impression du contrat de
-  /// bail). Retourne l'URL matérialisée.
+  /// Configure le préavis (mois) du bail. `null` = revient au défaut légal
+  /// (1 mois meublé / 3 vide). Posé par le propriétaire dans « Configuration bail ».
+  static Future<void> setBailPreavis(int id, int? mois) async {
+    await _db.from(_table).update({'preavis_mois': mois}).eq('id', id);
+    invalidate();
+  }
+
+  /// Résilie le bail (côté propriétaire) : enregistre le congé + le préavis,
+  /// calcule la **fin effective** (= congé + préavis) et **rogne les échéances
+  /// de loyer** au-delà (le locataire paye jusqu'au terme du préavis, mois
+  /// entier). N'altère pas les EDL — l'EDL de sortie reste à créer séparément.
+  static Future<void> resilierBail(
+    int id, {
+    required DateTime congeDate,
+    required int preavisMois,
+    String? motif,
+  }) async {
+    final fin = EtatDesLieuxModel.finPreavis(congeDate, preavisMois);
+    await _db.from(_table).update({
+      'preavis_mois': preavisMois,
+      'bail_conge_date': congeDate.toIso8601String().substring(0, 10),
+      'bail_fin_effective': fin.toIso8601String().substring(0, 10),
+      'bail_resilie_motif':
+          (motif != null && motif.trim().isNotEmpty) ? motif.trim() : null,
+      'bail_resilie_at': DateTime.now().toIso8601String(),
+    }).eq('id', id);
+    // Le locataire ne doit plus les loyers au-delà du préavis.
+    await RecettesDatasource.deleteFutureInstallments(id, fin);
+    invalidate();
+  }
+
+  /// Annule la résiliation (efface le congé). Ne restaure pas les échéances
+  /// supprimées — les régénérer via `RecettesDatasource.generateFromBail`.
+  static Future<void> annulerResiliation(int id) async {
+    await _db.from(_table).update({
+      'bail_conge_date': null,
+      'bail_fin_effective': null,
+      'bail_resilie_motif': null,
+      'bail_resilie_at': null,
+    }).eq('id', id);
+    invalidate();
+  }
+
+  // ── Conditions obligatoires (readiness) : avenant, caution, garants ─────────
+
+  /// Fenêtre d'avenant choisie **dans l'EDL** (obligatoire ; rien de
+  /// présélectionné). `days` = 0 → « Sans avenant ».
+  static Future<void> setEdlAvenantWindow(int id, int days) async {
+    await _db
+        .from(_table)
+        .update({'avenant_window_days': days}).eq('id', id);
+    invalidate();
+  }
+
+  /// Mode de règlement de la caution (choisi par le locataire) + détails
+  /// éventuels (chèque : banque/numéro ; virement : IBAN ; etc.).
+  static Future<void> setCaution(
+    int id, {
+    required String mode,
+    Map<String, dynamic>? details,
+  }) async {
+    await _db.from(_table).update({
+      'caution_mode': mode,
+      'caution_details': details,
+    }).eq('id', id);
+    invalidate();
+  }
+
+  /// Ids des garants rattachés à l'EDL [edlId].
+  static Future<List<int>> listGarantIdsForEdl(int edlId) async {
+    final rows = await _db
+        .from('etat_de_lieux_garants')
+        .select('garant_id')
+        .eq('etat_de_lieux_id', edlId);
+    return (rows as List).map((r) => (r['garant_id'] as num).toInt()).toList();
+  }
+
+  /// Rattache un garant (actif du locataire) à l'EDL. Idempotent.
+  static Future<void> linkGarant(int edlId, int garantId) async {
+    await _db.from('etat_de_lieux_garants').upsert(
+      {'etat_de_lieux_id': edlId, 'garant_id': garantId},
+      onConflict: 'etat_de_lieux_id,garant_id',
+      ignoreDuplicates: true,
+    );
+    invalidate();
+  }
+
+  /// Détache un garant de l'EDL.
+  static Future<void> unlinkGarant(int edlId, int garantId) async {
+    await _db
+        .from('etat_de_lieux_garants')
+        .delete()
+        .eq('etat_de_lieux_id', edlId)
+        .eq('garant_id', garantId);
+    invalidate();
+  }
+
+  /// Automatisme (sans table de « demandes ») : quand le locataire ajoute /
+  /// active un garant, on rattache automatiquement ses garants actifs aux
+  /// **baux EN COURS D'ÉDITION** où il est preneur qui exigent un garant et
+  /// n'en ont aucun. On **ne touche jamais** un EDL déjà finalisé/signé.
+  ///
+  /// À appeler après une création/activation de garant (page Garants).
+  static Future<void> autoLinkGarantsForLocataire(String locataireId) async {
+    // Garants actifs du locataire (rien à faire s'il n'en a aucun).
+    final active = await GarantsDatasource.activeByLocataire(locataireId);
+    if (active.isEmpty) return;
+
+    // EDL d'entrée du locataire, « avec garant », NON finalisés (en édition).
+    final rows = await _db
+        .from(_table)
+        .select('id')
+        .eq('locataire_id', locataireId)
+        .eq('type_edl', 'entree')
+        .eq('bail_avec_garant', true)
+        .neq('situation', SituationEdl.finalise.raw);
+
+    for (final r in (rows as List)) {
+      final edlId = (r['id'] as num).toInt();
+      // Ne rien faire si un garant est déjà rattaché (demande déjà satisfaite).
+      final existing = await listGarantIdsForEdl(edlId);
+      if (existing.isNotEmpty) continue;
+      for (final g in active) {
+        await linkGarant(edlId, g.id);
+      }
+      // Résout la relance in-app « garant requis » pour cet EDL.
+      try {
+        await NotificationsDatasource.markReadForEdl(
+          edlId,
+          types: const ['bail_garant_requis'],
+        );
+      } catch (_) {}
+    }
+  }
+
+  /// Appose la signature **du bail** du [role] (`proprietaire` ou `locataire`)
+  /// sur l'EDL [id]. Le bail est un document DISTINCT de l'EDL : la signature
+  /// est écrite dans les colonnes `bail_<role>_signature_url` (indépendantes de
+  /// la signature de l'EDL). Matérialise l'image (`bail-<role>`) dans l'espace
+  /// de l'EDL (lisible des deux parties via `can_access_edl`).
+  ///
+  /// Dès que **les deux parties** ont signé le bail, on génère les échéances
+  /// (loyer + caution) « à recevoir / à payer » (`generateFromBail`, idempotent).
+  /// Retourne l'URL matérialisée.
   static Future<String> setBailSignature({
     required int id,
     required String role,
@@ -854,16 +1139,36 @@ class EtatDesLieuxDatasource {
   }) async {
     final materialized = await SignaturesDatasource.materializeForEdl(
       edlId: id,
-      role: role,
+      role: 'bail-$role',
       sourceRef: signatureUrl,
     );
     final col = role == 'locataire' ? 'locataire' : 'proprietaire';
     await _db.from(_table).update({
-      '${col}_signature_url': materialized,
-      '${col}_signed_at': DateTime.now().toIso8601String(),
+      'bail_${col}_signature_url': materialized,
+      'bail_${col}_signed_at': DateTime.now().toIso8601String(),
     }).eq('id', id);
     // Journal d'audit : signature du bail par ce rôle.
     await recordSignatureAudit(edlId: id, documentType: 'bail', role: role);
+    // Le bail vient d'être signé : on efface les rappels liés au bail
+    // (garant/remplissage) du destinataire courant (RLS-scopé).
+    await NotificationsDatasource.markReadForEdl(
+      id,
+      types: const ['bail_garant_requis', 'bail_remplissage'],
+    );
+    // Bail signé par les DEUX parties → générer les échéances (à recevoir /
+    // à payer). Best-effort + idempotent.
+    final row = await _db
+        .from(_table)
+        .select('bail_locataire_signature_url, bail_proprietaire_signature_url')
+        .eq('id', id)
+        .maybeSingle();
+    if (row != null &&
+        row['bail_locataire_signature_url'] != null &&
+        row['bail_proprietaire_signature_url'] != null) {
+      try {
+        await RecettesDatasource.generateFromBail(id);
+      } catch (_) {}
+    }
     invalidate();
     return materialized;
   }

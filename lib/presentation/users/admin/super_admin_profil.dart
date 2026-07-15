@@ -8,45 +8,19 @@ import 'package:lacoloc_front/presentation/admin/charges_reference_page.dart';
 import 'package:lacoloc_front/presentation/admin/meuble_categories_page.dart';
 import 'package:lacoloc_front/presentation/admin/meuble_types_page.dart';
 import 'package:lacoloc_front/presentation/admin/payment_types_page.dart';
+import 'package:lacoloc_front/presentation/nav/app_nav_sidebar.dart';
 import 'package:lacoloc_front/presentation/nav/app_sidebar.dart';
 import 'package:lacoloc_front/presentation/users/admin/communication_page.dart';
+import 'package:lacoloc_front/presentation/users/admin/admin_edl_page.dart';
 import 'package:lacoloc_front/presentation/users/admin/comptes_entreprises_page.dart';
 import 'package:lacoloc_front/presentation/users/admin/maintenance_page.dart';
 import 'package:lacoloc_front/presentation/users/admin/utilisateurs_admin_page.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
 import 'package:lacoloc_front/theme/app_typography.dart';
+import 'package:lacoloc_front/theme/app_tab_bar.dart';
 
-// ─── Índices do sidebar ───────────────────────────────────────────────────────
-const _idxDashboard      = 0;
-const _idxUtilisateurs   = 1;
-const _idxCommunication  = 2;
-const _idxEntreprises    = 3;
-const _idxPaymentTypes   = 4;
-const _idxConfigImmeuble = 5;
-const _idxMaintenance    = 6;
-
-enum _Section { dashboard, utilisateurs, communication, entreprises, paymentTypes, configImmeuble, maintenance }
-
-_Section _indexToSection(int i) => switch (i) {
-      _idxUtilisateurs   => _Section.utilisateurs,
-      _idxCommunication  => _Section.communication,
-      _idxEntreprises    => _Section.entreprises,
-      _idxPaymentTypes   => _Section.paymentTypes,
-      _idxConfigImmeuble => _Section.configImmeuble,
-      _idxMaintenance    => _Section.maintenance,
-      _                  => _Section.dashboard,
-    };
-
-int _sectionToIndex(_Section s) => switch (s) {
-      _Section.dashboard       => _idxDashboard,
-      _Section.utilisateurs    => _idxUtilisateurs,
-      _Section.communication   => _idxCommunication,
-      _Section.entreprises     => _idxEntreprises,
-      _Section.paymentTypes    => _idxPaymentTypes,
-      _Section.configImmeuble  => _idxConfigImmeuble,
-      _Section.maintenance     => _idxMaintenance,
-    };
+enum _Section { dashboard, utilisateurs, edls, communication, entreprises, paymentTypes, configImmeuble, maintenance }
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -63,40 +37,32 @@ class _SuperAdminProfilPageState extends State<SuperAdminProfilPage> {
   late final SidebarXController _navCtrl;
 
   _Section _section  = _Section.dashboard;
-  bool _syncingNav   = false;
+  // Sous-onglet courant des sections à sous-menus (Config Immeuble, Maintenance).
+  int _configSub = 0;
+  int _maintSub  = 0;
 
   @override
   void initState() {
     super.initState();
-    _navCtrl = SidebarXController(
-      selectedIndex: _idxDashboard,
-      extended: true,
-    );
-    _navCtrl.addListener(_onNavChanged);
+    _navCtrl = SidebarXController(selectedIndex: 0, extended: true);
   }
 
   @override
   void dispose() {
-    _navCtrl.removeListener(_onNavChanged);
     _navCtrl.dispose();
     super.dispose();
   }
 
-  void _onNavChanged() {
-    if (_syncingNav || !mounted) return;
-    final newSection = _indexToSection(_navCtrl.selectedIndex);
-    if (newSection == _section) return;
-    _changeSection(newSection);
-  }
-
   void _changeSection(_Section s) {
     setState(() => _section = s);
-    final targetIdx = _sectionToIndex(s);
-    if (_navCtrl.selectedIndex != targetIdx) {
-      _syncingNav = true;
-      _navCtrl.selectIndex(targetIdx);
-      _syncingNav = false;
-    }
+  }
+
+  /// Ouvre une section à sous-menus sur le sous-onglet demandé.
+  void _openSub(_Section s, VoidCallback apply) {
+    setState(() {
+      _section = s;
+      apply();
+    });
   }
 
   Future<void> _doLogout() async {
@@ -110,49 +76,117 @@ class _SuperAdminProfilPageState extends State<SuperAdminProfilPage> {
     return switch (_section) {
       _Section.dashboard       => const _SuperAdminDashboard(),
       _Section.utilisateurs    => const UtilisateursAdminPage(),
+      _Section.edls            => const AdminEdlPage(),
       _Section.communication   => const CommunicationPage(),
       _Section.entreprises     => const ComptesEntreprisesPage(),
       _Section.paymentTypes    => const PaymentTypesPage(),
-      _Section.configImmeuble  => const _ConfigImmeublePage(),
-      _Section.maintenance     => const MaintenancePage(),
+      _Section.configImmeuble  => _ConfigImmeublePage(
+          key: ValueKey('cfg$_configSub'),
+          initialTab: _configSub,
+          showTabBar: false,
+        ),
+      _Section.maintenance     => MaintenancePage(
+          key: ValueKey('mnt$_maintSub'),
+          initialTab: _maintSub,
+          showTabBar: false,
+        ),
     };
   }
 
   Widget _buildSidebar({required bool isNarrow}) {
-    return AppSidebar(
+    void go(_Section s) {
+      if (isNarrow) Navigator.of(context).pop();
+      _changeSection(s);
+    }
+
+    void goSub(_Section s, void Function() apply) {
+      if (isNarrow) Navigator.of(context).pop();
+      _openSub(s, apply);
+    }
+
+    return AppNavSidebar(
       controller: _navCtrl,
       showToggleButton: !isNarrow,
       userEmail: AuthService.currentUser?.email,
       userTypeLabel: 'Super Admin',
-      items: [
-        badgedSidebarItem(
-            icon: Icons.dashboard_outlined,
-            label: 'Tableau de bord',
-            extended: _navCtrl.extended),
-        badgedSidebarItem(
-            icon: Icons.people_outlined,
-            label: 'Utilisateurs',
-            extended: _navCtrl.extended),
-        badgedSidebarItem(
-            icon: Icons.campaign_outlined,
-            label: 'Communication',
-            extended: _navCtrl.extended),
-        badgedSidebarItem(
-            icon: Icons.business_outlined,
-            label: 'Comptes Entreprises',
-            extended: _navCtrl.extended),
-        badgedSidebarItem(
-            icon: Icons.payment_outlined,
-            label: 'Types de paiement',
-            extended: _navCtrl.extended),
-        badgedSidebarItem(
-            icon: Icons.apartment_outlined,
-            label: 'Config Immeuble',
-            extended: _navCtrl.extended),
-        badgedSidebarItem(
-            icon: Icons.build_outlined,
-            label: 'Maintenance',
-            extended: _navCtrl.extended),
+      entries: [
+        NavEntry(
+          icon: Icons.dashboard_outlined,
+          label: 'Tableau de bord',
+          selected: _section == _Section.dashboard,
+          onTap: () => go(_Section.dashboard),
+        ),
+        NavEntry(
+          icon: Icons.people_outlined,
+          label: 'Utilisateurs',
+          selected: _section == _Section.utilisateurs,
+          onTap: () => go(_Section.utilisateurs),
+        ),
+        NavEntry(
+          icon: Icons.assignment_outlined,
+          label: 'États des lieux',
+          selected: _section == _Section.edls,
+          onTap: () => go(_Section.edls),
+        ),
+        NavEntry(
+          icon: Icons.campaign_outlined,
+          label: 'Communication',
+          selected: _section == _Section.communication,
+          onTap: () => go(_Section.communication),
+        ),
+        NavEntry(
+          icon: Icons.business_outlined,
+          label: 'Comptes Entreprises',
+          selected: _section == _Section.entreprises,
+          onTap: () => go(_Section.entreprises),
+        ),
+        NavEntry(
+          icon: Icons.payment_outlined,
+          label: 'Types de paiement',
+          selected: _section == _Section.paymentTypes,
+          onTap: () => go(_Section.paymentTypes),
+        ),
+        NavEntry(
+          icon: Icons.apartment_outlined,
+          label: 'Config Immeuble',
+          selected: _section == _Section.configImmeuble,
+          onTap: () => go(_Section.configImmeuble),
+          children: [
+            NavChild(
+              label: 'Types de meuble',
+              selected: _section == _Section.configImmeuble && _configSub == 0,
+              onTap: () => goSub(_Section.configImmeuble, () => _configSub = 0),
+            ),
+            NavChild(
+              label: 'Catégories',
+              selected: _section == _Section.configImmeuble && _configSub == 1,
+              onTap: () => goSub(_Section.configImmeuble, () => _configSub = 1),
+            ),
+            NavChild(
+              label: 'Charges locatives',
+              selected: _section == _Section.configImmeuble && _configSub == 2,
+              onTap: () => goSub(_Section.configImmeuble, () => _configSub = 2),
+            ),
+          ],
+        ),
+        NavEntry(
+          icon: Icons.build_outlined,
+          label: 'Maintenance',
+          selected: _section == _Section.maintenance,
+          onTap: () => go(_Section.maintenance),
+          children: [
+            NavChild(
+              label: 'Connexions',
+              selected: _section == _Section.maintenance && _maintSub == 0,
+              onTap: () => goSub(_Section.maintenance, () => _maintSub = 0),
+            ),
+            NavChild(
+              label: 'Services',
+              selected: _section == _Section.maintenance && _maintSub == 1,
+              onTap: () => goSub(_Section.maintenance, () => _maintSub = 1),
+            ),
+          ],
+        ),
       ],
       footerBuilder: (_, extended) => Column(
         mainAxisSize: MainAxisSize.min,
@@ -421,7 +455,9 @@ class _StatCard extends StatelessWidget {
 // Config Immeuble — Onglets Types de meuble + Catégories + Charges
 
 class _ConfigImmeublePage extends StatefulWidget {
-  const _ConfigImmeublePage();
+  final int initialTab;
+  final bool showTabBar;
+  const _ConfigImmeublePage({super.key, this.initialTab = 0, this.showTabBar = true});
 
   @override
   State<_ConfigImmeublePage> createState() => _ConfigImmeublePageState();
@@ -435,7 +471,8 @@ class _ConfigImmeublePageState extends State<_ConfigImmeublePage>
   @override
   void initState() {
     super.initState();
-    _tabCtrl = TabController(length: 3, vsync: this);
+    _tabCtrl = TabController(
+        length: 3, vsync: this, initialIndex: widget.initialTab);
   }
 
   @override
@@ -453,9 +490,10 @@ class _ConfigImmeublePageState extends State<_ConfigImmeublePage>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Les onglets disparaissent quand un formulaire est ouvert
-        if (!_isFormOpen)
-          TabBar(
+        // Les onglets disparaissent quand un formulaire est ouvert OU quand la
+        // navigation se fait par sous-menus (showTabBar=false).
+        if (widget.showTabBar && !_isFormOpen)
+          AppTabBar(
             controller: _tabCtrl,
             isScrollable: false,
             tabs: const [

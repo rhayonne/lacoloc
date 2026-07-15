@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:lacoloc_front/presentation/widgets/app_date_picker.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:form_builder_validators/form_builder_validators.dart';
 import 'package:intl/intl.dart';
 import 'package:lacoloc_front/data/datasources/auth_service.dart';
 import 'package:lacoloc_front/data/datasources/garants.dart';
+import 'package:lacoloc_front/data/datasources/etat_de_lieux.dart';
 import 'package:lacoloc_front/data/models/address_suggestion.dart';
 import 'package:lacoloc_front/data/models/garant.dart';
 import 'package:lacoloc_front/presentation/widgets/app_list_search_field.dart';
@@ -64,7 +66,15 @@ class _GarantsPageState extends State<GarantsPage> {
   }
 
   Future<void> _toggleActive(GarantModel g) async {
-    await GarantsDatasource.setActive(g.id, active: !g.isActive);
+    final nowActive = !g.isActive;
+    await GarantsDatasource.setActive(g.id, active: nowActive);
+    // Activation → rattache automatiquement ce garant aux baux en cours
+    // d'édition du locataire qui exigent un garant (sans en toucher un signé).
+    if (nowActive) {
+      try {
+        await EtatDesLieuxDatasource.autoLinkGarantsForLocataire(g.locataireId);
+      } catch (_) {}
+    }
     _reload();
   }
 
@@ -605,12 +615,11 @@ class _GarantFormWithBackState extends State<_GarantFormWithBack> {
 
   Future<void> _pickDateNaissance() async {
     final now = DateTime.now();
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _dateNaissance ?? DateTime(now.year - 30),
+    final picked = await showAppDatePicker(
+      context,
+      initial: _dateNaissance ?? DateTime(now.year - 30),
       firstDate: DateTime(1920),
       lastDate: DateTime(now.year - 16, now.month, now.day),
-      locale: const Locale('fr'),
     );
     if (picked != null && mounted) setState(() => _dateNaissance = picked);
   }
@@ -662,6 +671,15 @@ class _GarantFormWithBackState extends State<_GarantFormWithBack> {
         await GarantsDatasource.update(garant);
       } else {
         await GarantsDatasource.create(garant);
+      }
+
+      // Garant actif → insertion automatique dans les baux en cours d'édition
+      // du locataire qui exigent un garant (les baux signés ne sont pas touchés).
+      if (garant.isActive) {
+        try {
+          await EtatDesLieuxDatasource.autoLinkGarantsForLocataire(
+              widget.locataireId);
+        } catch (_) {}
       }
 
       if (!mounted) return;
@@ -1010,6 +1028,7 @@ class _GarantFormWithBackState extends State<_GarantFormWithBack> {
                           const SizedBox(width: AppSpacing.md),
                           FilledButton.icon(
                             onPressed: _isSubmitting ? null : _submit,
+                            style: AppTheme.saveButtonStyle,
                             icon: _isSubmitting
                                 ? const SizedBox(
                                     width: 16,

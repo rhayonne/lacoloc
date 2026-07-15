@@ -11,6 +11,7 @@ import 'package:lacoloc_front/data/permissions/permissions_service.dart';
 import 'package:lacoloc_front/presentation/widgets/permission_gate.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_radius.dart';
+import 'package:lacoloc_front/presentation/widgets/app_top_bar.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
 import 'package:lacoloc_front/theme/app_typography.dart';
 
@@ -80,34 +81,17 @@ class _MesChambresPageState extends State<MesChambresPage>
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.lg,
-                AppSpacing.lg,
-                AppSpacing.sm,
-                AppSpacing.md,
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Mes Chambres',
-                      style: AppTypography.headlineMd,
-                    ),
-                  ),
-                  PermissionGate(
-                    permission: Perm.chambresCreate,
-                    child: FilledButton.icon(
-                      onPressed: widget.onCreerChambre,
-                      icon: const Icon(Icons.add, size: 18),
-                      label: const Text('Ajouter'),
-                    ),
-                  ),
-                  const SizedBox(width: AppSpacing.sm),
-                ],
+            AppTopBar(
+              title: 'Mes Chambres',
+              trailing: PermissionGate(
+                permission: Perm.chambresCreate,
+                child: FilledButton.icon(
+                  onPressed: widget.onCreerChambre,
+                  icon: const Icon(Icons.add, size: 18),
+                  label: const Text('Ajouter'),
+                ),
               ),
             ),
-            const Divider(height: 1),
             Expanded(
               child: groups.isEmpty
                   ? Center(
@@ -150,24 +134,12 @@ class _ImmeubleGroup extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: AppSpacing.lg),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceContainerLowest,
-        borderRadius: AppRadius.borderLg,
-        border: Border.all(color: AppColors.outlineVariant),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.shadowTint.withValues(alpha: 0.06),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.lg),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // En-tête du groupe
+          // En-tête du groupe (nom de l'immeuble)
           Padding(
             padding: const EdgeInsets.fromLTRB(
               AppSpacing.lg,

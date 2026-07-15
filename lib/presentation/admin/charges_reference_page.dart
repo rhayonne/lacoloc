@@ -4,6 +4,7 @@ import 'package:form_builder_validators/form_builder_validators.dart';
 import 'package:lacoloc_front/data/datasources/charges_reference.dart';
 import 'package:lacoloc_front/data/models/charge_reference.dart';
 import 'package:lacoloc_front/presentation/widgets/app_list_search_field.dart';
+import 'package:lacoloc_front/presentation/widgets/app_top_bar.dart';
 import 'package:lacoloc_front/presentation/widgets/unsaved_changes_dialog.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
@@ -111,34 +112,24 @@ class _ChargesReferencePageState extends State<ChargesReferencePage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(
-              AppSpacing.xl, AppSpacing.xl, AppSpacing.xl, AppSpacing.md),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Charges locatives', style: AppTypography.headlineLg),
-                    const SizedBox(height: AppSpacing.xs),
-                    Text(
-                      'Gérez les types de charges disponibles pour tous les propriétaires.',
-                      style: AppTypography.bodyMd
-                          .copyWith(color: AppColors.onSurfaceVariant),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: AppSpacing.md),
-              FilledButton.icon(
-                onPressed: _openCreation,
-                icon: const Icon(Icons.add),
-                label: const Text('Nouvelle charge'),
-              ),
-            ],
+        AppTopBar(
+          title: 'Charges locatives',
+          trailing: FilledButton.icon(
+            onPressed: _openCreation,
+            icon: const Icon(Icons.add),
+            label: const Text('Nouvelle charge'),
           ),
         ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+              AppSpacing.xl, AppSpacing.md, AppSpacing.xl, 0),
+          child: Text(
+            'Gérez les types de charges disponibles pour tous les propriétaires.',
+            style: AppTypography.bodyMd
+                .copyWith(color: AppColors.onSurfaceVariant),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.md),
         AppListSearchField(
           hint: 'Rechercher…',
           onChanged: (q) => setState(() => _search = q),
@@ -270,6 +261,7 @@ class _ChargeRow extends StatelessWidget {
           IconButton(
               icon: const Icon(Icons.edit_outlined),
               tooltip: 'Modifier',
+              color: AppColors.primary,
               onPressed: onEdit),
           IconButton(
               icon: const Icon(Icons.delete_outline),
@@ -479,6 +471,7 @@ class _ChargeFormContentState extends State<_ChargeFormContent> {
                   children: [
                     FilledButton.icon(
                       onPressed: _saving ? null : _submit,
+                      style: AppTheme.saveButtonStyle,
                       icon: _saving
                           ? const SizedBox(
                               width: 16,

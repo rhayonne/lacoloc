@@ -13,6 +13,7 @@ import 'package:lacoloc_front/presentation/users/proprietaires/entreprise_config
 import 'package:lacoloc_front/presentation/finances/factures_list_page.dart';
 import 'package:lacoloc_front/presentation/finances/fournisseurs_page.dart';
 import 'package:lacoloc_front/presentation/finances/nouvelle_facture_page.dart';
+import 'package:lacoloc_front/presentation/nav/app_nav_sidebar.dart';
 import 'package:lacoloc_front/presentation/nav/app_sidebar.dart';
 import 'package:lacoloc_front/presentation/users/proprietaires/creer_chambre_page.dart';
 import 'package:lacoloc_front/presentation/users/proprietaires/agenda_page.dart';
@@ -30,28 +31,7 @@ import 'package:lacoloc_front/presentation/tour/guided_tours.dart';
 import 'package:lacoloc_front/presentation/widgets/unsaved_changes_dialog.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_theme.dart';
-import 'package:lacoloc_front/theme/app_radius.dart';
-import 'package:lacoloc_front/theme/app_spacing.dart';
 import 'package:lacoloc_front/theme/app_typography.dart';
-
-// ─── Índices do sidebar ──────────────────────────────────────────────────────
-// 0 = Vue générale
-// 1 = Gestion Immobilière (abas: Mes Propriétés / Mes Chambres)
-// 2 = Finances / Factures
-// 3 = Fournisseurs
-// 4 = État des lieux
-// 5 = Documentation
-// 6 = Interactions
-// 7 = Mon Profil
-const _idxVueGenerale = 0;
-const _idxGestion = 1;
-const _idxAgenda = 2;
-const _idxFinances = 3;
-const _idxFournisseurs = 4;
-const _idxEtatDesLieux = 5;
-const _idxDocumentation = 6;
-const _idxInteractions = 7;
-const _idxMonProfil = 8;
 
 enum _Section {
   vueGenerale,
@@ -64,30 +44,6 @@ enum _Section {
   interactions,
   monProfil,
 }
-
-int _sectionToIndex(_Section s) => switch (s) {
-  _Section.vueGenerale => _idxVueGenerale,
-  _Section.gestion => _idxGestion,
-  _Section.agenda => _idxAgenda,
-  _Section.finances => _idxFinances,
-  _Section.fournisseurs => _idxFournisseurs,
-  _Section.etatDesLieux => _idxEtatDesLieux,
-  _Section.documentation => _idxDocumentation,
-  _Section.interactions => _idxInteractions,
-  _Section.monProfil => _idxMonProfil,
-};
-
-_Section _indexToSection(int i) => switch (i) {
-  _idxVueGenerale => _Section.vueGenerale,
-  _idxAgenda => _Section.agenda,
-  _idxFinances => _Section.finances,
-  _idxFournisseurs => _Section.fournisseurs,
-  _idxEtatDesLieux => _Section.etatDesLieux,
-  _idxDocumentation => _Section.documentation,
-  _idxInteractions => _Section.interactions,
-  _idxMonProfil => _Section.monProfil,
-  _ => _Section.gestion,
-};
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -138,8 +94,11 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage>
   final _searchCtrl = TextEditingController();
   String _searchQuery = '';
 
-  // Evita loop ao sincronizar secção ↔ controlador
-  bool _syncingNav = false;
+  // Sous-onglet courant des sections à sous-menus (piloté par la sidebar).
+  int _finSub = 0;
+  int _docSub = 0;
+  int _interSub = 0;
+  int _edlSub = 0;
 
   // Perfil do usuário atual (para detectar admin de groupe → config entreprise).
   UsersClient? _profile;
@@ -180,11 +139,14 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage>
     _loadProfile();
     _refreshBadges();
     _gestionTabCtrl = TabController(length: 3, vsync: this);
+    // Rebuild la sidebar quand le sous-onglet de Gestion change (état sélectionné).
+    _gestionTabCtrl.addListener(() {
+      if (mounted) setState(() {});
+    });
     _navCtrl = SidebarXController(
-      selectedIndex: _idxVueGenerale,
+      selectedIndex: 0,
       extended: true,
     );
-    _navCtrl.addListener(_onNavChanged);
     _searchCtrl.addListener(
       () => setState(() => _searchQuery = _searchCtrl.text.trim()),
     );
@@ -201,7 +163,6 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage>
   @override
   void dispose() {
     _gestionTabCtrl.dispose();
-    _navCtrl.removeListener(_onNavChanged);
     _navCtrl.dispose();
     _searchCtrl.dispose();
     super.dispose();
@@ -216,27 +177,52 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage>
 
   // ── Navegação ──────────────────────────────────────────────────────────────
 
-  void _onNavChanged() {
-    if (_syncingNav || !mounted) return;
-    final newSection = _indexToSection(_navCtrl.selectedIndex);
-    // Le collapse/expand de la sidebar change le contrôleur sans changer de section.
-    if (newSection == _section) return;
-    // Si un formulaire est ouvert, on revient d'abord sur la section courante
-    // puis on demande confirmation avant de naviguer.
+  /// Navigation demandée depuis la sidebar (feuille ou en-tête de groupe).
+  /// Si un formulaire est ouvert, demande confirmation avant de quitter.
+  void _requestSection(_Section s) {
     if (_showImmeubleForm || _showChambreForm) {
-      _syncingNav = true;
-      _navCtrl.selectIndex(_sectionToIndex(_section));
-      _syncingNav = false;
-      _askLeaveForm(newSection);
+      _askLeaveFormRun(() => _changeSection(s));
       return;
     }
-    _changeSection(newSection);
+    _changeSection(s);
   }
 
-  Future<void> _askLeaveForm(_Section target) async {
+  /// Ouvre la section Gestion sur le sous-onglet [i] (Mes Propriétés / Mes
+  /// Chambres / Inventaire) — pilotée par le sous-menu de la sidebar.
+  void _openGestionTab(int i) {
+    void go() {
+      _changeSection(_Section.gestion);
+      _gestionTabCtrl.index = i;
+      if (mounted) setState(() {});
+    }
+
+    if (_showImmeubleForm || _showChambreForm) {
+      _askLeaveFormRun(go);
+    } else {
+      go();
+    }
+  }
+
+  /// Ouvre une section à sous-menus sur le sous-onglet demandé (Finances,
+  /// Documentation, Interactions), en appliquant [apply] (maj du sous-index).
+  void _openSub(_Section s, VoidCallback apply) {
+    void go() {
+      _changeSection(s);
+      apply();
+      if (mounted) setState(() {});
+    }
+
+    if (_showImmeubleForm || _showChambreForm) {
+      _askLeaveFormRun(go);
+    } else {
+      go();
+    }
+  }
+
+  Future<void> _askLeaveFormRun(VoidCallback run) async {
     final choice = await showUnsavedChangesDialog(context);
     if (!mounted) return;
-    if (choice != UnsavedChoice.cancel) _changeSection(target);
+    if (choice != UnsavedChoice.cancel) run();
   }
 
   void _changeSection(_Section s) {
@@ -255,12 +241,6 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage>
       _facturePrefilledImmeubleId = null;
       _searchCtrl.clear();
     });
-    final targetIdx = _sectionToIndex(s);
-    if (_navCtrl.selectedIndex != targetIdx) {
-      _syncingNav = true;
-      _navCtrl.selectIndex(targetIdx);
-      _syncingNav = false;
-    }
   }
 
   void _openImmeubleCreation({bool tour = false}) => setState(() {
@@ -552,6 +532,9 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage>
     if (_section == _Section.monProfil) return const MonProfilProprietairePage();
     if (_section == _Section.finances) {
       return FacturesListPage(
+        key: ValueKey('fin$_finSub'),
+        initialTab: _finSub,
+        showTabBar: false,
         onAjouter: _openFactureCreation,
         onOuvrir: _openFacture,
         onAjouterRecette: _openRecetteCreation,
@@ -559,111 +542,226 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage>
     }
     if (_section == _Section.agenda) return const AgendaPage();
     if (_section == _Section.fournisseurs) return const FournisseursPage();
-    if (_section == _Section.etatDesLieux) return const EtatDesLieuxPage();
-    if (_section == _Section.documentation) return const DocumentationPage();
-    if (_section == _Section.interactions) return const InteractionsPage();
+    if (_section == _Section.etatDesLieux) {
+      return EtatDesLieuxPage(
+        key: ValueKey('edl$_edlSub'),
+        initialTab: _edlSub,
+        showTabBar: false,
+      );
+    }
+    if (_section == _Section.documentation) {
+      return DocumentationPage(
+        key: ValueKey('doc$_docSub'),
+        initialTab: _docSub,
+        showTabBar: false,
+      );
+    }
+    if (_section == _Section.interactions) {
+      return InteractionsPage(
+        key: ValueKey('inter$_interSub'),
+        initialTab: _interSub,
+        showTabBar: false,
+      );
+    }
 
-    // Secção Gestion Immobilière — abas Mes Propriétés / Mes Chambres
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    // Section Gestion Immobilière — les onglets sont devenus des sous-menus de
+    // la sidebar (Mes Propriétés / Mes Chambres / Inventaire). On garde le
+    // TabController pour l'affichage (TabBarView sans TabBar).
+    return TabBarView(
+      controller: _gestionTabCtrl,
+      physics: const NeverScrollableScrollPhysics(),
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.lg,
-            AppSpacing.lg,
-            AppSpacing.lg,
-            0,
-          ),
-          child: TabBar(
-            controller: _gestionTabCtrl,
-            tabs: const [
-              Tab(text: 'Mes Propriétés'),
-              Tab(text: 'Mes Chambres'),
-              Tab(text: 'Inventaire'),
-            ],
-          ),
+        MesImmeublesPage(
+          onAjouter: _openImmeubleCreation,
+          onModifier: _openImmeubleEdition,
+          onVoirDetail: _openImmeubleDetail,
+          onTourGuide: _askImmeubleTour,
         ),
-        const Divider(height: 1),
-        Expanded(
-          child: TabBarView(
-            controller: _gestionTabCtrl,
-            physics: const NeverScrollableScrollPhysics(),
-            children: [
-              _GestionCard(
-                child: MesImmeublesPage(
-                  onAjouter: _openImmeubleCreation,
-                  onModifier: _openImmeubleEdition,
-                  onVoirDetail: _openImmeubleDetail,
-                  onTourGuide: _askImmeubleTour,
-                ),
-              ),
-              _GestionCard(
-                child: MesChambresPage(
-                  onModifier: _openChambreEdition,
-                  onCreerChambre: _openChambreCreation,
-                ),
-              ),
-              const _GestionCard(child: InventairePage()),
-            ],
-          ),
+        MesChambresPage(
+          onModifier: _openChambreEdition,
+          onCreerChambre: _openChambreCreation,
         ),
+        const InventairePage(),
       ],
     );
   }
 
   // ── Sidebar ────────────────────────────────────────────────────────────────
 
-  List<SidebarXItem> _buildNavItems(bool extended) {
+  List<NavEntry> _buildNavEntries(bool isNarrow) {
+    void go(_Section s) {
+      if (isNarrow) Navigator.of(context).pop();
+      _requestSection(s);
+    }
+
+    void goGestionTab(int i) {
+      if (isNarrow) Navigator.of(context).pop();
+      _openGestionTab(i);
+    }
+
+    final inGestion = _section == _Section.gestion &&
+        !_showImmeubleDetail &&
+        !_showImmeubleForm &&
+        !_showChambreForm;
+
+    void goSub(_Section s, void Function() apply) {
+      if (isNarrow) Navigator.of(context).pop();
+      _openSub(s, apply);
+    }
+
     return [
-      badgedSidebarItem(
-          icon: Icons.dashboard_outlined,
-          label: 'Vue générale',
-          extended: extended),
-      badgedSidebarItem(
-          icon: Icons.home_work_outlined,
-          label: 'Gestion Immobilière',
-          extended: extended),
-      badgedSidebarItem(
-          icon: Icons.calendar_month_outlined,
-          label: 'Agenda',
-          extended: extended),
-      badgedSidebarItem(
-          icon: Icons.receipt_long_outlined,
-          label: 'Finances',
-          extended: extended),
-      badgedSidebarItem(
-          icon: Icons.store_outlined,
-          label: 'Fournisseurs',
-          extended: extended),
-      badgedSidebarItem(
-          icon: Icons.assignment_outlined,
-          label: 'État des lieux',
-          extended: extended),
-      badgedSidebarItem(
-          icon: Icons.menu_book_outlined,
-          label: 'Documentation',
-          extended: extended),
-      badgedSidebarItem(
+      NavEntry(
+        icon: Icons.dashboard_outlined,
+        label: 'Vue générale',
+        selected: _section == _Section.vueGenerale,
+        onTap: () => go(_Section.vueGenerale),
+      ),
+      NavEntry(
+        icon: Icons.home_work_outlined,
+        label: 'Gestion Immobilière',
+        selected: _section == _Section.gestion,
+        onTap: () => go(_Section.gestion),
+        children: [
+          NavChild(
+            label: 'Mes Propriétés',
+            selected: inGestion && _gestionTabCtrl.index == 0,
+            onTap: () => goGestionTab(0),
+          ),
+          NavChild(
+            label: 'Mes Chambres',
+            selected: inGestion && _gestionTabCtrl.index == 1,
+            onTap: () => goGestionTab(1),
+          ),
+          NavChild(
+            label: 'Inventaire',
+            selected: inGestion && _gestionTabCtrl.index == 2,
+            onTap: () => goGestionTab(2),
+          ),
+        ],
+      ),
+      NavEntry(
+        icon: Icons.calendar_month_outlined,
+        label: 'Agenda',
+        selected: _section == _Section.agenda,
+        onTap: () => go(_Section.agenda),
+      ),
+      NavEntry(
+        icon: Icons.receipt_long_outlined,
+        label: 'Finances',
+        selected: _section == _Section.finances,
+        onTap: () => go(_Section.finances),
+        children: [
+          NavChild(
+            label: 'Vue générale',
+            selected: _section == _Section.finances && _finSub == 0,
+            onTap: () => goSub(_Section.finances, () => _finSub = 0),
+          ),
+          NavChild(
+            label: 'Recettes',
+            selected: _section == _Section.finances && _finSub == 1,
+            onTap: () => goSub(_Section.finances, () => _finSub = 1),
+          ),
+          NavChild(
+            label: 'Dépenses / Factures',
+            selected: _section == _Section.finances && _finSub == 2,
+            onTap: () => goSub(_Section.finances, () => _finSub = 2),
+          ),
+        ],
+      ),
+      NavEntry(
+        icon: Icons.store_outlined,
+        label: 'Fournisseurs',
+        selected: _section == _Section.fournisseurs,
+        onTap: () => go(_Section.fournisseurs),
+      ),
+      NavEntry(
+        icon: Icons.assignment_outlined,
+        label: 'État des lieux',
+        selected: _section == _Section.etatDesLieux,
+        onTap: () => go(_Section.etatDesLieux),
+        children: [
+          NavChild(
+            label: 'Vision générale',
+            selected: _section == _Section.etatDesLieux && _edlSub == 0,
+            onTap: () => goSub(_Section.etatDesLieux, () => _edlSub = 0),
+          ),
+          NavChild(
+            label: 'Entrée',
+            selected: _section == _Section.etatDesLieux && _edlSub == 1,
+            onTap: () => goSub(_Section.etatDesLieux, () => _edlSub = 1),
+          ),
+          NavChild(
+            label: 'Sortie',
+            selected: _section == _Section.etatDesLieux && _edlSub == 2,
+            onTap: () => goSub(_Section.etatDesLieux, () => _edlSub = 2),
+          ),
+          NavChild(
+            label: 'Vétusté',
+            selected: _section == _Section.etatDesLieux && _edlSub == 3,
+            onTap: () => goSub(_Section.etatDesLieux, () => _edlSub = 3),
+          ),
+        ],
+      ),
+      NavEntry(
+        icon: Icons.menu_book_outlined,
+        label: 'Documentation',
+        selected: _section == _Section.documentation,
+        onTap: () => go(_Section.documentation),
+        children: [
+          NavChild(
+            label: 'Vue générale',
+            selected: _section == _Section.documentation && _docSub == 0,
+            onTap: () => goSub(_Section.documentation, () => _docSub = 0),
+          ),
+          NavChild(
+            label: 'Baux',
+            selected: _section == _Section.documentation && _docSub == 1,
+            onTap: () => goSub(_Section.documentation, () => _docSub = 1),
+          ),
+          NavChild(
+            label: 'Ma signature',
+            selected: _section == _Section.documentation && _docSub == 2,
+            onTap: () => goSub(_Section.documentation, () => _docSub = 2),
+          ),
+        ],
+      ),
+      NavEntry(
         icon: Icons.people_alt_outlined,
         label: 'Interactions',
         count: _interactionsBadge,
-        extended: extended,
+        selected: _section == _Section.interactions,
+        onTap: () => go(_Section.interactions),
+        children: [
+          NavChild(
+            label: 'Demandes de contact',
+            selected: _section == _Section.interactions && _interSub == 0,
+            onTap: () => goSub(_Section.interactions, () => _interSub = 0),
+          ),
+          NavChild(
+            label: 'Notifications',
+            selected: _section == _Section.interactions && _interSub == 1,
+            count: _interactionsBadge,
+            onTap: () => goSub(_Section.interactions, () => _interSub = 1),
+          ),
+        ],
       ),
-      badgedSidebarItem(
-          icon: Icons.person_outline,
-          label: 'Mon Profil',
-          extended: extended),
+      NavEntry(
+        icon: Icons.person_outline,
+        label: 'Mon Profil',
+        selected: _section == _Section.monProfil,
+        onTap: () => go(_Section.monProfil),
+      ),
     ];
   }
 
   Widget _buildSidebar({required bool isNarrow}) {
-    return AppSidebar(
+    return AppNavSidebar(
       controller: _navCtrl,
       showToggleButton: !isNarrow,
       userEmail: AuthService.currentUser?.email,
       userTypeLabel: _profile?.typeDisplayLabel,
       searchController: _searchCtrl,
-      items: _buildNavItems(_navCtrl.extended),
+      entries: _buildNavEntries(isNarrow),
       footerBuilder: (ctx, extended) => Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -742,38 +840,6 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage>
           sidebar,
           Expanded(child: content),
         ],
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _GestionCard extends StatelessWidget {
-  final Widget child;
-  const _GestionCard({required this.child});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      child: Container(
-        decoration: BoxDecoration(
-          color: AppColors.surfaceContainerLowest,
-          borderRadius: AppRadius.borderLg,
-          border: Border.all(color: AppColors.outlineVariant),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.shadowTint.withValues(alpha: 0.06),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: AppRadius.borderLg,
-          child: child,
-        ),
       ),
     );
   }

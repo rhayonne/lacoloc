@@ -847,6 +847,7 @@ class _ChoixImmeubleChambreDialogState
             onPressed: () => Navigator.pop(context),
             child: const Text('Annuler')),
         FilledButton(
+          style: AppTheme.saveButtonStyle,
           onPressed: _immeuble == null
               ? null
               : () => Navigator.pop(context,

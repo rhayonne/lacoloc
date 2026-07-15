@@ -125,11 +125,10 @@ Future<EtatDesLieuxModel?> ensureBailSignature(
   required String role,
 }) async {
   final bool isLocataire = role == 'locataire';
-  final String? existing =
-      isLocataire ? edl.locataireSignatureUrl : edl.proprietaireSignatureUrl;
 
-  // 1) Déjà signé par ce rôle → rien à faire.
-  if (existing != null) return edl;
+  // 1) Le BAIL porte-t-il déjà la signature de ce rôle ? (colonnes bail_,
+  //    distinctes de la signature de l'EDL) → rien à faire.
+  if (edl.bailSignedBy(role)) return edl;
 
   // 2) Demander à l'utilisateur s'il veut signer.
   final choice = await showDialog<_SignChoice>(

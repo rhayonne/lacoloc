@@ -15,11 +15,15 @@ import 'package:lacoloc_front/presentation/chambres/chambre_detail_page.dart';
 import 'package:lacoloc_front/theme/app_breakpoints.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_radius.dart';
+import 'package:lacoloc_front/presentation/widgets/app_top_bar.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
 import 'package:lacoloc_front/theme/app_typography.dart';
+import 'package:lacoloc_front/theme/app_tab_bar.dart';
 
 class InteractionsPage extends StatefulWidget {
-  const InteractionsPage({super.key});
+  final int initialTab;
+  final bool showTabBar;
+  const InteractionsPage({super.key, this.initialTab = 0, this.showTabBar = true});
 
   @override
   State<InteractionsPage> createState() => _InteractionsPageState();
@@ -32,7 +36,8 @@ class _InteractionsPageState extends State<InteractionsPage>
   @override
   void initState() {
     super.initState();
-    _tabCtrl = TabController(length: 2, vsync: this);
+    _tabCtrl = TabController(
+        length: 2, vsync: this, initialIndex: widget.initialTab);
   }
 
   @override
@@ -43,41 +48,36 @@ class _InteractionsPageState extends State<InteractionsPage>
 
   @override
   Widget build(BuildContext context) {
+    // Titre de la barre : nom du sous-menu quand la navigation est pilotée par
+    // la sidebar ; sinon titre générique de la section.
+    const subLabels = ['Demandes de contact', 'Notifications'];
+    final barTitle = widget.showTabBar
+        ? 'Interactions'
+        : subLabels[widget.initialTab.clamp(0, 1)];
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.lg,
-            AppSpacing.lg,
-            AppSpacing.lg,
-            0,
+        AppTopBar(title: barTitle),
+        if (widget.showTabBar) ...[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.lg,
+              AppSpacing.md,
+              AppSpacing.lg,
+              AppSpacing.sm,
+            ),
+            child: AppTabBar(
+              controller: _tabCtrl,
+              isScrollable: true,
+              tabs: const [
+                Tab(text: 'Demandes de contact'),
+                Tab(text: 'Notifications'),
+              ],
+            ),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Interactions', style: AppTypography.headlineMd),
-              const SizedBox(height: AppSpacing.xs),
-              Text(
-                'Suivi des échanges avec vos locataires.',
-                style: AppTypography.bodyMd.copyWith(
-                  color: AppColors.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(height: AppSpacing.lg),
-              TabBar(
-                controller: _tabCtrl,
-                isScrollable: true,
-                tabAlignment: TabAlignment.start,
-                tabs: const [
-                  Tab(text: 'Demandes de contact'),
-                  Tab(text: 'Notifications'),
-                ],
-              ),
-            ],
-          ),
-        ),
-        const Divider(height: 1),
+          const Divider(height: 1),
+        ],
         Expanded(
           child: TabBarView(
             controller: _tabCtrl,

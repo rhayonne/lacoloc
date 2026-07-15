@@ -2,6 +2,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:lacoloc_front/data/datasources/chambre_charges.dart';
 import 'package:lacoloc_front/data/datasources/chambres.dart';
 import 'package:lacoloc_front/data/datasources/edl_details.dart';
+import 'package:lacoloc_front/data/datasources/etat_de_lieux.dart';
 import 'package:lacoloc_front/data/datasources/immeuble_charges.dart';
 import 'package:lacoloc_front/data/datasources/immeubles.dart';
 import 'package:lacoloc_front/data/datasources/pieces.dart';
@@ -203,6 +204,18 @@ class BailPdfData {
     EtatDesLieuxModel edl, {
     List<EdlPreneur>? preneurDetails,
   }) async {
+    // 1) Garants explicitement rattachés à l'EDL (onglet « Garant »).
+    try {
+      final linkedIds =
+          await EtatDesLieuxDatasource.listGarantIdsForEdl(edl.id);
+      if (linkedIds.isNotEmpty) {
+        return await GarantsDatasource.byIds(linkedIds);
+      }
+    } catch (_) {
+      // best-effort → fallback ci-dessous
+    }
+    // 2) Fallback (EDL sans rattachement explicite) : garants actifs du/des
+    //    locataire(s), comportement historique.
     final preneurs =
         preneurDetails ?? await EdlDetailsDatasource.listPreneurs(edl.id);
     final ids = <String>{
@@ -251,8 +264,23 @@ class BailPdfData {
           )
         : BailUserInfo(id: edl.proprietaireId);
 
-    // Preneurs
-    final preneurDetails = await EdlDetailsDatasource.listPreneurs(edl.id);
+    // Preneurs.
+    // Pour un bail individuel, l'EDL passé est le privatif : ses preneurs sont
+    // portés par le collectif (le privatif n'a qu'un `locataire_id`). On lit
+    // donc les preneurs du collectif (filtrés au locataire de CE privatif) et,
+    // à défaut, on retombe sur `edl.locataireId`.
+    var preneurDetails = await EdlDetailsDatasource.listPreneurs(edl.id);
+    if (edl.typeBail == 'individuel' && edl.edlCollectifId != null) {
+      final collPreneurs =
+          await EdlDetailsDatasource.listPreneurs(edl.edlCollectifId!);
+      final scoped = edl.locataireId != null
+          ? collPreneurs
+              .where((p) => p.locataireId == edl.locataireId)
+              .toList()
+          : collPreneurs;
+      if (scoped.isNotEmpty) preneurDetails = scoped;
+    }
+
     final List<BailUserInfo> preneurs = [];
     for (final p in preneurDetails) {
       if (p.locataireId != null) {
@@ -271,6 +299,26 @@ class BailPdfData {
             : BailUserInfo(id: p.locataireId!, fullName: p.nom));
       } else if (p.nom?.isNotEmpty == true) {
         preneurs.add(BailUserInfo(id: '', fullName: p.nom, address: p.adresse));
+      }
+    }
+
+    // Dernier filet de sécurité : aucun preneur mais l'EDL référence un
+    // locataire (privatif fraîchement créé, preneur pas encore propagé).
+    if (preneurs.isEmpty && edl.locataireId != null) {
+      final row = await db
+          .from('Users_Client')
+          .select('id, full_name, email, phone')
+          .eq('id', edl.locataireId!)
+          .maybeSingle();
+      if (row != null) {
+        preneurs.add(BailUserInfo(
+          id: edl.locataireId!,
+          fullName: row['full_name'] as String? ?? edl.locataireNom,
+          email: row['email'] as String?,
+          phone: row['phone'] as String?,
+        ));
+      } else if (edl.locataireNom?.isNotEmpty == true) {
+        preneurs.add(BailUserInfo(id: edl.locataireId!, fullName: edl.locataireNom));
       }
     }
 

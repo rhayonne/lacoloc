@@ -43,6 +43,28 @@ SidebarXItem badgedSidebarItem({
   );
 }
 
+/// En-tête de sidebar réutilisable (logo + utilisateur + manuel + recherche).
+/// Exposé pour la sidebar personnalisée à sous-menus ([AppNavSidebar]).
+Widget sidebarHeaderWidget({
+  required bool extended,
+  String? email,
+  String? typeLabel,
+  TextEditingController? searchCtrl,
+}) =>
+    _SidebarHeader(
+      extended: extended,
+      email: email,
+      typeLabel: typeLabel,
+      searchCtrl: searchCtrl,
+    );
+
+/// Bouton de repli/agrandissement réutilisable (même visuel que la sidebar).
+Widget sidebarCollapseButton({
+  required SidebarXController controller,
+  required bool extended,
+}) =>
+    _SidebarCollapseButton(controller: controller, extended: extended);
+
 /// Sidebar compartilhada do app, baseada no pacote sidebarx.
 ///
 /// Responsividade:

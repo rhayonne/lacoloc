@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lacoloc_front/presentation/widgets/app_date_picker.dart';
 import 'package:lacoloc_front/data/datasources/inventaire.dart';
 import 'package:lacoloc_front/data/models/immeuble_draft.dart';
 import 'package:lacoloc_front/data/models/inventaire.dart';
@@ -198,12 +199,11 @@ class _ElectromenagerFormState extends State<_ElectromenagerForm> {
 
                 InkWell(
                   onTap: () async {
-                    final d = await showDatePicker(
-                      context: context,
-                      initialDate: _dateAcquisition ?? DateTime.now(),
+                    final d = await showAppDatePicker(
+                      context,
+                      initial: _dateAcquisition ?? DateTime.now(),
                       firstDate: DateTime(2000),
                       lastDate: DateTime.now(),
-                      locale: const Locale('fr', 'FR'),
                     );
                     if (d != null) setState(() => _dateAcquisition = d);
                   },

@@ -73,7 +73,6 @@ class RecettesDatasource {
 
     if (row == null) return;
     if (row['type_edl'] != 'entree') return;
-    if (row['montant'] == null) return;
     if (row['date_debut_bail'] == null) return;
 
     // Idempotence : ne pas recréer si déjà générées.
@@ -85,7 +84,15 @@ class RecettesDatasource {
     if ((existing as List).isNotEmpty) return;
 
     final startDate = DateTime.parse(row['date_debut_bail'] as String);
-    final montant = (row['montant'] as num).toDouble();
+    // Montant de l'échéance = loyer mensuel. La colonne `montant` de l'EDL
+    // n'est en pratique pas renseignée par les pages de saisie → on retombe
+    // sur le loyer de la chambre (bail individuel) ou de l'immeuble (location).
+    double? montant = (row['montant'] as num?)?.toDouble();
+    montant ??= await _loyerMensuel(
+      chambreId: row['chambre_id'] as int?,
+      immeubleId: row['immeuble_id'] as int?,
+    );
+    if (montant == null || montant <= 0) return;
 
     // Calcule la durée en mois.
     int? dureeMois;
@@ -143,6 +150,33 @@ class RecettesDatasource {
 
     await _db.from(_table).insert(rows);
     _invalidate();
+  }
+
+  /// Loyer mensuel de la chambre (bail individuel) ou, à défaut, de l'immeuble
+  /// (bail location). Utilisé pour générer les échéances quand la colonne
+  /// `montant` de l'EDL n'est pas renseignée.
+  static Future<double?> _loyerMensuel({
+    int? chambreId,
+    int? immeubleId,
+  }) async {
+    if (chambreId != null) {
+      final c = await _db
+          .from('Chambres')
+          .select('prix_loyer')
+          .eq('id', chambreId)
+          .maybeSingle();
+      final v = (c?['prix_loyer'] as num?)?.toDouble();
+      if (v != null && v > 0) return v;
+    }
+    if (immeubleId != null) {
+      final i = await _db
+          .from('Immeubles')
+          .select('prix_loyer')
+          .eq('id', immeubleId)
+          .maybeSingle();
+      return (i?['prix_loyer'] as num?)?.toDouble();
+    }
+    return null;
   }
 
   /// Nombre de mois de dépôt de garantie de la chambre (sinon de l'immeuble).

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lacoloc_front/presentation/widgets/app_date_picker.dart';
 import 'package:flutter/services.dart' show FilteringTextInputFormatter;
 import 'package:lacoloc_front/data/datasources/auth_service.dart';
 import 'package:lacoloc_front/data/datasources/chambres.dart';
@@ -19,6 +20,7 @@ import 'package:lacoloc_front/presentation/widgets/photo_picker_field.dart';
 import 'package:lacoloc_front/presentation/widgets/unsaved_changes_dialog.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_radius.dart';
+import 'package:lacoloc_front/presentation/widgets/app_top_bar.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
 import 'package:lacoloc_front/theme/app_theme.dart';
 import 'package:lacoloc_front/theme/app_typography.dart';
@@ -121,16 +123,11 @@ class _InventairePageState extends State<InventairePage> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // En-tête
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.lg, AppSpacing.md, AppSpacing.md, 0,
-              ),
-              child: Row(
+            AppTopBar(
+              title: 'Inventaire',
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Expanded(
-                    child: Text('Inventaire', style: AppTypography.titleLg),
-                  ),
                   PermissionGate(
                     permission: Perm.inventaireCreate,
                     child: FilledButton.icon(
@@ -151,8 +148,6 @@ class _InventairePageState extends State<InventairePage> {
                 ],
               ),
             ),
-            const SizedBox(height: AppSpacing.md),
-            const Divider(height: 1),
             Expanded(
               child: data.items.isEmpty
                   ? Center(
@@ -1550,12 +1545,11 @@ class _InventaireFormState extends State<_InventaireForm> {
                         _label('DATE D\'ACQUISITION'),
                         InkWell(
                           onTap: () async {
-                            final d = await showDatePicker(
-                              context: context,
-                              initialDate: _dateAcquisition ?? DateTime.now(),
+                            final d = await showAppDatePicker(
+                              context,
+                              initial: _dateAcquisition ?? DateTime.now(),
                               firstDate: DateTime(2000),
                               lastDate: DateTime.now(),
-                              locale: const Locale('fr', 'FR'),
                             );
                             if (d != null) {
                               setState(() {

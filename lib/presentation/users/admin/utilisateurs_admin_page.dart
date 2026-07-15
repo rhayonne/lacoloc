@@ -8,8 +8,11 @@ import 'package:lacoloc_front/data/models/user_group.dart';
 import 'package:lacoloc_front/data/models/users_client.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_radius.dart';
+import 'package:lacoloc_front/presentation/widgets/app_top_bar.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
 import 'package:lacoloc_front/theme/app_typography.dart';
+import 'package:lacoloc_front/theme/app_theme.dart';
+import 'package:lacoloc_front/theme/app_tab_bar.dart';
 import 'package:lacoloc_front/presentation/widgets/app_list_search_field.dart';
 import 'package:lacoloc_front/utils/email_field.dart';
 import 'package:lacoloc_front/utils/phone_field.dart';
@@ -94,58 +97,59 @@ class _UtilisateursAdminPageState extends State<UtilisateursAdminPage>
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text('Utilisateurs & Groupes',
-                    style: AppTypography.headlineMd),
-              ),
-              FilledButton.icon(
-                onPressed: _showCreateDialog,
-                icon: const Icon(Icons.person_add_outlined, size: 18),
-                label: const Text('Nouvel utilisateur'),
-              ),
-            ],
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        AppTopBar(
+          title: 'Utilisateurs & Groupes',
+          trailing: FilledButton.icon(
+            onPressed: _showCreateDialog,
+            icon: const Icon(Icons.person_add_outlined, size: 18),
+            label: const Text('Nouvel utilisateur'),
           ),
-          const SizedBox(height: AppSpacing.md),
-          TabBar(
-            controller: _tab,
-            isScrollable: true,
-            tabAlignment: TabAlignment.start,
-            tabs: const [
-              Tab(text: 'Utilisateurs'),
-              Tab(text: 'Groupes'),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.md),
-          Expanded(
-            child: FutureBuilder<_AdminData>(
-              future: _future,
-              builder: (context, snap) {
-                if (snap.connectionState != ConnectionState.done) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (snap.hasError) {
-                  return Center(child: Text('Erreur : ${snap.error}'));
-                }
-                final data = snap.data!;
-                return TabBarView(
+        ),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                AppTabBar(
                   controller: _tab,
-                  children: [
-                    _UsersTab(data: data, onChanged: _reload),
-                    _GroupsTab(data: data, onChanged: _reload),
+                  isScrollable: true,
+                  tabs: const [
+                    Tab(text: 'Utilisateurs'),
+                    Tab(text: 'Groupes'),
                   ],
-                );
-              },
+                ),
+                const SizedBox(height: AppSpacing.md),
+                Expanded(
+                  child: FutureBuilder<_AdminData>(
+                    future: _future,
+                    builder: (context, snap) {
+                      if (snap.connectionState != ConnectionState.done) {
+                        return const Center(
+                            child: CircularProgressIndicator());
+                      }
+                      if (snap.hasError) {
+                        return Center(child: Text('Erreur : ${snap.error}'));
+                      }
+                      final data = snap.data!;
+                      return TabBarView(
+                        controller: _tab,
+                        children: [
+                          _UsersTab(data: data, onChanged: _reload),
+                          _GroupsTab(data: data, onChanged: _reload),
+                        ],
+                      );
+                    },
+                  ),
+                ),
+              ],
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
@@ -629,6 +633,7 @@ class _UserCardState extends State<_UserCard> {
             alignment: Alignment.centerRight,
             child: FilledButton.icon(
               onPressed: _saving ? null : _save,
+              style: AppTheme.saveButtonStyle,
               icon: _saving
                   ? const SizedBox(
                       width: 16,
@@ -1017,6 +1022,7 @@ class _CreateUserDialogState extends State<_CreateUserDialog> {
           child: const Text('Annuler'),
         ),
         FilledButton(
+          style: AppTheme.saveButtonStyle,
           onPressed: _loading ? null : _submit,
           child: _loading
               ? const SizedBox(

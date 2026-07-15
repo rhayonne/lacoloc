@@ -3,6 +3,8 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:lacoloc_front/data/datasources/storage_service.dart';
+import 'package:lacoloc_front/data/models/edl_readiness.dart';
+import 'package:lacoloc_front/data/models/etat_de_lieux.dart';
 import 'package:lacoloc_front/data/models/vetuste.dart';
 import 'bail_pdf_data.dart';
 import 'signature_proof.dart';
@@ -27,8 +29,8 @@ class BailPdfBuilder {
 
     // Images de signature (best-effort : null si indisponible).
     final sigResults = await Future.wait([
-      _fetchImageBytes(data.edl.proprietaireSignatureUrl),
-      _fetchImageBytes(data.edl.locataireSignatureUrl),
+      _fetchImageBytes(data.edl.bailProprietaireSignatureUrl),
+      _fetchImageBytes(data.edl.bailLocataireSignatureUrl),
     ]);
     final bailleurSig = sigResults[0];
     final preneurSig = sigResults[1];
@@ -89,6 +91,34 @@ class BailPdfBuilder {
 
     String fmt(double? v) => v != null ? '${v.toStringAsFixed(2)} €' : '—';
     String fmtI(int v) => v.toString();
+
+    // Mode de règlement de la caution (+ détails éventuels).
+    String cautionText(EtatDesLieuxModel e) {
+      final m = CautionMode.fromRaw(e.cautionMode);
+      if (m == null) return '';
+      final det = e.cautionDetails ?? const {};
+      final extras = <String>[];
+      String? s(String k) {
+        final v = det[k];
+        return (v is String && v.trim().isNotEmpty) ? v.trim() : null;
+      }
+      switch (m) {
+        case CautionMode.cheque:
+          if (s('banque') != null) extras.add('banque : ${s('banque')}');
+          if (s('numero') != null) extras.add('n° ${s('numero')}');
+          if (s('titulaire') != null) extras.add('titulaire : ${s('titulaire')}');
+          break;
+        case CautionMode.virement:
+          if (s('iban') != null) extras.add('IBAN ${s('iban')}');
+          break;
+        case CautionMode.weroPaypal:
+          if (s('reference') != null) extras.add('réf. ${s('reference')}');
+          break;
+        case CautionMode.especes:
+          break;
+      }
+      return extras.isEmpty ? m.label : '${m.label} (${extras.join(', ')})';
+    }
 
     // ── Données ───────────────────────────────────────────────────────────────
 
@@ -247,6 +277,8 @@ class BailPdfBuilder {
                 'Il sera restitué dans un délai maximal de 2 mois suivant la remise des clés, '
                 'déduction faite des sommes restant dues au bailleur.',
               ),
+              if (edl.cautionMode != null)
+                row('Mode de règlement de la caution', cautionText(edl)),
             ]),
             if (d.garants.isNotEmpty)
               article('4.5', 'Cautionnement (garant)', [
@@ -258,11 +290,11 @@ class BailPdfBuilder {
                 pw.SizedBox(height: 4),
                 for (final g in d.garants) ...[
                   pw.SizedBox(height: 4),
-                  pw.Text(
+                  row(
+                    'Garant',
                     g.typeGarant == 'morale'
                         ? '${g.displayName} — ${g.typeGarantLabel}'
                         : g.displayName,
-                    style: bold,
                   ),
                   row('Type de caution', g.typeCautionLabel),
                   if (g.typeGarant == 'morale') ...[
@@ -330,14 +362,21 @@ class BailPdfBuilder {
           section('VI. Résiliation du bail', [
             article('6.1', 'Congé donné par le locataire', [
               para(
-                d.isMeuble
-                    ? 'Le locataire peut résilier le bail à tout moment, avec un préavis d\'un (1) mois, '
-                        'notifié par lettre recommandée avec avis de réception ou signification d\'huissier.'
-                    : 'Le locataire peut résilier le bail à tout moment, avec un préavis de trois (3) mois, '
-                        'notifié par lettre recommandée avec avis de réception ou signification d\'huissier. '
-                        'Le délai peut être réduit à un (1) mois dans les zones tendues ou pour motif légitime.',
+                'Le locataire peut résilier le bail à tout moment, avec un '
+                'préavis de ${edl.preavisMoisEffectif} mois, notifié par lettre '
+                'recommandée avec avis de réception ou signification d\'huissier.'
+                '${d.isMeuble ? '' : ' Le délai peut être réduit à un (1) mois dans les zones tendues ou pour motif légitime.'}',
               ),
             ]),
+            if (edl.bailResilie)
+              article('6.1.1', 'Résiliation en cours', [
+                row('Congé notifié le',
+                    edl.bailCongeDate != null ? _dateStr(edl.bailCongeDate!) : '—'),
+                row('Fin effective du bail',
+                    edl.bailFinEffective != null ? _dateStr(edl.bailFinEffective!) : '—'),
+                if (edl.bailResilieMotif != null && edl.bailResilieMotif!.isNotEmpty)
+                  row('Motif', edl.bailResilieMotif!),
+              ]),
             article('6.2', 'Congé donné par le bailleur', [
               para(
                 'Le bailleur peut donner congé au locataire à l\'expiration du bail, '
@@ -525,7 +564,7 @@ class BailPdfBuilder {
                   role: 'Le bailleur',
                   name: d.bailleur.displayName,
                   sigBytes: bailleurSig,
-                  signedAt: d.edl.proprietaireSignedAtFormatted,
+                  signedAt: d.edl.bailProprietaireSignedAtFormatted,
                   bold: bold,
                   base: base,
                 ),
@@ -535,7 +574,7 @@ class BailPdfBuilder {
                       : 'Le(s) locataire(s)',
                   name: d.preneurs.isNotEmpty ? d.preneurs.first.displayName : '',
                   sigBytes: preneurSig,
-                  signedAt: d.edl.locataireSignedAtFormatted,
+                  signedAt: d.edl.bailLocataireSignedAtFormatted,
                   bold: bold,
                   base: base,
                 ),
@@ -544,7 +583,7 @@ class BailPdfBuilder {
             pw.SizedBox(height: 12),
             pw.Text(
                 'Fait à ${imm.city ?? '___________'}, le '
-                '${d.edl.proprietaireSignedAtFormatted ?? '_______________'}',
+                '${d.edl.bailProprietaireSignedAtFormatted ?? '_______________'}',
                 style: base),
             pw.SizedBox(height: 4),
             pw.Text('En deux exemplaires originaux.', style: italic),
@@ -557,7 +596,7 @@ class BailPdfBuilder {
                   role: 'Le bailleur',
                   name: d.bailleur.displayName,
                   email: d.bailleur.email,
-                  signedAt: d.edl.proprietaireSignedAtFormatted,
+                  signedAt: d.edl.bailProprietaireSignedAtFormatted,
                 ),
                 ProofSigner(
                   role: d.isColocation ? 'Le colocataire' : 'Le locataire',
@@ -565,7 +604,7 @@ class BailPdfBuilder {
                       ? d.preneurs.first.displayName
                       : null,
                   email: d.preneurs.isNotEmpty ? d.preneurs.first.email : null,
-                  signedAt: d.edl.locataireSignedAtFormatted,
+                  signedAt: d.edl.bailLocataireSignedAtFormatted,
                 ),
               ],
               fingerprint: integrityFingerprint([
@@ -579,10 +618,10 @@ class BailPdfBuilder {
                 charges,
                 depot,
                 dateEntree,
-                d.edl.proprietaireSignatureUrl,
-                d.edl.locataireSignatureUrl,
-                d.edl.proprietaireSignedAtFormatted,
-                d.edl.locataireSignedAtFormatted,
+                d.edl.bailProprietaireSignatureUrl,
+                d.edl.bailLocataireSignatureUrl,
+                d.edl.bailProprietaireSignedAtFormatted,
+                d.edl.bailLocataireSignedAtFormatted,
               ]),
             ),
           ]),

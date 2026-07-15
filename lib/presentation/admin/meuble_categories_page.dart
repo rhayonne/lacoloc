@@ -3,6 +3,7 @@ import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:form_builder_validators/form_builder_validators.dart';
 import 'package:lacoloc_front/data/datasources/meuble_categories.dart';
 import 'package:lacoloc_front/presentation/widgets/app_list_search_field.dart';
+import 'package:lacoloc_front/presentation/widgets/app_top_bar.dart';
 import 'package:lacoloc_front/presentation/widgets/unsaved_changes_dialog.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
@@ -102,34 +103,24 @@ class _MeubleCategoriesPageState extends State<MeubleCategoriesPage> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         // ── En-tête ──────────────────────────────────────────────────────────
-        Padding(
-          padding: const EdgeInsets.fromLTRB(
-              AppSpacing.xl, AppSpacing.xl, AppSpacing.xl, AppSpacing.md),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Catégories de meuble', style: AppTypography.headlineLg),
-                    const SizedBox(height: AppSpacing.xs),
-                    Text(
-                      'Gérez les catégories utilisées pour classer les types de meuble.',
-                      style: AppTypography.bodyMd
-                          .copyWith(color: AppColors.onSurfaceVariant),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: AppSpacing.md),
-              FilledButton.icon(
-                onPressed: _openCreation,
-                icon: const Icon(Icons.add),
-                label: const Text('Nouvelle catégorie'),
-              ),
-            ],
+        AppTopBar(
+          title: 'Catégories de meuble',
+          trailing: FilledButton.icon(
+            onPressed: _openCreation,
+            icon: const Icon(Icons.add),
+            label: const Text('Nouvelle catégorie'),
           ),
         ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+              AppSpacing.xl, AppSpacing.md, AppSpacing.xl, 0),
+          child: Text(
+            'Gérez les catégories utilisées pour classer les types de meuble.',
+            style: AppTypography.bodyMd
+                .copyWith(color: AppColors.onSurfaceVariant),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.md),
 
         // ── Recherche ─────────────────────────────────────────────────────────
         AppListSearchField(
@@ -256,6 +247,7 @@ class _CategoryRow extends StatelessWidget {
           IconButton(
               icon: const Icon(Icons.edit_outlined),
               tooltip: 'Modifier',
+              color: AppColors.primary,
               onPressed: onEdit),
           IconButton(
               icon: const Icon(Icons.delete_outline),
@@ -421,6 +413,7 @@ class _CategoryFormState extends State<_CategoryForm> {
                   children: [
                     FilledButton.icon(
                       onPressed: _isSubmitting ? null : trySubmit,
+                      style: AppTheme.saveButtonStyle,
                       icon: _isSubmitting
                           ? const SizedBox(
                               width: 16,
