@@ -178,6 +178,78 @@ extension on _UserFilter {
       };
 }
 
+/// Chip de filtre compact (même style que l'Inventaire/EDL/Lots) : pill,
+/// compteur, coche quand sélectionné. Ici plusieurs chips peuvent être
+/// sélectionnés à la fois (filtre multi-sélection par dimension).
+class _AdminFilterChip extends StatelessWidget {
+  final String label;
+  final int count;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _AdminFilterChip({
+    required this.label,
+    required this.count,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = selected ? AppColors.primary : AppColors.surfaceContainerLowest;
+    final fg = selected ? AppColors.onPrimary : AppColors.onSurface;
+    final badgeBg = selected
+        ? AppColors.onPrimary.withValues(alpha: 0.18)
+        : AppColors.surfaceContainerHigh;
+    final borderColor = selected ? AppColors.primary : AppColors.outlineVariant;
+
+    return InkWell(
+      borderRadius: AppRadius.borderFull,
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: AppRadius.borderFull,
+          border: Border.all(color: borderColor),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (selected) ...[
+              Icon(Icons.check, size: 13, color: fg),
+              const SizedBox(width: 4),
+            ],
+            Text(
+              label,
+              style: AppTypography.labelSm.copyWith(
+                color: fg,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(width: 5),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+              decoration: BoxDecoration(
+                color: badgeBg,
+                borderRadius: AppRadius.borderFull,
+              ),
+              child: Text(
+                '$count',
+                style: AppTypography.labelSm.copyWith(
+                  color: fg,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 10,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _UsersTabState extends State<_UsersTab> {
   String _search = '';
   final Set<_UserFilter> _filters = {};
@@ -194,6 +266,14 @@ class _UsersTabState extends State<_UsersTab> {
       }
     }
   }
+
+  bool _inCategory(UsersClient u, _UserFilter f) => switch (f) {
+        _UserFilter.actifs => u.active,
+        _UserFilter.inactifs => !u.active,
+        _UserFilter.proprietaires => u.resolvedType == UserType.proprietaire,
+        _UserFilter.locataires => u.resolvedType == UserType.locataire,
+        _UserFilter.superAdmins => u.resolvedType == UserType.superAdmin,
+      };
 
   bool _matches(UsersClient u) {
     if (_search.isNotEmpty) {
@@ -240,20 +320,24 @@ class _UsersTabState extends State<_UsersTab> {
           padding: EdgeInsets.zero,
         ),
         const SizedBox(height: AppSpacing.sm),
-        // Filtros
+        // Filtros — même style compact (pill + compteur) que les autres
+        // barres de filtres de l'app (Inventaire, EDL, Lots).
         Wrap(
-          spacing: AppSpacing.sm,
+          spacing: AppSpacing.xs,
           runSpacing: AppSpacing.xs,
           children: _UserFilter.values.map((f) {
             final selected = _filters.contains(f);
-            return FilterChip(
-              label: Text(f.label),
+            final count =
+                widget.data.users.where((u) => _inCategory(u, f)).length;
+            return _AdminFilterChip(
+              label: f.label,
+              count: count,
               selected: selected,
-              onSelected: (v) => setState(() {
-                if (v) {
-                  _filters.add(f);
-                } else {
+              onTap: () => setState(() {
+                if (selected) {
                   _filters.remove(f);
+                } else {
+                  _filters.add(f);
                 }
               }),
             );

@@ -9,6 +9,7 @@ import 'package:lacoloc_front/presentation/immeubles/immeubles_list_page.dart';
 import 'package:lacoloc_front/presentation/login_dialog.dart';
 import 'package:lacoloc_front/presentation/nav/app_sidebar.dart';
 import 'package:lacoloc_front/presentation/widgets/filter_panel.dart';
+import 'package:lacoloc_front/theme/app_breakpoints.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_radius.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
@@ -153,55 +154,62 @@ class _HomePageState extends State<HomePage> {
         onVoirImmeuble: (id) => setState(() => _detailImmeubleId = id),
       );
     }
+    // Décision basée sur la largeur RÉELLE du contenu (LayoutBuilder), pas sur
+    // la fenêtre (MediaQuery) : ce widget est à côté de la sidebar, donc la
+    // largeur de la fenêtre ne reflète pas l'espace vraiment disponible ici.
     // No telefone (estreito) o bandeau de texto some; o botão « Voir les
     // immeubles » fica ao lado do botão Filtres (via `trailing`).
-    final isPhone = MediaQuery.sizeOf(context).width < 600;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const SizedBox(height: AppSpacing.md),
-        if (!isPhone)
-          _ColocationBanner(
-            onVoirImmeubles: () => _navCtrl.selectIndex(_idxImmeubles),
-          ),
-        FilterPanel(
-          filter: _chambreFilter,
-          onChanged: (f) => setState(() => _chambreFilter = f),
-          modules: const {
-            FilterModule.localisation,
-            FilterModule.bail,
-            FilterModule.meuble,
-            FilterModule.typeImmeuble,
-            FilterModule.surface,
-            FilterModule.prix,
-            FilterModule.equipements,
-            FilterModule.charges,
-          },
-          trailing: isPhone
-              ? OutlinedButton.icon(
-                  onPressed: () => _navCtrl.selectIndex(_idxImmeubles),
-                  icon: const Icon(Icons.apartment_outlined, size: 18),
-                  label: const Text('Voir les immeubles'),
-                )
-              : null,
-        ),
-        Expanded(
-          child: GestureDetector(
-            onTap: () {
-              if (_isExpanded) {
-                setState(() => _isExpanded = false);
-                FocusScope.of(context).unfocus();
-              }
-            },
-            child: ChambresList(
-              filter: _searchQuery,
-              chambreFilter: _chambreFilter,
-              onDataLoaded: (data) => _listCache = data,
-              onTapChambre: (id) => setState(() => _detailChambreId = id),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isPhone = constraints.maxWidth < AppBreakpoints.compact;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const SizedBox(height: AppSpacing.md),
+            if (!isPhone)
+              _ColocationBanner(
+                onVoirImmeubles: () => _navCtrl.selectIndex(_idxImmeubles),
+              ),
+            FilterPanel(
+              filter: _chambreFilter,
+              onChanged: (f) => setState(() => _chambreFilter = f),
+              modules: const {
+                FilterModule.localisation,
+                FilterModule.bail,
+                FilterModule.meuble,
+                FilterModule.typeImmeuble,
+                FilterModule.surface,
+                FilterModule.prix,
+                FilterModule.equipements,
+                FilterModule.charges,
+              },
+              trailing: isPhone
+                  ? OutlinedButton.icon(
+                      onPressed: () => _navCtrl.selectIndex(_idxImmeubles),
+                      icon: const Icon(Icons.apartment_outlined, size: 18),
+                      label: const Text('Voir les immeubles'),
+                    )
+                  : null,
             ),
-          ),
-        ),
-      ],
+            Expanded(
+              child: GestureDetector(
+                onTap: () {
+                  if (_isExpanded) {
+                    setState(() => _isExpanded = false);
+                    FocusScope.of(context).unfocus();
+                  }
+                },
+                child: ChambresList(
+                  filter: _searchQuery,
+                  chambreFilter: _chambreFilter,
+                  onDataLoaded: (data) => _listCache = data,
+                  onTapChambre: (id) => setState(() => _detailChambreId = id),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -270,53 +278,71 @@ class _ColocationBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Em telas estreitas (telefone), texto curto + tipografia menor.
-    final isNarrow = MediaQuery.sizeOf(context).width < 600;
-    final text = isNarrow
-        ? 'Voir les immeubles.'
-        : 'Vous consultez des chambres à louer en colocation. '
-              'Pour parcourir les immeubles, cliquez sur « Voir les immeubles ».';
-    final textStyle = (isNarrow ? AppTypography.labelSm : AppTypography.bodyMd)
-        .copyWith(color: AppColors.onPrimaryFixedVariant);
+    // Largeur RÉELLE du bandeau (LayoutBuilder), pas la fenêtre : ce widget
+    // est rendu à côté de la sidebar, donc `MediaQuery` donnerait une largeur
+    // trop optimiste (sidebar + bandeau ne tiennent pas forcément ensemble).
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isNarrow = constraints.maxWidth < AppBreakpoints.compact;
+        final text = isNarrow
+            ? 'Voir les immeubles.'
+            : 'Vous consultez des chambres à louer en colocation. '
+                  'Pour parcourir les immeubles, cliquez sur « Voir les immeubles ».';
+        final textStyle =
+            (isNarrow ? AppTypography.labelSm : AppTypography.bodyMd)
+                .copyWith(color: AppColors.onPrimaryFixedVariant);
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.lg,
-        0,
-        AppSpacing.lg,
-        AppSpacing.sm,
-      ),
-      child: Container(
-        padding: const EdgeInsets.all(AppSpacing.md),
-        decoration: BoxDecoration(
-          color: AppColors.primaryFixed,
-          borderRadius: AppRadius.borderLg,
-        ),
-        child: Row(
-          children: [
-            Icon(
-              Icons.groups_outlined,
-              size: isNarrow ? 18 : 22,
-              color: AppColors.onPrimaryFixedVariant,
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            0,
+            AppSpacing.lg,
+            AppSpacing.sm,
+          ),
+          child: Container(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            decoration: BoxDecoration(
+              color: AppColors.primaryFixed,
+              borderRadius: AppRadius.borderLg,
             ),
-            const SizedBox(width: AppSpacing.sm),
-            Expanded(child: Text(text, style: textStyle)),
-            const SizedBox(width: AppSpacing.sm),
-            isNarrow
-                ? IconButton(
-                    onPressed: onVoirImmeubles,
-                    tooltip: 'Voir les immeubles',
-                    icon: const Icon(Icons.apartment_outlined),
-                    color: AppColors.onPrimaryFixedVariant,
-                  )
-                : OutlinedButton.icon(
-                    onPressed: onVoirImmeubles,
-                    icon: const Icon(Icons.apartment_outlined, size: 18),
-                    label: const Text('Voir les immeubles'),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.groups_outlined,
+                  size: isNarrow ? 18 : 22,
+                  color: AppColors.onPrimaryFixedVariant,
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Text(
+                    text,
+                    style: textStyle,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
-          ],
-        ),
-      ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                // `Flexible` protège contre l'overflow si l'espace réel est
+                // insuffisant même en mode "large" (ex. sidebar étendue).
+                Flexible(
+                  child: isNarrow
+                      ? IconButton(
+                          onPressed: onVoirImmeubles,
+                          tooltip: 'Voir les immeubles',
+                          icon: const Icon(Icons.apartment_outlined),
+                          color: AppColors.onPrimaryFixedVariant,
+                        )
+                      : OutlinedButton.icon(
+                          onPressed: onVoirImmeubles,
+                          icon: const Icon(Icons.apartment_outlined, size: 18),
+                          label: const Text('Voir les immeubles'),
+                        ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }

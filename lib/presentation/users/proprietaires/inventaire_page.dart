@@ -21,6 +21,7 @@ import 'package:lacoloc_front/presentation/widgets/unsaved_changes_dialog.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_radius.dart';
 import 'package:lacoloc_front/presentation/widgets/app_top_bar.dart';
+import 'package:lacoloc_front/theme/app_breakpoints.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
 import 'package:lacoloc_front/theme/app_table_theme.dart';
 import 'package:lacoloc_front/theme/app_theme.dart';
@@ -450,7 +451,7 @@ class _InventaireTableState extends State<_InventaireTable> {
           // ── Filtres (recherche + bouton Filtres) ──────────────────────
           LayoutBuilder(
             builder: (context, constraints) {
-              if (constraints.maxWidth < 600) {
+              if (constraints.maxWidth < AppBreakpoints.compact) {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -481,11 +482,13 @@ class _InventaireTableState extends State<_InventaireTable> {
                 border: Border.all(color: AppColors.outlineVariant),
               ),
               clipBehavior: Clip.antiAlias,
-              // Sous ~760px on bascule en cartes verticales (lisible sur mobile)
-              // au lieu de comprimer toutes les colonnes du tableau.
+              // Sous ce seuil (partagé par toutes les tables de l'app) on
+              // bascule en cartes verticales (lisible sur mobile) au lieu de
+              // comprimer toutes les colonnes du tableau.
               child: LayoutBuilder(
                 builder: (context, constraints) {
-                  final narrow = constraints.maxWidth < 760;
+                  final narrow =
+                      constraints.maxWidth < AppBreakpoints.tableToCards;
                   if (filtered.isEmpty) {
                     return Center(
                       child: Text(

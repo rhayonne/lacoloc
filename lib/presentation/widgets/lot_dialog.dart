@@ -140,6 +140,41 @@ class _LotFormState extends State<_LotForm> {
     }
   }
 
+  /// Seuil d'empilement propre à ce dialogue (dont la largeur max est de
+  /// 560px, donc bien en-dessous de [AppBreakpoints.compact]) : en dessous,
+  /// 2-3 champs côte à côte deviendraient trop étroits/illisibles.
+  static const double _stackBelow = 400;
+
+  /// Aligne 2-3 champs sur une ligne (desktop/tablette) ; les empile en
+  /// colonne sur mobile pour éviter des champs trop étroits/illisibles (le
+  /// dialogue peut faire ~280px de large utile sur un petit téléphone).
+  Widget _responsiveFields(List<Widget> fields) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < _stackBelow) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (var i = 0; i < fields.length; i++) ...[
+                if (i > 0) const SizedBox(height: AppSpacing.md),
+                fields[i],
+              ],
+            ],
+          );
+        }
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (var i = 0; i < fields.length; i++) ...[
+              if (i > 0) const SizedBox(width: AppSpacing.sm),
+              Expanded(child: fields[i]),
+            ],
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return ConstrainedBox(
@@ -225,60 +260,43 @@ class _LotFormState extends State<_LotForm> {
 
             Text('Désignation du lot', style: AppTypography.labelMd),
             const SizedBox(height: AppSpacing.sm),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _numeroCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Numéro de lot',
-                      helperText: 'Règlement de copropriété',
-                      prefixIcon: Icon(Icons.tag_outlined),
-                    ),
-                  ),
+            _responsiveFields([
+              TextField(
+                controller: _numeroCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Numéro de lot',
+                  helperText: 'Règlement de copropriété',
+                  prefixIcon: Icon(Icons.tag_outlined),
                 ),
-                const SizedBox(width: AppSpacing.md),
-                Expanded(
-                  child: DropdownButtonFormField<LotType>(
-                    initialValue: _type,
-                    decoration: const InputDecoration(
-                      labelText: 'Type de lot',
-                      prefixIcon: Icon(Icons.category_outlined),
-                    ),
-                    items: LotType.values
-                        .map((t) =>
-                            DropdownMenuItem(value: t, child: Text(t.label)))
-                        .toList(),
-                    onChanged: (v) => setState(() => _type = v ?? _type),
-                  ),
+              ),
+              DropdownButtonFormField<LotType>(
+                initialValue: _type,
+                decoration: const InputDecoration(
+                  labelText: 'Type de lot',
+                  prefixIcon: Icon(Icons.category_outlined),
                 ),
-              ],
-            ),
+                items: LotType.values
+                    .map((t) =>
+                        DropdownMenuItem(value: t, child: Text(t.label)))
+                    .toList(),
+                onChanged: (v) => setState(() => _type = v ?? _type),
+              ),
+            ]),
             const SizedBox(height: AppSpacing.md),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _batimentCtrl,
-                    decoration: const InputDecoration(labelText: 'Bâtiment'),
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.sm),
-                Expanded(
-                  child: TextField(
-                    controller: _etageCtrl,
-                    decoration: const InputDecoration(labelText: 'Étage'),
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.sm),
-                Expanded(
-                  child: TextField(
-                    controller: _porteCtrl,
-                    decoration: const InputDecoration(labelText: 'Porte'),
-                  ),
-                ),
-              ],
-            ),
+            _responsiveFields([
+              TextField(
+                controller: _batimentCtrl,
+                decoration: const InputDecoration(labelText: 'Bâtiment'),
+              ),
+              TextField(
+                controller: _etageCtrl,
+                decoration: const InputDecoration(labelText: 'Étage'),
+              ),
+              TextField(
+                controller: _porteCtrl,
+                decoration: const InputDecoration(labelText: 'Porte'),
+              ),
+            ]),
             const SizedBox(height: AppSpacing.md),
             TextField(
               controller: _cadastreCtrl,
@@ -292,33 +310,26 @@ class _LotFormState extends State<_LotForm> {
 
             Text('Quote-part de charges', style: AppTypography.labelMd),
             const SizedBox(height: AppSpacing.sm),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _tantiemesCtrl,
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(
-                      labelText: 'Tantièmes du lot',
-                      prefixIcon: Icon(Icons.pie_chart_outline),
-                    ),
-                  ),
+            _responsiveFields([
+              TextField(
+                controller: _tantiemesCtrl,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(
+                  labelText: 'Tantièmes du lot',
+                  prefixIcon: Icon(Icons.pie_chart_outline),
                 ),
-                const SizedBox(width: AppSpacing.md),
-                Expanded(
-                  child: TextField(
-                    controller: _tantiemesTotalCtrl,
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(
-                      labelText: 'Total copropriété',
-                      helperText: 'Ex. 10 000èmes',
-                    ),
-                  ),
+              ),
+              TextField(
+                controller: _tantiemesTotalCtrl,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(
+                  labelText: 'Total copropriété',
+                  helperText: 'Ex. 10 000èmes',
                 ),
-              ],
-            ),
+              ),
+            ]),
             const SizedBox(height: AppSpacing.md),
             TextField(
               controller: _descCtrl,

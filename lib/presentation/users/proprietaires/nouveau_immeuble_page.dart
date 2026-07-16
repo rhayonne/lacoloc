@@ -33,6 +33,7 @@ import 'package:lacoloc_front/theme/card_delete_button.dart';
 import 'package:lacoloc_front/utils/currency.dart';
 import 'package:lacoloc_front/presentation/tour/guided_tours.dart';
 import 'package:lacoloc_front/theme/app_accordion.dart';
+import 'package:lacoloc_front/theme/app_breakpoints.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
 import 'package:lacoloc_front/theme/app_typography.dart';
@@ -571,7 +572,9 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
     if (imm != null) {
       // Édition : persiste immédiatement dans l'inventaire de l'immeuble.
       try {
-        await InventaireDatasource.createMany([_articleToModel(article, imm.id)]);
+        await InventaireDatasource.createMany([
+          _articleToModel(article, imm.id),
+        ]);
         if (!mounted) return;
         setState(() => _electroAddedInEdit.add(article));
         _snack('Électroménager ajouté à l\'inventaire.');
@@ -631,8 +634,11 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
       try {
         await ImmeubleLotsDatasource.unassignFromImmeuble(lot.id);
         if (!mounted) return;
-        setState(() => _existingLots =
-            _existingLots.where((l) => l.id != lot.id).toList());
+        setState(
+          () => _existingLots = _existingLots
+              .where((l) => l.id != lot.id)
+              .toList(),
+        );
       } catch (e) {
         if (mounted) _snack('Erreur : $e');
       }
@@ -756,7 +762,7 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
         Text(
           editing
               ? "Ajoutez un électroménager : il sera rattaché à l'inventaire "
-                  'de cet immeuble.'
+                    'de cet immeuble.'
               : 'Ajoutez les électroménagers : ils seront rattachés à cet immeuble.',
           style: AppTypography.bodyMd.copyWith(
             color: AppColors.onSurfaceVariant,
@@ -781,19 +787,22 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
         ],
         if (editing && _electroAddedInEdit.isNotEmpty) ...[
           _electroTableHeader(),
-          ..._electroAddedInEdit.map((a) => _electroTableRow(
-                nom: a.displayNom,
-                categorie: a.ref?.categorie ?? '—',
-                quantite: a.quantite,
-                valeur: a.valeur,
-                onDelete: null,
-              )),
+          ..._electroAddedInEdit.map(
+            (a) => _electroTableRow(
+              nom: a.displayNom,
+              categorie: a.ref?.categorie ?? '—',
+              quantite: a.quantite,
+              valeur: a.valeur,
+              onDelete: null,
+            ),
+          ),
           const SizedBox(height: AppSpacing.xs),
           Text(
             'Gérez tout l\'inventaire (modifier/supprimer) depuis l\'onglet '
             'Inventaire de l\'immeuble.',
-            style: AppTypography.labelSm
-                .copyWith(color: AppColors.onSurfaceVariant),
+            style: AppTypography.labelSm.copyWith(
+              color: AppColors.onSurfaceVariant,
+            ),
           ),
           const SizedBox(height: AppSpacing.sm),
         ],
@@ -810,28 +819,38 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
   }
 
   // Table d'électroménager : Nom · Catégorie · Qté · (€) · suppression.
+  // Sous AppBreakpoints.compact, les 4 colonnes en flex fixe deviennent trop
+  // étroites/illisibles : on bascule sur une carte empilée (comme le fait déjà
+  // le tableau de l'Inventaire en dessous de son propre seuil).
   static const _electroFlex = [4, 3, 2, 3];
 
-  Widget _electroTableHeader() => Padding(
-    padding: const EdgeInsets.symmetric(
-      horizontal: AppSpacing.sm,
-      vertical: AppSpacing.xs,
-    ),
-    child: Row(
-      children: [
-        for (var i = 0; i < 4; i++)
-          Expanded(
-            flex: _electroFlex[i],
-            child: Text(
-              const ['NOM', 'CATÉGORIE', 'QTÉ', 'VALEUR'][i],
-              style: AppTypography.labelSm.copyWith(
-                color: AppColors.onSurfaceVariant,
+  Widget _electroTableHeader() => LayoutBuilder(
+    builder: (context, constraints) {
+      if (constraints.maxWidth < AppBreakpoints.compact) {
+        return const SizedBox.shrink();
+      }
+      return Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.sm,
+          vertical: AppSpacing.xs,
+        ),
+        child: Row(
+          children: [
+            for (var i = 0; i < 4; i++)
+              Expanded(
+                flex: _electroFlex[i],
+                child: Text(
+                  const ['NOM', 'CATÉGORIE', 'QTÉ', 'VALEUR'][i],
+                  style: AppTypography.labelSm.copyWith(
+                    color: AppColors.onSurfaceVariant,
+                  ),
+                ),
               ),
-            ),
-          ),
-        const SizedBox(width: 40),
-      ],
-    ),
+            const SizedBox(width: 40),
+          ],
+        ),
+      );
+    },
   );
 
   Widget _electroTableRow({
@@ -840,43 +859,82 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
     required int quantite,
     required double? valeur,
     required VoidCallback? onDelete,
-  }) => Card(
-    margin: const EdgeInsets.only(bottom: AppSpacing.xs),
-    child: Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.sm,
-        vertical: AppSpacing.xs,
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            flex: _electroFlex[0],
-            child: Text(nom, overflow: TextOverflow.ellipsis),
-          ),
-          Expanded(
-            flex: _electroFlex[1],
-            child: Text(
-              categorie,
-              overflow: TextOverflow.ellipsis,
-              style: AppTypography.bodyMd.copyWith(
-                color: AppColors.onSurfaceVariant,
-              ),
+  }) => LayoutBuilder(
+    builder: (context, constraints) {
+      final deleteButton = onDelete == null
+          ? null
+          : CardDeleteButton(onPressed: onDelete);
+      if (constraints.maxWidth < AppBreakpoints.compact) {
+        return Card(
+          margin: const EdgeInsets.only(bottom: AppSpacing.xs),
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.sm),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(nom, overflow: TextOverflow.ellipsis),
+                      Text(
+                        categorie,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTypography.labelSm.copyWith(
+                          color: AppColors.onSurfaceVariant,
+                        ),
+                      ),
+                      const SizedBox(height: AppSpacing.xs),
+                      Text(
+                        'Qté $quantite'
+                        '${valeur != null ? ' · ${formatEuros(valeur)}' : ''}',
+                        style: AppTypography.labelSm.copyWith(
+                          color: AppColors.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                ?deleteButton,
+              ],
             ),
           ),
-          Expanded(flex: _electroFlex[2], child: Text('$quantite')),
-          Expanded(
-            flex: _electroFlex[3],
-            child: Text(valeur != null ? formatEuros(valeur) : '—'),
+        );
+      }
+      return Card(
+        margin: const EdgeInsets.only(bottom: AppSpacing.xs),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.sm,
+            vertical: AppSpacing.xs,
           ),
-          SizedBox(
-            width: 40,
-            child: onDelete == null
-                ? null
-                : CardDeleteButton(onPressed: onDelete),
+          child: Row(
+            children: [
+              Expanded(
+                flex: _electroFlex[0],
+                child: Text(nom, overflow: TextOverflow.ellipsis),
+              ),
+              Expanded(
+                flex: _electroFlex[1],
+                child: Text(
+                  categorie,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.bodyMd.copyWith(
+                    color: AppColors.onSurfaceVariant,
+                  ),
+                ),
+              ),
+              Expanded(flex: _electroFlex[2], child: Text('$quantite')),
+              Expanded(
+                flex: _electroFlex[3],
+                child: Text(valeur != null ? formatEuros(valeur) : '—'),
+              ),
+              SizedBox(width: 40, child: deleteButton),
+            ],
           ),
-        ],
-      ),
-    ),
+        ),
+      );
+    },
   );
 
   Widget _chargesAccordion(_Bundle? bundle) {
@@ -926,10 +984,12 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
             spacing: AppSpacing.sm,
             runSpacing: AppSpacing.sm,
             children: selected
-                .map((l) => Chip(
-                      label: Text(l.displayLabel),
-                      onDeleted: () => _retirerLot(l),
-                    ))
+                .map(
+                  (l) => Chip(
+                    label: Text(l.displayLabel),
+                    onDeleted: () => _retirerLot(l),
+                  ),
+                )
                 .toList(),
           ),
         ],

@@ -5,9 +5,11 @@ import 'package:lacoloc_front/data/models/immeuble_lot.dart';
 import 'package:lacoloc_front/presentation/widgets/app_list_search_field.dart';
 import 'package:lacoloc_front/presentation/widgets/app_top_bar.dart';
 import 'package:lacoloc_front/presentation/widgets/lot_dialog.dart';
+import 'package:lacoloc_front/theme/app_breakpoints.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_radius.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
+import 'package:lacoloc_front/theme/app_table_theme.dart';
 import 'package:lacoloc_front/theme/app_theme.dart';
 import 'package:lacoloc_front/theme/app_typography.dart';
 import 'package:lacoloc_front/theme/card_delete_button.dart';
@@ -170,7 +172,7 @@ class _LotsPageState extends State<LotsPage> {
                       ),
                     ],
                   );
-                  if (constraints.maxWidth < 600) {
+                  if (constraints.maxWidth < AppBreakpoints.compact) {
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
@@ -198,8 +200,9 @@ class _LotsPageState extends State<LotsPage> {
                         all.isEmpty
                             ? 'Aucun lot de copropriété pour le moment.'
                             : 'Aucun lot ne correspond à la recherche.',
-                        style: AppTypography.bodyMd
-                            .copyWith(color: AppColors.onSurfaceVariant),
+                        style: AppTypography.bodyMd.copyWith(
+                          color: AppColors.onSurfaceVariant,
+                        ),
                       ),
                     )
                   : ListView.separated(
@@ -229,52 +232,71 @@ class _LotRow extends StatelessWidget {
   final VoidCallback onEdit;
   final VoidCallback onDelete;
 
-  const _LotRow({required this.lot, required this.onEdit, required this.onDelete});
+  const _LotRow({
+    required this.lot,
+    required this.onEdit,
+    required this.onDelete,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Card(
       margin: EdgeInsets.zero,
-      child: ListTile(
-        onTap: onEdit,
-        leading: CircleAvatar(
-          backgroundColor: AppColors.primaryFixed,
-          child: Icon(Icons.apartment_outlined, color: AppColors.primary, size: 20),
-        ),
-        title: Text(lot.displayLabel,
-            style: AppTypography.bodyMd.copyWith(fontWeight: FontWeight.w600)),
-        subtitle: Text(
-          [
-            lot.typeLot.label,
-            if (lot.tantiemes != null) '${lot.tantiemes!.toStringAsFixed(0)}‰',
-          ].join(' · '),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: lot.immeubleId != null
-                    ? AppColors.tertiaryContainer
-                    : AppColors.surfaceContainerHighest,
-                borderRadius: AppRadius.borderSm,
-              ),
-              child: Text(
-                lot.immeubleNom ?? 'Non attribué',
-                style: AppTypography.labelSm,
-              ),
+      // `HoverTableRow` (même widget que l'Inventaire) : survol cohérent
+      // entre les deux listes du même menu (Inventaire/Lots). Ne gère pas le
+      // tap lui-même (laissé au `onTap` du ListTile, qui garde son ink splash).
+      child: HoverTableRow(
+        child: ListTile(
+          onTap: onEdit,
+          leading: CircleAvatar(
+            backgroundColor: AppColors.primaryFixed,
+            child: Icon(
+              Icons.apartment_outlined,
+              color: AppColors.primary,
+              size: 20,
             ),
-            const SizedBox(width: AppSpacing.sm),
-            IconButton(
-              icon: const Icon(Icons.edit_outlined, size: 18),
-              tooltip: 'Modifier',
-              onPressed: onEdit,
-            ),
-            CardDeleteButton(onPressed: onDelete),
-          ],
+          ),
+          title: Text(
+            lot.displayLabel,
+            style: AppTypography.bodyMd.copyWith(fontWeight: FontWeight.w600),
+          ),
+          subtitle: Text(
+            [
+              lot.typeLot.label,
+              if (lot.tantiemes != null)
+                '${lot.tantiemes!.toStringAsFixed(0)}‰',
+            ].join(' · '),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: lot.immeubleId != null
+                      ? AppColors.tertiaryContainer
+                      : AppColors.surfaceContainerHighest,
+                  borderRadius: AppRadius.borderSm,
+                ),
+                child: Text(
+                  lot.immeubleNom ?? 'Non attribué',
+                  style: AppTypography.labelSm,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              IconButton(
+                icon: const Icon(Icons.edit_outlined, size: 18),
+                tooltip: 'Modifier',
+                onPressed: onEdit,
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+              ),
+              CardDeleteButton(onPressed: onDelete),
+            ],
+          ),
         ),
       ),
     );
@@ -308,7 +330,10 @@ class _LotFilterChip extends StatelessWidget {
       borderRadius: AppRadius.borderFull,
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 5),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.sm,
+          vertical: 5,
+        ),
         decoration: BoxDecoration(
           color: bg,
           borderRadius: AppRadius.borderFull,
