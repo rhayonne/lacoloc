@@ -6,6 +6,7 @@ import 'package:lacoloc_front/data/datasources/auth_service.dart';
 import 'package:lacoloc_front/data/datasources/charges_reference.dart';
 import 'package:lacoloc_front/data/datasources/commons_seeder.dart';
 import 'package:lacoloc_front/data/datasources/immeuble_charges.dart';
+import 'package:lacoloc_front/data/datasources/immeuble_lots.dart';
 import 'package:lacoloc_front/data/datasources/immeubles.dart';
 import 'package:lacoloc_front/data/datasources/inventaire.dart';
 import 'package:lacoloc_front/data/datasources/reference.dart';
@@ -14,12 +15,15 @@ import 'package:lacoloc_front/data/models/address_suggestion.dart';
 import 'package:lacoloc_front/data/models/charge_reference.dart';
 import 'package:lacoloc_front/data/models/immeuble_charge.dart';
 import 'package:lacoloc_front/data/models/immeuble_draft.dart';
+import 'package:lacoloc_front/data/models/immeuble_lot.dart';
 import 'package:lacoloc_front/data/models/immeuble_type.dart';
 import 'package:lacoloc_front/data/models/immeubles.dart';
 import 'package:lacoloc_front/data/models/inventaire.dart';
 import 'package:lacoloc_front/presentation/widgets/address_autocomplete_field.dart';
 import 'package:lacoloc_front/presentation/widgets/charges_selector.dart';
 import 'package:lacoloc_front/presentation/widgets/electromenager_dialog.dart';
+import 'package:lacoloc_front/presentation/widgets/lot_dialog.dart';
+import 'package:lacoloc_front/presentation/widgets/lot_search_field.dart';
 import 'package:lacoloc_front/presentation/widgets/form_page_header.dart';
 import 'package:lacoloc_front/presentation/widgets/number_stepper_field.dart';
 import 'package:lacoloc_front/presentation/widgets/photo_picker_field.dart';
@@ -70,6 +74,12 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
 
   // Charges sélectionnées
   List<ChargeSelection> _charges = [];
+
+  // Lots de copropriété : en création, vivent dans le brouillon (créés au
+  // save) ; en édition, l'immeuble existe → persistés tout de suite.
+  List<ImmeubleLotModel> _existingLots = [];
+  // Catalogue complet des lots du propriétaire (pour la recherche).
+  List<ImmeubleLotModel> _allLots = [];
 
   // Valeurs « live » de champs qui pilotent l'UI (réactivité).
   bool? _meuble; // location meublée ? (déverrouille le dépôt de garantie)
@@ -253,10 +263,16 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
       activeOnly: true,
     );
     List<ImmeubleChargeModel> existing = [];
+    List<ImmeubleLotModel> existingLots = [];
     final imm = widget.immeuble;
     if (imm != null) {
       existing = await ImmeubleChargesDatasource.listByImmeuble(imm.id);
+      existingLots = await ImmeubleLotsDatasource.listByImmeuble(imm.id);
     }
+    final ownerId = AuthService.currentUser?.id;
+    final allLots = ownerId == null
+        ? <ImmeubleLotModel>[]
+        : await ImmeubleLotsDatasource.listByOwner(ownerId);
     // Convertir en ChargeSelection initiales
     final initSel = existing
         .map((ic) {
@@ -270,7 +286,12 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
         .toList();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) setState(() => _charges = initSel);
+      if (!mounted) return;
+      setState(() {
+        _charges = initSel;
+        _existingLots = existingLots;
+        _allLots = allLots;
+      });
     });
 
     return _Bundle(chargesRef: chargesRef);
@@ -402,6 +423,9 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
       await InventaireDatasource.createMany([
         for (final a in _draft.electromenager) _articleToModel(a, immeubleId),
       ]);
+    }
+    for (final l in _draft.lots) {
+      await ImmeubleLotsDatasource.assignToImmeuble(l.id, immeubleId);
     }
   }
 
@@ -556,6 +580,64 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
       }
     } else {
       setState(() => _draft.electromenager.add(article));
+    }
+  }
+
+  // ── Lots de copropriété ───────────────────────────────────────────────────
+  // Les lots sont un catalogue indépendant (page « Lots ») : on les
+  // recherche/sélectionne ici, ou on en crée un nouveau à la volée. En
+  // création d'immeuble, la sélection reste en brouillon (rattachée au save) ;
+  // en édition, le rattachement (`assignToImmeuble`) est immédiat.
+
+  Future<void> _ajouterLot() async {
+    final ownerId = AuthService.currentUser?.id;
+    if (ownerId == null) return;
+    final imm = _persistedImmeuble;
+    final created = await showLotDialog(
+      context,
+      ownerId: ownerId,
+      immeubleId: imm?.id,
+    );
+    if (created == null || !mounted) return;
+    setState(() {
+      _allLots = [..._allLots, created];
+      if (imm != null) {
+        _existingLots = [..._existingLots, created];
+      } else {
+        _draft.lots.add(created);
+      }
+    });
+  }
+
+  Future<void> _selectionnerLot(ImmeubleLotModel lot) async {
+    final imm = _persistedImmeuble;
+    if (imm != null) {
+      try {
+        await ImmeubleLotsDatasource.assignToImmeuble(lot.id, imm.id);
+        if (!mounted) return;
+        setState(() => _existingLots = [..._existingLots, lot]);
+        _snack('Lot rattaché.');
+      } catch (e) {
+        if (mounted) _snack('Erreur : $e');
+      }
+    } else {
+      setState(() => _draft.lots.add(lot));
+    }
+  }
+
+  Future<void> _retirerLot(ImmeubleLotModel lot) async {
+    final imm = _persistedImmeuble;
+    if (imm != null) {
+      try {
+        await ImmeubleLotsDatasource.unassignFromImmeuble(lot.id);
+        if (!mounted) return;
+        setState(() => _existingLots =
+            _existingLots.where((l) => l.id != lot.id).toList());
+      } catch (e) {
+        if (mounted) _snack('Erreur : $e');
+      }
+    } else {
+      setState(() => _draft.lots.removeWhere((l) => l.id == lot.id));
     }
   }
 
@@ -820,6 +902,38 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
           ? 'Copiées automatiquement dans chaque nouvelle chambre.'
           : 'Définissez les charges pour ce bien.',
       children: [body],
+    );
+  }
+
+  Widget _lotsAccordion() {
+    final editing = _isEditing;
+    final selected = editing ? _existingLots : _draft.lots;
+    final selectedIds = selected.map((l) => l.id).toSet();
+    return AppAccordion(
+      icon: Icons.apartment_outlined,
+      title: 'Lots de copropriété',
+      subtitle: 'Recherchez un lot déjà créé, ou ajoutez-en un nouveau.',
+      children: [
+        LotSearchField(
+          lots: _allLots,
+          selectedIds: selectedIds,
+          onSelect: _selectionnerLot,
+          onCreateNew: _ajouterLot,
+        ),
+        if (selected.isNotEmpty) ...[
+          const SizedBox(height: AppSpacing.md),
+          Wrap(
+            spacing: AppSpacing.sm,
+            runSpacing: AppSpacing.sm,
+            children: selected
+                .map((l) => Chip(
+                      label: Text(l.displayLabel),
+                      onDeleted: () => _retirerLot(l),
+                    ))
+                .toList(),
+          ),
+        ],
+      ],
     );
   }
 
@@ -1410,6 +1524,12 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
 
                                 // ══ 8 — Charges locatives ═══════════════════
                                 _chargesAccordion(bundle),
+                                const SizedBox(height: AppSpacing.lg),
+                                const Divider(),
+                                const SizedBox(height: AppSpacing.md),
+
+                                // ══ 8b — Lots de copropriété ═════════════════
+                                _lotsAccordion(),
                                 const SizedBox(height: AppSpacing.lg),
                                 const Divider(),
                                 const SizedBox(height: AppSpacing.sm),

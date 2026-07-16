@@ -234,6 +234,12 @@ class AppTheme {
     );
   }
 
+  /// Élévation/ombre standard des boutons "flottants" légers de l'app (ex.
+  /// [FilterButton]) : donne l'impression que le bouton est légèrement
+  /// détaché du fond. Centralisé ici pour être répliqué partout à l'identique.
+  static const double raisedButtonElevation = 1.5;
+  static Color get raisedButtonShadowColor => Colors.black.withValues(alpha: 0.3);
+
   /// Style bordé pour tous les boutons "Annuler" de l'app.
   static ButtonStyle get cancelButtonStyle => OutlinedButton.styleFrom(
     foregroundColor: AppColors.onSurfaceVariant,

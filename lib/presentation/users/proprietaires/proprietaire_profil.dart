@@ -24,6 +24,7 @@ import 'package:lacoloc_front/presentation/users/proprietaires/mon_profil_propri
 import 'package:lacoloc_front/presentation/users/proprietaires/vue_generale_page.dart';
 import 'package:lacoloc_front/presentation/users/proprietaires/immeuble_detail_page.dart';
 import 'package:lacoloc_front/presentation/users/proprietaires/inventaire_page.dart';
+import 'package:lacoloc_front/presentation/users/proprietaires/lots_page.dart';
 import 'package:lacoloc_front/presentation/users/proprietaires/mes_chambres_page.dart';
 import 'package:lacoloc_front/presentation/users/proprietaires/mes_immeubles_page.dart';
 import 'package:lacoloc_front/presentation/users/proprietaires/nouveau_immeuble_page.dart';
@@ -138,7 +139,7 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage>
     super.initState();
     _loadProfile();
     _refreshBadges();
-    _gestionTabCtrl = TabController(length: 3, vsync: this);
+    _gestionTabCtrl = TabController(length: 4, vsync: this);
     // Rebuild la sidebar quand le sous-onglet de Gestion change (état sélectionné).
     _gestionTabCtrl.addListener(() {
       if (mounted) setState(() {});
@@ -582,6 +583,7 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage>
           onCreerChambre: _openChambreCreation,
         ),
         const InventairePage(),
+        const LotsPage(),
       ],
     );
   }
@@ -636,6 +638,11 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage>
             label: 'Inventaire',
             selected: inGestion && _gestionTabCtrl.index == 2,
             onTap: () => goGestionTab(2),
+          ),
+          NavChild(
+            label: 'Lots',
+            selected: inGestion && _gestionTabCtrl.index == 3,
+            onTap: () => goGestionTab(3),
           ),
         ],
       ),

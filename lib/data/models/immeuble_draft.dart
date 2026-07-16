@@ -1,3 +1,4 @@
+import 'package:lacoloc_front/data/models/immeuble_lot.dart';
 import 'package:lacoloc_front/data/models/inventaire.dart';
 
 /// Modèles « brouillon » (draft) tenus en mémoire pendant la création d'un
@@ -55,6 +56,11 @@ class ImmeubleDraft {
 
   /// Articles d'électroménager au niveau de l'immeuble.
   final List<ArticleDraft> electromenager = [];
+
+  /// Lots de copropriété **sélectionnés** (déjà existants en base — créés via
+  /// le catalogue « Lots » ou à la volée — mais pas encore rattachés : le
+  /// rattachement (`immeuble_id`) n'a lieu qu'à l'enregistrement).
+  final List<ImmeubleLotModel> lots = [];
 
   /// Vrai une fois que l'utilisateur a cliqué « Ajouter les pièces communes et
   /// inventaire » : la sélection a été matérialisée (récapitulatif affiché).

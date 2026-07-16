@@ -100,6 +100,7 @@ class CacheKeys {
   static const garants = 'garants:';
   static const chambreCharges = 'chambre_charges:';
   static const immeubleCharges = 'immeuble_charges:';
+  static const immeubleLots = 'immeuble_lots:';
   static const chargesRef = 'charges_ref:';
   static const paymentTypes = 'payment_types:';
   static const meubleCategories = 'meuble_categories:';

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:lacoloc_front/data/datasources/factures.dart';
+import 'package:lacoloc_front/data/datasources/immeuble_lots.dart';
 import 'package:lacoloc_front/data/datasources/inventaire.dart';
 import 'package:lacoloc_front/data/datasources/pieces.dart';
 import 'package:lacoloc_front/data/datasources/etat_de_lieux.dart';
@@ -8,6 +9,7 @@ import 'package:lacoloc_front/data/models/chambre.dart';
 import 'package:lacoloc_front/data/models/chambre_statut.dart';
 import 'package:lacoloc_front/data/models/etat_de_lieux.dart';
 import 'package:lacoloc_front/data/models/facture.dart';
+import 'package:lacoloc_front/data/models/immeuble_lot.dart';
 import 'package:lacoloc_front/data/models/immeubles.dart';
 import 'package:lacoloc_front/data/models/inventaire.dart';
 import 'package:lacoloc_front/data/models/piece.dart';
@@ -51,6 +53,7 @@ class _ImmeubleDetailPageState extends State<ImmeubleDetailPage> {
   late Future<List<FactureModel>> _facturesFuture;
   late Future<List<PieceModel>> _piecesFuture;
   late Future<List<InventaireModel>> _inventaireFuture;
+  late Future<List<ImmeubleLotModel>> _lotsFuture;
   // EDL d'entrée privatif par chambre → statut détaillé (phase du processus).
   Map<int, EtatDesLieuxModel> _entreeEdls = {};
 
@@ -60,6 +63,7 @@ class _ImmeubleDetailPageState extends State<ImmeubleDetailPage> {
     _facturesFuture = FacturesDatasource.listByImmeuble(widget.immeuble.id);
     _piecesFuture = PiecesDatasource.listByImmeuble(widget.immeuble.id);
     _inventaireFuture = InventaireDatasource.listByImmeuble(widget.immeuble.id);
+    _lotsFuture = ImmeubleLotsDatasource.listByImmeuble(widget.immeuble.id);
     _loadStatuts();
   }
 
@@ -236,6 +240,57 @@ class _ImmeubleDetailPageState extends State<ImmeubleDetailPage> {
           ),
 
           const SizedBox(height: AppSpacing.xl),
+
+          // ── Lots de copropriété ────────────────────────────────────────────
+          FutureBuilder<List<ImmeubleLotModel>>(
+            future: _lotsFuture,
+            builder: (context, snap) {
+              final lots = snap.data ?? const <ImmeubleLotModel>[];
+              if (lots.isEmpty) return const SizedBox.shrink();
+              return Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.xl),
+                child: Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(AppSpacing.md),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.apartment_outlined, size: 20),
+                            const SizedBox(width: AppSpacing.sm),
+                            Text('Lots de copropriété', style: AppTypography.titleLg),
+                          ],
+                        ),
+                        const SizedBox(height: AppSpacing.sm),
+                        ...lots.map((l) => Padding(
+                              padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+                              child: Text.rich(
+                                TextSpan(
+                                  children: [
+                                    TextSpan(
+                                      text: l.displayLabel,
+                                      style: AppTypography.bodyMd
+                                          .copyWith(fontWeight: FontWeight.w600),
+                                    ),
+                                    TextSpan(
+                                      text: ' — ${l.typeLot.label}'
+                                          '${l.tantiemes != null ? " · ${l.tantiemes!.toStringAsFixed(0)}‰" : ""}'
+                                          '${l.syndicNom != null ? " · Syndic : ${l.syndicNom}" : ""}',
+                                      style: AppTypography.bodyMd
+                                          .copyWith(color: AppColors.onSurfaceVariant),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            )),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
 
           // ── Tableau des chambres ───────────────────────────────────────────
           Row(

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lacoloc_front/theme/app_radius.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
 
 /// Barre de recherche standard pour filtrer des listes.
@@ -37,15 +38,31 @@ class AppListSearchField extends StatelessWidget {
     return Padding(
       padding: padding ??
           const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
-      child: TextField(
-        decoration: InputDecoration(
-          hintText: hint,
-          prefixIcon: iconSize != null
-              ? Icon(Icons.search, size: iconSize)
-              : const Icon(Icons.search),
-          isDense: true,
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: AppRadius.borderMd,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.08),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
-        onChanged: (v) => onChanged(v.toLowerCase()),
+        child: TextField(
+          decoration: InputDecoration(
+            hintText: hint,
+            prefixIcon: iconSize != null
+                ? Icon(Icons.search, size: iconSize)
+                : const Icon(Icons.search),
+            isDense: true,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.md,
+              vertical: 10,
+            ),
+          ),
+          onChanged: (v) => onChanged(v.toLowerCase()),
+        ),
       ),
     );
   }
