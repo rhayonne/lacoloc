@@ -193,3 +193,32 @@ Future<EtatDesLieuxModel?> ensureBailSignature(
 }
 
 enum _SignChoice { sign, skip }
+
+/// Flux complet « Signer bail », **partagé** par les deux pages d'EDL
+/// (collectif/location et individuel) :
+/// 1. relit l'EDL **frais** (les choix faits dans la page — `bail_avec_garant`,
+///    signatures — ne sont pas dans l'instantané `widget.existingEdl`) ;
+/// 2. côté **propriétaire** seulement : passe par [ensureBailGarant] (le choix
+///    avec/sans garant lui appartient) et **s'arrête** si `blocked` (garant
+///    requis mais absent) ;
+/// 3. appose la signature du [role] via [ensureBailSignature].
+///
+/// Retourne l'EDL à jour (signé ou consulté sans signer), ou `null` si le flux
+/// a été annulé/bloqué — l'appelant vérifie `signed.bailSignedBy(role)` avant
+/// de mettre à jour son état local.
+Future<EtatDesLieuxModel?> runSignerBailFlow(
+  BuildContext context, {
+  required int edlId,
+  required EtatDesLieuxModel fallback,
+  required String role,
+}) async {
+  var edl = await EtatDesLieuxDatasource.findById(edlId) ?? fallback;
+  if (!context.mounted) return null;
+  if (role != 'locataire') {
+    final garantRes = await ensureBailGarant(context, edl);
+    if (garantRes == null || !context.mounted) return null;
+    if (garantRes.blocked) return null;
+    edl = garantRes.edl;
+  }
+  return ensureBailSignature(context, edl, role: role);
+}

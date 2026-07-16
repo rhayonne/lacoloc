@@ -1171,6 +1171,13 @@ class _InventaireFormState extends State<_InventaireForm> {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
+        // Erreur ≠ « aucun immeuble » : sans ce garde, le formulaire s'ouvre
+        // avec des listes vides et paraît cassé.
+        if (snapshot.hasError) {
+          return Center(
+            child: Text('Erreur de chargement : ${snapshot.error}'),
+          );
+        }
         final bundle = snapshot.data ??
             const _FormBundle(
               immeubles: [],

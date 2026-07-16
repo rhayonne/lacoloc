@@ -55,6 +55,7 @@ class EdlTableFilter {
   final String? typeEdl;
   final DateTimeRange? createdRange;
   final DateTimeRange? finalisedRange;
+  final bool resilieOnly;
 
   const EdlTableFilter({
     this.query = '',
@@ -63,6 +64,7 @@ class EdlTableFilter {
     this.typeEdl,
     this.createdRange,
     this.finalisedRange,
+    this.resilieOnly = false,
   });
 
   static const empty = EdlTableFilter();
@@ -73,7 +75,8 @@ class EdlTableFilter {
       typeBail == null &&
       typeEdl == null &&
       createdRange == null &&
-      finalisedRange == null;
+      finalisedRange == null &&
+      !resilieOnly;
 
   /// Nombre de filtres actifs (hors recherche texte), pour un éventuel badge.
   int get activeCount =>
@@ -81,7 +84,8 @@ class EdlTableFilter {
       (typeBail != null ? 1 : 0) +
       (typeEdl != null ? 1 : 0) +
       (createdRange != null ? 1 : 0) +
-      (finalisedRange != null ? 1 : 0);
+      (finalisedRange != null ? 1 : 0) +
+      (resilieOnly ? 1 : 0);
 
   EdlTableFilter copyWith({
     String? query,
@@ -90,6 +94,7 @@ class EdlTableFilter {
     Object? typeEdl = _sentinel,
     Object? createdRange = _sentinel,
     Object? finalisedRange = _sentinel,
+    bool? resilieOnly,
   }) =>
       EdlTableFilter(
         query: query ?? this.query,
@@ -103,6 +108,7 @@ class EdlTableFilter {
         finalisedRange: finalisedRange == _sentinel
             ? this.finalisedRange
             : finalisedRange as DateTimeRange?,
+        resilieOnly: resilieOnly ?? this.resilieOnly,
       );
 
   /// Vrai si l'EDL satisfait tous les filtres actifs.
@@ -110,6 +116,7 @@ class EdlTableFilter {
     if (situation != null && e.situation != situation) return false;
     if (typeBail != null && e.typeBail != typeBail) return false;
     if (typeEdl != null && e.typeEdl != typeEdl) return false;
+    if (resilieOnly && !e.bailResilie) return false;
     if (createdRange != null && !_inRange(e.createdAt, createdRange!)) {
       return false;
     }
@@ -326,6 +333,13 @@ class _EdlFilterBarState extends State<EdlFilterBar> {
               _f.copyWith(situation: _f.situation == s ? null : s),
             ),
           ),
+        ),
+        _Chip(
+          label: 'Résilié',
+          count: widget.edls.where((e) => e.bailResilie).length,
+          selected: _f.resilieOnly,
+          onTap: () =>
+              widget.onChanged(_f.copyWith(resilieOnly: !_f.resilieOnly)),
         ),
       ];
 

@@ -355,7 +355,7 @@ class EdlDataSummaryCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _row('Type', '${edl.sensLabel} · ${edl.typeLabel} · ${edl.meubleLabel}'),
-            _row('Bail', edl.typeBail == 'collectif' ? 'Collectif' : 'Individuel'),
+            _row('Bail', edl.typeLabel),
             _row('Immeuble', edl.immeubleNom ?? '—'),
             if (edl.chambreNom != null) _row('Chambre', edl.chambreNom!),
             _row('Date EDL', _dateFmt.format(edl.dateEtatLieux)),

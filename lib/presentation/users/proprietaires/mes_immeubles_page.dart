@@ -148,23 +148,24 @@ class _Grid extends StatelessWidget {
                   : constraints.maxWidth < 820
                   ? 2
                   : 3;
-              // Cartes réduites de ~15 % : on part de la largeur naturelle
-              // par colonne et on la rétrécit de 15 % (maxCrossAxisExtent).
-              final natural =
+              // Largeur de colonne = largeur réelle disponible / nb de colonnes.
+              // On utilise FixedCrossAxisCount (et non MaxCrossAxisExtent, qui
+              // recalculait lui-même le nombre de colonnes et rétrécissait les
+              // cartes) → les cartes remplissent la largeur, proportionnellement
+              // à l'écran.
+              final colWidth =
                   (constraints.maxWidth - (cols - 1) * AppSpacing.md) / cols;
-              final extent = natural * 0.85;
+              // Hauteur proportionnelle à la largeur de colonne, bornée pour ne
+              // pas écraser le contenu (petits écrans) ni étirer (grands).
+              final tileHeight = (colWidth * 0.80).clamp(262.0, 330.0);
               return GridView.builder(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-                  maxCrossAxisExtent: extent,
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: cols,
                   crossAxisSpacing: AppSpacing.md,
                   mainAxisSpacing: AppSpacing.md,
-                  // Hauteur fixe (indépendante de la largeur) : un
-                  // childAspectRatio couplait la hauteur à la largeur et
-                  // écrasait la carte sur mobile → overflow. Le Spacer de la
-                  // carte comble la place restante.
-                  mainAxisExtent: 250,
+                  mainAxisExtent: tileHeight,
                 ),
                 itemCount: bundle.immeubles.length,
                 itemBuilder: (context, index) {

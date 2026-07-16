@@ -63,6 +63,27 @@ class GarantsDatasource {
     _invalidate();
   }
 
+  /// Garants **actifs** de plusieurs locataires en UNE requête (évite le N+1
+  /// « 1 requête par preneur » du bail location). Retourne un map
+  /// `locataire_id → garants` (clé absente = aucun garant actif).
+  static Future<Map<String, List<GarantModel>>> activeByLocataires(
+      Iterable<String> locataireIds) async {
+    final ids = locataireIds.toSet().toList();
+    if (ids.isEmpty) return {};
+    final rows = await _db
+        .from(_table)
+        .select()
+        .inFilter('locataire_id', ids)
+        .eq('is_active', true)
+        .order('created_at', ascending: true);
+    final byLoc = <String, List<GarantModel>>{};
+    for (final r in (rows as List)) {
+      final g = GarantModel.fromMap(r as Map<String, dynamic>);
+      (byLoc[g.locataireId] ??= []).add(g);
+    }
+    return byLoc;
+  }
+
   /// Retourne les garants actifs d'un locataire (utilisé lors de la génération du bail).
   static Future<List<GarantModel>> activeByLocataire(String locataireId) {
     return _cache.get('${CacheKeys.garants}active:$locataireId', () async {

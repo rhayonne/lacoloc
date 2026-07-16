@@ -13,6 +13,11 @@ class RecetteModel {
 
   /// 'a_recevoir' | 'recu' | 'en_retard'
   final String statut;
+
+  /// 'recevoir' (défaut, argent dû au propriétaire) | 'payer' (argent dû par
+  /// le propriétaire, ex. remboursement de caution) — vu à l'inverse par le
+  /// locataire (une ligne `sens=payer` est « à recevoir » pour lui).
+  final String sens;
   final String? notes;
   final DateTime createdAt;
 
@@ -32,6 +37,7 @@ class RecetteModel {
     required this.dateEcheance,
     this.datePaiement,
     this.statut = 'a_recevoir',
+    this.sens = 'recevoir',
     this.notes,
     required this.createdAt,
     this.immeubleNom,
@@ -48,6 +54,7 @@ class RecetteModel {
       datePaiement != null ? _dateFmt.format(datePaiement!) : null;
   bool get isPaid => statut == 'recu';
   bool get isLate => statut == 'en_retard';
+  bool get isRemboursement => sens == 'payer';
   String get lieuLabel =>
       [immeubleNom, chambreNom].whereType<String>().join(' · ');
 
@@ -68,6 +75,7 @@ class RecetteModel {
           ? DateTime.parse(m['date_paiement'] as String)
           : null,
       statut: m['statut'] as String? ?? 'a_recevoir',
+      sens: m['sens'] as String? ?? 'recevoir',
       notes: m['notes'] as String?,
       createdAt: DateTime.parse(m['created_at'] as String),
       immeubleNom: imm?['name'] as String?,
@@ -92,6 +100,7 @@ class RecetteModel {
       dateEcheance: dateEcheance,
       datePaiement: clearPaiement ? null : (datePaiement ?? this.datePaiement),
       statut: statut ?? this.statut,
+      sens: sens,
       notes: notes,
       createdAt: createdAt,
       immeubleNom: immeubleNom,

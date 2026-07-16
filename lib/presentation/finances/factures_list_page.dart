@@ -141,28 +141,17 @@ class _FacturesListPageState extends State<FacturesListPage>
       children: [
         const AppTopBar(title: 'Vue générale'),
         Expanded(
-          child: Center(
-            child: Padding(
-              padding: const EdgeInsets.all(AppSpacing.xl),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(
-                    Icons.bar_chart_outlined,
-                    size: 64,
-                    color: AppColors.outline,
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  Text(
-                    'Statistiques et résumés financiers disponibles prochainement.',
-                    style: AppTypography.bodyMd.copyWith(
-                      color: AppColors.onSurfaceVariant,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
-            ),
+          child: FutureBuilder<List<RecetteModel>>(
+            future: _futureRecettes,
+            builder: (context, snap) {
+              if (snap.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (snap.hasError) {
+                return Center(child: Text('Erreur : ${snap.error}'));
+              }
+              return _FinancesVisionGenerale(recettes: snap.data ?? []);
+            },
           ),
         ),
       ],
@@ -277,6 +266,162 @@ class _FacturesListPageState extends State<FacturesListPage>
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Aba Vue générale — résumé du jour / du mois / en retard
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _FinancesVisionGenerale extends StatelessWidget {
+  final List<RecetteModel> recettes;
+  const _FinancesVisionGenerale({required this.recettes});
+
+  static final _currFmt =
+      NumberFormat.currency(locale: 'fr_FR', symbol: '€', decimalDigits: 2);
+
+  bool _isSameMonth(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month;
+
+  @override
+  Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
+    final aRecevoir =
+        recettes.where((r) => r.sens == 'recevoir' && r.statut == 'a_recevoir');
+    final aPayer =
+        recettes.where((r) => r.sens == 'payer' && r.statut != 'recu');
+    final enRetard = recettes.where((r) => r.statut == 'en_retard');
+
+    final dueToday = aRecevoir.where((r) =>
+        r.dateEcheance.year == today.year &&
+        r.dateEcheance.month == today.month &&
+        r.dateEcheance.day == today.day);
+    final dueThisMonth =
+        aRecevoir.where((r) => _isSameMonth(r.dateEcheance, today));
+
+    double sum(Iterable<RecetteModel> l) =>
+        l.fold(0.0, (s, r) => s + r.montant);
+
+    if (recettes.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.xl),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.bar_chart_outlined,
+                  size: 64, color: AppColors.outline),
+              const SizedBox(height: AppSpacing.md),
+              Text(
+                'Aucune recette enregistrée pour le moment.',
+                style: AppTypography.bodyMd
+                    .copyWith(color: AppColors.onSurfaceVariant),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      child: Wrap(
+        spacing: AppSpacing.md,
+        runSpacing: AppSpacing.md,
+        children: [
+          _StatCard(
+            label: "Aujourd'hui",
+            amount: sum(dueToday),
+            count: dueToday.length,
+            color: AppColors.primary,
+            icon: Icons.today_outlined,
+          ),
+          _StatCard(
+            label: 'Ce mois-ci',
+            amount: sum(dueThisMonth),
+            count: dueThisMonth.length,
+            color: AppColors.tertiary,
+            icon: Icons.calendar_month_outlined,
+          ),
+          _StatCard(
+            label: 'En retard',
+            amount: sum(enRetard),
+            count: enRetard.length,
+            color: AppColors.error,
+            icon: Icons.warning_amber_outlined,
+          ),
+          _StatCard(
+            label: 'À payer (remboursements)',
+            amount: sum(aPayer),
+            count: aPayer.length,
+            color: AppColors.secondary,
+            icon: Icons.undo,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatCard extends StatelessWidget {
+  final String label;
+  final double amount;
+  final int count;
+  final Color color;
+  final IconData icon;
+
+  const _StatCard({
+    required this.label,
+    required this.amount,
+    required this.count,
+    required this.color,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 220,
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceContainerLowest,
+        border: Border.all(color: AppColors.outlineVariant),
+        borderRadius: AppRadius.borderMd,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 18, color: color),
+              const SizedBox(width: AppSpacing.xs),
+              Expanded(
+                child: Text(label,
+                    style: AppTypography.labelMd
+                        .copyWith(color: AppColors.onSurfaceVariant),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            _FinancesVisionGenerale._currFmt.format(amount),
+            style: AppTypography.titleLg
+                .copyWith(color: color, fontWeight: FontWeight.w700),
+          ),
+          Text(
+            count == 1 ? '1 ligne' : '$count lignes',
+            style: AppTypography.labelSm
+                .copyWith(color: AppColors.onSurfaceVariant),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Aba Recettes
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -299,19 +444,43 @@ class _RecettesTabState extends State<_RecettesTab> {
   // Filtre actif : null = tous
   String? _filtreStatut;
   bool _saving = false;
+  final _searchCtrl = TextEditingController();
+  String _query = '';
 
   static final _currFmt =
       NumberFormat.currency(locale: 'fr_FR', symbol: '€', decimalDigits: 2);
 
-  List<RecetteModel> get _filtered {
-    if (_filtreStatut == null) return widget.recettes;
-    return widget.recettes
-        .where((r) => r.statut == _filtreStatut)
-        .toList();
+  @override
+  void initState() {
+    super.initState();
+    _searchCtrl.addListener(
+      () => setState(() => _query = _searchCtrl.text.toLowerCase()),
+    );
   }
 
-  double _total(String statut) => widget.recettes
-      .where((r) => r.statut == statut)
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  List<RecetteModel> get _filtered {
+    var list = widget.recettes;
+    if (_filtreStatut != null) {
+      list = list.where((r) => r.statut == _filtreStatut).toList();
+    }
+    if (_query.isNotEmpty) {
+      list = list.where((r) {
+        return r.lieuLabel.toLowerCase().contains(_query) ||
+            (r.locataireNom ?? '').toLowerCase().contains(_query) ||
+            (r.notes ?? '').toLowerCase().contains(_query);
+      }).toList();
+    }
+    return list;
+  }
+
+  double _total(String statut, {String sens = 'recevoir'}) => widget.recettes
+      .where((r) => r.statut == statut && r.sens == sens)
       .fold(0.0, (s, r) => s + r.montant);
 
   Future<void> _markPaid(RecetteModel r) async {
@@ -340,7 +509,8 @@ class _RecettesTabState extends State<_RecettesTab> {
     final filtered = _filtered;
     final aRecevoir = _total('a_recevoir');
     final recu = _total('recu');
-    final enRetard = _total('en_retard');
+    final enRetard = _total('en_retard') + _total('en_retard', sens: 'payer');
+    final aPayer = _total('a_recevoir', sens: 'payer');
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -356,6 +526,34 @@ class _RecettesTabState extends State<_RecettesTab> {
             ),
           ),
         ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            AppSpacing.md,
+            AppSpacing.lg,
+            0,
+          ),
+          child: TextField(
+            controller: _searchCtrl,
+            decoration: InputDecoration(
+              hintText: 'Rechercher par bien, locataire, note…',
+              prefixIcon: const Icon(Icons.search, size: 20),
+              suffixIcon: _query.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.close, size: 18),
+                      tooltip: 'Effacer',
+                      onPressed: _searchCtrl.clear,
+                    )
+                  : null,
+              isDense: true,
+              border: const OutlineInputBorder(),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md,
+                vertical: AppSpacing.sm,
+              ),
+            ),
+          ),
+        ),
         Expanded(
           child: Padding(
             padding: const EdgeInsets.all(AppSpacing.lg),
@@ -363,7 +561,9 @@ class _RecettesTabState extends State<_RecettesTab> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 // ── Résumé financier ──────────────────────────────────────
-                Row(
+                Wrap(
+                  spacing: AppSpacing.sm,
+                  runSpacing: AppSpacing.sm,
                   children: [
                     _SummaryChip(
                       label: 'À recevoir',
@@ -373,7 +573,6 @@ class _RecettesTabState extends State<_RecettesTab> {
                       onTap: () => setState(() => _filtreStatut =
                           _filtreStatut == 'a_recevoir' ? null : 'a_recevoir'),
                     ),
-                    const SizedBox(width: AppSpacing.sm),
                     _SummaryChip(
                       label: 'Reçu',
                       amount: recu,
@@ -382,7 +581,6 @@ class _RecettesTabState extends State<_RecettesTab> {
                       onTap: () => setState(() => _filtreStatut =
                           _filtreStatut == 'recu' ? null : 'recu'),
                     ),
-                    const SizedBox(width: AppSpacing.sm),
                     _SummaryChip(
                       label: 'En retard',
                       amount: enRetard,
@@ -391,6 +589,14 @@ class _RecettesTabState extends State<_RecettesTab> {
                       onTap: () => setState(() => _filtreStatut =
                           _filtreStatut == 'en_retard' ? null : 'en_retard'),
                     ),
+                    if (aPayer > 0)
+                      _SummaryChip(
+                        label: 'À payer (remboursements)',
+                        amount: aPayer,
+                        color: AppColors.secondary,
+                        selected: false,
+                        onTap: null,
+                      ),
                   ],
                 ),
                 const SizedBox(height: AppSpacing.md),
@@ -467,7 +673,7 @@ class _RecettesTabState extends State<_RecettesTab> {
                                       _currFmt.format(r.montant),
                                       style: AppTypography.bodyMd)),
                                   DataCell(_RecetteStatutBadge(
-                                      statut: r.statut)),
+                                      statut: r.statut, sens: r.sens)),
                                   DataCell(Text(r.paiementLabel ?? '—',
                                       style: AppTypography.bodyMd)),
                                   DataCell(_saving
@@ -507,14 +713,14 @@ class _SummaryChip extends StatelessWidget {
   final double amount;
   final Color color;
   final bool selected;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   const _SummaryChip({
     required this.label,
     required this.amount,
     required this.color,
     required this.selected,
-    required this.onTap,
+    this.onTap,
   });
 
   static final _fmt =
@@ -557,14 +763,24 @@ class _SummaryChip extends StatelessWidget {
 
 class _RecetteStatutBadge extends StatelessWidget {
   final String statut;
-  const _RecetteStatutBadge({required this.statut});
+  final String sens;
+  const _RecetteStatutBadge({required this.statut, this.sens = 'recevoir'});
 
   @override
   Widget build(BuildContext context) {
+    final payer = sens == 'payer';
     final (label, bg, fg) = switch (statut) {
-      'recu' => ('Reçu', AppColors.tertiaryFixed, AppColors.onTertiaryFixedVariant),
+      'recu' => (
+          payer ? 'Payé' : 'Reçu',
+          AppColors.tertiaryFixed,
+          AppColors.onTertiaryFixedVariant
+        ),
       'en_retard' => ('En retard', AppColors.errorContainer, AppColors.onErrorContainer),
-      _ => ('À recevoir', AppColors.secondaryFixed, AppColors.onSecondaryFixedVariant),
+      _ => (
+          payer ? 'À payer' : 'À recevoir',
+          AppColors.secondaryFixed,
+          AppColors.onSecondaryFixedVariant
+        ),
     };
     return Container(
       padding:
@@ -605,12 +821,12 @@ class _ActionMenu extends StatelessWidget {
       },
       itemBuilder: (_) => [
         if (recette.statut != 'recu')
-          const PopupMenuItem(
+          PopupMenuItem(
             value: 'paid',
             child: Row(children: [
-              Icon(Icons.check_circle_outline, size: 18),
-              SizedBox(width: 8),
-              Text('Marquer reçu'),
+              const Icon(Icons.check_circle_outline, size: 18),
+              const SizedBox(width: 8),
+              Text(recette.isRemboursement ? 'Marquer payé' : 'Marquer reçu'),
             ]),
           ),
         if (recette.statut == 'recu')

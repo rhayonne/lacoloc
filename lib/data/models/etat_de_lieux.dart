@@ -95,7 +95,7 @@ class EtatDesLieuxModel {
   final String? locataireId;
   final int immeubleId;
   final int? chambreId;
-  final String typeBail; // 'collectif' | 'individuel'
+  final String typeBail; // 'location' (ex-'collectif', migré) | 'individuel'
   final String typeEdl; // 'entree' | 'sortie'
   final DateTime dateEtatLieux;
   final DateTime? dateFinalisation;
@@ -547,6 +547,15 @@ class EtatDesLieuxModel {
     if (typeBail == 'location') return 'Location';
     return partie == PartieEdl.commune ? 'Collectif' : 'Individuel';
   }
+
+  /// Vrai pour le **collectif interne** d'un bail individuel (partie=commune
+  /// + type_bail=individuel) : détail d'implémentation qui n'apparaît dans
+  /// AUCUNE liste (Vision générale du proprietaire, liste du locataire) — les
+  /// parties communes sont éditées DANS la fiche de chaque EDL individuel.
+  /// **Source unique** du prédicat : à utiliser partout où on masque/route le
+  /// collectif (ne pas ré-écrire la comparaison à la main).
+  bool get isCollectifInterne =>
+      partie == PartieEdl.commune && typeBail == 'individuel';
 
   /// Sens de l'EDL : « Entrée » / « Sortie ».
   String get sensLabel => typeEdl == 'sortie' ? 'Sortie' : 'Entrée';

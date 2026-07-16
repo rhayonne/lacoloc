@@ -150,6 +150,13 @@ class _FournisseursPageState extends State<FournisseursPage> {
               const Expanded(
                 child: Center(child: CircularProgressIndicator()),
               )
+            // Erreur ≠ « aucun fournisseur » : afficher le problème.
+            else if (snap.hasError)
+              Expanded(
+                child: Center(
+                  child: Text('Erreur de chargement : ${snap.error}'),
+                ),
+              )
             else if (list.isEmpty)
               Expanded(
                 child: Center(

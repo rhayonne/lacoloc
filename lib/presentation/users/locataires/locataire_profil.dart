@@ -14,6 +14,7 @@ import 'package:lacoloc_front/data/datasources/notifications.dart';
 import 'package:lacoloc_front/data/datasources/recettes.dart';
 import 'package:lacoloc_front/data/models/recette.dart';
 import 'package:lacoloc_front/data/models/chambre.dart';
+import 'package:lacoloc_front/data/models/immeubles.dart';
 import 'package:lacoloc_front/data/models/etat_de_lieux.dart';
 import 'package:lacoloc_front/data/models/garant.dart';
 import 'package:lacoloc_front/data/models/notification_model.dart';
@@ -24,6 +25,7 @@ import 'package:lacoloc_front/presentation/widgets/permission_gate.dart';
 import 'package:lacoloc_front/presentation/widgets/private_image.dart';
 import 'package:lacoloc_front/presentation/widgets/edl_filter_bar.dart';
 import 'package:lacoloc_front/presentation/widgets/bail_requirements_dialog.dart';
+import 'package:lacoloc_front/presentation/widgets/edl_parcours_badge.dart';
 import 'package:lacoloc_front/presentation/widgets/edl_signature_flow.dart';
 import 'package:lacoloc_front/presentation/users/proprietaires/etat_de_lieux_page.dart';
 import 'package:lacoloc_front/presentation/users/proprietaires/interactions_page.dart'
@@ -294,6 +296,12 @@ class _LocataireProfilPageState extends State<LocataireProfilPage>
           ],
         ),
         NavEntry(
+          icon: Icons.payments_outlined,
+          label: 'Finances',
+          selected: _navIndex == _idxFinances,
+          onTap: () => go(_idxFinances),
+        ),
+        NavEntry(
           icon: Icons.mail_outline,
           label: 'Interactions',
           count: _msgBadge,
@@ -317,12 +325,6 @@ class _LocataireProfilPageState extends State<LocataireProfilPage>
               onTap: () => goDoc(1),
             ),
           ],
-        ),
-        NavEntry(
-          icon: Icons.payments_outlined,
-          label: 'Finances',
-          selected: _navIndex == _idxFinances,
-          onTap: () => go(_idxFinances),
         ),
         NavEntry(
           icon: Icons.person_outline,
@@ -1741,12 +1743,34 @@ class _InteractionsSectionState extends State<_InteractionsSection>
       });
     }
 
+    // Signale toute erreur de chargement : un clic ne doit jamais « ne rien
+    // faire » en silence.
+    void fail(Object? e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(e == null
+            ? 'Impossible d\'ouvrir cet état des lieux — données introuvables. '
+                'Réessayez.'
+            : 'Erreur d\'ouverture : $e'),
+      ));
+    }
+
     if (edl.partie == PartieEdl.commune) {
-      final imm = await ImmeublesDatasource.byId(edl.immeubleId);
-      if (!mounted || imm == null) return;
+      ImmeublesModel? imm;
+      try {
+        imm = await ImmeublesDatasource.byId(edl.immeubleId);
+      } catch (e) {
+        fail(e);
+        return;
+      }
+      if (!mounted) return;
+      if (imm == null) {
+        fail(null);
+        return;
+      }
       setState(() {
         _detailView = EdlCollectifNonMeubleePage(
-          immeuble: imm,
+          immeuble: imm!,
           typeEdl: edl.typeEdl,
           existingEdl: edl,
           isLocataire: true,
@@ -1759,18 +1783,26 @@ class _InteractionsSectionState extends State<_InteractionsSection>
     if (edl.partie == PartieEdl.privative &&
         edl.typeBail == 'individuel' &&
         edl.chambreId != null) {
-      final imm = await ImmeublesDatasource.byId(edl.immeubleId);
+      ImmeublesModel? imm;
       ChambreModel? chambre;
       try {
+        imm = await ImmeublesDatasource.byId(edl.immeubleId);
         final chambres = await ChambresDatasource.listByImmeubles([
           edl.immeubleId,
         ]);
         chambre = chambres.where((c) => c.id == edl.chambreId).firstOrNull;
-      } catch (_) {}
-      if (!mounted || imm == null || chambre == null) return;
+      } catch (e) {
+        fail(e);
+        return;
+      }
+      if (!mounted) return;
+      if (imm == null || chambre == null) {
+        fail(null);
+        return;
+      }
       setState(() {
         _detailView = EdlIndividuelMeubleePage(
-          immeuble: imm,
+          immeuble: imm!,
           chambre: chambre!,
           typeEdl: edl.typeEdl,
           existingEdl: edl,
@@ -1845,6 +1877,32 @@ class _InteractionsSectionState extends State<_InteractionsSection>
     }
   }
 
+  /// « Signer bail » depuis la liste : appose la signature du locataire sur le
+  /// BAIL (colonnes bail_*, document distinct de l'EDL) via le flux partagé.
+  Future<void> _signerBail(EtatDesLieuxModel edl) async {
+    try {
+      final signed = await runSignerBailFlow(
+        context,
+        edlId: edl.id,
+        fallback: edl,
+        role: 'locataire',
+      );
+      if (signed == null || !mounted) return;
+      if (signed.bailSignedBy('locataire')) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Bail signé ✓')));
+        setState(() {
+          _future = _load();
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Erreur : $e')));
+      }
+    }
+  }
+
   /// `true` se o EDL ainda está dentro da janela de **avenant** configurada na
   /// criação (snapshot `avenant_window_days`), e portanto comporta um avenant.
   static bool _isAvenantOpen(EtatDesLieuxModel edl) {
@@ -1857,21 +1915,35 @@ class _InteractionsSectionState extends State<_InteractionsSection>
   /// Abre a `EdlIndividuelMeubleePage` diretamente na aba Additions (índice 4).
   Future<void> _openAddition(EtatDesLieuxModel edl) async {
     if (edl.chambreId == null) return;
-    final imm = await ImmeublesDatasource.byId(edl.immeubleId);
+    ImmeublesModel? imm;
     ChambreModel? chambre;
     try {
+      imm = await ImmeublesDatasource.byId(edl.immeubleId);
       final chambres = await ChambresDatasource.listByImmeubles([
         edl.immeubleId,
       ]);
       chambre = chambres.where((c) => c.id == edl.chambreId).firstOrNull;
-    } catch (_) {}
-    if (!mounted || imm == null || chambre == null) return;
+    } catch (e) {
+      // Un clic ne doit jamais échouer en silence.
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Erreur d\'ouverture : $e')));
+      }
+      return;
+    }
+    if (!mounted) return;
+    if (imm == null || chambre == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text(
+              'Impossible d\'ouvrir cet état des lieux — données introuvables.')));
+      return;
+    }
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => Scaffold(
           body: SafeArea(
             child: EdlIndividuelMeubleePage(
-              immeuble: imm,
+              immeuble: imm!,
               chambre: chambre!,
               typeEdl: edl.typeEdl,
               existingEdl: edl,
@@ -1960,6 +2032,7 @@ class _InteractionsSectionState extends State<_InteractionsSection>
                     onVisualiser: _openDetail,
                     onAvenant: _openAddition,
                     onSigner: _accepter,
+                    onSignerBail: _signerBail,
                   ),
                   _EdlListTab(
                     edls: entrees,
@@ -1969,6 +2042,7 @@ class _InteractionsSectionState extends State<_InteractionsSection>
                     onVoir: _openDetail,
                     onVisualiser: _openDetail,
                     onSigner: _accepter,
+                    onSignerBail: _signerBail,
                   ),
                   _EdlListTab(
                     edls: sorties,
@@ -1997,6 +2071,7 @@ class _EdlVisionGeneraleTab extends StatelessWidget {
   final void Function(EtatDesLieuxModel) onVisualiser;
   final Future<void> Function(EtatDesLieuxModel) onAvenant;
   final Future<void> Function(EtatDesLieuxModel)? onSigner;
+  final Future<void> Function(EtatDesLieuxModel)? onSignerBail;
 
   const _EdlVisionGeneraleTab({
     required this.all,
@@ -2007,6 +2082,7 @@ class _EdlVisionGeneraleTab extends StatelessWidget {
     required this.onVisualiser,
     required this.onAvenant,
     this.onSigner,
+    this.onSignerBail,
   });
 
   @override
@@ -2087,6 +2163,7 @@ class _EdlVisionGeneraleTab extends StatelessWidget {
               onVoir: onVoir,
               onVisualiser: onVisualiser,
               onSigner: onSigner,
+              onSignerBail: onSignerBail,
             ),
           const SizedBox(height: AppSpacing.xl),
           const ESignatureNoticeCard(),
@@ -2194,6 +2271,7 @@ class _EdlListTab extends StatelessWidget {
   final List<EtatDesLieuxModel>? avenantables;
   final Future<void> Function(EtatDesLieuxModel)? onAvenant;
   final Future<void> Function(EtatDesLieuxModel)? onSigner;
+  final Future<void> Function(EtatDesLieuxModel)? onSignerBail;
 
   const _EdlListTab({
     required this.edls,
@@ -2203,6 +2281,7 @@ class _EdlListTab extends StatelessWidget {
     this.avenantables,
     this.onAvenant,
     this.onSigner,
+    this.onSignerBail,
   });
 
   @override
@@ -2263,6 +2342,7 @@ class _EdlListTab extends StatelessWidget {
               onVoir: onVoir,
               onVisualiser: onVisualiser,
               onSigner: onSigner,
+              onSignerBail: onSignerBail,
             ),
         ],
       ),
@@ -2293,12 +2373,14 @@ class _EdlLocataireTable extends StatefulWidget {
   final void Function(EtatDesLieuxModel) onVoir;
   final void Function(EtatDesLieuxModel) onVisualiser;
   final Future<void> Function(EtatDesLieuxModel)? onSigner;
+  final Future<void> Function(EtatDesLieuxModel)? onSignerBail;
 
   const _EdlLocataireTable({
     required this.edls,
     required this.onVoir,
     required this.onVisualiser,
     this.onSigner,
+    this.onSignerBail,
   });
 
   @override
@@ -2370,6 +2452,9 @@ class _EdlLocataireTableState extends State<_EdlLocataireTable> {
                             onSigner: widget.onSigner != null
                                 ? () => widget.onSigner!(e)
                                 : null,
+                            onSignerBail: widget.onSignerBail != null
+                                ? () => widget.onSignerBail!(e)
+                                : null,
                           ),
                           const SizedBox(height: AppSpacing.md),
                         ],
@@ -2390,6 +2475,9 @@ class _EdlLocataireTableState extends State<_EdlLocataireTable> {
                         onSigner: widget.onSigner != null
                             ? () => widget.onSigner!(filtered[i])
                             : null,
+                        onSignerBail: widget.onSignerBail != null
+                            ? () => widget.onSignerBail!(filtered[i])
+                            : null,
                       ),
                     ],
                   ],
@@ -2408,7 +2496,10 @@ const double _kColSens = 70;
 const double _kColSit = 96;
 const double _kColDate = 92;
 const double _kColAvenant = 124;
-const double _kColAction = 96;
+// Colonne actions : œil « EDL » (44) + bouton principal (120) + espace.
+const double _kColEye = 44;
+const double _kColBtn = 120;
+const double _kColAction = _kColEye + AppSpacing.sm + _kColBtn;
 
 class _EdlLocataireHeaderRow extends StatelessWidget {
   const _EdlLocataireHeaderRow();
@@ -2463,13 +2554,23 @@ class _EdlLocataireRow extends StatelessWidget {
   final VoidCallback onVoir;
   final VoidCallback onVisualiser;
   final VoidCallback? onSigner;
+  final VoidCallback? onSignerBail;
 
   const _EdlLocataireRow({
     required this.edl,
     required this.onVoir,
     required this.onVisualiser,
     this.onSigner,
+    this.onSignerBail,
   });
+
+  /// Le locataire doit-il encore signer le BAIL ? (EDL déjà accepté, bail
+  /// éligible, signature bail_locataire absente.)
+  bool get _bailASignerParLocataire =>
+      edl.situation == SituationEdl.finalise &&
+      edl.locataireAccepte &&
+      edl.isBailEligible &&
+      !edl.bailSignedBy('locataire');
 
   static final _fmt = DateFormat('dd/MM/yyyy');
 
@@ -2538,7 +2639,7 @@ class _EdlLocataireRow extends StatelessWidget {
           ),
           SizedBox(
             width: _kColSit,
-            child: Center(child: _EdlSituationBadge(situation: edl.situation)),
+            child: Center(child: EdlParcoursBadge(edl: edl)),
           ),
           SizedBox(
             width: _kColDate,
@@ -2566,46 +2667,100 @@ class _EdlLocataireRow extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                IconButton(
-                  onPressed: onVisualiser,
-                  tooltip: 'Visualiser',
-                  constraints: const BoxConstraints(
-                    minWidth: 44,
-                    minHeight: 44,
+                // Œil « EDL » — même composant que la Vision générale du
+                // propriétaire (bouton bordé icône + libellé).
+                SizedBox(
+                  width: _kColEye,
+                  height: 38,
+                  child: Tooltip(
+                    message: "Visualiser l'état des lieux (lecture seule)",
+                    child: OutlinedButton(
+                      onPressed: onVisualiser,
+                      style: OutlinedButton.styleFrom(
+                        padding: EdgeInsets.zero,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: AppRadius.borderMd,
+                        ),
+                      ),
+                      child: const Column(
+                        mainAxisSize: MainAxisSize.min,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.visibility_outlined, size: 15),
+                          Text('EDL',
+                              style: TextStyle(
+                                  fontSize: 8,
+                                  height: 1,
+                                  fontWeight: FontWeight.w700)),
+                        ],
+                      ),
+                    ),
                   ),
-                  padding: EdgeInsets.zero,
-                  icon: const Icon(Icons.visibility_outlined, size: 20),
                 ),
-                if (edl.situation != SituationEdl.finalise)
-                  IconButton(
-                    onPressed: onVoir,
-                    tooltip: 'Éditer',
-                    constraints: const BoxConstraints(
-                      minWidth: 44,
-                      minHeight: 44,
-                    ),
-                    padding: EdgeInsets.zero,
-                    color: AppColors.primary,
-                    icon: const Icon(Icons.edit_outlined, size: 20),
-                  )
-                else if (!edl.locataireAccepte && onSigner != null)
-                  IconButton(
-                    onPressed: onSigner,
-                    tooltip: 'Signer',
-                    constraints: const BoxConstraints(
-                      minWidth: 44,
-                      minHeight: 44,
-                    ),
-                    padding: EdgeInsets.zero,
-                    color: AppColors.tertiary,
-                    icon: const Icon(Icons.draw_outlined, size: 20),
-                  ),
+                const SizedBox(width: AppSpacing.sm),
+                // Action principale — même FilledButton compact que côté
+                // propriétaire (Continuer / Signer EDL / Signer bail).
+                SizedBox(width: _kColBtn, child: _actionButton()),
               ],
             ),
           ),
         ],
       ),
     );
+  }
+
+  /// Bouton d'action principal de la ligne, au style du propriétaire
+  /// (`FilledButton.icon` compact) : Continuer → Signer EDL → Signer bail.
+  Widget _actionButton() {
+    Widget btn({
+      required IconData icon,
+      required String label,
+      VoidCallback? onPressed,
+      required String tooltip,
+    }) {
+      return Tooltip(
+        message: tooltip,
+        child: SizedBox(
+          width: double.infinity,
+          child: FilledButton.icon(
+            onPressed: onPressed,
+            icon: Icon(icon, size: 14),
+            label: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+            style: FilledButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              textStyle: const TextStyle(fontSize: 11),
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (edl.situation != SituationEdl.finalise) {
+      return btn(
+        icon: Icons.edit_outlined,
+        label: 'Continuer',
+        onPressed: onVoir,
+        tooltip: "Continuer l'édition de l'état des lieux",
+      );
+    }
+    if (!edl.locataireAccepte && onSigner != null) {
+      return btn(
+        icon: Icons.draw_outlined,
+        label: 'Signer EDL',
+        onPressed: onSigner,
+        tooltip: "Accepter et signer l'état des lieux",
+      );
+    }
+    // EDL signé → au tour du BAIL (document distinct).
+    if (_bailASignerParLocataire && onSignerBail != null) {
+      return btn(
+        icon: Icons.history_edu_outlined,
+        label: 'Signer bail',
+        onPressed: onSignerBail,
+        tooltip: 'Signer le contrat de bail',
+      );
+    }
+    return const SizedBox.shrink();
   }
 }
 
@@ -2677,13 +2832,23 @@ class _EdlLocataireCard extends StatelessWidget {
   final VoidCallback onVoir;
   final VoidCallback onVisualiser;
   final VoidCallback? onSigner;
+  final VoidCallback? onSignerBail;
 
   const _EdlLocataireCard({
     required this.edl,
     required this.onVoir,
     required this.onVisualiser,
     this.onSigner,
+    this.onSignerBail,
   });
+
+  /// Le locataire doit-il encore signer le BAIL ? (EDL déjà accepté, bail
+  /// éligible, signature bail_locataire absente.)
+  bool get _bailASignerParLocataire =>
+      edl.situation == SituationEdl.finalise &&
+      edl.locataireAccepte &&
+      edl.isBailEligible &&
+      !edl.bailSignedBy('locataire');
 
   static final _fmt = DateFormat('dd/MM/yyyy');
 
@@ -2839,7 +3004,7 @@ class _EdlLocataireCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 2),
-                  _EdlSituationBadge(situation: edl.situation),
+                  EdlParcoursBadge(edl: edl),
                 ],
               ),
             ],
@@ -2857,7 +3022,7 @@ class _EdlLocataireCard extends StatelessWidget {
               OutlinedButton.icon(
                 onPressed: onVisualiser,
                 icon: const Icon(Icons.visibility_outlined, size: 16),
-                label: const Text('Voir'),
+                label: const Text('Voir EDL'),
               ),
               const SizedBox(width: AppSpacing.sm),
               if (edl.situation != SituationEdl.finalise)
@@ -2876,7 +3041,16 @@ class _EdlLocataireCard extends StatelessWidget {
                       backgroundColor: AppColors.tertiary,
                     ),
                     icon: const Icon(Icons.draw_outlined, size: 16),
-                    label: const Text('Signer'),
+                    label: const Text("Signer l'EDL"),
+                  ),
+                )
+              // EDL signé → au tour du BAIL (document distinct).
+              else if (_bailASignerParLocataire && onSignerBail != null)
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: onSignerBail,
+                    icon: const Icon(Icons.history_edu_outlined, size: 16),
+                    label: const Text('Signer le bail'),
                   ),
                 ),
             ],
@@ -3161,7 +3335,7 @@ class _EdlDetailPageState extends State<_EdlDetailPage> {
                           ],
                         ),
                       ),
-                      _EdlSituationBadge(situation: edl.situation),
+                      EdlParcoursBadge(edl: edl),
                     ],
                   ),
                 ),
@@ -3426,7 +3600,12 @@ class _LocataireSignatureSectionState
     setState(() => _saving = true);
     try {
       await SignaturesDatasource.deleteSignature();
-    } catch (_) {}
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Erreur lors de la suppression : $e')));
+      }
+    }
     if (mounted) {
       setState(() {
         _future = SignaturesDatasource.getSavedUrl();
@@ -3597,40 +3776,6 @@ class _DangerZoneSection extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-
-class _EdlSituationBadge extends StatelessWidget {
-  final SituationEdl situation;
-  const _EdlSituationBadge({required this.situation});
-
-  @override
-  Widget build(BuildContext context) {
-    final (bg, fg) = switch (situation) {
-      SituationEdl.enCours => (
-        AppColors.primaryFixed,
-        AppColors.onPrimaryFixedVariant,
-      ),
-      SituationEdl.aVenir => (
-        AppColors.tertiaryFixed,
-        AppColors.onTertiaryFixedVariant,
-      ),
-      SituationEdl.finalise => (
-        AppColors.secondaryFixed,
-        AppColors.onSecondaryFixedVariant,
-      ),
-    };
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(99),
-      ),
-      child: Text(
-        situation.label,
-        style: TextStyle(fontSize: 11, color: fg, fontWeight: FontWeight.w500),
-      ),
-    );
-  }
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Section Documents (Baux + Garants)
@@ -3856,7 +4001,10 @@ class _FinancesSection extends StatefulWidget {
 
 class _FinancesSectionState extends State<_FinancesSection> {
   late Future<List<RecetteModel>> _future;
-  String? _filtreStatut;
+  // 'a_payer' | 'a_recevoir' | 'recu' | 'en_retard' | null (tous).
+  String? _filtreChip;
+  final TextEditingController _searchCtrl = TextEditingController();
+  String _query = '';
 
   static final _currFmt = NumberFormat.currency(
     locale: 'fr_FR',
@@ -3868,6 +4016,15 @@ class _FinancesSectionState extends State<_FinancesSection> {
   void initState() {
     super.initState();
     _load();
+    _searchCtrl.addListener(
+      () => setState(() => _query = _searchCtrl.text.toLowerCase()),
+    );
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
   }
 
   void _load() {
@@ -3882,13 +4039,37 @@ class _FinancesSectionState extends State<_FinancesSection> {
     }
   }
 
+  bool _matchesChip(RecetteModel r, String chip) => switch (chip) {
+        'a_payer' => r.statut == 'a_recevoir' && !r.isRemboursement,
+        'a_recevoir' => r.statut == 'a_recevoir' && r.isRemboursement,
+        'recu' => r.statut == 'recu',
+        'en_retard' => r.statut == 'en_retard',
+        _ => true,
+      };
+
   List<RecetteModel> _filter(List<RecetteModel> all) {
-    if (_filtreStatut == null) return all;
-    return all.where((r) => r.statut == _filtreStatut).toList();
+    var result = all;
+    if (_filtreChip != null) {
+      result = result.where((r) => _matchesChip(r, _filtreChip!)).toList();
+    }
+    if (_query.isNotEmpty) {
+      result = result.where((r) {
+        return r.moisLabel.toLowerCase().contains(_query) ||
+            r.lieuLabel.toLowerCase().contains(_query) ||
+            (r.notes ?? '').toLowerCase().contains(_query);
+      }).toList();
+    }
+    return result;
   }
 
-  double _total(List<RecetteModel> all, String statut) =>
-      all.where((r) => r.statut == statut).fold(0.0, (s, r) => s + r.montant);
+  // « À payer » = loyers dus par le locataire (sens='recevoir'). Les
+  // remboursements (ex. caution, sens='payer') sont « à recevoir » côté
+  // locataire — ne pas les mélanger dans le même total (sinon un
+  // remboursement de caution gonflerait le montant « à payer »).
+  double _total(List<RecetteModel> all, String statut, {bool remboursement = false}) =>
+      all
+          .where((r) => r.statut == statut && r.isRemboursement == remboursement)
+          .fold(0.0, (s, r) => s + r.montant);
 
   @override
   Widget build(BuildContext context) {
@@ -3896,6 +4077,34 @@ class _FinancesSectionState extends State<_FinancesSection> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _LocataireSectionBar(title: 'Mes Finances'),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            AppSpacing.md,
+            AppSpacing.lg,
+            0,
+          ),
+          child: TextField(
+            controller: _searchCtrl,
+            decoration: InputDecoration(
+              hintText: 'Rechercher par mois, bien…',
+              prefixIcon: const Icon(Icons.search, size: 20),
+              suffixIcon: _query.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.close, size: 18),
+                      tooltip: 'Effacer',
+                      onPressed: _searchCtrl.clear,
+                    )
+                  : null,
+              isDense: true,
+              border: const OutlineInputBorder(),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md,
+                vertical: AppSpacing.sm,
+              ),
+            ),
+          ),
+        ),
         Expanded(
           child: FutureBuilder<List<RecetteModel>>(
             future: _future,
@@ -3945,9 +4154,19 @@ class _FinancesSectionState extends State<_FinancesSection> {
                           label: 'À payer',
                           amount: _total(all, 'a_recevoir'),
                           color: AppColors.primary,
-                          selected: _filtreStatut == 'a_recevoir',
+                          selected: _filtreChip == 'a_payer',
                           onTap: () => setState(
-                            () => _filtreStatut = _filtreStatut == 'a_recevoir'
+                            () => _filtreChip =
+                                _filtreChip == 'a_payer' ? null : 'a_payer',
+                          ),
+                        ),
+                        _LocFinanceChip(
+                          label: 'À recevoir',
+                          amount: _total(all, 'a_recevoir', remboursement: true),
+                          color: AppColors.secondary,
+                          selected: _filtreChip == 'a_recevoir',
+                          onTap: () => setState(
+                            () => _filtreChip = _filtreChip == 'a_recevoir'
                                 ? null
                                 : 'a_recevoir',
                           ),
@@ -3956,20 +4175,19 @@ class _FinancesSectionState extends State<_FinancesSection> {
                           label: 'Payé',
                           amount: _total(all, 'recu'),
                           color: AppColors.tertiary,
-                          selected: _filtreStatut == 'recu',
+                          selected: _filtreChip == 'recu',
                           onTap: () => setState(
-                            () => _filtreStatut = _filtreStatut == 'recu'
-                                ? null
-                                : 'recu',
+                            () => _filtreChip =
+                                _filtreChip == 'recu' ? null : 'recu',
                           ),
                         ),
                         _LocFinanceChip(
                           label: 'En retard',
                           amount: _total(all, 'en_retard'),
                           color: AppColors.error,
-                          selected: _filtreStatut == 'en_retard',
+                          selected: _filtreChip == 'en_retard',
                           onTap: () => setState(
-                            () => _filtreStatut = _filtreStatut == 'en_retard'
+                            () => _filtreChip = _filtreChip == 'en_retard'
                                 ? null
                                 : 'en_retard',
                           ),
@@ -4050,6 +4268,7 @@ class _FinancesSectionState extends State<_FinancesSection> {
                                               DataCell(
                                                 _LocStatutBadge(
                                                   statut: r.statut,
+                                                  sens: r.sens,
                                                 ),
                                               ),
                                               if (!narrow)
@@ -4151,13 +4370,17 @@ class _LocFinanceChip extends StatelessWidget {
 
 class _LocStatutBadge extends StatelessWidget {
   final String statut;
-  const _LocStatutBadge({required this.statut});
+  final String sens;
+  const _LocStatutBadge({required this.statut, this.sens = 'recevoir'});
 
   @override
   Widget build(BuildContext context) {
+    // `sens` est du point de vue du propriétaire : 'payer' = un remboursement
+    // (ex. caution) que le LOCATAIRE va recevoir → labels inversés.
+    final remboursement = sens == 'payer';
     final (label, bg, fg) = switch (statut) {
       'recu' => (
-        'Payé',
+        remboursement ? 'Reçu' : 'Payé',
         AppColors.tertiaryFixed,
         AppColors.onTertiaryFixedVariant,
       ),
@@ -4167,7 +4390,7 @@ class _LocStatutBadge extends StatelessWidget {
         AppColors.onErrorContainer,
       ),
       _ => (
-        'À payer',
+        remboursement ? 'À recevoir' : 'À payer',
         AppColors.secondaryFixed,
         AppColors.onSecondaryFixedVariant,
       ),

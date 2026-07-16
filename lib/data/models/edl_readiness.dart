@@ -9,14 +9,12 @@
 /// pas un « champ à remplir avant de signer ».
 library;
 
-/// Section (≈ onglet) où vit une condition obligatoire.
-enum EdlReqSection { bail, garant, caution }
-
-/// Une condition obligatoire manquante (libellé + section).
+/// Une condition obligatoire manquante. Toutes vivent dans l'onglet « Bail »
+/// (l'ancien onglet « Garant » y a été fusionné) — le badge de l'onglet est
+/// simplement `missing.length`.
 class EdlRequirement {
   final String label;
-  final EdlReqSection section;
-  const EdlRequirement(this.label, this.section);
+  const EdlRequirement(this.label);
 }
 
 class EdlReadiness {
@@ -32,26 +30,20 @@ class EdlReadiness {
     final out = <EdlRequirement>[];
     // Fenêtre d'avenant : rien n'est présélectionné → doit être choisie.
     if (avenantWindowDays == null) {
-      out.add(const EdlRequirement("Fenêtre d'avenant", EdlReqSection.bail));
+      out.add(const EdlRequirement("Fenêtre d'avenant"));
     }
     // Choix avec/sans garant, puis au moins un garant si « avec ».
     if (bailAvecGarant == null) {
-      out.add(const EdlRequirement(
-          'Bail avec ou sans garant', EdlReqSection.bail));
+      out.add(const EdlRequirement('Bail avec ou sans garant'));
     } else if (bailAvecGarant && garantsCount < 1) {
-      out.add(const EdlRequirement('Au moins un garant', EdlReqSection.garant));
+      out.add(const EdlRequirement('Au moins un garant'));
     }
     // Mode de règlement de la caution.
     if (cautionMode == null || cautionMode.isEmpty) {
-      out.add(const EdlRequirement(
-          'Mode de règlement de la caution', EdlReqSection.caution));
+      out.add(const EdlRequirement('Mode de règlement de la caution'));
     }
     return out;
   }
-
-  /// Nombre de conditions manquantes pour une [section] donnée.
-  static int countForSection(List<EdlRequirement> missing, EdlReqSection s) =>
-      missing.where((r) => r.section == s).length;
 }
 
 /// Modes de règlement de la caution (dépôt de garantie).

@@ -80,10 +80,11 @@ class AuthService {
         _client.auth
             .signInWithPassword(email: email, password: password)
             .then((res) {
-              // Réponse complète de Supabase toujours loguée.
-              debugPrint('[login] SUCCÈS — réponse Supabase:');
-              debugPrint('  user:    ${res.user?.toJson()}');
-              debugPrint('  session: ${res.session?.toJson()}');
+              // ⚠️ Ne JAMAIS loguer la session complète : elle contient
+              // l'access_token et le refresh_token (vol de session possible
+              // via un simple copier-coller de console).
+              debugPrint('[login] SUCCÈS — user: ${res.user?.id} '
+                  '(${res.user?.email})');
               finish(SignInResult.success(res));
             })
             .catchError((Object e) {

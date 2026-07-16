@@ -19,10 +19,17 @@ graph TD
     CO2 --> P3["EDL partie=privative\nchambre C · edl_collectif_id → commune"]
 ```
 
-- **Bail collectif** → existe **somente** o EDL `commune`.
+- **Bail location** (ex-collectif) → existe **somente** o EDL `commune`.
 - **Bail individuel** → 1 EDL `commune` por imóvel (parties communes) + 1 EDL
   `privative` por chambre/locataire, cada um apontando para o `commune` via
   `edl_collectif_id`.
+- **O `commune` de bail individuel é INVISÍVEL nas listas** (Vision générale do
+  proprietaire e lista do locataire) desde 2026-07: é um detalhe de implementação;
+  as partes comuns são editadas dentro da fiche do EDL individual, e a assinatura
+  do locataire no privatif vale pelo conjunto. Ao deletar o último privatif de um
+  contrato, o `commune` órfão (não finalisé) é deletado junto — **atomicamente,
+  por trigger DB** (`trg_delete_orphan_collectif`). Prédicat único no model:
+  `EtatDesLieuxModel.isCollectifInterne`.
 - Datasource: `EtatDesLieuxDatasource.ensureCollectif()`, `findCollectif()`,
   `listPrivativesByCollectif()`.
 

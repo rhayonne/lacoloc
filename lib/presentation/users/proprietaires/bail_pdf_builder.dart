@@ -296,6 +296,12 @@ class BailPdfBuilder {
                         ? '${g.displayName} — ${g.typeGarantLabel}'
                         : g.displayName,
                   ),
+                  // Colocation (plusieurs preneurs) : préciser quel locataire
+                  // ce garant cautionne (via Garants.locataire_id).
+                  if (d.preneurDetails.length > 1)
+                    for (final p in d.preneurDetails)
+                      if (p.locataireId == g.locataireId)
+                        row('Se porte caution pour', p.nom ?? p.email ?? '—'),
                   row('Type de caution', g.typeCautionLabel),
                   if (g.typeGarant == 'morale') ...[
                     if (g.siret != null && g.siret!.isNotEmpty)

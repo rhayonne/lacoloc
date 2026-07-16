@@ -60,7 +60,12 @@ class _BailRequirementsBodyState extends State<_BailRequirementsBody> {
   }
 
   Future<_Data> _load() async {
-    final edl = await EtatDesLieuxDatasource.findById(widget.edlId);
+    // Timeout : si le chargement traîne (réseau, session), on sort de
+    // l'attente avec un message clair au lieu d'un spinner infini.
+    final edl = await EtatDesLieuxDatasource.findById(widget.edlId)
+        .timeout(const Duration(seconds: 15),
+            onTimeout: () => throw Exception(
+                'Chargement trop long — vérifiez votre connexion et réessayez.'));
     if (edl == null) throw Exception('EDL introuvable');
     int garants = 0;
     if (edl.locataireId != null) {
@@ -148,15 +153,55 @@ class _BailRequirementsBodyState extends State<_BailRequirementsBody> {
       future: _future,
       builder: (context, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
-          return const Padding(
-            padding: EdgeInsets.all(AppSpacing.xl),
+          // Hauteur fixe : sans elle, le Center s'étire sur toute la hauteur
+          // de l'écran (grand dialog blanc vide avec un spinner).
+          return const SizedBox(
+            height: 180,
             child: Center(child: CircularProgressIndicator()),
           );
         }
         if (snap.hasError) {
           return Padding(
             padding: const EdgeInsets.all(AppSpacing.lg),
-            child: Text('Erreur : ${snap.error}'),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.error_outline, color: AppColors.error),
+                    const SizedBox(width: AppSpacing.sm),
+                    Expanded(
+                      child: Text('Impossible de charger le document',
+                          style: AppTypography.titleLg),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                Text('${snap.error}'.replaceFirst('Exception: ', ''),
+                    style: AppTypography.bodyMd
+                        .copyWith(color: AppColors.onSurfaceVariant)),
+                const SizedBox(height: AppSpacing.md),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: const Text('Fermer'),
+                      ),
+                      const SizedBox(width: AppSpacing.sm),
+                      FilledButton.icon(
+                        onPressed: _reload,
+                        icon: const Icon(Icons.refresh, size: 18),
+                        label: const Text('Réessayer'),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           );
         }
         final d = snap.data!;

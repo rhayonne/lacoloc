@@ -646,29 +646,6 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage>
         onTap: () => go(_Section.agenda),
       ),
       NavEntry(
-        icon: Icons.receipt_long_outlined,
-        label: 'Finances',
-        selected: _section == _Section.finances,
-        onTap: () => go(_Section.finances),
-        children: [
-          NavChild(
-            label: 'Vue générale',
-            selected: _section == _Section.finances && _finSub == 0,
-            onTap: () => goSub(_Section.finances, () => _finSub = 0),
-          ),
-          NavChild(
-            label: 'Recettes',
-            selected: _section == _Section.finances && _finSub == 1,
-            onTap: () => goSub(_Section.finances, () => _finSub = 1),
-          ),
-          NavChild(
-            label: 'Dépenses / Factures',
-            selected: _section == _Section.finances && _finSub == 2,
-            onTap: () => goSub(_Section.finances, () => _finSub = 2),
-          ),
-        ],
-      ),
-      NavEntry(
         icon: Icons.store_outlined,
         label: 'Fournisseurs',
         selected: _section == _Section.fournisseurs,
@@ -699,6 +676,29 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage>
             label: 'Vétusté',
             selected: _section == _Section.etatDesLieux && _edlSub == 3,
             onTap: () => goSub(_Section.etatDesLieux, () => _edlSub = 3),
+          ),
+        ],
+      ),
+      NavEntry(
+        icon: Icons.receipt_long_outlined,
+        label: 'Finances',
+        selected: _section == _Section.finances,
+        onTap: () => go(_Section.finances),
+        children: [
+          NavChild(
+            label: 'Vue générale',
+            selected: _section == _Section.finances && _finSub == 0,
+            onTap: () => goSub(_Section.finances, () => _finSub = 0),
+          ),
+          NavChild(
+            label: 'Recettes',
+            selected: _section == _Section.finances && _finSub == 1,
+            onTap: () => goSub(_Section.finances, () => _finSub = 1),
+          ),
+          NavChild(
+            label: 'Dépenses / Factures',
+            selected: _section == _Section.finances && _finSub == 2,
+            onTap: () => goSub(_Section.finances, () => _finSub = 2),
           ),
         ],
       ),

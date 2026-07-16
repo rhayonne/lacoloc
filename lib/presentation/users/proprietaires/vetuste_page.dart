@@ -180,6 +180,23 @@ class _VetustePageState extends State<VetustePage> {
         if (snap.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
+        // Erreur ≠ « aucune donnée » : afficher le problème + réessayer.
+        if (snap.hasError) {
+          return Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('Erreur de chargement : ${snap.error}'),
+                const SizedBox(height: AppSpacing.md),
+                FilledButton.icon(
+                  onPressed: _reload,
+                  icon: const Icon(Icons.refresh, size: 18),
+                  label: const Text('Réessayer'),
+                ),
+              ],
+            ),
+          );
+        }
         final data = snap.data ?? const _VetusteData(bareme: [], decomptes: []);
         return RefreshIndicator(
           onRefresh: _reload,

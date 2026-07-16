@@ -67,13 +67,30 @@ class _GarantsPageState extends State<GarantsPage> {
 
   Future<void> _toggleActive(GarantModel g) async {
     final nowActive = !g.isActive;
-    await GarantsDatasource.setActive(g.id, active: nowActive);
+    try {
+      await GarantsDatasource.setActive(g.id, active: nowActive);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Erreur : $e')));
+      }
+      return;
+    }
     // Activation → rattache automatiquement ce garant aux baux en cours
     // d'édition du locataire qui exigent un garant (sans en toucher un signé).
     if (nowActive) {
       try {
         await EtatDesLieuxDatasource.autoLinkGarantsForLocataire(g.locataireId);
-      } catch (_) {}
+      } catch (_) {
+        // Best-effort, mais on prévient : la promesse « inséré automatiquement
+        // dans le bail » n'a pas pu être tenue cette fois.
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text(
+                  'Garant activé, mais le rattachement automatique au bail a '
+                  'échoué — ouvrez le bail pour le rattacher.')));
+        }
+      }
     }
     _reload();
   }

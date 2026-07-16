@@ -39,9 +39,13 @@ class _AdminEdlPageState extends State<AdminEdlPage> {
     super.dispose();
   }
 
+  /// Recharge la liste depuis le serveur (après une action). La recherche
+  /// filtre **en mémoire** (voir build) — pas de refetch à chaque frappe.
   void _reload() {
-    final f = EtatDesLieuxDatasource.listAllForAdmin(query: _searchCtrl.text);
-    setState(() => _future = f);
+    final f = EtatDesLieuxDatasource.listAllForAdmin();
+    setState(() {
+      _future = f;
+    });
   }
 
   Future<void> _openEditor(EtatDesLieuxModel e) async {
@@ -100,7 +104,7 @@ class _AdminEdlPageState extends State<AdminEdlPage> {
     if (!activer) {
       final ok = await _confirm(
         titre: 'Désactiver cet état des lieux ?',
-        message: e.typeBail == 'individuel' && e.partie == PartieEdl.commune
+        message: e.isCollectifInterne
             ? 'Le contrat collectif et TOUS ses EDL individuels (+ sorties) '
                 'seront désactivés. Ils disparaîtront pour les parties mais '
                 'resteront réactivables ici.'
@@ -189,8 +193,9 @@ class _AdminEdlPageState extends State<AdminEdlPage> {
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
           child: TextField(
             controller: _searchCtrl,
-            onSubmitted: (_) => _reload(),
-            onChanged: (_) => _reload(),
+            // Filtre en mémoire : un simple rebuild suffit (la liste complète
+            // a déjà été téléchargée ; refetch seulement après une action).
+            onChanged: (_) => setState(() {}),
             decoration: InputDecoration(
               hintText:
                   'Rechercher (code, locataire, propriétaire, immeuble…)',
@@ -201,7 +206,7 @@ class _AdminEdlPageState extends State<AdminEdlPage> {
                       icon: const Icon(Icons.clear),
                       onPressed: () {
                         _searchCtrl.clear();
-                        _reload();
+                        setState(() {});
                       },
                     ),
               border: OutlineInputBorder(borderRadius: AppRadius.borderMd),
@@ -220,7 +225,10 @@ class _AdminEdlPageState extends State<AdminEdlPage> {
               if (snap.hasError) {
                 return Center(child: Text('Erreur : ${snap.error}'));
               }
-              final edls = snap.data ?? const [];
+              final edls = (snap.data ?? const <EtatDesLieuxModel>[])
+                  .where((e) => EtatDesLieuxDatasource.adminQueryMatches(
+                      e, _searchCtrl.text))
+                  .toList();
               if (edls.isEmpty) {
                 return const Center(child: Text('Aucun état des lieux.'));
               }
