@@ -3,6 +3,7 @@ import 'package:lacoloc_front/data/cache/realtime_refresh_mixin.dart';
 import 'package:lacoloc_front/data/datasources/auth_service.dart';
 import 'package:lacoloc_front/data/datasources/chambres.dart';
 import 'package:lacoloc_front/data/datasources/demandes_contact.dart';
+import 'package:lacoloc_front/data/datasources/messages.dart';
 import 'package:lacoloc_front/data/datasources/immeubles.dart';
 import 'package:lacoloc_front/data/datasources/notifications.dart';
 import 'package:lacoloc_front/data/models/chambre.dart';
@@ -112,7 +113,7 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage>
   int _interactionsBadge = 0;
 
   @override
-  Set<String> get watchedEntities => {'notifications', 'demandes'};
+  Set<String> get watchedEntities => {'notifications', 'demandes', 'messages'};
 
   @override
   void onRealtimeChange() => _refreshBadges();
@@ -122,13 +123,18 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage>
       final results = await Future.wait([
         NotificationsDatasource.unreadCount(),
         DemandesContactDatasource.listByOwner(),
+        MessagesDatasource.unreadCount(refresh: true),
       ]);
       if (!mounted) return;
       final unread = results[0] as int;
       final demandes = results[1] as List;
+      final msgNonLus = results[2] as int;
       final pendingDemandes =
           demandes.where((d) => d.contactEtabli == false).length;
-      setState(() => _interactionsBadge = unread + pendingDemandes);
+      // Pastille = notifications non lues + demandes à traiter + messages reçus.
+      setState(
+        () => _interactionsBadge = unread + pendingDemandes + msgNonLus,
+      );
     } catch (_) {
       // best-effort : pastille non bloquante
     }
@@ -259,7 +265,7 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage>
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        icon: const Icon(Icons.school_outlined, color: AppColors.primary, size: 34),
+        icon: Icon(Icons.school_outlined, color: AppColors.primary, size: 34),
         title: const Text('Tour guidé'),
         content: const Text(
           "Souhaitez-vous être guidé pas à pas pour créer un immeuble ?\n\n"

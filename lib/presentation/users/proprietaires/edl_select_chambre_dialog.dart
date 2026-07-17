@@ -176,7 +176,7 @@ class _ChambreTile extends StatelessWidget {
                       const SizedBox(height: 2),
                       Row(
                         children: [
-                          const Icon(Icons.info_outline,
+                          Icon(Icons.info_outline,
                               size: 13, color: AppColors.error),
                           const SizedBox(width: 4),
                           Flexible(
@@ -232,7 +232,7 @@ class _ChambreTile extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: AppSpacing.sm),
-                const Icon(Icons.chevron_right,
+                Icon(Icons.chevron_right,
                     color: AppColors.onSurfaceVariant),
               ],
             ],

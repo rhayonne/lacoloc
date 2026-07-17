@@ -17,6 +17,12 @@ class DemandeContactModel {
   final String? chambreName;
   final String? immeubleName;
 
+  /// `Immeubles.owner_id` — l'autre partie du fil de discussion vue du locataire.
+  final String? proprietaireId;
+
+  /// `Users_Client` du proprietaire (join sur Immeubles → owner).
+  final String? proprietaireFullName;
+
   const DemandeContactModel({
     required this.id,
     required this.createdAt,
@@ -31,7 +37,29 @@ class DemandeContactModel {
     this.locataireDateOfBirth,
     this.chambreName,
     this.immeubleName,
+    this.proprietaireId,
+    this.proprietaireFullName,
   });
+
+  /// L'interlocuteur de [userId] dans ce fil : si je suis le locataire, c'est le
+  /// proprietaire, et inversement. `null` si l'info manque (embed non demandé).
+  String? interlocuteurId(String? userId) {
+    if (userId == null) return null;
+    if (userId == locataireId) return proprietaireId;
+    if (userId == proprietaireId) return locataireId;
+    return null;
+  }
+
+  /// Nom affichable de l'interlocuteur de [userId].
+  String interlocuteurNom(String? userId) {
+    if (userId != null && userId == locataireId) {
+      return proprietaireFullName ?? 'Le propriétaire';
+    }
+    return locataireFullName ?? 'Le locataire';
+  }
+
+  /// Le fil de discussion est-il ouvert ? (le proprietaire a accepté)
+  bool get discussionOuverte => contactEtabli;
 
   /// Idade calculada a partir da data de nascimento; fallback para o campo age.
   int? get calculatedAge {
@@ -50,6 +78,7 @@ class DemandeContactModel {
     final locataire = json['Users_Client'] as Map<String, dynamic>?;
     final chambre = json['Chambres'] as Map<String, dynamic>?;
     final immeuble = json['Immeubles'] as Map<String, dynamic>?;
+    final proprio = immeuble?['owner'] as Map<String, dynamic>?;
 
     return DemandeContactModel(
       id: json['id'] as int,
@@ -67,6 +96,8 @@ class DemandeContactModel {
           : null,
       chambreName: chambre?['room_name'] as String?,
       immeubleName: immeuble?['name'] as String?,
+      proprietaireId: immeuble?['owner_id'] as String?,
+      proprietaireFullName: proprio?['full_name'] as String?,
     );
   }
 
@@ -84,5 +115,7 @@ class DemandeContactModel {
     locataireDateOfBirth: locataireDateOfBirth,
     chambreName: chambreName,
     immeubleName: immeubleName,
+    proprietaireId: proprietaireId,
+    proprietaireFullName: proprietaireFullName,
   );
 }

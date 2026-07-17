@@ -1132,7 +1132,7 @@ class _InventaireFormState extends State<_InventaireForm> {
       final ok = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
-          icon: const Icon(
+          icon: Icon(
             Icons.copy_all_outlined,
             color: AppColors.secondary,
             size: 32,
@@ -1788,7 +1788,7 @@ class _InventaireFormState extends State<_InventaireForm> {
                           child: FilledButton(
                             onPressed: _isSaving ? null : _save,
                             child: _isSaving
-                                ? const SizedBox(
+                                ? SizedBox(
                                     width: 20,
                                     height: 20,
                                     child: CircularProgressIndicator(

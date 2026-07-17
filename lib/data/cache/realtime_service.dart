@@ -36,10 +36,14 @@ class RealtimeService {
   static bool enabled = true;
 
   /// Tables suivies (DOIVENT correspondre à la publication `supabase_realtime`).
-  /// On garde seulement le cross-user léger : Notifications + Demandes_Contact.
+  /// On garde seulement le cross-user léger : Notifications + Demandes_Contact
+  /// + Messages (le chat, dont la RLS SELECT est volontairement triviale et
+  /// indexée : `auth.uid() IN (sender_id, recipient_id)` — voir la migration
+  /// `messages_demande_contact`).
   static const Map<String, String> _tables = {
     'Demandes_Contact': CacheKeys.demandes,
     'Notifications': CacheKeys.notifications,
+    'Messages': CacheKeys.messages,
   };
 
   ValueNotifier<int> entityRevision(String entity) =>
@@ -93,6 +97,7 @@ class CacheKeys {
   static const factures = 'factures:';
   static const fournisseurs = 'fournisseurs:';
   static const demandes = 'demandes:';
+  static const messages = 'messages:';
   static const edl = 'edl:';
   static const notifications = 'notifications:';
   static const visites = 'visites:';
@@ -101,6 +106,7 @@ class CacheKeys {
   static const chambreCharges = 'chambre_charges:';
   static const immeubleCharges = 'immeuble_charges:';
   static const immeubleLots = 'immeuble_lots:';
+  static const themes = 'themes:';
   static const chargesRef = 'charges_ref:';
   static const paymentTypes = 'payment_types:';
   static const meubleCategories = 'meuble_categories:';

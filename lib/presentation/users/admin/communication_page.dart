@@ -351,7 +351,7 @@ class _CommunicationPageState extends State<CommunicationPage>
         const SizedBox(height: AppSpacing.sm),
         Row(
           children: [
-            const Icon(Icons.people_alt_outlined,
+            Icon(Icons.people_alt_outlined,
                 size: 16, color: AppColors.primary),
             const SizedBox(width: AppSpacing.xs),
             Text('${_recipients.length} destinataire(s)',
@@ -539,7 +539,7 @@ class _CommunicationPageState extends State<CommunicationPage>
                       : 'Lien/ID YouTube invalide')
                   : null,
               suffixIcon: _mediaValue != null
-                  ? const Icon(Icons.check_circle, color: AppColors.success)
+                  ? Icon(Icons.check_circle, color: AppColors.success)
                   : null,
             ),
           ),

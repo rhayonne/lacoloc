@@ -128,7 +128,7 @@ class _ImmeublePublicDetailViewState extends State<ImmeublePublicDetailView> {
                 if (imm.city != null || imm.address != null)
                   Row(
                     children: [
-                      const Icon(Icons.place_outlined,
+                      Icon(Icons.place_outlined,
                           size: 16, color: AppColors.onSurfaceVariant),
                       const SizedBox(width: AppSpacing.xs),
                       Expanded(

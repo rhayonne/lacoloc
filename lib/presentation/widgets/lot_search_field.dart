@@ -135,7 +135,7 @@ class _LotSearchFieldState extends State<LotSearchField> {
                   overflow: TextOverflow.ellipsis,
                 ),
                 trailing: already
-                    ? const Icon(Icons.check, size: 18, color: AppColors.primary)
+                    ? Icon(Icons.check, size: 18, color: AppColors.primary)
                     : null,
                 onTap: already ? null : () => _pick(l),
               );
@@ -144,7 +144,7 @@ class _LotSearchFieldState extends State<LotSearchField> {
             const Divider(height: 1),
             ListTile(
               dense: true,
-              leading: const Icon(Icons.add, size: 20, color: AppColors.primary),
+              leading: Icon(Icons.add, size: 20, color: AppColors.primary),
               title: Text('Ajouter un lot',
                   style: AppTypography.labelMd.copyWith(color: AppColors.primary)),
               onTap: widget.onCreateNew,

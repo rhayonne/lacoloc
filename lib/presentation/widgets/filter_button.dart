@@ -51,7 +51,7 @@ class FilterButton extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.tune, size: 16, color: AppColors.onSurfaceVariant),
+              Icon(Icons.tune, size: 16, color: AppColors.onSurfaceVariant),
               const SizedBox(width: 5),
               Text(
                 label,

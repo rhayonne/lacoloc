@@ -28,6 +28,14 @@ class DemandesContactDatasource {
     _invalidate();
   }
 
+  /// Embeds partagés. `Immeubles.owner_id` + le nom du proprietaire donnent au
+  /// locataire son interlocuteur (Immeubles a un SELECT public).
+  static const _select =
+      '*, '
+      'Users_Client!locataire_id(full_name, email, phone, age, date_of_birth), '
+      'Chambres!chambre_id(room_name), '
+      'Immeubles!immeuble_id(name, owner_id, owner:Users_Client!owner_id(full_name))';
+
   /// Lista todas as demandas para os imóveis do proprietaire autenticado.
   static Future<List<DemandeContactModel>> listByOwner({
     bool refresh = false,
@@ -35,12 +43,27 @@ class DemandesContactDatasource {
     return _cache.get('${CacheKeys.demandes}owner', () async {
       final rows = await _db
           .from(_table)
-          .select(
-            '*, '
-            'Users_Client!locataire_id(full_name, email, phone, age, date_of_birth), '
-            'Chambres!chambre_id(room_name), '
-            'Immeubles!immeuble_id(name)',
-          )
+          .select(_select)
+          .order('created_at', ascending: false);
+
+      return rows
+          .map((r) => DemandeContactModel.fromJson(Map<String, dynamic>.from(r)))
+          .toList();
+    }, refresh: refresh);
+  }
+
+  /// Lista as demandas feitas pelo locataire autenticado (RLS
+  /// `locataire_select_demande` já limita ao próprio).
+  static Future<List<DemandeContactModel>> listByLocataire({
+    bool refresh = false,
+  }) {
+    return _cache.get('${CacheKeys.demandes}locataire', () async {
+      final uid = _db.auth.currentUser?.id;
+      if (uid == null) return <DemandeContactModel>[];
+      final rows = await _db
+          .from(_table)
+          .select(_select)
+          .eq('locataire_id', uid)
           .order('created_at', ascending: false);
 
       return rows
@@ -50,6 +73,9 @@ class DemandesContactDatasource {
   }
 
   /// Atualiza o campo contact_etabli de uma demanda.
+  ///
+  /// C'est **l'acceptation** : à `true`, le fil de discussion s'ouvre pour les
+  /// deux parties (la RLS de `Messages` s'appuie sur ce champ).
   static Future<void> updateContactEtabli(int id, {required bool value}) async {
     await _db.from(_table).update({'contact_etabli': value}).eq('id', id);
     _invalidate();

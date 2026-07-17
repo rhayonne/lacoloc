@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:lacoloc_front/data/cache/realtime_service.dart';
+import 'package:lacoloc_front/data/datasources/auth_service.dart';
 import 'package:lacoloc_front/data/datasources/immeubles.dart';
 import 'package:lacoloc_front/data/datasources/session_scope.dart';
 import 'package:lacoloc_front/data/permissions/permissions_service.dart';
@@ -15,7 +16,9 @@ import 'package:lacoloc_front/presentation/users/locataires/creer_compte_locatai
 import 'package:lacoloc_front/presentation/users/proprietaires/creer_compte_proprietaire_page.dart';
 import 'package:lacoloc_front/presentation/users/proprietaires/proprietaire_profil.dart';
 import 'package:lacoloc_front/presentation/tour/guided_tours.dart';
+import 'package:lacoloc_front/theme/app_palette.dart';
 import 'package:lacoloc_front/theme/app_theme.dart';
+import 'package:lacoloc_front/theme/theme_controller.dart';
 import 'package:responsive_framework/responsive_framework.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -56,6 +59,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           if (state.session != null) {
             RealtimeService.instance.start();
             PermissionsService.instance.load();
+            // Applique le thème choisi par la personne (best-effort).
+            AuthService.loadThemePreference();
             // Log de connexion : best-effort, ne bloque pas le flux principal.
             _logConnection();
           }
@@ -72,6 +77,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           PermissionsService.instance.clear();
           ImmeublesDatasource.clearEntrepriseCache();
           SessionScope.clear();
+          // Le thème est une préférence personnelle : un visiteur déconnecté
+          // retrouve le thème par défaut.
+          ThemeController.instance.reset();
         default:
           break;
       }
@@ -91,6 +99,35 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     });
     _handleActivationLink();
     _handleTourLink();
+    ThemeController.instance.addListener(_onThemeChanged);
+    // Thème « principal » (Themes_Reference.is_default) : c'est ce que voit un
+    // visiteur non connecté. Si une session est déjà active, le listener
+    // ci-dessus appliquera par-dessus le choix personnel de la personne.
+    ThemeController.instance.loadDefault();
+  }
+
+  /// Le thème a changé → **tout** l'arbre doit se reconstruire.
+  ///
+  /// Pourquoi ce n'est pas automatique : les écrans lisent `AppColors.<token>`,
+  /// un getter statique global. Ils ne dépendent donc d'aucun `InheritedWidget`
+  /// et Flutter ne sait pas qu'ils sont périmés — seul le `MaterialApp` se
+  /// reconstruit, pas les pages déjà montées dans le `Navigator` (d'où
+  /// l'ancien symptôme : « il faut revenir à l'accueil pour voir le thème »).
+  ///
+  /// On marque donc chaque élément à reconstruire. Contrairement à un
+  /// changement de `key` (qui recréerait l'arbre), l'état est **préservé** :
+  /// saisie en cours, position de scroll, onglet actif.
+  void _onThemeChanged() {
+    // Après la frame : `markNeedsBuild` est interdit pendant un build.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      void visitor(Element el) {
+        el.markNeedsBuild();
+        el.visitChildren(visitor);
+      }
+
+      (context as Element).visitChildren(visitor);
+    });
   }
 
   /// Lien `?tour=...` (depuis le manuel « Tour guidé ») : amène l'utilisateur
@@ -155,12 +192,24 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    ThemeController.instance.removeListener(_onThemeChanged);
     _authSub.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    // Le thème vit dans `ThemeController` (thème principal pour les visiteurs,
+    // choix personnel une fois connecté). On s'y abonne ici pour que le
+    // `MaterialApp` reprenne le nouveau `theme:` ; `_onThemeChanged` se charge
+    // des pages déjà montées.
+    return ValueListenableBuilder<AppPalette>(
+      valueListenable: ThemeController.instance,
+      builder: (context, _, _) => _buildApp(),
+    );
+  }
+
+  Widget _buildApp() {
     return MaterialApp(
       navigatorKey: _navigatorKey,
       title: 'Super Loc',

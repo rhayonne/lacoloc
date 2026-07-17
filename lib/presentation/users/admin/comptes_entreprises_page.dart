@@ -207,7 +207,7 @@ class _EntrepriseCardState extends State<_EntrepriseCard> {
       child: Column(
         children: [
           ListTile(
-            leading: const Icon(Icons.business_outlined,
+            leading: Icon(Icons.business_outlined,
                 color: AppColors.primary),
             title: Text(e.name,
                 style:
@@ -263,7 +263,7 @@ class _EntrepriseCardState extends State<_EntrepriseCard> {
           if (_expanded)
             Container(
               width: double.infinity,
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 border:
                     Border(top: BorderSide(color: AppColors.outlineVariant)),
               ),

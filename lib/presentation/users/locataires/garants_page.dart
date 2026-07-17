@@ -201,7 +201,7 @@ class _GarantsPageState extends State<GarantsPage> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.shield_outlined,
+                      Icon(Icons.shield_outlined,
                           size: 56, color: AppColors.outline),
                       const SizedBox(height: AppSpacing.md),
                       Text('Aucun garant enregistré',

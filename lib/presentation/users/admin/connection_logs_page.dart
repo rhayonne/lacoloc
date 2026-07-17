@@ -245,7 +245,7 @@ class _ConnectionLogsPageState extends State<ConnectionLogsPage> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.history_outlined, size: 48,
+                Icon(Icons.history_outlined, size: 48,
                     color: AppColors.onSurfaceVariant),
                 const SizedBox(height: AppSpacing.md),
                 Text(
@@ -449,7 +449,7 @@ class _IpCell extends StatelessWidget {
             child: InkWell(
               borderRadius: BorderRadius.circular(4),
               onTap: () => launchUrl(Uri.parse(url)),
-              child: const Icon(
+              child: Icon(
                 Icons.open_in_new,
                 size: 14,
                 color: AppColors.primary,

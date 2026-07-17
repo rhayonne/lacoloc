@@ -583,7 +583,7 @@ class _UserCardState extends State<_UserCard> {
                   label: const Text('Permissions'),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppColors.primary,
-                    side: const BorderSide(color: AppColors.primary),
+                    side: BorderSide(color: AppColors.primary),
                     padding: const EdgeInsets.symmetric(
                         horizontal: AppSpacing.md, vertical: AppSpacing.sm),
                   ),
@@ -596,7 +596,7 @@ class _UserCardState extends State<_UserCard> {
                     icon: const Icon(Icons.key_outlined, size: 18),
                     style: IconButton.styleFrom(
                       foregroundColor: AppColors.onSurfaceVariant,
-                      side: const BorderSide(color: AppColors.outlineVariant),
+                      side: BorderSide(color: AppColors.outlineVariant),
                     ),
                   ),
                 ),
@@ -634,7 +634,7 @@ class _UserCardState extends State<_UserCard> {
     if (!_loaded) return const SizedBox.shrink();
     return Container(
       width: double.infinity,
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         border: Border(top: BorderSide(color: AppColors.outlineVariant)),
       ),
       padding: const EdgeInsets.all(AppSpacing.md),
@@ -652,7 +652,7 @@ class _UserCardState extends State<_UserCard> {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.info_outline,
+                  Icon(Icons.info_outline,
                       size: 16, color: AppColors.error),
                   const SizedBox(width: AppSpacing.sm),
                   Expanded(
@@ -669,7 +669,7 @@ class _UserCardState extends State<_UserCard> {
           // Seletor de grupo
           Row(
             children: [
-              const Icon(Icons.groups_outlined,
+              Icon(Icons.groups_outlined,
                   size: 18, color: AppColors.primary),
               const SizedBox(width: AppSpacing.sm),
               Text('Groupe', style: AppTypography.labelMd),
@@ -755,7 +755,7 @@ class _GroupsTab extends StatelessWidget {
           ),
           child: Row(
             children: [
-              const Icon(Icons.info_outline, size: 16, color: AppColors.primary),
+              Icon(Icons.info_outline, size: 16, color: AppColors.primary),
               const SizedBox(width: AppSpacing.sm),
               Expanded(
                 child: Text(
@@ -849,7 +849,7 @@ class _GroupCardState extends State<_GroupCard> {
       child: Column(
         children: [
           ListTile(
-            leading: const Icon(Icons.groups, color: AppColors.primary),
+            leading: Icon(Icons.groups, color: AppColors.primary),
             title: Text(widget.group.name,
                 style:
                     AppTypography.bodyMd.copyWith(fontWeight: FontWeight.w600)),
@@ -865,7 +865,7 @@ class _GroupCardState extends State<_GroupCard> {
           if (_expanded)
             Container(
               width: double.infinity,
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 border:
                     Border(top: BorderSide(color: AppColors.outlineVariant)),
               ),
@@ -1222,7 +1222,7 @@ class _PasswordDialogState extends State<_PasswordDialog> {
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.mail_outline,
+                      Icon(Icons.mail_outline,
                           size: 18, color: AppColors.primary),
                       const SizedBox(width: AppSpacing.sm),
                       Text(
@@ -1302,7 +1302,7 @@ class _PasswordDialogState extends State<_PasswordDialog> {
             // ── Option 2 : définir directement ───────────────────────────────
             Row(
               children: [
-                const Icon(Icons.lock_outline,
+                Icon(Icons.lock_outline,
                     size: 18, color: AppColors.onSurfaceVariant),
                 const SizedBox(width: AppSpacing.sm),
                 Text(

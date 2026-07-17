@@ -53,7 +53,7 @@ class AppTheme {
         scrolledUnderElevation: 1,
         centerTitle: true,
         titleTextStyle: AppTypography.titleLg,
-        iconTheme: const IconThemeData(color: AppColors.onSurface),
+        iconTheme: IconThemeData(color: AppColors.onSurface),
       ),
 
       elevatedButtonTheme: ElevatedButtonThemeData(
@@ -75,7 +75,7 @@ class AppTheme {
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: AppColors.primary,
-          side: const BorderSide(color: AppColors.outlineVariant),
+          side: BorderSide(color: AppColors.outlineVariant),
           textStyle: AppTypography.labelMd,
           padding: const EdgeInsets.symmetric(
             horizontal: AppSpacing.lg,
@@ -149,7 +149,7 @@ class AppTheme {
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
           borderRadius: AppRadius.borderMd,
-          side: const BorderSide(color: AppColors.outlineVariant, width: 1),
+          side: BorderSide(color: AppColors.outlineVariant, width: 1),
         ),
       ),
 
@@ -166,27 +166,27 @@ class AppTheme {
         ),
         border: OutlineInputBorder(
           borderRadius: AppRadius.borderMd,
-          borderSide: const BorderSide(color: AppColors.outlineVariant),
+          borderSide: BorderSide(color: AppColors.outlineVariant),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: AppRadius.borderMd,
-          borderSide: const BorderSide(color: AppColors.outlineVariant),
+          borderSide: BorderSide(color: AppColors.outlineVariant),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: AppRadius.borderMd,
-          borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+          borderSide: BorderSide(color: AppColors.primary, width: 1.5),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: AppRadius.borderMd,
-          borderSide: const BorderSide(color: AppColors.error),
+          borderSide: BorderSide(color: AppColors.error),
         ),
         focusedErrorBorder: OutlineInputBorder(
           borderRadius: AppRadius.borderMd,
-          borderSide: const BorderSide(color: AppColors.error, width: 1.5),
+          borderSide: BorderSide(color: AppColors.error, width: 1.5),
         ),
       ),
 
-      dividerTheme: const DividerThemeData(
+      dividerTheme: DividerThemeData(
         color: AppColors.outlineVariant,
         thickness: 1,
         space: 1,
@@ -200,7 +200,7 @@ class AppTheme {
           vertical: AppSpacing.xs,
         ),
         shape: RoundedRectangleBorder(borderRadius: AppRadius.borderFull),
-        side: const BorderSide(color: AppColors.outlineVariant),
+        side: BorderSide(color: AppColors.outlineVariant),
       ),
 
       dialogTheme: DialogThemeData(
@@ -226,11 +226,11 @@ class AppTheme {
         shape: RoundedRectangleBorder(borderRadius: AppRadius.borderMd),
       ),
 
-      drawerTheme: const DrawerThemeData(
+      drawerTheme: DrawerThemeData(
         backgroundColor: AppColors.surfaceContainerLowest,
       ),
 
-      iconTheme: const IconThemeData(color: AppColors.onSurfaceVariant),
+      iconTheme: IconThemeData(color: AppColors.onSurfaceVariant),
     );
   }
 
@@ -243,7 +243,7 @@ class AppTheme {
   /// Style bordé pour tous les boutons "Annuler" de l'app.
   static ButtonStyle get cancelButtonStyle => OutlinedButton.styleFrom(
     foregroundColor: AppColors.onSurfaceVariant,
-    side: const BorderSide(color: AppColors.outlineVariant),
+    side: BorderSide(color: AppColors.outlineVariant),
     textStyle: AppTypography.labelMd,
     padding: const EdgeInsets.symmetric(
       horizontal: AppSpacing.lg,
@@ -284,7 +284,7 @@ class AppTheme {
   /// primaire. À utiliser sur tout bouton « Modifier » (avec `Icons.edit_outlined`).
   static ButtonStyle get editButtonStyle => OutlinedButton.styleFrom(
     foregroundColor: AppColors.primary,
-    side: const BorderSide(color: AppColors.primary),
+    side: BorderSide(color: AppColors.primary),
     textStyle: AppTypography.labelMd,
     padding: const EdgeInsets.symmetric(
       horizontal: AppSpacing.lg,
@@ -298,7 +298,7 @@ class AppTheme {
   /// PDF de l'app. À utiliser via le widget [DocumentPdfButton].
   static ButtonStyle get documentButtonStyle => OutlinedButton.styleFrom(
     foregroundColor: AppColors.primary,
-    side: const BorderSide(color: AppColors.primary),
+    side: BorderSide(color: AppColors.primary),
     textStyle: AppTypography.labelMd,
     padding: const EdgeInsets.symmetric(
       horizontal: AppSpacing.lg,

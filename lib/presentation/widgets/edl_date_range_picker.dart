@@ -188,7 +188,7 @@ class _DateRangePopupState extends State<_DateRangePopup> {
             active: !selectingEnd,
           ),
         ),
-        const Padding(
+        Padding(
           padding: EdgeInsets.symmetric(horizontal: AppSpacing.sm),
           child: Icon(Icons.arrow_forward, size: 18,
               color: AppColors.onSurfaceVariant),
@@ -349,7 +349,7 @@ class _DateRangePopupState extends State<_DateRangePopup> {
               height: 38,
               alignment: Alignment.center,
               decoration: edge
-                  ? const BoxDecoration(
+                  ? BoxDecoration(
                       color: AppColors.primary, shape: BoxShape.circle)
                   : (isToday
                       ? BoxDecoration(

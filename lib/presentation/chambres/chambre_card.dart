@@ -143,7 +143,7 @@ class ChambreCard extends StatelessWidget {
 
   Widget _placeholder() => Container(
         color: AppColors.surfaceContainerLow,
-        child: const Icon(Icons.bed_outlined, size: 48, color: AppColors.outline),
+        child: Icon(Icons.bed_outlined, size: 48, color: AppColors.outline),
       );
 }
 

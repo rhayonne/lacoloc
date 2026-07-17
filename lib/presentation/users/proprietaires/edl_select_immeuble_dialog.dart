@@ -247,7 +247,7 @@ class _ImmeubleTile extends StatelessWidget {
               ),
             ),
             const SizedBox(width: AppSpacing.xs),
-            const Icon(Icons.chevron_right, color: AppColors.onSurfaceVariant),
+            Icon(Icons.chevron_right, color: AppColors.onSurfaceVariant),
           ],
         ),
       ),
@@ -271,7 +271,7 @@ class _Thumb extends StatelessWidget {
         child: (url == null || url!.isEmpty)
             ? Container(
                 color: AppColors.surfaceContainerHighest,
-                child: const Icon(Icons.apartment_outlined,
+                child: Icon(Icons.apartment_outlined,
                     color: AppColors.onSurfaceVariant),
               )
             : CachedNetworkImage(
@@ -289,7 +289,7 @@ class _Thumb extends StatelessWidget {
                 ),
                 errorWidget: (_, _, _) => Container(
                   color: AppColors.surfaceContainerHighest,
-                  child: const Icon(Icons.apartment_outlined,
+                  child: Icon(Icons.apartment_outlined,
                       color: AppColors.onSurfaceVariant),
                 ),
               ),

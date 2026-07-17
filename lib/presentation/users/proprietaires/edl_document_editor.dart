@@ -1067,7 +1067,7 @@ class _SectionTable extends StatelessWidget {
             ),
             child: Row(
               children: [
-                const Icon(Icons.meeting_room_outlined,
+                Icon(Icons.meeting_room_outlined,
                     size: 18, color: AppColors.primary),
                 const SizedBox(width: AppSpacing.xs),
                 Expanded(
@@ -1262,7 +1262,7 @@ class _LigneHeaderRow extends StatelessWidget {
         decoration: BoxDecoration(
           border: last
               ? null
-              : const Border(
+              : Border(
                   right: BorderSide(color: AppColors.outlineVariant)),
         ),
         padding: const EdgeInsets.symmetric(
@@ -1281,7 +1281,7 @@ class _LigneHeaderRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: Color(0xFFF0F6FA),
         border: Border(
           bottom: BorderSide(color: AppColors.outlineVariant),
@@ -1361,7 +1361,7 @@ class _LigneRowState extends State<_LigneRow> {
         decoration: BoxDecoration(
           border: last
               ? null
-              : const Border(
+              : Border(
                   right: BorderSide(color: AppColors.outlineVariant)),
         ),
         padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
@@ -1396,7 +1396,7 @@ class _LigneRowState extends State<_LigneRow> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: AppColors.outlineVariant)),
       ),
       // IntrinsicHeight + stretch : toutes les cellules prennent la hauteur de

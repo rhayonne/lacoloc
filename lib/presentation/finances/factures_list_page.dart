@@ -291,7 +291,7 @@ class _FinancesVisionGenerale extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.bar_chart_outlined,
+              Icon(Icons.bar_chart_outlined,
                   size: 64, color: AppColors.outline),
               const SizedBox(height: AppSpacing.md),
               Text(
@@ -575,7 +575,7 @@ class _RecettesTabState extends State<_RecettesTab> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.payments_outlined,
+                        Icon(Icons.payments_outlined,
                             size: 56, color: AppColors.outline),
                         const SizedBox(height: AppSpacing.md),
                         Text(
@@ -1080,7 +1080,7 @@ class _EmptyState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(
+            Icon(
               Icons.receipt_long_outlined,
               size: 64,
               color: AppColors.outline,

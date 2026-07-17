@@ -148,7 +148,7 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        icon: const Icon(
+        icon: Icon(
           Icons.school_outlined,
           color: AppColors.primary,
           size: 34,
@@ -225,7 +225,7 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
-        icon: const Icon(
+        icon: Icon(
           Icons.celebration_outlined,
           color: AppColors.primary,
           size: 34,
@@ -654,7 +654,7 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
   Widget _editNote(String texte) => Row(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      const Icon(
+      Icon(
         Icons.info_outline,
         size: 16,
         color: AppColors.onSurfaceVariant,
@@ -731,7 +731,7 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
           const SizedBox(height: AppSpacing.xs),
           Row(
             children: [
-              const Icon(
+              Icon(
                 Icons.check_circle_outline,
                 size: 16,
                 color: AppColors.tertiary,

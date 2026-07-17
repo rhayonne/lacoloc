@@ -213,7 +213,7 @@ class _LocataireSearchFieldState extends State<LocataireSearchField> {
                 subtitle: Text(u.email,
                     maxLines: 1, overflow: TextOverflow.ellipsis),
                 trailing: already
-                    ? const Icon(Icons.check, size: 18, color: AppColors.primary)
+                    ? Icon(Icons.check, size: 18, color: AppColors.primary)
                     : null,
                 onTap: already ? null : () => _pick(u),
               );
@@ -222,7 +222,7 @@ class _LocataireSearchFieldState extends State<LocataireSearchField> {
             const Divider(height: 1),
             ListTile(
               dense: true,
-              leading: const Icon(Icons.person_add_outlined,
+              leading: Icon(Icons.person_add_outlined,
                   size: 20, color: AppColors.primary),
               title: Text(widget.createNewLabel,
                   style:

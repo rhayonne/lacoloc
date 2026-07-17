@@ -172,7 +172,7 @@ Widget _edlReqHeader(BuildContext context, String title, bool done) => Row(
               text: title,
               style: Theme.of(context).textTheme.titleMedium,
             ),
-            const TextSpan(
+            TextSpan(
               text: '  *',
               style: TextStyle(
                 color: AppColors.error,
@@ -184,7 +184,7 @@ Widget _edlReqHeader(BuildContext context, String title, bool done) => Row(
       ),
     ),
     if (done)
-      const Icon(Icons.check_circle, color: AppColors.success, size: 20)
+      Icon(Icons.check_circle, color: AppColors.success, size: 20)
     else
       Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -192,7 +192,7 @@ Widget _edlReqHeader(BuildContext context, String title, bool done) => Row(
           color: AppColors.errorContainer,
           borderRadius: BorderRadius.circular(12),
         ),
-        child: const Text(
+        child: Text(
           'Obligatoire',
           style: TextStyle(
             color: AppColors.onErrorContainer,
@@ -356,7 +356,7 @@ Widget _edlGarantRequisBanner(String message) => Container(
   child: Row(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      const Icon(Icons.warning_amber_rounded, color: AppColors.error, size: 20),
+      Icon(Icons.warning_amber_rounded, color: AppColors.error, size: 20),
       const SizedBox(width: AppSpacing.sm),
       Expanded(
         child: Text(
@@ -945,7 +945,7 @@ class _EtatDesLieuxPageState extends State<EtatDesLieuxPage>
     showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
-        icon: const Icon(Icons.block, color: AppColors.error),
+        icon: Icon(Icons.block, color: AppColors.error),
         title: const Text('Suppression impossible'),
         content: Text(message),
         actions: [
@@ -1821,7 +1821,7 @@ class _InitialsAvatar extends StatelessWidget {
       return Container(
         width: size,
         height: size,
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           color: AppColors.primaryFixed,
           shape: BoxShape.circle,
         ),
@@ -2384,7 +2384,7 @@ class _EdlActionButtonState extends State<_EdlActionButton> {
         _busy = false;
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text('Demande de signature envoyée au locataire.'),
           backgroundColor: AppColors.success,
         ),
@@ -3508,7 +3508,7 @@ class _EdlFormOverlayState extends State<_EdlFormOverlay> {
     ),
     child: Row(
       children: [
-        const Icon(Icons.info_outline, color: AppColors.onSurfaceVariant),
+        Icon(Icons.info_outline, color: AppColors.onSurfaceVariant),
         const SizedBox(width: AppSpacing.md),
         Expanded(
           child: Text(
@@ -3815,7 +3815,7 @@ class _EdlFormOverlayState extends State<_EdlFormOverlay> {
                     style: AppTypography.bodyMd,
                   ),
                 ),
-                const Icon(
+                Icon(
                   Icons.calendar_today_outlined,
                   size: 18,
                   color: AppColors.primary,
@@ -3883,7 +3883,7 @@ class _EdlFormOverlayState extends State<_EdlFormOverlay> {
             ),
             child: Row(
               children: [
-                const Icon(
+                Icon(
                   Icons.check_circle_outlined,
                   color: AppColors.secondary,
                 ),
@@ -3925,7 +3925,7 @@ class _EdlFormOverlayState extends State<_EdlFormOverlay> {
       ),
       child: Row(
         children: [
-          const Icon(Icons.info_outline, color: AppColors.onSurfaceVariant),
+          Icon(Icons.info_outline, color: AppColors.onSurfaceVariant),
           const SizedBox(width: AppSpacing.md),
           Expanded(
             child: Text(
@@ -3998,7 +3998,7 @@ class _EdlFormOverlayState extends State<_EdlFormOverlay> {
         ),
         child: Row(
           children: [
-            const Icon(Icons.info_outline, color: AppColors.onSurfaceVariant),
+            Icon(Icons.info_outline, color: AppColors.onSurfaceVariant),
             const SizedBox(width: AppSpacing.md),
             Expanded(
               child: Text(
@@ -4319,7 +4319,7 @@ class _EdlFormOverlayState extends State<_EdlFormOverlay> {
               child: FilledButton.icon(
                 onPressed: _isSaving ? null : _saveAndNextStep,
                 icon: _isSaving
-                    ? const SizedBox(
+                    ? SizedBox(
                         width: 16,
                         height: 16,
                         child: CircularProgressIndicator(
@@ -4354,7 +4354,7 @@ class _EdlFormOverlayState extends State<_EdlFormOverlay> {
                 FilledButton.icon(
                   onPressed: _isSaving ? null : _save,
                   icon: _isSaving
-                      ? const SizedBox(
+                      ? SizedBox(
                           width: 16,
                           height: 16,
                           child: CircularProgressIndicator(
@@ -4442,7 +4442,7 @@ class _EdlFormOverlayState extends State<_EdlFormOverlay> {
                       onPressed: _isFinalising ? null : _finaliser,
                       style: OutlinedButton.styleFrom(
                         foregroundColor: AppColors.error,
-                        side: const BorderSide(color: AppColors.error),
+                        side: BorderSide(color: AppColors.error),
                       ),
                       child: _isFinalising
                           ? const SizedBox(
@@ -4479,7 +4479,7 @@ class _EdlFormOverlayState extends State<_EdlFormOverlay> {
                     controlsBuilder: (_, _) => _buildStepControls(isFinalized),
                     stepIconBuilder: (stepIndex, _) {
                       if (_headerStepIndices.contains(stepIndex)) {
-                        return const Icon(
+                        return Icon(
                           Icons.chevron_right,
                           size: 16,
                           color: AppColors.secondary,
@@ -4963,7 +4963,7 @@ class _EdlDetailProprietairePageState
                   ),
                   child: Row(
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.meeting_room_outlined,
                         size: 16,
                         color: AppColors.primary,
@@ -5730,7 +5730,7 @@ class _CreerLocataireDialogState extends State<_CreerLocataireDialog> {
         FilledButton(
           onPressed: _isSaving ? null : _save,
           child: _isSaving
-              ? const SizedBox(
+              ? SizedBox(
                   width: 16,
                   height: 16,
                   child: CircularProgressIndicator(
@@ -5780,7 +5780,7 @@ class _RoomDiagram extends StatelessWidget {
       children: [
         Row(
           children: [
-            const Icon(Icons.home_outlined, size: 18, color: AppColors.primary),
+            Icon(Icons.home_outlined, size: 18, color: AppColors.primary),
             const SizedBox(width: AppSpacing.xs),
             Text(
               planLabel ??
@@ -5870,7 +5870,7 @@ class _RoomDiagram extends StatelessWidget {
                                       ),
                                     ),
                                   ),
-                                  errorWidget: (_, _, _) => const Center(
+                                  errorWidget: (_, _, _) => Center(
                                     child: Icon(
                                       Icons.home_outlined,
                                       size: 36,
@@ -5878,7 +5878,7 @@ class _RoomDiagram extends StatelessWidget {
                                     ),
                                   ),
                                 )
-                              : const Center(
+                              : Center(
                                   child: Icon(
                                     Icons.home_outlined,
                                     size: 36,
@@ -5975,7 +5975,7 @@ class _EntreeContrepoint extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(
+              Icon(
                 Icons.login,
                 size: 16,
                 color: AppColors.onSurfaceVariant,
@@ -6365,7 +6365,7 @@ class _ObservationTile extends StatelessWidget {
                   if (hasDesc) const SizedBox(height: AppSpacing.xs),
                   Row(
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.photo_outlined,
                         size: 14,
                         color: AppColors.onSurfaceVariant,
@@ -6398,7 +6398,7 @@ class _ObservationTile extends StatelessWidget {
               visualDensity: VisualDensity.compact,
             ),
             IconButton(
-              icon: const Icon(
+              icon: Icon(
                 Icons.delete_outline,
                 size: 16,
                 color: AppColors.error,
@@ -6427,7 +6427,7 @@ class _LocataireBadge extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(
+          Icon(
             Icons.person_outline,
             size: 12,
             color: AppColors.onTertiaryFixed,
@@ -6791,7 +6791,7 @@ class _EcheanceDiagBanner extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Icon(
+            Icon(
               Icons.warning_amber_outlined,
               color: AppColors.onErrorContainer,
               size: 20,
@@ -8000,7 +8000,7 @@ class _EdlCollectifNonMeubleePageState
                 ),
               ),
               if (linked.isNotEmpty)
-                const Icon(
+                Icon(
                   Icons.check_circle,
                   color: AppColors.success,
                   size: 18,
@@ -8262,7 +8262,7 @@ class _EdlCollectifNonMeubleePageState
               padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
               child: Row(
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.person_add_alt_1_outlined,
                     size: 18,
                     color: AppColors.onSurfaceVariant,
@@ -8314,7 +8314,7 @@ class _EdlCollectifNonMeubleePageState
         children: [
           Row(
             children: [
-              const Icon(
+              Icon(
                 Icons.meeting_room_outlined,
                 size: 18,
                 color: AppColors.primary,
@@ -8526,7 +8526,7 @@ class _EdlCollectifNonMeubleePageState
                     const SizedBox(height: AppSpacing.sm),
                     Row(
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.lock_outline,
                           size: 14,
                           color: AppColors.onSurfaceVariant,
@@ -8583,7 +8583,7 @@ class _EdlCollectifNonMeubleePageState
                     const SizedBox(height: AppSpacing.lg),
                     Row(
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.inventory_2_outlined,
                           size: 16,
                           color: AppColors.onSurfaceVariant,
@@ -8796,7 +8796,7 @@ class _GarantCard extends StatelessWidget {
           CircleAvatar(
             radius: 14,
             backgroundColor: AppColors.success.withValues(alpha: 0.14),
-            child: const Icon(
+            child: Icon(
               Icons.verified_user_outlined,
               size: 15,
               color: AppColors.success,
@@ -9876,7 +9876,7 @@ class _EdlIndividuelMeubleePageState extends State<EdlIndividuelMeubleePage>
       ),
       child: Row(
         children: [
-          const Icon(
+          Icon(
             Icons.note_add_outlined,
             size: 20,
             color: AppColors.onTertiaryFixed,
@@ -10089,7 +10089,7 @@ class _EdlIndividuelMeubleePageState extends State<EdlIndividuelMeubleePage>
     ),
     child: Row(
       children: [
-        const Icon(Icons.info_outline, color: AppColors.primary),
+        Icon(Icons.info_outline, color: AppColors.primary),
         const SizedBox(width: AppSpacing.sm),
         Expanded(
           child: Text(
@@ -10615,7 +10615,7 @@ class _EdlIndividuelMeubleePageState extends State<EdlIndividuelMeubleePage>
         children: [
           Row(
             children: [
-              const Icon(
+              Icon(
                 Icons.add_location_alt_outlined,
                 size: 16,
                 color: AppColors.primary,
@@ -11330,13 +11330,13 @@ class _EdlIndividuelMeubleePageState extends State<EdlIndividuelMeubleePage>
           const SizedBox(width: 6),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               color: AppColors.error,
               borderRadius: BorderRadius.all(Radius.circular(10)),
             ),
             child: Text(
               '$count',
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppColors.onError,
                 fontSize: 11,
                 fontWeight: FontWeight.bold,
@@ -11515,7 +11515,7 @@ class _EdlIndividuelMeubleePageState extends State<EdlIndividuelMeubleePage>
                     const SizedBox(height: AppSpacing.lg),
                     Row(
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.inventory_2_outlined,
                           size: 16,
                           color: AppColors.onSurfaceVariant,
@@ -11730,7 +11730,7 @@ class _FinaliserBailDialogState extends State<_FinaliserBailDialog> {
       ),
       child: Row(
         children: [
-          const Icon(
+          Icon(
             Icons.calendar_today_outlined,
             size: 18,
             color: AppColors.primary,

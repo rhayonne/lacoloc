@@ -290,7 +290,7 @@ class _ColocationBanner extends StatelessWidget {
                   'Pour parcourir les immeubles, cliquez sur « Voir les immeubles ».';
         final textStyle =
             (isNarrow ? AppTypography.labelSm : AppTypography.bodyMd)
-                .copyWith(color: AppColors.onPrimaryFixedVariant);
+                .copyWith(color: AppColors.onSurfaceVariant);
 
         return Padding(
           padding: const EdgeInsets.fromLTRB(
@@ -299,18 +299,32 @@ class _ColocationBanner extends StatelessWidget {
             AppSpacing.lg,
             AppSpacing.sm,
           ),
+          // Ce bandeau *informe*, il n'agit pas : il reste donc neutre, et
+          // c'est le trait de marge (secondaire = information) qui le signale.
+          // La couleur primaire est réservée à ce sur quoi on agit — ici, le
+          // bouton et les cartes de chambre.
           child: Container(
             padding: const EdgeInsets.all(AppSpacing.md),
             decoration: BoxDecoration(
-              color: AppColors.primaryFixed,
+              color: AppColors.surfaceContainerLowest,
               borderRadius: AppRadius.borderLg,
+              border: Border.all(color: AppColors.outlineVariant),
             ),
             child: Row(
               children: [
+                Container(
+                  width: 3,
+                  height: isNarrow ? 20 : 28,
+                  decoration: BoxDecoration(
+                    color: AppColors.secondary,
+                    borderRadius: AppRadius.borderFull,
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.md),
                 Icon(
                   Icons.groups_outlined,
-                  size: isNarrow ? 18 : 22,
-                  color: AppColors.onPrimaryFixedVariant,
+                  size: isNarrow ? 18 : 20,
+                  color: AppColors.secondary,
                 ),
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(
@@ -330,7 +344,7 @@ class _ColocationBanner extends StatelessWidget {
                           onPressed: onVoirImmeubles,
                           tooltip: 'Voir les immeubles',
                           icon: const Icon(Icons.apartment_outlined),
-                          color: AppColors.onPrimaryFixedVariant,
+                          color: AppColors.secondary,
                         )
                       : OutlinedButton.icon(
                           onPressed: onVoirImmeubles,

@@ -112,7 +112,7 @@ class _VisionGeneralePage extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  const Icon(Icons.info_outline, color: AppColors.primary, size: 20),
+                  Icon(Icons.info_outline, color: AppColors.primary, size: 20),
                   const SizedBox(width: AppSpacing.sm),
                   Text(
                     'Gestion documentaire',
@@ -176,7 +176,7 @@ class ESignatureNoticeCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.verified_user_outlined,
+              Icon(Icons.verified_user_outlined,
                   color: AppColors.primary, size: 20),
               const SizedBox(width: AppSpacing.sm),
               Expanded(
@@ -208,7 +208,7 @@ class ESignatureNoticeCard extends StatelessWidget {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Padding(
+                    Padding(
                       padding: EdgeInsets.only(top: 5, right: 6),
                       child: Icon(Icons.check_circle_outline,
                           size: 14, color: AppColors.success),
@@ -391,7 +391,7 @@ class _BauxPageState extends State<_BauxPage> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.description_outlined,
+                      Icon(Icons.description_outlined,
                           size: 56, color: AppColors.outline),
                       const SizedBox(height: AppSpacing.md),
                       Text('Aucun bail enregistré',
@@ -487,7 +487,7 @@ class _BailRow extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const CircleAvatar(
+            CircleAvatar(
               backgroundColor: AppColors.primaryFixed,
               child: Icon(Icons.description_outlined,
                   color: AppColors.primary, size: 18),
@@ -527,7 +527,7 @@ class _BailRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          const CircleAvatar(
+          CircleAvatar(
             backgroundColor: AppColors.primaryFixed,
             child: Icon(Icons.description_outlined,
                 color: AppColors.primary, size: 18),

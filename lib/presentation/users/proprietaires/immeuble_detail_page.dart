@@ -570,7 +570,7 @@ class _PiecesTable extends StatelessWidget {
         children: [
           TableRow(
             decoration:
-                const BoxDecoration(color: AppColors.surfaceContainerLow),
+                BoxDecoration(color: AppColors.surfaceContainerLow),
             children: [
               _HeaderCell('Pièce'),
               _HeaderCell('Superficie'),
@@ -597,7 +597,7 @@ class _PiecesTable extends StatelessWidget {
 
     return TableRow(
       decoration:
-          const BoxDecoration(color: AppColors.surfaceContainerLowest),
+          BoxDecoration(color: AppColors.surfaceContainerLowest),
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(
@@ -691,7 +691,7 @@ class _ChambresTable extends StatelessWidget {
         children: [
           TableRow(
             decoration:
-                const BoxDecoration(color: AppColors.surfaceContainerLow),
+                BoxDecoration(color: AppColors.surfaceContainerLow),
             children: [
               _HeaderCell('Chambre'),
               _HeaderCell('Loyer / mois'),
@@ -711,7 +711,7 @@ class _ChambresTable extends StatelessWidget {
 
     return TableRow(
       decoration:
-          const BoxDecoration(color: AppColors.surfaceContainerLowest),
+          BoxDecoration(color: AppColors.surfaceContainerLowest),
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(
@@ -796,7 +796,7 @@ class _FacturesTable extends StatelessWidget {
         children: [
           TableRow(
             decoration:
-                const BoxDecoration(color: AppColors.surfaceContainerLow),
+                BoxDecoration(color: AppColors.surfaceContainerLow),
             children: [
               _HeaderCell('Type'),
               _HeaderCell('Fournisseur'),
@@ -820,7 +820,7 @@ class _FacturesTable extends StatelessWidget {
 
     return TableRow(
       decoration:
-          const BoxDecoration(color: AppColors.surfaceContainerLowest),
+          BoxDecoration(color: AppColors.surfaceContainerLowest),
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(

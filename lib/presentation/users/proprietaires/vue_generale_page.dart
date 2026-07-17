@@ -364,7 +364,7 @@ class _PendingDemandesSection extends StatelessWidget {
       children: [
         Row(
           children: [
-            const Icon(
+            Icon(
               Icons.notifications_active_outlined,
               size: 20,
               color: AppColors.error,
@@ -394,7 +394,7 @@ class _PendingDemandesSection extends StatelessWidget {
             ),
             child: Row(
               children: [
-                const Icon(
+                Icon(
                   Icons.check_circle_outline,
                   color: AppColors.tertiary,
                   size: 20,
@@ -492,7 +492,7 @@ class _NotificationsSection extends StatelessWidget {
       children: [
         Row(
           children: [
-            const Icon(Icons.notifications_active_outlined,
+            Icon(Icons.notifications_active_outlined,
                 size: 20, color: AppColors.primary),
             const SizedBox(width: AppSpacing.sm),
             Text('Notifications récentes', style: AppTypography.titleLg),
@@ -529,7 +529,7 @@ class _BauxASignerSection extends StatelessWidget {
       children: [
         Row(
           children: [
-            const Icon(Icons.draw_outlined, size: 20, color: AppColors.secondary),
+            Icon(Icons.draw_outlined, size: 20, color: AppColors.secondary),
             const SizedBox(width: AppSpacing.sm),
             Text('Baux à signer', style: AppTypography.titleLg),
             const SizedBox(width: AppSpacing.sm),

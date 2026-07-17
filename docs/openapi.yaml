@@ -2,7 +2,7 @@ openapi: 3.0.3
 
 info:
   title: Super Loc — API (Supabase)
-  version: "1.0.0"
+  version: "1.6.0"
   description: |
     Especificação detalhada da superfície de API consumida pelo app Flutter `lacoloc_front`.
 
@@ -40,13 +40,23 @@ tags:
   - name: Inventaire
     description: Inventaire + Meubles_Reference
   - name: Finances
-    description: Factures, Fournisseurs
+    description: Factures, Fournisseurs, Recettes (échéances), charges
   - name: EtatDesLieux
-    description: etat_de_lieux + observations
+    description: etat_de_lieux + observations + bail (signatures, résiliation)
+  - name: Vetuste
+    description: Barème + décompte de réparations locatives
+  - name: Garants
+    description: Garants do locataire + rattachement ao bail
   - name: Visites
-    description: Agenda de visitas
+    description: Agenda de rendez-vous + plages d'ouverture
   - name: Contact
     description: Demandes_Contact
+  - name: Notifications
+    description: Notifications in-app + diffusions du super admin
+  - name: Signatures
+    description: Assinaturas guardadas + audit trail
+  - name: Admin
+    description: Entreprises, groupes, journaux de connexion
   - name: References
     description: Tabelas de referência
   - name: RPC
@@ -214,7 +224,7 @@ paths:
       tags: [Patrimoine]
       summary: Listar quartos (listAll, listByImmeuble, listByImmeubles, byId)
       description: |
-        Embed: `Immeubles(name, address, city, region, department, bail_collectif, bail_individuel)`.
+        Embed: `Immeubles(name, address, city, region, department, bail_location, bail_individuel)`.
         Filtros: `immeuble_id=eq.` ou `immeuble_id=in.(...)`, `id=eq.`.
       parameters:
         - { $ref: '#/components/parameters/select' }
@@ -609,6 +619,470 @@ paths:
         content: { application/json: { schema: { type: object, properties: { contact_etabli: { type: boolean } } } } }
       responses: { '204': { description: OK } }
 
+  # ───────────────────── ETAT_DE_LIEUX_GARANTS ────────────────────
+  /rest/v1/etat_de_lieux_garants:
+    get:
+      tags: [EtatDesLieux, Garants]
+      summary: Garants rattachés à un bail (EtatDesLieuxDatasource.listGarantsForEdl)
+      description: "Table de liaison EDL ↔ Garants. RLS via `can_access_edl`. Embed usuel : `Garants!garant_id(*)`."
+      parameters: [ { $ref: '#/components/parameters/select' } ]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/EdlGarant' } } } } }
+    post:
+      tags: [EtatDesLieux, Garants]
+      summary: Rattacher un garant au bail (linkGarant)
+      requestBody: { content: { application/json: { schema: { type: object, required: [etat_de_lieux_id, garant_id], properties: { etat_de_lieux_id: { type: integer }, garant_id: { type: integer } } } } } }
+      responses: { '201': { description: Criado } }
+    delete:
+      tags: [EtatDesLieux, Garants]
+      summary: Détacher un garant (unlinkGarant)
+      parameters:
+        - { name: etat_de_lieux_id, in: query, required: true, schema: { type: integer } }
+        - { name: garant_id, in: query, required: true, schema: { type: integer } }
+      responses: { '204': { description: Removido } }
+
+  # ───────────────────────────── GARANTS ──────────────────────────
+  /rest/v1/Garants:
+    get:
+      tags: [Garants]
+      summary: Listar garants (GarantsDatasource.listByLocataire / activeByLocataires)
+      description: |
+        Garants **du locataire**. RLS : le locataire gère les siens ; le proprietaire lit ceux
+        de ses locataires (via EDL). Les garants **actifs** (`is_active`) sont repris
+        automatiquement dans le bail. `activeByLocataires` récupère les garants de tous les
+        preneurs **en une requête** (évite le N+1 du bail location).
+      parameters: [ { name: locataire_id, in: query, schema: { type: string, format: uuid } }, { name: is_active, in: query, schema: { type: boolean } } ]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Garant' } } } } }
+    post:
+      tags: [Garants]
+      summary: Criar garant (GarantsDatasource.create)
+      description: "Après création/activation, `EtatDesLieuxDatasource.autoLinkGarantsForLocataire` rattache le garant aux baux **en édition** « avec garant » où il manque, et marque lue la notification `bail_garant_requis`."
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/GarantWrite' } } } }
+      responses: { '201': { description: Criado, content: { application/json: { schema: { $ref: '#/components/schemas/Garant' } } } } }
+    patch:
+      tags: [Garants]
+      summary: Atualizar garant / (dés)activer (update, setActive)
+      parameters: [ { name: id, in: query, required: true, schema: { type: integer } } ]
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/GarantWrite' } } } }
+      responses: { '200': { description: OK } }
+    delete:
+      tags: [Garants]
+      summary: Apagar garant (delete)
+      parameters: [ { name: id, in: query, required: true, schema: { type: integer } } ]
+      responses: { '204': { description: Removido } }
+
+  # ───────────────────────────── RECETTES ─────────────────────────
+  /rest/v1/Recettes:
+    get:
+      tags: [Finances]
+      summary: Listar échéances (RecettesDatasource.listByOwner / listByLocataire)
+      description: |
+        Une **seule** ligne vue des deux côtés : le proprietaire via `owner_id`, le locataire
+        via `locataire_id` (RLS `locataire_select_recettes`). Les libellés s'inversent selon
+        `sens` (`_RecetteStatutBadge` / `_LocStatutBadge`). Alimente la Vue générale de
+        Finances (Aujourd'hui / Ce mois-ci / En retard / À payer).
+      parameters: [ { $ref: '#/components/parameters/select' } ]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Recette' } } } } }
+    post:
+      tags: [Finances]
+      summary: Criar échéance (generateFromBail / createManual / ensureBailEcheances)
+      description: |
+        ⚠️ **INSERT réservé au proprietaire** (`owner_all_recettes`).
+        `generateFromBail` (idempotente) s'exécute quand **les deux** signatures du bail
+        existent : caution (loyer × `depot_garantie_mois`) + 1 échéance par mois du bail.
+        Quand le locataire signe en dernier, le rattrapage est `ensureBailEcheances(id)`,
+        appelé à l'ouverture proprietaire. Les deux renvoient un `EcheanceGenResult`
+        (`generated` / `alreadyExists` / `bailNotFullySigned` / `missingDateDebutBail` /
+        `missingLoyer` / `missingDuree`…) — jamais d'échec silencieux : la cause exacte
+        s'affiche dans le bandeau `_EcheanceDiagBanner`.
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/RecetteWrite' } } } }
+      responses: { '201': { description: Criado } }
+    patch:
+      tags: [Finances]
+      summary: Marcar paga / ajustar (markRecu, prorata)
+      parameters: [ { name: id, in: query, required: true, schema: { type: integer } } ]
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/RecetteWrite' } } } }
+      responses: { '200': { description: OK } }
+    delete:
+      tags: [Finances]
+      summary: Apagar échéances futuras (deleteFutureInstallments — résiliation)
+      description: "Appelé par `resilierBail`. `annulerResiliation` les restaure via `regenerateMissingInstallments` (réinsère les dates manquantes et réaligne au plein toute ligne prorata **non payée**)."
+      parameters: [ { name: id, in: query, required: true, schema: { type: integer } } ]
+      responses: { '204': { description: Removido } }
+
+  # ───────────────────────────── VETUSTE ──────────────────────────
+  /rest/v1/vetuste_bareme:
+    get:
+      tags: [Vetuste]
+      summary: Barème de vétusté (VetusteDatasource.listBareme)
+      description: "1 ligne par **catégorie de meuble**, par proprietaire. À la 1ère lecture, `_seedDefaults` sème automatiquement des valeurs par défaut."
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/VetusteBareme' } } } } }
+    post:
+      tags: [Vetuste]
+      summary: Criar linha do barème (upsertBareme / _seedDefaults)
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/VetusteBareme' } } } }
+      responses: { '201': { description: Criado } }
+    patch:
+      tags: [Vetuste]
+      summary: Atualizar barème (edição inline, salva no onTapOutside)
+      parameters: [ { name: id, in: query, required: true, schema: { type: integer } } ]
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/VetusteBareme' } } } }
+      responses: { '200': { description: OK } }
+
+  /rest/v1/vetuste_decompte:
+    get:
+      tags: [Vetuste]
+      summary: Décomptes de réparations locatives (listDecomptes / findByEdl)
+      description: "Embed : `vetuste_decompte_ligne(*)`. Un décompte **par EDL** → privatif et parties communes restent séparés."
+      parameters: [ { $ref: '#/components/parameters/select' } ]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/VetusteDecompte' } } } } }
+    post:
+      tags: [Vetuste]
+      summary: Criar décompte (proposerVetusteSiDegradation / ajout manuel)
+      description: "Proposé à la finalisation d'un EDL de **sortie** si des dégradations sont détectées (`buildCandidatesForSortie` compare les lignes sortie ↔ entrée couplée). Idempotent via `findByEdl`."
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/VetusteDecompte' } } } }
+      responses: { '201': { description: Criado } }
+    patch:
+      tags: [Vetuste]
+      summary: Atualizar décompte (updateDecompte — statut genere, recette_id)
+      parameters: [ { name: id, in: query, required: true, schema: { type: integer } } ]
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/VetusteDecompte' } } } }
+      responses: { '200': { description: OK } }
+    delete:
+      tags: [Vetuste]
+      summary: Apagar décompte
+      parameters: [ { name: id, in: query, required: true, schema: { type: integer } } ]
+      responses: { '204': { description: Removido } }
+
+  /rest/v1/vetuste_decompte_ligne:
+    post:
+      tags: [Vetuste]
+      summary: Ajouter une ligne
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/VetusteDecompteLigne' } } } }
+      responses: { '201': { description: Criado } }
+    patch:
+      tags: [Vetuste]
+      summary: Atualizar ligne (imputable, valeur d'achat → recalcul live)
+      description: "`VetusteCalc` : `abattement% = clamp((âge − franchise) × coef_annuel, 0, 100 − résiduel_min)` ; `valeur_résiduelle = valeur_achat × (1 − abattement/100)`."
+      parameters: [ { name: id, in: query, required: true, schema: { type: integer } } ]
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/VetusteDecompteLigne' } } } }
+      responses: { '200': { description: OK } }
+    delete:
+      tags: [Vetuste]
+      summary: Remover ligne
+      parameters: [ { name: id, in: query, required: true, schema: { type: integer } } ]
+      responses: { '204': { description: Removido } }
+
+  # ─────────────────────────── NOTIFICATIONS ──────────────────────
+  /rest/v1/Notifications:
+    get:
+      tags: [Notifications]
+      summary: Listar notificações (NotificationsDatasource.listByOwner / unreadCount)
+      description: |
+        **RLS por `recipient_id = auth.uid()`** — le même endpoint sert au proprietaire et au
+        locataire (chacun ne voit que les siennes). `proprietaire_id` reste pour les lignes
+        legadas. **INSERT interdit en direct** : uniquement via les RPC `notify_edl_*` /
+        `admin_broadcast_notification`.
+        Types : `edl_accepte` · `edl_addition` · `edl_a_signer` · `bail_garant_requis` ·
+        `bail_remplissage` · `admin_message`.
+      parameters: [ { $ref: '#/components/parameters/select' } ]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Notification' } } } } }
+    patch:
+      tags: [Notifications]
+      summary: Marcar lida (markRead / markAllRead / markReadForEdl)
+      description: "`markReadForEdl(edlId, {types})` nettoie les rappels « à signer » dès la signature — borné par RLS, chaque partie n'efface que les siennes."
+      parameters: [ { name: id, in: query, schema: { type: integer } } ]
+      requestBody: { content: { application/json: { schema: { type: object, properties: { is_read: { type: boolean } } } } } }
+      responses: { '204': { description: OK } }
+    delete:
+      tags: [Notifications]
+      summary: Apagar notificação
+      parameters: [ { name: id, in: query, required: true, schema: { type: integer } } ]
+      responses: { '204': { description: Removido } }
+
+  /rest/v1/Admin_Messages:
+    get:
+      tags: [Notifications]
+      summary: Histórico de difusões (CommunicationDatasource — onglet Historique)
+      description: "Écrit par la RPC `admin_broadcast_notification`. Lecture réservée au super admin."
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/AdminMessage' } } } } }
+
+  # ───────────────────────── THEMES ───────────────────────────────
+  /rest/v1/Themes_Reference:
+    get:
+      tags: [References]
+      summary: Listar temas (ThemesDatasource)
+      description: |
+        **Lecture publique** (`anon`) : le visiteur a besoin du thème principal avant de se
+        connecter. Écriture réservée au super admin (ThemesAdminPage).
+        Un thème = **3 couleurs** (fond / texte / action) ; le reste est **dérivé** par
+        `PaletteBuilder`. `is_builtin` = palette réglée à la main dans le code (Ardoise, Ocre,
+        Encre) : non supprimable, sans couleurs en base. Un index unique garantit **un seul**
+        `is_default`.
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/ThemeRef' } } } } }
+    post:
+      tags: [References]
+      summary: Criar tema (super admin)
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/ThemeRefWrite' } } } }
+      responses: { '201': { description: Criado } }
+    patch:
+      tags: [References]
+      summary: Atualizar tema / (dés)activer / définir principal
+      parameters: [ { name: id, in: query, required: true, schema: { type: integer } } ]
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/ThemeRefWrite' } } } }
+      responses: { '200': { description: OK } }
+    delete:
+      tags: [References]
+      summary: Apagar tema (não-builtin)
+      description: "`Users_Client.theme_preference` est `ON DELETE SET NULL` → les utilisateurs concernés reviennent au thème principal."
+      parameters: [ { name: id, in: query, required: true, schema: { type: integer } } ]
+      responses: { '204': { description: Removido } }
+
+  # ───────────────────── CHARGES / CATEGORIES ─────────────────────
+  /rest/v1/Charges_Reference:
+    get:
+      tags: [References]
+      summary: Charges locatives (ChargesReferenceDatasource)
+      description: "Éditée par le Super Admin (ChargesReferencePage). ⚠️ `Chauffage` est une **charge locative**, pas un équipement d'inventaire."
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/ChargeReference' } } } } }
+    post:
+      tags: [References]
+      summary: Criar charge (super admin)
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/ChargeReference' } } } }
+      responses: { '201': { description: Criado } }
+    patch:
+      tags: [References]
+      summary: Atualizar charge (super admin)
+      parameters: [ { name: id, in: query, required: true, schema: { type: integer } } ]
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/ChargeReference' } } } }
+      responses: { '200': { description: OK } }
+    delete:
+      tags: [References]
+      summary: Apagar charge (super admin)
+      parameters: [ { name: id, in: query, required: true, schema: { type: integer } } ]
+      responses: { '204': { description: Removido } }
+
+  /rest/v1/Meuble_Categories_Reference:
+    get:
+      tags: [References]
+      summary: Categorias de móveis (MeubleCategoriesDatasource)
+      description: "Le `nom` doit correspondre à `Meubles_Reference.categorie` — c'est la **clé du barème de vétusté**."
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/MeubleCategory' } } } } }
+    post:
+      tags: [References]
+      summary: Criar categoria (super admin)
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/MeubleCategory' } } } }
+      responses: { '201': { description: Criado } }
+    patch:
+      tags: [References]
+      summary: Atualizar categoria (super admin)
+      parameters: [ { name: id, in: query, required: true, schema: { type: integer } } ]
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/MeubleCategory' } } } }
+      responses: { '200': { description: OK } }
+    delete:
+      tags: [References]
+      summary: Apagar categoria (super admin)
+      parameters: [ { name: id, in: query, required: true, schema: { type: integer } } ]
+      responses: { '204': { description: Removido } }
+
+  /rest/v1/Immeuble_Charges:
+    get:
+      tags: [Finances]
+      summary: Charges d'un immeuble (ImmeubleChargesDatasource)
+      description: "Les charges sont définies **au niveau de l'immeuble** ; le bail de colocation en hérite (repli `BailPdfData.useChambreCharges` pour les données legadas de `Chambre_Charges`)."
+      parameters: [ { name: immeuble_id, in: query, schema: { type: integer } } ]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/ImmeubleCharge' } } } } }
+    post:
+      tags: [Finances]
+      summary: Ajouter une charge à l'immeuble
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/ImmeubleCharge' } } } }
+      responses: { '201': { description: Criado } }
+    patch:
+      tags: [Finances]
+      summary: Atualizar charge
+      parameters: [ { name: id, in: query, required: true, schema: { type: integer } } ]
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/ImmeubleCharge' } } } }
+      responses: { '200': { description: OK } }
+    delete:
+      tags: [Finances]
+      summary: Remover charge
+      parameters: [ { name: id, in: query, required: true, schema: { type: integer } } ]
+      responses: { '204': { description: Removido } }
+
+  /rest/v1/Chambre_Charges:
+    get:
+      tags: [Finances]
+      summary: Charges d'une chambre (LEGADO)
+      deprecated: true
+      description: "⚠️ **Legado** : le formulaire de chambre n'a plus de section « Charges » — elles vivent au niveau de l'immeuble (`Immeuble_Charges`). Conservée pour les baux anciens (repli `useChambreCharges`)."
+      parameters: [ { name: chambre_id, in: query, schema: { type: integer } } ]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/ChambreCharge' } } } } }
+
+  # ─────────────────────────── IMMEUBLE_LOTS ──────────────────────
+  /rest/v1/Immeuble_Lots:
+    get:
+      tags: [Patrimoine]
+      summary: Lots de copropriété (LotsDatasource)
+      description: |
+        **Catalogue indépendant du proprietaire** — un lot existe par lui-même (`owner_id`) et
+        est *rattaché* à un immeuble via `immeuble_id` (**nullable** : il peut rester non
+        attribué). RLS = `owner_id = auth.uid()`. Embed usuel : le syndic
+        (`Fournisseurs!syndic_fournisseur_id(nom, …)`).
+      parameters: [ { $ref: '#/components/parameters/select' } ]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/ImmeubleLot' } } } } }
+    post:
+      tags: [Patrimoine]
+      summary: Criar lot (showLotDialog)
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/ImmeubleLot' } } } }
+      responses: { '201': { description: Criado } }
+    patch:
+      tags: [Patrimoine]
+      summary: Atualizar lot / rattacher à un immeuble (assignToImmeuble)
+      parameters: [ { name: id, in: query, required: true, schema: { type: integer } } ]
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/ImmeubleLot' } } } }
+      responses: { '200': { description: OK } }
+    delete:
+      tags: [Patrimoine]
+      summary: Apagar lot
+      parameters: [ { name: id, in: query, required: true, schema: { type: integer } } ]
+      responses: { '204': { description: Removido } }
+
+  # ───────────────────────── PLAGES_OUVERTURE ─────────────────────
+  /rest/v1/Plages_Ouverture:
+    get:
+      tags: [Visites]
+      summary: Plages d'ouverture (PlagesOuvertureDatasource)
+      description: "Disponibilités par jour de semaine. **RLS owner-only**. Pilotent la colorisation de la grille de l'Agenda : blanc = disponible, jaune = pause, hachuré = hors plage."
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/PlageOuverture' } } } } }
+    post:
+      tags: [Visites]
+      summary: Criar plage
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/PlageOuverture' } } } }
+      responses: { '201': { description: Criado } }
+    patch:
+      tags: [Visites]
+      summary: Atualizar plage
+      parameters: [ { name: id, in: query, required: true, schema: { type: integer } } ]
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/PlageOuverture' } } } }
+      responses: { '200': { description: OK } }
+    delete:
+      tags: [Visites]
+      summary: Remover plage
+      parameters: [ { name: id, in: query, required: true, schema: { type: integer } } ]
+      responses: { '204': { description: Removido } }
+
+  # ──────────────────── SIGNATURES / AUDIT / LOGS ─────────────────
+  /rest/v1/user_signatures:
+    get:
+      tags: [Signatures]
+      summary: Assinatura guardada do utilizador (SignaturesDatasource.getSavedUrl)
+      description: "Stockée dans le bucket **privé** `documents` (`signatures/{userId}/…`) → la valeur est une réf. `doc:<path>`, à résoudre en URL signée (`StorageService.resolveUrl`, widget `PrivateImage`). RLS : seul le propriétaire de la signature."
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/UserSignature' } } } } }
+    post:
+      tags: [Signatures]
+      summary: Guardar/atualizar assinatura (upsert)
+      requestBody: { content: { application/json: { schema: { type: object, properties: { user_id: { type: string, format: uuid }, signature_url: { type: string } } } } } }
+      responses: { '201': { description: Criado } }
+
+  /rest/v1/signature_audit:
+    get:
+      tags: [Signatures]
+      summary: Trilha de auditoria das assinaturas
+      description: "Écrite par l'edge function `record-signature-audit` (`recordSignatureAudit`) : empreinte du document, IP et user-agent au moment de la signature. `document_type` distingue l'**EDL** du **bail** (deux documents, deux signatures)."
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/SignatureAudit' } } } } }
+
+  /rest/v1/connection_logs:
+    get:
+      tags: [Admin]
+      summary: Journal de connexions (ConnectionLogsPage — super admin)
+      description: "Alimenté par l'edge function `log-connection`. Consulté dans Maintenance → Connexions (avec WHOIS sur l'IP)."
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/ConnectionLog' } } } } }
+
+  /rest/v1/Entreprises:
+    get:
+      tags: [Admin]
+      summary: Entreprises (ComptesEntreprisesPage — super admin)
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Entreprise' } } } } }
+    post:
+      tags: [Admin]
+      summary: Criar entreprise (super admin)
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/Entreprise' } } } }
+      responses: { '201': { description: Criado } }
+    patch:
+      tags: [Admin]
+      summary: Atualizar entreprise (super admin)
+      parameters: [ { name: id, in: query, required: true, schema: { type: integer } } ]
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/Entreprise' } } } }
+      responses: { '200': { description: OK } }
+
+  # ───────────────────────────── MESSAGES ─────────────────────────
+  /rest/v1/Messages:
+    get:
+      tags: [Contact]
+      summary: Fil de discussion d'une demande (MessagesDatasource.listByDemande)
+      description: |
+        Messagerie entre le locataire et le proprietaire, **un fil par demande de
+        contact**. Embed : `sender:Users_Client!sender_id(full_name)`.
+
+        **RLS SELECT volontairement triviale** — `auth.uid() IN (sender_id, recipient_id)`,
+        sur des colonnes **dénormalisées et indexées**. C'est cette politique qu'évalue
+        `realtime.list_changes` à chaque événement : une RLS avec sous-requête (jointure
+        vers Demandes_Contact → Immeubles) y coûterait cher et a déjà gelé le web
+        (cf. `RealtimeService`). La table est donc **publiée en realtime** (le chat se
+        met à jour tout seul).
+      parameters:
+        - { name: demande_id, in: query, schema: { type: integer } }
+        - { $ref: '#/components/parameters/select' }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Message' } } } } }
+    post:
+      tags: [Contact]
+      summary: Envoyer un message (MessagesDatasource.send)
+      description: |
+        La vérification lourde est faite **ici** (coût négligeable, contrairement au
+        SELECT). `with check` : `sender_id = auth.uid()` (pas d'usurpation)
+        **et** `recipient_id <> auth.uid()` **et** `can_access_demande(demande_id)`
+        (on est bien partie prenante) **et** `demande_est_acceptee(demande_id)` — le fil
+        n'existe qu'une fois la demande **acceptée** par le proprietaire
+        (`Demandes_Contact.contact_etabli = true`).
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/MessageWrite' } } } }
+      responses:
+        '201': { description: Criado }
+        '403': { description: "Demande non acceptée, ou non partie prenante (refus RLS)" }
+    patch:
+      tags: [Contact]
+      summary: Marquer comme lu (markReadForDemande)
+      description: |
+        Réservé au **destinataire** (`recipient_id = auth.uid()`). Le trigger
+        `trg_messages_only_read_at` garantit que **seul `read_at`** peut bouger : un
+        message ne se réécrit pas.
+      parameters: [ { name: demande_id, in: query, schema: { type: integer } } ]
+      requestBody: { content: { application/json: { schema: { type: object, properties: { read_at: { type: string, format: date-time } } } } } }
+      responses: { '204': { description: OK } }
+    delete:
+      tags: [Contact]
+      summary: Supprimer son propre message (delete)
+      description: "RLS : `sender_id = auth.uid()` — on ne supprime que ses propres messages."
+      parameters: [ { name: id, in: query, required: true, schema: { type: integer } } ]
+      responses: { '204': { description: Removido } }
+
   # ───────────────────────────── RPC ──────────────────────────────
   /rest/v1/rpc/search_locataires:
     post:
@@ -651,6 +1125,47 @@ paths:
         content: { application/json: { schema: { type: object, properties: { p_edl_id: { type: integer }, p_type: { type: string }, p_title: { type: string }, p_body: { type: string, nullable: true } } } } }
       responses:
         '200': { description: OK }
+
+  /rest/v1/rpc/notify_edl_proprietaire:
+    post:
+      tags: [RPC]
+      summary: Notificar o proprietário de um EDL (notifyEdlProprietaire)
+      description: |
+        `SECURITY DEFINER`. Crée une notification pour le **proprietaire de l'EDL** :
+        le destinataire (`recipient_id`) est **dérivé du `proprietaire_id` de l'EDL**, donc
+        non falsifiable. Valide `can_access_edl`. `EXECUTE` révoqué de `anon`/`PUBLIC`.
+        Événements : `edl_accepte` (le locataire signe), `edl_addition` (addition du locataire).
+      requestBody:
+        content: { application/json: { schema: { type: object, properties: { p_edl_id: { type: integer }, p_type: { type: string }, p_title: { type: string }, p_body: { type: string, nullable: true } } } } }
+      responses:
+        '200': { description: OK }
+
+  /rest/v1/rpc/admin_broadcast_notification:
+    post:
+      tags: [RPC]
+      summary: Difundir uma mensagem (CommunicationDatasource.sendMessage)
+      description: |
+        `SECURITY DEFINER`, **réservée au super admin**. Enregistre l'`Admin_Messages` +
+        1 `Notifications` (type `admin_message`) par destinataire, avec `media_type`/
+        `media_url`/`admin_message_id`. Retourne l'id du message.
+        Sécurité : écritures paramétrées (pas d'injection SQL) ; le rendu client est du
+        **Markdown sans HTML brut** (pas de XSS), l'id YouTube est validé (11 caractères) et
+        l'URL d'image limitée à http(s).
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                p_recipient_ids: { type: array, items: { type: string, format: uuid } }
+                p_type: { type: string, default: admin_message }
+                p_title: { type: string }
+                p_body: { type: string, nullable: true, description: "Markdown" }
+                p_media_type: { type: string, nullable: true, enum: [image, youtube] }
+                p_media_url: { type: string, nullable: true }
+                p_audience: { type: string, nullable: true, description: "tous / type / groupe / utilisateurs (traçabilité)" }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: integer, description: "admin_message_id" } } } }
 
   /rest/v1/rpc/chambre_equipements_annonce:
     post:
@@ -750,6 +1265,90 @@ paths:
                 note: { type: string }
       responses:
         '200': { description: Enviado (falhas são silenciosas no cliente) }
+
+  /functions/v1/manage-user-auth:
+    post:
+      tags: [EdgeFunctions]
+      summary: Bannir / débannir / définir un mot de passe (super admin)
+      description: |
+        **`verify_jwt: false` au gateway** — sinon le préflight CORS était bloqué
+        (`Failed to fetch`) ; la fonction valide donc le JWT **elle-même**
+        (`userClient.auth.getUser()`) et exige que l'appelant soit `super_admin` (ou
+        `admin_groupe` de la même `entreprise_id` que la cible). Tout est dans un
+        `try/catch` global qui renvoie toujours les en-têtes CORS (une erreur devient un
+        message, pas un `Failed to fetch`).
+
+        ⚠️ Note d'implémentation : les méthodes admin de supabase-js v2 sont
+        `auth.admin.updateUserById` (**pas** `updateUser`).
+
+        - `ban` / `unban` (via `UserManagementDatasource.toggleActive`) → définit `ban_duration`.
+        - `set_password` (via `UserManagementDatasource.setUserPassword`) → min. 6 caractères.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [targetUserId, action]
+              properties:
+                targetUserId: { type: string, format: uuid }
+                action: { type: string, enum: [ban, unban, set_password] }
+                newPassword: { type: string, nullable: true, description: "action=set_password, min. 6" }
+      responses:
+        '200': { description: OK }
+        '401': { description: Não autenticado, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '403': { description: Sem permissão, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+
+  /functions/v1/notify-rendezvous:
+    post:
+      tags: [EdgeFunctions, Visites]
+      summary: Prévenir le contact d'un rendez-vous par e-mail
+      description: |
+        Envoyée à l'enregistrement d'un rendez-vous (Agenda). L'invité — locataire du système
+        ou contact externe — reçoit le **type**, la **date/heure**, le **lieu** et
+        l'**organisateur**.
+        **Sécurité** : `verify_jwt: false` au gateway (comme `notify-edl`) mais la fonction
+        valide le JWT et lit le rendez-vous **avec le client de l'appelant (RLS)** → le
+        destinataire est résolu **côté serveur**, non falsifiable ; champs échappés (HTML).
+        En dev, l'e-mail est redirigé vers `DEV_TEST_EMAIL`.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                visiteId: { type: integer }
+                mailTo: { type: string, nullable: true, description: "Honoré uniquement s'il est égal au secret serveur DEV_TEST_EMAIL" }
+      responses:
+        '200': { description: Enviado }
+
+  /functions/v1/log-connection:
+    post:
+      tags: [EdgeFunctions, Admin]
+      summary: Enregistrer une connexion (connection_logs)
+      description: "`verify_jwt: true`. Écrit une ligne dans `connection_logs` (IP, user-agent, appareil, navigateur, fuseau) consultée par le super admin dans Maintenance → Connexions."
+      responses:
+        '200': { description: OK }
+
+  /functions/v1/record-signature-audit:
+    post:
+      tags: [EdgeFunctions, Signatures]
+      summary: Journaliser une signature (signature_audit)
+      description: |
+        `verify_jwt: true`. Appelée par `SignaturesDatasource.recordSignatureAudit` à chaque
+        apposition de signature — **EDL** ou **bail** (`document_type`) — avec l'empreinte du
+        document, l'IP et le user-agent. Le signataire est déduit du JWT.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                etat_de_lieux_id: { type: integer }
+                document_type: { type: string, enum: [edl, bail] }
+                role: { type: string, enum: [proprietaire, locataire] }
+                document_hash: { type: string }
+      responses:
+        '200': { description: OK }
 
   # ───────────────────────────── STORAGE ──────────────────────────
   # Dois buckets: "photos" (público, conteúdo de anúncio) e "documents" (privado,
@@ -882,15 +1481,25 @@ components:
         invitation_email_sent: { type: boolean, default: false }
         invitation_sent_at: { type: string, format: date-time, nullable: true }
         invited_by_proprietaire_id: { type: string, format: uuid, nullable: true }
+        group_id: { type: integer, nullable: true, description: "Groupe de permissions (trigger set_default_user_group)" }
+        entreprise_id: { type: integer, nullable: true }
+        theme_preference: { type: string, nullable: true, description: "FK → Themes_Reference.code. null = thème principal. `ON DELETE SET NULL` : supprimer un thème renvoie ses utilisateurs au principal. Appliqué au login si le thème est encore actif." }
+        avenant_window_days: { type: integer, description: "Préférence globale **legado** : sert seulement de repli à la finalisation (getAvenantWindowDays). La fenêtre est désormais choisie PAR EDL (etat_de_lieux.avenant_window_days) ; il n'y a plus d'écran pour régler celle-ci." }
         User_Types_Reference: { $ref: '#/components/schemas/UserTypeRef' }
     UsersClientUpdate:
       type: object
+      description: |
+        ⚠️ **RLS/trigger** : `type_user_id` est verrouillé par `trg_prevent_role_self_escalation`
+        — un utilisateur ne peut pas changer son propre type (le rôle en découle → escalade de
+        privilèges). Seuls le service role, un super_admin, ou un admin_groupe agissant sur un
+        **autre** compte peuvent le modifier.
       properties:
         full_name: { type: string }
         phone: { type: string, nullable: true }
         age: { type: integer }
         date_of_birth: { type: string, format: date }
-        type_user_id: { type: integer, description: "updateUserType (Super Admin)" }
+        theme_preference: { type: string, nullable: true, description: "Choix de thème (ThemePickerSection, Mon Profil)" }
+        type_user_id: { type: integer, description: "updateUserType (Super Admin) — voir le trigger ci-dessus" }
         active: { type: boolean, description: "toggleActive (Super Admin)" }
     PermissionRef:
       type: object
@@ -946,10 +1555,16 @@ components:
         common_photos: { type: array, items: { type: string }, description: "URLs (JSONB)" }
         main_photo: { type: string, nullable: true }
         is_active: { type: boolean, default: true }
-        bail_collectif: { type: boolean, default: false }
-        bail_individuel: { type: boolean, default: false }
+        code_postal: { type: string, nullable: true, description: "Rempli depuis l'API BAN ; complété au save par _ensureLocationData si manquant" }
+        bail_location: { type: boolean, default: false, description: "⚠️ Ex-`bail_collectif` (renommée). Location simple : plusieurs locataires, **un seul contrat**, pas de baux individuels. Affichée « Location » (ImmeublesModel.bailLocation). À ne pas confondre avec l'EDL *collectif* (= parties communes d'un bail individuel)." }
+        bail_individuel: { type: boolean, default: false, description: "Colocation : 1 bail par chambre" }
         prix_loyer: { type: number, format: float, nullable: true }
         location_meuble: { type: boolean, nullable: true, description: "Oui/Non — si meublée, la génération des parties communes crée aussi l'inventaire" }
+        depot_garantie_mois: { type: number, nullable: true, description: "Hérité par les chambres à leur création (max légal 2 mois meublé / 1 vide)" }
+        duree_bail_mois: { type: integer, nullable: true, description: "Héritée par les chambres à leur création" }
+        dpe_classe: { type: string, nullable: true, description: "Classe DPE (A–G)" }
+        irl_reference: { type: string, nullable: true, description: "Référence IRL (indice de révision des loyers)" }
+        entreprise_id: { type: integer, nullable: true, readOnly: true, description: "Posé par le trigger set_immeuble_entreprise" }
         created_at: { type: string, format: date-time, nullable: true }
         Immeuble_Types_Reference: { $ref: '#/components/schemas/ImmeubleType' }
     ImmeubleWrite:
@@ -968,13 +1583,23 @@ components:
         city: { type: string }
         region: { type: string }
         department: { type: string }
-        bail_collectif: { type: boolean }
+        code_postal: { type: string }
+        bail_location: { type: boolean }
         bail_individuel: { type: boolean }
         prix_loyer: { type: number }
         location_meuble: { type: boolean, nullable: true }
+        depot_garantie_mois: { type: number }
+        duree_bail_mois: { type: integer }
+        dpe_classe: { type: string }
+        irl_reference: { type: string }
     Chambre:
       type: object
-      description: "Modelo Dart: ChambreModel (tabela Chambres). selected_options = ids (JSONB)."
+      description: |
+        Modelo Dart: ChambreModel (tabela Chambres). L'unité **louée** du système.
+        ⚠️ `selected_options` = **legado** (anciens « équipements », ids de Options_Reference) :
+        préservé mais **ni édité ni lu** par l'UI — les équipements sont désormais des lignes
+        d'`Inventaire` avec `chambre_id` + `dans_annonce = true` (exposées publiquement par la
+        RPC `chambre_equipements_annonce`).
       properties:
         id: { type: integer }
         immeuble_id: { type: integer }
@@ -982,11 +1607,13 @@ components:
         m2: { type: number, format: float, nullable: true }
         description: { type: string, nullable: true }
         room_photos: { type: array, items: { type: string } }
-        selected_options: { type: array, items: { type: integer } }
+        selected_options: { type: array, items: { type: integer }, deprecated: true, description: "LEGADO — migré vers Inventaire (dans_annonce)" }
         main_photo: { type: string, nullable: true }
         is_active: { type: boolean, default: true }
         prix_loyer: { type: number, format: float, nullable: true }
-        est_loue: { type: boolean, default: false }
+        est_loue: { type: boolean, default: false, description: "Piloté par la finalisation des EDL : entrée finalisée → true, sortie finalisée → false. Modifiable à la main uniquement sans bail lié." }
+        depot_garantie_mois: { type: number, nullable: true, description: "Hérité de l'immeuble à la création, éditable. Montant caution = prix_loyer × ce nombre." }
+        duree_bail_mois: { type: integer, nullable: true, description: "Héritée de l'immeuble à la création, éditable" }
         created_at: { type: string, format: date-time, nullable: true }
         Immeubles:
           type: object
@@ -997,7 +1624,7 @@ components:
             city: { type: string }
             region: { type: string }
             department: { type: string }
-            bail_collectif: { type: boolean }
+            bail_location: { type: boolean }
             bail_individuel: { type: boolean }
     ChambreWrite:
       type: object
@@ -1008,11 +1635,13 @@ components:
         m2: { type: number }
         description: { type: string }
         room_photos: { type: array, items: { type: string } }
-        selected_options: { type: array, items: { type: integer } }
+        selected_options: { type: array, items: { type: integer }, deprecated: true }
         is_active: { type: boolean }
         prix_loyer: { type: number }
         est_loue: { type: boolean }
         main_photo: { type: string, nullable: true }
+        depot_garantie_mois: { type: number }
+        duree_bail_mois: { type: integer }
     PiecePhoto:
       type: object
       description: "Value object Dart: PiecePhoto (item de Pieces.photos)"
@@ -1159,7 +1788,13 @@ components:
         ordre: { type: integer }
     Recette:
       type: object
-      description: "Modelo Dart: RecetteModel (tabela Recettes). Échéance « à recevoir » (loyer, ou décompte de vétusté). Visible côté proprietaire et locataire (RLS)."
+      description: |
+        Modelo Dart: RecetteModel (tabela Recettes). Échéance (loyer, caution, décompte de
+        vétusté, remboursement). **Une seule ligne vue des deux côtés** : le proprietaire
+        via `owner_id`, le locataire via `locataire_id` (RLS `locataire_select_recettes`) —
+        les libellés s'inversent selon `sens` et le profil, il n'y a pas deux écritures.
+        ⚠️ **INSERT réservé au proprietaire** (`owner_all_recettes`) : quand le locataire
+        signe en dernier, le rattrapage passe par `EtatDesLieuxDatasource.ensureBailEcheances`.
       properties:
         id: { type: integer }
         owner_id: { type: string, format: uuid }
@@ -1170,9 +1805,25 @@ components:
         montant: { type: number }
         date_echeance: { type: string, format: date }
         date_paiement: { type: string, format: date, nullable: true }
-        statut: { type: string, enum: [a_recevoir, recu, en_retard] }
-        notes: { type: string, nullable: true }
+        statut: { type: string, enum: [a_recevoir, recu, en_retard], description: "Indépendant de `sens` ; seul le libellé affiché change." }
+        sens: { type: string, enum: [recevoir, payer], default: recevoir, description: "`recevoir` = dû AU proprietaire (loyer, caution, vétusté) · `payer` = dû PAR le proprietaire (ex. « Remboursement de la caution (fin de bail) », généré par _settleCaution)." }
+        notes: { type: string, nullable: true, description: "Sert de discriminant applicatif : « Dépôt de garantie% » (caution d'entrée), « Remboursement de la caution (fin de bail) »." }
         created_at: { type: string, format: date-time }
+    RecetteWrite:
+      type: object
+      required: [owner_id, montant, date_echeance, statut]
+      properties:
+        owner_id: { type: string, format: uuid }
+        locataire_id: { type: string, format: uuid, nullable: true }
+        etat_de_lieux_id: { type: integer, nullable: true }
+        immeuble_id: { type: integer, nullable: true }
+        chambre_id: { type: integer, nullable: true }
+        montant: { type: number }
+        date_echeance: { type: string, format: date }
+        date_paiement: { type: string, format: date, nullable: true }
+        statut: { type: string, enum: [a_recevoir, recu, en_retard] }
+        sens: { type: string, enum: [recevoir, payer] }
+        notes: { type: string, nullable: true }
 
     # ───────── Finances ─────────
     PaymentTypeRef:
@@ -1297,7 +1948,7 @@ components:
         locataire_id: { type: string, format: uuid, nullable: true, description: "Doit référencer un utilisateur de type locataire (trigger assert_locataire_type)." }
         immeuble_id: { type: integer }
         chambre_id: { type: integer, nullable: true }
-        type_bail: { type: string, enum: [collectif, individuel] }
+        type_bail: { type: string, enum: [location, individuel], description: "`location` = bail de location simple (ex-`collectif`, migré) · `individuel` = colocation (1 EDL privatif par chambre + 1 collectif de parties communes)." }
         type_edl: { type: string, enum: [entree, sortie] }
         date_etat_lieux: { type: string, format: date }
         date_finalisation: { type: string, format: date, nullable: true, description: "gravada só quando o locataire aceita" }
@@ -1320,6 +1971,35 @@ components:
         nouvelle_adresse: { type: string, nullable: true, description: "EDL de sortie" }
         lieu_redaction: { type: string, nullable: true, description: "Fait à ___" }
         nombre_exemplaires: { type: string, nullable: true }
+        actif: { type: boolean, default: true, description: "Soft-delete. Les lectures normales filtrent `actif=true` ; seul le super admin voit les inactifs (setActive / deleteHardAdmin)." }
+        entreprise_id: { type: integer, nullable: true, readOnly: true, description: "Posé par le trigger set_edl_entreprise" }
+        is_avenant: { type: boolean, default: false, description: "Privatif créé APRÈS la finalisation du collectif (locataire entré plus tard)" }
+        avenant_date: { type: string, format: date, nullable: true }
+        avenant_window_days: { type: integer, nullable: true, description: "Fenêtre d'avenant en jours, choisie PAR EDL (0/7/15/30/60/90). Obligatoire pour finaliser. Défaut applicatif kDefaultAvenantWindowDays = 30." }
+        edl_entree_id: { type: integer, nullable: true, description: "EDL de sortie → EDL d'entrée qui lui sert de base" }
+        # ── Signatures de l'EDL (distinctes de celles du bail) ──
+        proprietaire_signature_url: { type: string, nullable: true, description: "Réf. `doc:<path>` (bucket privé documents)" }
+        proprietaire_signed_at: { type: string, format: date-time, nullable: true }
+        locataire_signature_url: { type: string, nullable: true }
+        locataire_signed_at: { type: string, format: date-time, nullable: true }
+        last_signature_request_at: { type: string, format: date-time, nullable: true, description: "Anti-spam « Demander signature » : 1×/5 jours (EtatDesLieuxModel.canRequestSignature)" }
+        # ── Bail : signatures propres au contrat ──
+        bail_proprietaire_signature_url: { type: string, nullable: true }
+        bail_proprietaire_signed_at: { type: string, format: date-time, nullable: true }
+        bail_locataire_signature_url: { type: string, nullable: true }
+        bail_locataire_signed_at: { type: string, format: date-time, nullable: true }
+        bail_avec_garant: { type: boolean, nullable: true, description: "null = pas encore choisi. Obligatoire pour finaliser." }
+        caution_mode: { type: string, nullable: true, description: "Mode de règlement du dépôt de garantie (chèque, virement SEPA, espèces, Wero/PayPal). Obligatoire pour finaliser." }
+        caution_details: { type: object, nullable: true, description: "JSONB : détails du mode (banque, n° de chèque, titulaire…)" }
+        date_debut_bail: { type: string, format: date, nullable: true, description: "Requis pour générer les échéances" }
+        date_fin_bail: { type: string, format: date, nullable: true }
+        duree_bail_mois: { type: integer, nullable: true }
+        # ── Résiliation ──
+        preavis_mois: { type: integer, nullable: true, description: "Défaut légal : 1 mois meublé / 3 vide" }
+        bail_conge_date: { type: string, format: date, nullable: true, description: "Date du congé" }
+        bail_fin_effective: { type: string, format: date, nullable: true, description: "congé + préavis" }
+        bail_resilie_motif: { type: string, nullable: true }
+        bail_resilie_at: { type: string, format: date-time, nullable: true }
         created_at: { type: string, format: date-time }
         locataire: { $ref: '#/components/schemas/UsersClient' }
         immeuble: { $ref: '#/components/schemas/Immeuble' }
@@ -1327,18 +2007,23 @@ components:
         proprietaire: { type: object, properties: { id: { type: string }, full_name: { type: string } } }
     EtatDesLieuxWrite:
       type: object
-      required: [proprietaire_id, locataire_id, immeuble_id, type_bail, type_edl, date_etat_lieux, situation]
+      required: [proprietaire_id, immeuble_id, type_bail, type_edl, date_etat_lieux, situation]
       properties:
         proprietaire_id: { type: string, format: uuid }
-        locataire_id: { type: string, format: uuid }
+        locataire_id: { type: string, format: uuid, nullable: true, description: "Nullable : un EDL commune de bail location porte ses locataires dans etat_de_lieux_preneurs." }
         immeuble_id: { type: integer }
         chambre_id: { type: integer, nullable: true }
-        type_bail: { type: string, enum: [collectif, individuel] }
+        type_bail: { type: string, enum: [location, individuel] }
         type_edl: { type: string, enum: [entree, sortie] }
         date_etat_lieux: { type: string, format: date }
         date_finalisation: { type: string, format: date, nullable: true }
         situation: { $ref: '#/components/schemas/SituationEdl' }
         locataire_accepte: { type: boolean }
+        partie: { type: string, enum: [commune, privative] }
+        edl_collectif_id: { type: integer, nullable: true }
+        edl_entree_id: { type: integer, nullable: true }
+        is_avenant: { type: boolean }
+        avenant_date: { type: string, format: date, nullable: true }
         montant: { type: number }
         notes: { type: string }
         observations:
@@ -1346,13 +2031,44 @@ components:
           additionalProperties: { $ref: '#/components/schemas/WallObservation' }
     EtatDesLieuxUpdate:
       type: object
-      description: "Update parcial. finaliser → {situation}. locataireAccepter → {locataire_accepte, date_finalisation}."
+      description: |
+        Update parcial. Chemins usuels :
+        `finaliser` → `{situation}` (+ `Chambres.est_loue` mis à jour à part : entrée finalisée → occupée, sortie finalisée → libérée) ·
+        `locataireAccepter` → `{locataire_accepte, date_finalisation, locataire_signature_url, locataire_signed_at}` ·
+        `setBailSignature` → `{bail_<role>_signature_url, bail_<role>_signed_at}` ·
+        `setEdlAvenantWindow` → `{avenant_window_days}` ·
+        `requestSignature` → `{last_signature_request_at}` ·
+        `resilierBail` → `{bail_conge_date, bail_fin_effective, bail_resilie_motif, bail_resilie_at}` ·
+        `annulerResiliation` → les mêmes remis à `null` ·
+        `setActive` (super admin) → `{actif}`.
       properties:
         situation: { $ref: '#/components/schemas/SituationEdl' }
         locataire_accepte: { type: boolean }
         date_finalisation: { type: string, format: date }
         montant: { type: number }
         notes: { type: string }
+        actif: { type: boolean }
+        avenant_window_days: { type: integer }
+        bail_avec_garant: { type: boolean }
+        caution_mode: { type: string }
+        caution_details: { type: object }
+        date_debut_bail: { type: string, format: date }
+        date_fin_bail: { type: string, format: date }
+        duree_bail_mois: { type: integer }
+        preavis_mois: { type: integer }
+        bail_conge_date: { type: string, format: date, nullable: true }
+        bail_fin_effective: { type: string, format: date, nullable: true }
+        bail_resilie_motif: { type: string, nullable: true }
+        bail_resilie_at: { type: string, format: date-time, nullable: true }
+        proprietaire_signature_url: { type: string }
+        proprietaire_signed_at: { type: string, format: date-time }
+        locataire_signature_url: { type: string }
+        locataire_signed_at: { type: string, format: date-time }
+        bail_proprietaire_signature_url: { type: string }
+        bail_proprietaire_signed_at: { type: string, format: date-time }
+        bail_locataire_signature_url: { type: string }
+        bail_locataire_signed_at: { type: string, format: date-time }
+        last_signature_request_at: { type: string, format: date-time }
         observations:
           type: object
           additionalProperties: { $ref: '#/components/schemas/WallObservation' }
@@ -1364,10 +2080,12 @@ components:
         etat_de_lieux_id: { type: integer }
         piece_id: { type: integer, nullable: true, description: "EDL collectif: observação escopada a uma pièce" }
         chambre_id: { type: integer, nullable: true, description: "EDL collectif: observação escopada a uma chambre" }
-        wall_key: { type: string, nullable: true, enum: [fond, gauche, droit, porte], description: "null = observação geral" }
+        wall_key: { type: string, nullable: true, enum: [fond, gauche, droit, porte, sol, plafond], description: "null = observação geral. 6 zonas clicáveis do _RoomDiagram." }
+        author_role: { type: string, nullable: true, enum: [proprietaire, locataire], description: "null = legado. `locataire` → selo « Ajouté par le locataire » ; chacun n'édite/supprime que les siennes (RLS)." }
+        is_addition: { type: boolean, default: false, description: "Addition faite APRÈS la finalisation, pendant la fenêtre d'avenant (RLS : edl_is_finalise + edl_additions_open). Une addition du locataire notifie le propriétaire (in-app + e-mail notify-edl event=addition)." }
         description: { type: string, nullable: true }
         photos: { type: array, items: { type: string } }
-        created_at: { type: string, format: date-time, nullable: true }
+        created_at: { type: string, format: date-time, nullable: true, description: "Horodatage affiché sur les additions" }
     ObservationEdlWrite:
       type: object
       required: [etat_de_lieux_id, photos]
@@ -1376,6 +2094,8 @@ components:
         piece_id: { type: integer, nullable: true }
         chambre_id: { type: integer, nullable: true }
         wall_key: { type: string, nullable: true }
+        author_role: { type: string, nullable: true }
+        is_addition: { type: boolean }
         description: { type: string }
         photos: { type: array, items: { type: string } }
     EdlPreneur:
@@ -1512,7 +2232,10 @@ components:
         city: { type: string }
         region: { type: string }
         department: { type: string }
-        bailType: { type: string, nullable: true, enum: [collectif, individuel] }
+        bailType: { type: string, nullable: true, enum: [location, individuel] }
+        meublee: { type: boolean, nullable: true, description: "MODULE `meuble` — croise Immeubles.location_meuble" }
+        typeImmeubleId: { type: integer, nullable: true, description: "MODULE `typeImmeuble` — Immeuble_Types_Reference" }
+        equipements: { type: array, items: { type: string }, description: "MODULE `equipements` — **noms** d'équipements (Set<String>), issus de la RPC chambre_equipements_annonce (Inventaire dans_annonce)" }
         m2Min: { type: number, nullable: true }
         m2Max: { type: number, nullable: true }
         prixMin: { type: number, nullable: true }
@@ -1535,3 +2258,273 @@ components:
         userId: { type: string, format: uuid, nullable: true }
         emailSent: { type: boolean }
         smtpError: { type: string, nullable: true }
+
+    # ───────── Messagerie ─────────
+    Message:
+      type: object
+      description: |
+        Modelo Dart: MessageModel (tabela Messages). Un message d'un fil rattaché à une
+        demande de contact. `sender_id`/`recipient_id` sont **dénormalisés** (au lieu de
+        remonter à la demande) pour garder la RLS SELECT triviale — voir le path.
+      properties:
+        id: { type: integer }
+        demande_id: { type: integer, description: "FK Demandes_Contact (ON DELETE CASCADE) — un fil par demande" }
+        sender_id: { type: string, format: uuid, description: "FK Users_Client" }
+        recipient_id: { type: string, format: uuid, description: "L'autre partie de la demande (DemandeContactModel.interlocuteurId)" }
+        body: { type: string, description: "1 à 4000 caractères (contrainte en base)" }
+        created_at: { type: string, format: date-time }
+        read_at: { type: string, format: date-time, nullable: true, description: "null = non lu (alimente les pastilles)" }
+        sender: { type: object, description: "embed", properties: { full_name: { type: string } } }
+    MessageWrite:
+      type: object
+      required: [demande_id, sender_id, recipient_id, body]
+      properties:
+        demande_id: { type: integer }
+        sender_id: { type: string, format: uuid, description: "Doit être auth.uid() (RLS)" }
+        recipient_id: { type: string, format: uuid }
+        body: { type: string }
+
+    # ───────── Garants ─────────
+    Garant:
+      type: object
+      description: |
+        Modelo Dart: GarantModel (tabela Garants). Appartient au **locataire**
+        (`locataire_id`) ; les garants **actifs** sont repris automatiquement dans le bail.
+        RLS : le locataire gère les siens, le proprietaire lit ceux de ses locataires (via EDL).
+      properties:
+        id: { type: integer }
+        locataire_id: { type: string, format: uuid }
+        type_garant: { type: string, description: "Personne physique / morale" }
+        type_caution: { type: string, description: "Simple / solidaire" }
+        is_active: { type: boolean, default: true, description: "Activé → ajouté aux baux générés" }
+        nom: { type: string }
+        prenom: { type: string, nullable: true }
+        date_naissance: { type: string, format: date, nullable: true }
+        lieu_naissance: { type: string, nullable: true }
+        nationalite: { type: string, nullable: true }
+        adresse: { type: string, nullable: true }
+        code_postal: { type: string, nullable: true }
+        ville: { type: string, nullable: true }
+        email: { type: string, nullable: true }
+        telephone: { type: string, nullable: true }
+        profession: { type: string, nullable: true }
+        employeur: { type: string, nullable: true }
+        revenu_mensuel_net: { type: number, nullable: true }
+        iban: { type: string, nullable: true }
+        bic: { type: string, nullable: true }
+        titulaire_compte: { type: string, nullable: true }
+        raison_sociale: { type: string, nullable: true, description: "Personne morale" }
+        siret: { type: string, nullable: true, description: "Personne morale" }
+        representant_legal: { type: string, nullable: true, description: "Personne morale" }
+        notes: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+    GarantWrite:
+      type: object
+      required: [locataire_id, nom]
+      description: "Espelha GarantModel.toInsert(). Mesmos campos que Garant, sem id/created_at."
+      properties:
+        locataire_id: { type: string, format: uuid }
+        type_garant: { type: string }
+        type_caution: { type: string }
+        is_active: { type: boolean }
+        nom: { type: string }
+        prenom: { type: string, nullable: true }
+        date_naissance: { type: string, format: date, nullable: true }
+        adresse: { type: string, nullable: true }
+        code_postal: { type: string, nullable: true }
+        ville: { type: string, nullable: true }
+        email: { type: string, nullable: true }
+        telephone: { type: string, nullable: true }
+        profession: { type: string, nullable: true }
+        employeur: { type: string, nullable: true }
+        revenu_mensuel_net: { type: number, nullable: true }
+        raison_sociale: { type: string, nullable: true }
+        siret: { type: string, nullable: true }
+        representant_legal: { type: string, nullable: true }
+        notes: { type: string, nullable: true }
+    EdlGarant:
+      type: object
+      description: "Tabela de ligação etat_de_lieux_garants (garant rattaché à un bail). Permet un garant **par preneur** en bail location, sans schéma supplémentaire."
+      properties:
+        id: { type: integer }
+        etat_de_lieux_id: { type: integer }
+        garant_id: { type: integer }
+        created_at: { type: string, format: date-time }
+        Garants: { $ref: '#/components/schemas/Garant' }
+
+    # ───────── Notifications ─────────
+    Notification:
+      type: object
+      description: |
+        Modelo Dart: NotificationModel (tabela Notifications). **RLS por `recipient_id`** —
+        le même endpoint sert proprietaire et locataire. INSERT uniquement via les RPC.
+      properties:
+        id: { type: integer }
+        proprietaire_id: { type: string, format: uuid, description: "Legado — le destinataire effectif est `recipient_id`" }
+        recipient_id: { type: string, format: uuid, nullable: true, description: "**Destinataire effectif** (proprietaire OU locataire). Null sur les lignes legadas → vaut `proprietaire_id`." }
+        type: { type: string, enum: [edl_accepte, edl_addition, edl_a_signer, bail_garant_requis, bail_remplissage, admin_message] }
+        title: { type: string }
+        body: { type: string, nullable: true, description: "Markdown (rendu sans HTML brut)" }
+        etat_de_lieux_id: { type: integer, nullable: true }
+        locataire_id: { type: string, format: uuid, nullable: true }
+        is_read: { type: boolean, default: false }
+        media_type: { type: string, nullable: true, enum: [image, youtube], description: "Messages du super admin" }
+        media_url: { type: string, nullable: true }
+        admin_message_id: { type: integer, nullable: true }
+        created_at: { type: string, format: date-time }
+    AdminMessage:
+      type: object
+      description: "Modelo Dart: AdminMessageModel (tabela Admin_Messages). Historique des diffusions du super admin (onglet Historique de Communication)."
+      properties:
+        id: { type: integer }
+        sender_id: { type: string, format: uuid }
+        title: { type: string }
+        body: { type: string, nullable: true }
+        media_type: { type: string, nullable: true }
+        media_url: { type: string, nullable: true }
+        audience: { type: string, nullable: true, description: "tous / type / groupe / utilisateurs" }
+        recipients_count: { type: integer }
+        created_at: { type: string, format: date-time }
+
+    # ───────── Thèmes ─────────
+    ThemeRef:
+      type: object
+      description: |
+        Modelo Dart: ThemeRef (tabela Themes_Reference) → `ThemeRef.palette`.
+        **3 couleurs** suffisent : le reste (surfaces, bordures, texte secondaire, containers,
+        on-colors) est **dérivé** par `PaletteBuilder`, avec correction automatique du
+        contraste (AA 4.5:1) — les ajustements sont signalés (`PaletteDerivation.warnings`),
+        jamais silencieux. Le **vert de succès** et le **rouge d'erreur** ne sont **pas**
+        dérivés (ils sont sémantiques).
+      properties:
+        id: { type: integer }
+        code: { type: string, description: "Référencé par Users_Client.theme_preference" }
+        label: { type: string }
+        description: { type: string, nullable: true }
+        color_surface: { type: string, nullable: true, description: "Fond de page (hex). Null pour un thème `is_builtin`." }
+        color_on_surface: { type: string, nullable: true, description: "Texte (hex)" }
+        color_primary: { type: string, nullable: true, description: "Action (hex)" }
+        is_builtin: { type: boolean, description: "Palette réglée à la main dans le code (Ardoise, Ocre, Encre) : non supprimable, sans couleurs en base — elle ne passe pas par PaletteBuilder." }
+        is_active: { type: boolean, description: "Proposé aux utilisateurs" }
+        is_default: { type: boolean, description: "Thème principal. Un index unique garantit qu'il n'y en a **qu'un**." }
+        ordre: { type: integer }
+        created_at: { type: string, format: date-time }
+    ThemeRefWrite:
+      type: object
+      required: [code, label]
+      properties:
+        code: { type: string }
+        label: { type: string }
+        description: { type: string, nullable: true }
+        color_surface: { type: string, nullable: true }
+        color_on_surface: { type: string, nullable: true }
+        color_primary: { type: string, nullable: true }
+        is_active: { type: boolean }
+        is_default: { type: boolean }
+        ordre: { type: integer }
+
+    # ───────── Lots & charges ─────────
+    ImmeubleLot:
+      type: object
+      description: "Modelo Dart: ImmeubleLotModel (tabela Immeuble_Lots). Catalogue du proprietaire ; `immeuble_id` nullable = lot non rattaché."
+      properties:
+        id: { type: integer }
+        owner_id: { type: string, format: uuid, nullable: true }
+        immeuble_id: { type: integer, nullable: true, description: "Rattachement (nullable)" }
+        numero_lot: { type: string }
+        type_lot: { type: string, enum: [habitation, cave, parking, grenier, autre] }
+        batiment: { type: string, nullable: true }
+        etage: { type: string, nullable: true }
+        porte: { type: string, nullable: true }
+        reference_cadastrale: { type: string, nullable: true }
+        tantiemes: { type: number, nullable: true }
+        tantiemes_total: { type: number, nullable: true }
+        nom_copropriete: { type: string, nullable: true }
+        adresse_copropriete: { type: string, nullable: true }
+        syndic_fournisseur_id: { type: integer, nullable: true, description: "FK Fournisseurs (catégorie « Syndic / Copropriété »)" }
+        description: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+    ImmeubleCharge:
+      type: object
+      description: "Charge locative rattachée à un immeuble (tabela Immeuble_Charges). Le bail en hérite."
+      properties:
+        id: { type: integer }
+        immeuble_id: { type: integer }
+        charge_ref_id: { type: integer, description: "FK Charges_Reference" }
+        type: { type: string, enum: [aucun, inclus, fixe, variable] }
+        montant: { type: number, nullable: true, description: "€/mois — type=fixe" }
+        created_at: { type: string, format: date-time }
+    ChambreCharge:
+      type: object
+      deprecated: true
+      description: "**Legado** (tabela Chambre_Charges) — les charges vivent au niveau de l'immeuble. Conservée pour les baux anciens."
+      properties:
+        id: { type: integer }
+        chambre_id: { type: integer }
+        charge_ref_id: { type: integer }
+        type: { type: string }
+        montant: { type: number, nullable: true }
+        created_at: { type: string, format: date-time }
+
+    # ───────── Agenda ─────────
+    PlageOuverture:
+      type: object
+      description: "Modelo Dart: PlageOuvertureModel (tabela Plages_Ouverture). RLS owner-only."
+      properties:
+        id: { type: integer }
+        owner_id: { type: string, format: uuid }
+        jour_semaine: { type: integer, description: "Jour de la semaine (1 = lundi)" }
+        heure_debut: { type: string, description: "HH:MM:SS" }
+        heure_fin: { type: string, description: "HH:MM:SS" }
+        type: { type: string, enum: [ouverture, pause], description: "`ouverture` = créneau réservable (blanc) · `pause` = indisponible (jaune). Hors plage → hachuré." }
+        created_at: { type: string, format: date-time }
+
+    # ───────── Signatures / audit / admin ─────────
+    UserSignature:
+      type: object
+      description: "Assinatura guardada do utilizador (tabela user_signatures). `signature_url` = réf. `doc:<path>` dans le bucket privé `documents` → afficher via `PrivateImage`."
+      properties:
+        id: { type: integer }
+        user_id: { type: string, format: uuid }
+        signature_url: { type: string }
+        updated_at: { type: string, format: date-time, nullable: true }
+    SignatureAudit:
+      type: object
+      description: "Trilha de auditoria (tabela signature_audit), écrite par l'edge function `record-signature-audit`."
+      properties:
+        id: { type: integer }
+        etat_de_lieux_id: { type: integer }
+        document_type: { type: string, enum: [edl, bail], description: "EDL et bail sont **deux** documents, avec des signatures indépendantes" }
+        role: { type: string, enum: [proprietaire, locataire] }
+        signer_id: { type: string, format: uuid }
+        signer_email: { type: string, nullable: true }
+        document_hash: { type: string }
+        ip_address: { type: string, nullable: true }
+        user_agent: { type: string, nullable: true }
+        signed_at: { type: string, format: date-time }
+        created_at: { type: string, format: date-time }
+    ConnectionLog:
+      type: object
+      description: "Journal de connexions (tabela connection_logs), alimenté par l'edge function `log-connection`. Super admin → Maintenance → Connexions."
+      properties:
+        id: { type: integer }
+        user_id: { type: string, format: uuid, nullable: true }
+        user_email: { type: string, nullable: true }
+        user_name: { type: string, nullable: true }
+        user_type: { type: string, nullable: true }
+        ip_address: { type: string, nullable: true }
+        user_agent: { type: string, nullable: true }
+        device: { type: string, nullable: true }
+        browser: { type: string, nullable: true }
+        timezone: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+    Entreprise:
+      type: object
+      description: "Modelo Dart: EntrepriseModel (tabela Entreprises). Gérée par le super admin (ComptesEntreprisesPage)."
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        domain: { type: string, nullable: true }
+        active: { type: boolean }
+        created_by: { type: string, format: uuid, nullable: true }
+        created_at: { type: string, format: date-time }

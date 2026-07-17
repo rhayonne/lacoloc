@@ -156,7 +156,7 @@ class _ImmeubleGroup extends StatelessWidget {
                     color: AppColors.primaryFixed,
                     borderRadius: AppRadius.borderSm,
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.apartment,
                     size: 16,
                     color: AppColors.primary,
@@ -431,7 +431,7 @@ class _PhotoPlaceholder extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
     color: AppColors.surfaceContainerLow,
-    child: const Center(
+    child: Center(
       child: Icon(Icons.bed_outlined, size: 32, color: AppColors.outline),
     ),
   );

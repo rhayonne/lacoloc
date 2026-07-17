@@ -233,8 +233,223 @@
         </summary>
         <div class="major-body">
 
-          <!-- 1.1.0 -->
+          <!-- 1.6.0 -->
           <details class="version" open>
+            <summary>
+              <span>📄</span>
+              <span class="vnum">v1.6.0</span>
+              <span class="vdate">17 juillet 2026</span>
+              <span class="vtitle">Messagerie locataire ↔ propriétaire</span>
+            </summary>
+            <div class="version-body">
+              <h4>💬 Chat rattaché aux demandes de contact</h4>
+              <ul>
+                <li>Une fois une demande de contact <b>acceptée</b> par le propriétaire, les deux parties peuvent échanger des <b>messages</b> dans un fil dédié — avant l'acceptation, le fil reste fermé.</li>
+                <li><b>Propriétaire</b> : bouton <b>« Discuter »</b> (avec pastille de messages non lus) sur chaque demande de l'onglet Interactions.</li>
+                <li><b>Locataire</b> : nouvel onglet <b>« Mes discussions »</b> dans Interactions, avec un badge « En attente / Acceptée » par demande.</li>
+                <li>Le fil se met à jour <b>en temps réel</b>, sans recharger la page.</li>
+              </ul>
+              <h4>🐛 Corrections</h4>
+              <ul>
+                <li>Un message d'erreur apparaissait après l'envoi d'une demande de contact (« Entrer en contact ») bien que la demande soit correctement enregistrée. Corrigé.</li>
+              </ul>
+            </div>
+          </details>
+
+          <!-- 1.5.0 -->
+          <details class="version">
+            <summary>
+              <span>📄</span>
+              <span class="vnum">v1.5.0</span>
+              <span class="vdate">16 juillet 2026</span>
+              <span class="vtitle">Résiliation du bail &amp; remboursement de caution</span>
+            </summary>
+            <div class="version-body">
+              <h4>✨ Résiliation du bail</h4>
+              <ul>
+                <li>« Rompre le bail » exige désormais un <b>état des lieux de sortie</b> lié à l'entrée, <b>finalisé</b> par le propriétaire <b>et</b> accepté/signé par le locataire. Le bouton reste désactivé (avec l'explication) tant que ce n'est pas le cas.</li>
+                <li>Au moment de la résiliation, choix <b>« Mois complet » ou « Prorata »</b> : au prorata, l'échéance du mois de départ est recalculée sur les jours réellement occupés.</li>
+                <li><b>Annuler une résiliation</b> restaure les échéances supprimées et remet au montant plein les lignes au prorata non payées (les échéances déjà payées ne sont jamais touchées).</li>
+                <li>Nouveau <b>« Acte de résiliation » en PDF</b> (propriétaire) dans l'onglet Bail : récapitulatif du bail, référence à l'EDL de sortie, décompte final et signatures.</li>
+              </ul>
+              <h4>💶 Remboursement de la caution</h4>
+              <ul>
+                <li>Si la caution a bien été <b>reçue</b>, qu'il n'y a <b>aucune retenue</b> (vétusté ou facture en litige) et que le contrat n'est pas un avenant, le <b>remboursement est généré automatiquement</b> à la résiliation : une seule écriture, vue « à payer » côté propriétaire et « à recevoir » côté locataire.</li>
+                <li>En cas de retenue, rien n'est généré automatiquement : un message explique pourquoi et le règlement se fait manuellement.</li>
+              </ul>
+              <h4>📊 Finances</h4>
+              <ul>
+                <li>L'onglet <b>« Vue générale »</b> de Finances n'est plus un espace réservé : 4 cartes — <b>Aujourd'hui</b>, <b>Ce mois-ci</b>, <b>En retard</b>, <b>À payer (remboursements)</b>.</li>
+                <li>Dans le menu propriétaire, <b>Finances</b> passe après <b>Fournisseurs</b>.</li>
+              </ul>
+              <h4>📋 États des lieux</h4>
+              <ul>
+                <li>Nouvelle colonne <b>Situation</b> lisible dans les tableaux (propriétaire et locataire) : À signer → Bail à signer (avec qui manque) → Bail signé.</li>
+                <li>Les onglets <b>« Bail » et « Garant »</b> de l'EDL individuel sont fusionnés : tout se règle dans l'onglet Bail.</li>
+              </ul>
+              <h4>🐛 Corrections</h4>
+              <ul>
+                <li>Recherche instantanée dans la liste EDL du super admin (plus de rechargement à chaque frappe).</li>
+                <li>Cartes de « Mes Propriétés » qui rétrécissaient au lieu de remplir la largeur.</li>
+                <li>Fenêtre « Conditions du bail » : plus de chargement infini (délai d'attente + bouton Réessayer).</li>
+              </ul>
+            </div>
+          </details>
+
+          <!-- 1.4.0 -->
+          <details class="version">
+            <summary>
+              <span>📄</span>
+              <span class="vnum">v1.4.0</span>
+              <span class="vdate">3 juillet 2026</span>
+              <span class="vtitle">EDL et bail signés ensemble</span>
+            </summary>
+            <div class="version-body">
+              <h4>✨ Conditions obligatoires avant de finaliser</h4>
+              <ul>
+                <li>L'EDL individuel regroupe les champs requis avant finalisation, avec un <b>indicateur « Obligatoire »</b> et une <b>pastille par onglet</b> comptant ce qui manque.</li>
+                <li><b>Fenêtre d'avenant</b> choisie par EDL (7/15/30/60/90 j ou « Sans avenant »), rien de présélectionné — remplace l'ancien réglage global de la Vision générale.</li>
+                <li><b>Bail avec / sans garant</b>, puis rattachement d'un ou plusieurs <b>garants actifs</b> du locataire (obligatoire si « avec garant »).</li>
+                <li><b>Mode de règlement de la caution</b> (chèque, virement SEPA, espèces, Wero/PayPal).</li>
+                <li>La <b>finalisation est bloquée</b> tant qu'un champ obligatoire manque (avec ouverture de l'onglet concerné).</li>
+              </ul>
+              <h4>✨ Onglet « Bail »</h4>
+              <ul>
+                <li>Configuration du <b>préavis</b> (défaut légal : 1 mois meublé / 3 mois vide, modifiable) et <b>résiliation du bail</b> avec date de congé + motif → calcul de la fin effective et retrait des échéances au-delà.</li>
+              </ul>
+              <h4>🔔 Notifications</h4>
+              <ul>
+                <li>Les rappels <b>« à signer » disparaissent une fois signé</b> (badges et Interactions nettoyés), quel que soit le profil.</li>
+                <li>Le propriétaire est bien prévenu quand le locataire signe — la notification part désormais dans tous les cas.</li>
+              </ul>
+              <h4>🐛 Corrections</h4>
+              <ul>
+                <li>Recherche de locataires : ne dépend plus d'un identifiant de type codé en dur.</li>
+              </ul>
+            </div>
+          </details>
+
+          <!-- 1.3.2 -->
+          <details class="version">
+            <summary>
+              <span>📄</span>
+              <span class="vnum">v1.3.2</span>
+              <span class="vdate">2 juillet 2026</span>
+              <span class="vtitle">Gestion des EDL par le super admin</span>
+            </summary>
+            <div class="version-body">
+              <h4>✨ Nouveau menu super admin « États des lieux »</h4>
+              <ul>
+                <li>Liste de <b>tous</b> les EDL du système (actifs et inactifs) avec recherche par code, locataire, propriétaire, immeuble ou chambre.</li>
+                <li><b>Éditer</b> n'importe quel EDL, même finalisé et quel que soit son âge.</li>
+                <li><b>Désactiver / Réactiver</b> (au lieu de supprimer) : un EDL désactivé disparaît pour le propriétaire et le locataire mais reste consultable et réactivable ici.</li>
+                <li><b>Supprimer définitivement</b> en dernier recours.</li>
+                <li>La désactivation est <b>en cascade</b> (privatif + sa sortie ; le collectif retire toute la colocation) et <b>libère la chambre</b> — elle redevient disponible pour un nouveau contrat.</li>
+              </ul>
+            </div>
+          </details>
+
+          <!-- 1.3.1 -->
+          <details class="version">
+            <summary>
+              <span>📄</span>
+              <span class="vnum">v1.3.1</span>
+              <span class="vdate">2 juillet 2026</span>
+              <span class="vtitle">Correctif de sécurité</span>
+            </summary>
+            <div class="version-body">
+              <h4>🔒 Sécurité</h4>
+              <ul>
+                <li><b>Escalade de privilèges (critique) — corrigée.</b> N'importe quel compte connecté pouvait modifier son propre type et se promouvoir <b>super admin</b>. Tout changement de type est désormais verrouillé, sauf par un super admin (ou un admin d'entreprise sur un autre compte).</li>
+                <li>Durcissement des fonctions internes de la base : elles ne sont plus appelables depuis l'extérieur.</li>
+              </ul>
+              <h4>🐛 Corrections</h4>
+              <ul>
+                <li>Remise à niveau du code de la fonction de gestion des comptes : une republication aurait cassé le bannissement et la définition de mot de passe par le super admin.</li>
+              </ul>
+            </div>
+          </details>
+
+          <!-- 1.3.0 -->
+          <details class="version">
+            <summary>
+              <span>📄</span>
+              <span class="vnum">v1.3.0</span>
+              <span class="vdate">1 juillet 2026</span>
+              <span class="vtitle">Refonte de l'Agenda (rendez-vous)</span>
+            </summary>
+            <div class="version-body">
+              <h4>🗓️ Agenda / Rendez-vous</h4>
+              <ul>
+                <li>L'<b>Agenda devient une entrée du menu latéral</b> (il était un onglet sous « Gestion Immobilière »).</li>
+                <li><b>Vues Liste · Journée · Semaine · Mois</b> (Semaine par défaut, sur le jour courant), avec navigation Précédent / Suivant et bouton <b>Aujourd'hui</b>.</li>
+                <li><b>Grille horaire cliquable</b> (créneaux de 30 min) colorisée selon vos disponibilités : blanc = disponible, jaune = pause, hachuré = hors plage d'ouverture. Un clic ouvre un pop-over pré-rempli à l'heure choisie.</li>
+                <li><b>Rendez-vous</b> : type (visite, EDL entrée/sortie, réparation, autre), contact, date, heure de début/fin, lieu et notes. Affiché comme un bloc coloré, avec une ligne « maintenant ».</li>
+                <li><b>Contact</b> : sélection d'un locataire existant ou invitation d'une personne externe par e-mail.</li>
+                <li><b>E-mail automatique</b> au contact à l'enregistrement : type, date/heure, lieu et organisateur.</li>
+                <li><b>« Modifier les plages d'ouverture »</b> : vos disponibilités par jour de semaine (ouverture réservable / pause), avec un modèle rapide Lun–Ven 9 h–18 h.</li>
+              </ul>
+              <h4>🏠 Mes Propriétés</h4>
+              <ul>
+                <li>Cartes plus compactes, bouton « Édition » agrandi et miniatures des chambres plus lisibles.</li>
+              </ul>
+            </div>
+          </details>
+
+          <!-- 1.2.0 -->
+          <details class="version">
+            <summary>
+              <span>📄</span>
+              <span class="vnum">v1.2.0</span>
+              <span class="vdate">24 juin 2026</span>
+              <span class="vtitle">Contrat de bail, garants &amp; communication</span>
+            </summary>
+            <div class="version-body">
+              <h4>📄 Bail (contrat de location)</h4>
+              <ul>
+                <li><b>Génération du bail depuis l'EDL.</b> Le bouton d'action de la liste dépend de l'état : <b>Continuer</b> (non finalisé) → <b>Demander signature</b> (finalisé, non signé ; <b>1 demande maximum tous les 5 jours</b>) → <b>Générer bail</b> (finalisé et signé).</li>
+                <li>Le PDF du bail inclut un article <b>« Cautionnement (garant) »</b> listant les garants actifs du locataire.</li>
+                <li>Choix <b>« bail avec garant ? »</b> : si oui et que le locataire n'a aucun garant, une demande lui est envoyée et <b>l'impression est bloquée</b> jusqu'à l'enregistrement d'un garant.</li>
+                <li>Vérification des <b>signatures</b> avant impression, avec proposition de les apposer.</li>
+              </ul>
+              <h4>🤝 Garants &amp; caution</h4>
+              <ul>
+                <li>« Enregistrer un garant » fait désormais partie des <b>conditions pour louer</b> du locataire.</li>
+                <li>Page Garants : interrupteur actif/inactif — <b>les garants activés sont ajoutés automatiquement aux baux générés</b>.</li>
+                <li><b>Dépôt de garantie (mois)</b> et <b>durée du bail</b> : champs numériques à flèches, avec le montant démonstratif (loyer × mois) affiché dessous.</li>
+              </ul>
+              <h4>📣 Communication (super admin)</h4>
+              <ul>
+                <li>Nouveau menu <b>« Communication »</b> : diffuser un message comme notification in-app.</li>
+                <li><b>Audiences</b> : tous · par type · par groupe/entreprise · utilisateurs spécifiques.</li>
+                <li>Éditeur <b>Markdown</b> avec aperçu, et <b>médias</b> (image ou vidéo YouTube intégrée).</li>
+                <li><b>Historique</b> des messages envoyés (titre, audience, destinataires, date).</li>
+              </ul>
+              <h4>✅ Checklist « Conditions pour louer »</h4>
+              <ul>
+                <li><b>Locataire</b> : profil complet · signature · garant. <b>Propriétaire</b> : profil · signature · au moins un immeuble · au moins une chambre.</li>
+                <li>Chaque élément manquant a un <b>lien direct</b> pour le résoudre.</li>
+              </ul>
+              <h4>🖼️ Fiches détail &amp; carrousel</h4>
+              <ul>
+                <li>Nouvelle <b>fiche immeuble publique</b> (infos, photos, chambres disponibles cliquables), ouverte <b>dans le cadre latéral</b> — le menu reste à gauche.</li>
+                <li><b>Carrousel photos</b> : défilement automatique toutes les 5 s avec barre de progression, et <b>clic = plein écran zoomable</b>.</li>
+              </ul>
+              <h4>💶 Finances</h4>
+              <ul>
+                <li>À l'officialisation du bail, les <b>échéances mensuelles</b> sont générées : « à recevoir » côté propriétaire, « à payer » côté locataire.</li>
+                <li>Ajout d'une <b>échéance de dépôt de garantie</b> (loyer × mois de dépôt).</li>
+              </ul>
+              <h4>🔔 Interactions</h4>
+              <ul>
+                <li>Le menu locataire <b>« Messages » devient « Interactions »</b>.</li>
+                <li><b>Pop-up « Documents requis pour le bail »</b> : liste les éléments nécessaires (garant, signatures), barrés quand ils sont faits, avec un bouton <b>Résoudre</b> côté locataire et <b>Demander le remplissage</b> côté propriétaire.</li>
+              </ul>
+            </div>
+          </details>
+
+          <!-- 1.1.0 -->
+          <details class="version">
             <summary>
               <span>📄</span>
               <span class="vnum">v1.1.0</span>
@@ -371,7 +586,7 @@
     </div>
 
     <div class="footer">
-      Super Loc · Journal des mises à jour · Mis à jour en juin 2026
+      Super Loc · Journal des mises à jour · Mis à jour en juillet 2026 (v1.6.0)
     </div>
   </div>
 </body>

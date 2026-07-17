@@ -9,6 +9,7 @@ import 'package:lacoloc_front/data/datasources/inventaire.dart';
 import 'package:lacoloc_front/data/datasources/etat_de_lieux.dart';
 import 'package:lacoloc_front/data/datasources/garants.dart';
 import 'package:lacoloc_front/presentation/widgets/readiness_checklist.dart';
+import 'package:lacoloc_front/presentation/widgets/theme_picker.dart';
 import 'package:lacoloc_front/data/datasources/immeubles.dart';
 import 'package:lacoloc_front/data/datasources/notifications.dart';
 import 'package:lacoloc_front/data/datasources/recettes.dart';
@@ -29,7 +30,11 @@ import 'package:lacoloc_front/presentation/widgets/edl_parcours_badge.dart';
 import 'package:lacoloc_front/presentation/widgets/edl_signature_flow.dart';
 import 'package:lacoloc_front/presentation/users/proprietaires/etat_de_lieux_page.dart';
 import 'package:lacoloc_front/presentation/users/proprietaires/interactions_page.dart'
-    show NotificationCard;
+    show NotificationCard, DiscussionButton;
+import 'package:lacoloc_front/data/datasources/demandes_contact.dart';
+import 'package:lacoloc_front/data/datasources/messages.dart';
+import 'package:lacoloc_front/data/models/demande_contact.dart';
+import 'package:lacoloc_front/presentation/widgets/conversation_view.dart';
 import 'package:lacoloc_front/presentation/chambres/chambre_detail_page.dart';
 import 'package:lacoloc_front/presentation/nav/app_nav_sidebar.dart';
 import 'package:lacoloc_front/presentation/nav/app_sidebar.dart';
@@ -110,7 +115,7 @@ class _LocataireProfilPageState extends State<LocataireProfilPage>
   static const _idxProfil = 6;
 
   @override
-  Set<String> get watchedEntities => {'notifications', 'edl'};
+  Set<String> get watchedEntities => {'notifications', 'edl', 'messages'};
 
   @override
   void onRealtimeChange() => _refresh();
@@ -139,6 +144,7 @@ class _LocataireProfilPageState extends State<LocataireProfilPage>
         NotificationsDatasource.listByOwner(refresh: true),
         GarantsDatasource.activeByLocataire(uid),
         SignaturesDatasource.getSavedUrl(),
+        MessagesDatasource.unreadCount(refresh: true),
       ]);
       if (!mounted) return;
       final all = results[0] as List<ChambreModel>;
@@ -147,6 +153,7 @@ class _LocataireProfilPageState extends State<LocataireProfilPage>
       final notifs = results[3] as List<NotificationModel>;
       final garants = results[4] as List<GarantModel>;
       final signatureUrl = results[5] as String?;
+      final msgNonLus = results[6] as int;
       final available = all.where((c) => !c.estLoue && c.isActive).toList();
       final pending = edls
           .where(
@@ -175,7 +182,8 @@ class _LocataireProfilPageState extends State<LocataireProfilPage>
         _pendingBails = pendingBails;
         _unreadNotifs = unread;
         _edlBadge = pending.length + pendingBails.length;
-        _msgBadge = unread.length;
+        // « Interactions » = notifications non lues + messages de chat non lus.
+        _msgBadge = unread.length + msgNonLus;
         _needsGarant = needsGarant;
         _hasSignature = signatureUrl != null;
         _hasGarant = garants.isNotEmpty;
@@ -753,7 +761,7 @@ class _DashboardSection extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.xl),
       child: Column(
         children: [
-          const Icon(
+          Icon(
             Icons.check_circle_outline,
             size: 56,
             color: AppColors.success,
@@ -813,7 +821,7 @@ class _DashboardEdlTile extends StatelessWidget {
         ),
         child: Row(
           children: [
-            const Icon(Icons.draw_outlined, size: 20, color: AppColors.error),
+            Icon(Icons.draw_outlined, size: 20, color: AppColors.error),
             const SizedBox(width: AppSpacing.md),
             Expanded(
               child: Column(
@@ -839,7 +847,7 @@ class _DashboardEdlTile extends StatelessWidget {
               ),
             ),
             const SizedBox(width: AppSpacing.sm),
-            const Icon(Icons.chevron_right, color: AppColors.onSurfaceVariant),
+            Icon(Icons.chevron_right, color: AppColors.onSurfaceVariant),
           ],
         ),
       ),
@@ -858,7 +866,8 @@ class _MessagesSection extends StatefulWidget {
 }
 
 class _MessagesSectionState extends State<_MessagesSection>
-    with RealtimeRefreshMixin {
+    with RealtimeRefreshMixin, SingleTickerProviderStateMixin {
+  late final TabController _tabCtrl;
   bool _loading = true;
   String? _error;
   List<NotificationModel> _items = [];
@@ -872,7 +881,14 @@ class _MessagesSectionState extends State<_MessagesSection>
   @override
   void initState() {
     super.initState();
+    _tabCtrl = TabController(length: 2, vsync: this);
     _load();
+  }
+
+  @override
+  void dispose() {
+    _tabCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -949,7 +965,25 @@ class _MessagesSectionState extends State<_MessagesSection>
             ],
           ),
         ),
-        Expanded(child: _buildBody()),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+          child: AppTabBar(
+            controller: _tabCtrl,
+            isScrollable: true,
+            tabs: const [
+              Tab(text: 'Mes discussions'),
+              Tab(text: 'Notifications'),
+            ],
+          ),
+        ),
+        const Divider(height: 1),
+        Expanded(
+          child: TabBarView(
+            controller: _tabCtrl,
+            physics: const NeverScrollableScrollPhysics(),
+            children: [const _MesDiscussionsTab(), _buildBody()],
+          ),
+        ),
       ],
     );
   }
@@ -968,7 +1002,7 @@ class _MessagesSectionState extends State<_MessagesSection>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(
+              Icon(
                 Icons.mail_outline,
                 size: 48,
                 color: AppColors.onSurfaceVariant,
@@ -1014,6 +1048,252 @@ class _MessagesSectionState extends State<_MessagesSection>
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Les demandes de contact envoyées par le locataire, et le fil de discussion
+/// de chacune (ouvert dès que le propriétaire a accepté la demande).
+class _MesDiscussionsTab extends StatefulWidget {
+  const _MesDiscussionsTab();
+
+  @override
+  State<_MesDiscussionsTab> createState() => _MesDiscussionsTabState();
+}
+
+class _MesDiscussionsTabState extends State<_MesDiscussionsTab>
+    with RealtimeRefreshMixin {
+  bool _loading = true;
+  String? _error;
+  List<DemandeContactModel> _demandes = [];
+  Map<int, int> _unread = const {};
+
+  /// Fil ouvert : rendu dans le cadre, à la place de la liste.
+  DemandeContactModel? _conversation;
+
+  @override
+  Set<String> get watchedEntities => {'demandes', 'messages'};
+
+  @override
+  void onRealtimeChange() => _load();
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final data = await DemandesContactDatasource.listByLocataire(
+        refresh: true,
+      );
+      final unread = await MessagesDatasource.unreadCountByDemande(
+        refresh: true,
+      );
+      if (!mounted) return;
+      setState(() {
+        _demandes = data;
+        _unread = unread;
+        // Garder le fil ouvert à jour (ex. le proprio vient d'accepter).
+        final open = _conversation;
+        if (open != null) {
+          final idx = _demandes.indexWhere((d) => d.id == open.id);
+          _conversation = idx >= 0 ? _demandes[idx] : null;
+        }
+      });
+    } catch (e) {
+      if (mounted) setState(() => _error = e.toString());
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final conv = _conversation;
+    if (conv != null) {
+      return Padding(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: ConversationView(
+          demande: conv,
+          onClose: () {
+            setState(() => _conversation = null);
+            _load();
+          },
+        ),
+      );
+    }
+
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_error != null) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Erreur : $_error'),
+            const SizedBox(height: AppSpacing.md),
+            FilledButton.icon(
+              onPressed: _load,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Réessayer'),
+            ),
+          ],
+        ),
+      );
+    }
+    if (_demandes.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.xl),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.forum_outlined,
+                size: 48,
+                color: AppColors.onSurfaceVariant,
+              ),
+              const SizedBox(height: AppSpacing.md),
+              Text(
+                'Aucune demande de contact.',
+                style: AppTypography.bodyMd.copyWith(
+                  color: AppColors.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                'Depuis une annonce, cliquez sur « Entrer en contact » '
+                'pour écrire au propriétaire.',
+                textAlign: TextAlign.center,
+                style: AppTypography.labelSm.copyWith(
+                  color: AppColors.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 800),
+          child: ListView.separated(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            itemCount: _demandes.length,
+            separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.sm),
+            itemBuilder: (_, i) {
+              final d = _demandes[i];
+              return _DemandeLocataireCard(
+                demande: d,
+                unread: _unread[d.id] ?? 0,
+                onDiscussion: () => setState(() => _conversation = d),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Carte d'une demande côté locataire : le bien, l'état de la demande
+/// (en attente / acceptée) et l'accès au fil.
+class _DemandeLocataireCard extends StatelessWidget {
+  final DemandeContactModel demande;
+  final int unread;
+  final VoidCallback onDiscussion;
+
+  const _DemandeLocataireCard({
+    required this.demande,
+    required this.unread,
+    required this.onDiscussion,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final d = demande;
+    final bien = [
+      d.chambreName,
+      d.immeubleName,
+    ].where((s) => s != null && s.isNotEmpty).join(' — ');
+    final acceptee = d.discussionOuverte;
+
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceContainerLowest,
+        borderRadius: AppRadius.borderLg,
+        border: Border.all(color: AppColors.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  bien.isEmpty ? 'Demande de contact' : bien,
+                  style: AppTypography.titleLg,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              _EtatDemandeChip(acceptee: acceptee),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            'Propriétaire : ${d.proprietaireFullName ?? '—'}',
+            style: AppTypography.bodyMd.copyWith(
+              color: AppColors.onSurfaceVariant,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: DiscussionButton(
+              demande: d,
+              unread: unread,
+              onPressed: onDiscussion,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EtatDemandeChip extends StatelessWidget {
+  final bool acceptee;
+  const _EtatDemandeChip({required this.acceptee});
+
+  @override
+  Widget build(BuildContext context) {
+    final couleur = acceptee ? AppColors.success : AppColors.onSurfaceVariant;
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: 2,
+      ),
+      decoration: BoxDecoration(
+        color: couleur.withValues(alpha: .12),
+        borderRadius: BorderRadius.circular(AppRadius.full),
+      ),
+      child: Text(
+        acceptee ? 'Acceptée' : 'En attente',
+        style: AppTypography.labelSm.copyWith(color: couleur),
       ),
     );
   }
@@ -1189,7 +1469,7 @@ class _ChambresSectionState extends State<_ChambresSection> {
                         child: Column(
                           children: [
                             const SizedBox(height: AppSpacing.xl),
-                            const Icon(
+                            Icon(
                               Icons.bed_outlined,
                               size: 64,
                               color: AppColors.outline,
@@ -1577,7 +1857,7 @@ class _ProfilSectionState extends State<_ProfilSection> {
                               ),
                             ),
                             if (_isEditing)
-                              const Icon(
+                              Icon(
                                 Icons.calendar_today_outlined,
                                 size: 18,
                                 color: AppColors.primary,
@@ -1615,6 +1895,13 @@ class _ProfilSectionState extends State<_ProfilSection> {
                     const Divider(),
                     const SizedBox(height: AppSpacing.lg),
 
+                    // ── Apparence (choix du thème) ───────────────────────
+                    const ThemePickerSection(),
+
+                    const SizedBox(height: AppSpacing.xl),
+                    const Divider(),
+                    const SizedBox(height: AppSpacing.lg),
+
                     // ── Info ─────────────────────────────────────────────
                     Container(
                       padding: const EdgeInsets.all(AppSpacing.md),
@@ -1626,7 +1913,7 @@ class _ProfilSectionState extends State<_ProfilSection> {
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Icon(
+                          Icon(
                             Icons.info_outline,
                             size: 18,
                             color: AppColors.onSurfaceVariant,
@@ -2095,7 +2382,7 @@ class _EdlVisionGeneraleTab extends StatelessWidget {
           if (pending.isNotEmpty) ...[
             Row(
               children: [
-                const Icon(
+                Icon(
                   Icons.warning_amber_rounded,
                   color: AppColors.error,
                   size: 20,
@@ -2141,7 +2428,7 @@ class _EdlVisionGeneraleTab extends StatelessWidget {
                 padding: const EdgeInsets.all(AppSpacing.xl),
                 child: Column(
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.description_outlined,
                       size: 56,
                       color: AppColors.outline,
@@ -2293,7 +2580,7 @@ class _EdlListTab extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(
+            Icon(
               Icons.description_outlined,
               size: 56,
               color: AppColors.outline,
@@ -2873,7 +3160,7 @@ class _EdlLocataireCard extends StatelessWidget {
               Container(
                 width: 36,
                 height: 36,
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                   color: AppColors.primaryFixed,
                   shape: BoxShape.circle,
                 ),
@@ -3102,7 +3389,7 @@ class _PendingEdlCardState extends State<_PendingEdlCard> {
         children: [
           Row(
             children: [
-              const Icon(
+              Icon(
                 Icons.description_outlined,
                 color: AppColors.error,
                 size: 20,
@@ -3133,7 +3420,7 @@ class _PendingEdlCardState extends State<_PendingEdlCard> {
             ),
             child: Row(
               children: [
-                const Icon(
+                Icon(
                   Icons.verified_outlined,
                   size: 18,
                   color: AppColors.tertiary,
@@ -3470,7 +3757,7 @@ class _EdlDetailPageState extends State<_EdlDetailPage> {
                           ),
                           child: Row(
                             children: [
-                              const Icon(
+                              Icon(
                                 Icons.check_circle_outlined,
                                 color: AppColors.secondary,
                               ),
@@ -3745,13 +4032,13 @@ class _DangerZoneSection extends StatelessWidget {
                     child: OutlinedButton.icon(
                       style: OutlinedButton.styleFrom(
                         foregroundColor: AppColors.error,
-                        side: const BorderSide(color: AppColors.error),
+                        side: BorderSide(color: AppColors.error),
                       ),
                       onPressed: (hasContracts || loading || isDeleting)
                           ? null
                           : onDelete,
                       icon: isDeleting
-                          ? const SizedBox(
+                          ? SizedBox(
                               width: 16,
                               height: 16,
                               child: CircularProgressIndicator(
@@ -3922,7 +4209,7 @@ class _BauxLocataireTabState extends State<_BauxLocataireTab> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(
+                Icon(
                   Icons.description_outlined,
                   size: 56,
                   color: AppColors.outline,
@@ -3960,7 +4247,7 @@ class _BauxLocataireTabState extends State<_BauxLocataireTab> {
               contentPadding: const EdgeInsets.symmetric(
                 vertical: AppSpacing.sm,
               ),
-              leading: const CircleAvatar(
+              leading: CircleAvatar(
                 backgroundColor: AppColors.primaryFixed,
                 child: Icon(
                   Icons.description_outlined,
@@ -4123,7 +4410,7 @@ class _FinancesSectionState extends State<_FinancesSection> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.payments_outlined,
                         size: 56,
                         color: AppColors.outline,

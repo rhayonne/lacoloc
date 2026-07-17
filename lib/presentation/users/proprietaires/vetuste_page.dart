@@ -54,7 +54,7 @@ Future<void> proposerVetusteSiDegradation(
   final ok = await showDialog<bool>(
     context: context,
     builder: (ctx) => AlertDialog(
-      icon: const Icon(Icons.report_problem_outlined,
+      icon: Icon(Icons.report_problem_outlined,
           color: AppColors.error, size: 32),
       title: const Text('Dégradation détectée'),
       content: Text(
@@ -725,7 +725,7 @@ class _DecompteEditorState extends State<_DecompteEditor> {
                 const Text('Imputable'),
                 const Spacer(),
                 IconButton(
-                  icon: const Icon(Icons.delete_outline, color: AppColors.error),
+                  icon: Icon(Icons.delete_outline, color: AppColors.error),
                   tooltip: 'Supprimer',
                   onPressed: () => setState(() {
                     _lignes.removeAt(index).dispose();
