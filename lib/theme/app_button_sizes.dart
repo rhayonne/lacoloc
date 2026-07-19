@@ -24,11 +24,13 @@ import 'package:lacoloc_front/theme/app_spacing.dart';
 ///     cru, use [AppButtonSizes.density] fundido ao estilo de cor do tema:
 ///     `style: AppButtonSizes.density(AppButtonSize.compact).merge(AppTheme.saveButtonStyle)`.
 enum AppButtonSize {
-  /// Contextos normais : formulaires, dialogues, actions de page. 48dp Material.
+  /// Taille par DÉFAUT de l'app : formulaires, dialogues, actions de page.
+  /// Hauteur 44 = « taille d'excellence » (cible tactile iOS HIG / WCAG 2.5.5),
+  /// confortable sur mobile comme sur desktop. Padding horizontal aéré.
   standard,
 
-  /// Contextes denses : barre du haut, actions de popover, cartes sur mobile.
-  /// 44pt (mini iOS) — plus discret sans passer sous la cible tactile.
+  /// Même hauteur (44) mais padding horizontal plus serré : barres denses,
+  /// popovers, boutons côte à côte sur mobile (où l'aéré déborderait).
   compact,
 
   /// Micro-actions en ligne : chips d'action, lignes de tableau. Hauteur
@@ -74,9 +76,11 @@ class AppButtonSizes {
   /// Cible tactile minimale absolue (iOS HIG / WCAG 2.5.5).
   static const double minTouchTarget = 44.0;
 
-  /// Taille STANDARD (48dp Material) — la valeur par défaut de l'app.
+  /// Taille STANDARD (44 = cible tactile iOS/WCAG) — la valeur par défaut de
+  /// l'app. Tous les `*ButtonTheme` et `*ButtonStyle` du thème s'y branchent :
+  /// changer cette hauteur re-dimensionne TOUS les boutons de l'app d'un coup.
   static const AppButtonSpec standard = AppButtonSpec(
-    height: 48,
+    height: 44,
     padding: EdgeInsets.symmetric(
       horizontal: AppSpacing.lg, // 24
       vertical: AppSpacing.sm, // 8 (la hauteur mini pilote, pas le padding)

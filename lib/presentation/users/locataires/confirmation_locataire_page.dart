@@ -117,7 +117,6 @@ class _SuccessCard extends StatelessWidget {
         const SizedBox(height: AppSpacing.xl),
         SizedBox(
           width: double.infinity,
-          height: 52,
           child: FilledButton.icon(
             onPressed: onLogin,
             icon: const Icon(Icons.login),
@@ -161,7 +160,6 @@ class _ErrorCard extends StatelessWidget {
         const SizedBox(height: AppSpacing.xl),
         SizedBox(
           width: double.infinity,
-          height: 52,
           child: OutlinedButton.icon(
             onPressed: onLogin,
             icon: const Icon(Icons.login),

@@ -14,6 +14,7 @@ import 'package:lacoloc_front/presentation/widgets/permission_gate.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_radius.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
+import 'package:lacoloc_front/theme/app_button_sizes.dart';
 import 'package:lacoloc_front/theme/app_theme.dart';
 import 'package:lacoloc_front/theme/app_typography.dart';
 
@@ -1899,7 +1900,7 @@ class _PlagesDialogState extends State<_PlagesDialog> {
         onPressed: onTap,
         style: OutlinedButton.styleFrom(
             padding: const EdgeInsets.symmetric(horizontal: 10),
-            minimumSize: const Size(64, 36)),
+            minimumSize: const Size(64, AppButtonSizes.minTouchTarget)),
         child: Text(text),
       );
 

@@ -335,7 +335,7 @@ class _LoginCardState extends State<LoginCard> {
           ],
           const SizedBox(height: AppSpacing.xl),
           SizedBox(
-            height: 52,
+            width: double.infinity,
             child: ElevatedButton(
               onPressed: _isLoading ? null : _submit,
               child: _isLoading
@@ -354,7 +354,7 @@ class _LoginCardState extends State<LoginCard> {
           // Bouton « Aller à l'accueil » sous « Se connecter » : permet de
           // fermer la connexion et revenir parcourir l'accueil.
           SizedBox(
-            height: 48,
+            width: double.infinity,
             child: OutlinedButton.icon(
               onPressed: _isLoading ? null : _goHome,
               icon: const Icon(Icons.home_outlined, size: 20),

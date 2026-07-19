@@ -3763,7 +3763,7 @@ class _EdlDetailPageState extends State<_EdlDetailPage> {
                               ),
                               const SizedBox(height: AppSpacing.md),
                               SizedBox(
-                                height: 48,
+                                width: double.infinity,
                                 child: FilledButton(
                                   onPressed: _accepting ? null : _accept,
                                   child: _accepting

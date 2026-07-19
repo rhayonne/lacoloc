@@ -12,7 +12,9 @@ import 'package:lacoloc_front/presentation/widgets/app_top_bar.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
 import 'package:lacoloc_front/theme/app_typography.dart';
 import 'package:lacoloc_front/theme/app_theme.dart';
+import 'package:lacoloc_front/theme/app_button_sizes.dart';
 import 'package:lacoloc_front/theme/app_tab_bar.dart';
+import 'package:lacoloc_front/presentation/widgets/app_button.dart';
 import 'package:lacoloc_front/presentation/widgets/app_list_search_field.dart';
 import 'package:lacoloc_front/utils/email_field.dart';
 import 'package:lacoloc_front/utils/phone_field.dart';
@@ -102,10 +104,11 @@ class _UtilisateursAdminPageState extends State<UtilisateursAdminPage>
       children: [
         AppTopBar(
           title: 'Utilisateurs & Groupes',
-          trailing: FilledButton.icon(
+          trailing: AppButton.primary(
+            size: AppButtonSize.compact,
+            icon: Icons.person_add_outlined,
+            label: 'Nouvel utilisateur',
             onPressed: _showCreateDialog,
-            icon: const Icon(Icons.person_add_outlined, size: 18),
-            label: const Text('Nouvel utilisateur'),
           ),
         ),
         Expanded(
@@ -573,20 +576,12 @@ class _UserCardState extends State<_UserCard> {
                 const SizedBox(width: AppSpacing.sm),
                 _StatusChip(active: user.active),
                 const SizedBox(width: AppSpacing.sm),
-                // Botão Permissions (maior, ao lado de Actif)
-                OutlinedButton.icon(
+                // Botão Permissions (compacto, ao lado de Actif)
+                AppButton.edit(
+                  size: AppButtonSize.compact,
+                  icon: _expanded ? Icons.expand_less : Icons.shield_outlined,
+                  label: 'Permissions',
                   onPressed: _toggleExpand,
-                  icon: Icon(
-                    _expanded ? Icons.expand_less : Icons.shield_outlined,
-                    size: 18,
-                  ),
-                  label: const Text('Permissions'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.primary,
-                    side: BorderSide(color: AppColors.primary),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.md, vertical: AppSpacing.sm),
-                  ),
                 ),
                 const SizedBox(width: AppSpacing.xs),
                 Tooltip(

@@ -25,6 +25,8 @@ import 'package:lacoloc_front/theme/app_breakpoints.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
 import 'package:lacoloc_front/theme/app_table_theme.dart';
 import 'package:lacoloc_front/theme/app_theme.dart';
+import 'package:lacoloc_front/theme/app_button_sizes.dart';
+import 'package:lacoloc_front/presentation/widgets/app_button.dart';
 import 'package:lacoloc_front/theme/app_typography.dart';
 import 'package:lacoloc_front/utils/currency.dart';
 
@@ -379,44 +381,22 @@ class _InventaireTableState extends State<_InventaireTable> {
             spacing: AppSpacing.sm,
             runSpacing: AppSpacing.sm,
             children: [
-              FilledButton.icon(
+              // Boutons standardisés (taille compacte) via AppButton.
+              AppButton.delete(
+                size: AppButtonSize.compact,
+                icon: Icons.clear_all,
+                label: 'Réinitialiser',
                 onPressed: () {
                   setState(() {
                     if (!locked) _filterImmeuble = null;
                     _filterCategorie = null;
                   });
                 },
-                style: AppTheme.deleteButtonStyle.copyWith(
-                  padding: const WidgetStatePropertyAll(
-                    EdgeInsets.symmetric(
-                      horizontal: AppSpacing.lg,
-                      vertical: 10,
-                    ),
-                  ),
-                  minimumSize: const WidgetStatePropertyAll(Size(0, 40)),
-                  textStyle: WidgetStatePropertyAll(
-                    AppTypography.labelSm.copyWith(fontWeight: FontWeight.w600),
-                  ),
-                ),
-                icon: const Icon(Icons.clear_all, size: 16),
-                label: const Text('Réinitialiser'),
               ),
-              FilledButton.icon(
+              AppButton.save(
+                size: AppButtonSize.compact,
+                label: 'Appliquer',
                 onPressed: () => setState(() => _filterOpen = false),
-                style: AppTheme.saveButtonStyle.copyWith(
-                  padding: const WidgetStatePropertyAll(
-                    EdgeInsets.symmetric(
-                      horizontal: AppSpacing.lg,
-                      vertical: 10,
-                    ),
-                  ),
-                  minimumSize: const WidgetStatePropertyAll(Size(0, 40)),
-                  textStyle: WidgetStatePropertyAll(
-                    AppTypography.labelSm.copyWith(fontWeight: FontWeight.w600),
-                  ),
-                ),
-                icon: const Icon(Icons.check, size: 16),
-                label: const Text('Appliquer'),
               ),
             ],
           ),
@@ -1784,7 +1764,7 @@ class _InventaireFormState extends State<_InventaireForm> {
                         const SizedBox(height: AppSpacing.xl),
 
                         SizedBox(
-                          height: 50,
+                          width: double.infinity,
                           child: FilledButton(
                             onPressed: _isSaving ? null : _save,
                             child: _isSaving

@@ -359,7 +359,7 @@ class _CompleterInscriptionPageState extends State<CompleterInscriptionPage> {
                         const SizedBox(height: AppSpacing.xl),
 
                         SizedBox(
-                          height: 52,
+                          width: double.infinity,
                           child: FilledButton(
                             onPressed:
                                 _isLoading ? null : () => _submit(profile),

@@ -227,7 +227,7 @@ class _CrierCompteProprietairePageState
                     const SizedBox(height: AppSpacing.xl),
 
                     SizedBox(
-                      height: 52,
+                      width: double.infinity,
                       child: ElevatedButton(
                         onPressed: _isLoading ? null : _submit,
                         child: _isLoading

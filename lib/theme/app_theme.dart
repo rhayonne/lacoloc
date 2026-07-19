@@ -246,7 +246,8 @@ class AppTheme {
   /// [AppButtonSizes.minTouchTarget].
   static const double kMinTouchTarget = AppButtonSizes.minTouchTarget;
 
-  /// Hauteur de bouton standard (48dp Material). Alias de la taille standard.
+  /// Hauteur de bouton standard de l'app (44 = cible tactile). Alias de la
+  /// taille standard.
   static double get kButtonHeight => AppButtonSizes.standard.height;
 
   /// Hauteur compacte (44pt iOS). Alias de la taille compacte.
