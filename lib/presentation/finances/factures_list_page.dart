@@ -124,6 +124,8 @@ class _FacturesListPageState extends State<FacturesListPage>
         Expanded(
           child: TabBarView(
             controller: _tabCtrl,
+            // Pas de balayage du contenu (changement d'onglet au tap seul).
+            physics: const NeverScrollableScrollPhysics(),
             children: [
               _buildVisionGeneraleTab(),
               _buildRecettesTab(),

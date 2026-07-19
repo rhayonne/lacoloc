@@ -4092,6 +4092,8 @@ class _DocumentsSectionState extends State<_DocumentsSection>
         Expanded(
           child: TabBarView(
             controller: _tabCtrl,
+            // Pas de balayage du contenu (changement d'onglet au tap seul).
+            physics: const NeverScrollableScrollPhysics(),
             children: const [_BauxLocataireTab(), GarantsPage()],
           ),
         ),

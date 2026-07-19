@@ -12,6 +12,42 @@ import 'package:lacoloc_front/theme/app_typography.dart';
 ///
 /// [FormPageHeader] délègue à ce widget (mêmes styles) et ajoute les actions
 /// standard des écrans d'édition ([FormHeaderActions]).
+///
+/// **Bouton menu automatique** : si une [TopBarMenuScope] est présente au-dessus
+/// (fournie par une coquille, ex. le super admin sur mobile) et qu'aucun
+/// [leading] explicite n'est passé, la barre insère automatiquement le bouton
+/// « menu » (hamburger) de la coquille. Une seule page-mère peut ainsi injecter
+/// l'ouverture du tiroir dans la barre de titre de N'IMPORTE quelle page, sans
+/// modifier chaque page. Ailleurs (scope absent) le comportement est inchangé.
+class TopBarMenuScope extends InheritedWidget {
+  /// Bouton « menu » à injecter (null = pas d'injection, ex. desktop).
+  final Widget? menuButton;
+
+  /// Balayage horizontal vers la GAUCHE sur la barre de titre (→ sous-menu
+  /// suivant). null = geste désactivé.
+  final VoidCallback? onSwipeLeft;
+
+  /// Balayage horizontal vers la DROITE sur la barre de titre (→ précédent).
+  final VoidCallback? onSwipeRight;
+
+  const TopBarMenuScope({
+    super.key,
+    required this.menuButton,
+    this.onSwipeLeft,
+    this.onSwipeRight,
+    required super.child,
+  });
+
+  static TopBarMenuScope? of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<TopBarMenuScope>();
+
+  @override
+  bool updateShouldNotify(TopBarMenuScope old) =>
+      old.menuButton != menuButton ||
+      old.onSwipeLeft != onSwipeLeft ||
+      old.onSwipeRight != onSwipeRight;
+}
+
 class AppTopBar extends StatelessWidget {
   final String title;
 
@@ -34,6 +70,11 @@ class AppTopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // `leading` explicite prioritaire ; sinon, bouton menu de la coquille (si
+    // une [TopBarMenuScope] en fournit un — cas mobile du super admin).
+    final scope = TopBarMenuScope.of(context);
+    final effectiveLeading = leading ?? scope?.menuButton;
+
     final titleBlock = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
@@ -54,7 +95,7 @@ class AppTopBar extends StatelessWidget {
       ],
     );
 
-    return Container(
+    final bar = Container(
       decoration: AppTheme.barDecoration,
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.barMargin,
@@ -72,8 +113,8 @@ class AppTopBar extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    if (leading != null) ...[
-                      leading!,
+                    if (effectiveLeading != null) ...[
+                      effectiveLeading,
                       const SizedBox(width: AppSpacing.md),
                     ],
                     Expanded(child: titleBlock),
@@ -89,8 +130,8 @@ class AppTopBar extends StatelessWidget {
           }
           return Row(
             children: [
-              if (leading != null) ...[
-                leading!,
+              if (effectiveLeading != null) ...[
+                effectiveLeading,
                 const SizedBox(width: AppSpacing.md),
               ],
               Expanded(child: titleBlock),
@@ -99,6 +140,23 @@ class AppTopBar extends StatelessWidget {
           );
         },
       ),
+    );
+
+    // Balayage horizontal RESTREINT à la barre de titre : si la coquille
+    // fournit des callbacks (mobile), un drag horizontal sur CETTE barre change
+    // de sous-menu. Le contenu, lui, ne navigue jamais au balayage.
+    if (scope?.onSwipeLeft == null && scope?.onSwipeRight == null) return bar;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onHorizontalDragEnd: (d) {
+        final v = d.primaryVelocity ?? 0;
+        if (v < -100) {
+          scope?.onSwipeLeft?.call();
+        } else if (v > 100) {
+          scope?.onSwipeRight?.call();
+        }
+      },
+      child: bar,
     );
   }
 }

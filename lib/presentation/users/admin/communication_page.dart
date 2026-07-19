@@ -47,7 +47,18 @@ const _typeLabels = {
 /// Section « Communication » du super admin : composer un message (markdown +
 /// média) et le diffuser à une audience ; consulter l'historique des envois.
 class CommunicationPage extends StatefulWidget {
-  const CommunicationPage({super.key});
+  /// Sous-onglet actif (0 = Nouveau message, 1 = Historique) en mode sous-menus.
+  final int initialTab;
+
+  /// `true` = onglets internes (hérité) ; `false` = piloté par les sous-menus
+  /// (pas d'onglets ni de balayage du contenu).
+  final bool showTabBar;
+
+  const CommunicationPage({
+    super.key,
+    this.initialTab = 0,
+    this.showTabBar = true,
+  });
 
   @override
   State<CommunicationPage> createState() => _CommunicationPageState();
@@ -79,7 +90,8 @@ class _CommunicationPageState extends State<CommunicationPage>
   @override
   void initState() {
     super.initState();
-    _tab = TabController(length: 2, vsync: this);
+    _tab = TabController(
+        length: 2, vsync: this, initialIndex: widget.initialTab);
     _loadFuture = _load();
     _titleCtrl.addListener(_onChanged);
     _mediaCtrl.addListener(_onChanged);
@@ -235,32 +247,42 @@ class _CommunicationPageState extends State<CommunicationPage>
 
   @override
   Widget build(BuildContext context) {
+    final submenuMode = !widget.showTabBar;
+    final activeIndex = widget.initialTab;
+    final title = submenuMode
+        ? (activeIndex == 0 ? 'Nouveau message' : 'Historique')
+        : 'Communication';
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const AppTopBar(title: 'Communication'),
+        AppTopBar(title: title),
         Expanded(
           child: Padding(
             padding: const EdgeInsets.all(AppSpacing.lg),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Envoyez un message (texte Markdown + média) qui apparaîtra dans le '
-                  'tableau de bord et les messages des utilisateurs choisis.',
-                  style: AppTypography.bodyMd
-                      .copyWith(color: AppColors.onSurfaceVariant),
-                ),
-                const SizedBox(height: AppSpacing.md),
-                AppTabBar(
-                  controller: _tab,
-                  isScrollable: true,
-                  tabs: const [
-                    Tab(text: 'Nouveau message'),
-                    Tab(text: 'Historique'),
-                  ],
-                ),
-                const SizedBox(height: AppSpacing.md),
+                if (submenuMode && activeIndex == 0 || !submenuMode) ...[
+                  Text(
+                    'Envoyez un message (texte Markdown + média) qui apparaîtra dans le '
+                    'tableau de bord et les messages des utilisateurs choisis.',
+                    style: AppTypography.bodyMd
+                        .copyWith(color: AppColors.onSurfaceVariant),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                ],
+                if (!submenuMode) ...[
+                  AppTabBar(
+                    controller: _tab,
+                    isScrollable: true,
+                    tabs: const [
+                      Tab(text: 'Nouveau message'),
+                      Tab(text: 'Historique'),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                ],
                 Expanded(
                   child: FutureBuilder<void>(
                     future: _loadFuture,
@@ -268,6 +290,11 @@ class _CommunicationPageState extends State<CommunicationPage>
                       if (snap.connectionState == ConnectionState.waiting) {
                         return const Center(
                             child: CircularProgressIndicator());
+                      }
+                      if (submenuMode) {
+                        return activeIndex == 0
+                            ? _composeTab()
+                            : _historyTab();
                       }
                       return TabBarView(
                         controller: _tab,

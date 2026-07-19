@@ -58,7 +58,12 @@ class SignaturePadState extends State<SignaturePad> {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
+        // ⚠️ Le fond blanc + la bordure sont sur le Container EXTERIEUR, et les
+        // tracés sont peints PAR-DESSUS via CustomPaint. (Auparavant le
+        // `child` blanc du CustomPaint recouvrait les tracés → « la signature
+        // gestuelle ne marchait pas » : on dessinait sans rien voir.)
         return GestureDetector(
+          behavior: HitTestBehavior.opaque,
           onPanStart: (d) {
             setState(() {
               _current = [d.localPosition];
@@ -70,18 +75,19 @@ class SignaturePadState extends State<SignaturePad> {
             setState(() => _current?.add(d.localPosition));
           },
           onPanEnd: (_) => setState(() => _current = null),
-          child: CustomPaint(
-            size: Size(constraints.maxWidth, constraints.maxHeight),
-            painter: _SignaturePainter(
-              strokes: _strokes,
-              color: widget.strokeColor,
-              strokeWidth: widget.strokeWidth,
+          child: Container(
+            decoration: BoxDecoration(
+              border: Border.all(color: AppColors.outlineVariant),
+              borderRadius: AppRadius.borderMd,
+              color: Colors.white,
             ),
-            child: Container(
-              decoration: BoxDecoration(
-                border: Border.all(color: AppColors.outlineVariant),
-                borderRadius: AppRadius.borderMd,
-                color: Colors.white,
+            clipBehavior: Clip.antiAlias,
+            child: CustomPaint(
+              size: Size(constraints.maxWidth, constraints.maxHeight),
+              painter: _SignaturePainter(
+                strokes: _strokes,
+                color: widget.strokeColor,
+                strokeWidth: widget.strokeWidth,
               ),
             ),
           ),

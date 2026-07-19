@@ -72,6 +72,8 @@ class _DocumentationPageState extends State<DocumentationPage>
         Expanded(
           child: TabBarView(
             controller: _tabCtrl,
+            // Pas de balayage du contenu (changement d'onglet au tap seul).
+            physics: const NeverScrollableScrollPhysics(),
             children: const [
               _VisionGeneralePage(),
               _BauxPage(),

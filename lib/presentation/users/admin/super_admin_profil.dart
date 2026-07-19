@@ -10,6 +10,7 @@ import 'package:lacoloc_front/presentation/admin/meuble_types_page.dart';
 import 'package:lacoloc_front/presentation/admin/payment_types_page.dart';
 import 'package:lacoloc_front/presentation/nav/app_nav_sidebar.dart';
 import 'package:lacoloc_front/presentation/nav/app_sidebar.dart';
+import 'package:lacoloc_front/presentation/widgets/app_top_bar.dart';
 import 'package:lacoloc_front/presentation/users/admin/communication_page.dart';
 import 'package:lacoloc_front/presentation/users/admin/admin_edl_page.dart';
 import 'package:lacoloc_front/presentation/users/admin/comptes_entreprises_page.dart';
@@ -38,9 +39,50 @@ class _SuperAdminProfilPageState extends State<SuperAdminProfilPage> {
   late final SidebarXController _navCtrl;
 
   _Section _section  = _Section.dashboard;
-  // Sous-onglet courant des sections à sous-menus (Config Immeuble, Maintenance).
+  // Sous-onglet courant des sections à sous-menus.
+  int _usersSub  = 0; // 0 = Utilisateurs, 1 = Groupes
+  int _commSub   = 0; // 0 = Composer, 1 = Historique
   int _configSub = 0;
   int _maintSub  = 0;
+
+  /// Nombre de sous-menus de la section courante (pour le swipe sur la barre).
+  int get _subCount => switch (_section) {
+    _Section.utilisateurs => 2,
+    _Section.communication => 2,
+    _Section.configImmeuble => 3,
+    _Section.maintenance => 2,
+    _ => 1,
+  };
+
+  int get _currentSub => switch (_section) {
+    _Section.utilisateurs => _usersSub,
+    _Section.communication => _commSub,
+    _Section.configImmeuble => _configSub,
+    _Section.maintenance => _maintSub,
+    _ => 0,
+  };
+
+  void _setSub(int v) => setState(() {
+    switch (_section) {
+      case _Section.utilisateurs:
+        _usersSub = v;
+      case _Section.communication:
+        _commSub = v;
+      case _Section.configImmeuble:
+        _configSub = v;
+      case _Section.maintenance:
+        _maintSub = v;
+      default:
+        break;
+    }
+  });
+
+  /// Swipe horizontal SUR LA BARRE DE TITRE uniquement : change de sous-menu
+  /// dans la section courante (aucun défilement de contenu ne navigue).
+  void _swipeSub(int delta) {
+    final next = _currentSub + delta;
+    if (next >= 0 && next < _subCount) _setSub(next);
+  }
 
   @override
   void initState() {
@@ -76,9 +118,17 @@ class _SuperAdminProfilPageState extends State<SuperAdminProfilPage> {
   Widget _buildContent() {
     return switch (_section) {
       _Section.dashboard       => const _SuperAdminDashboard(),
-      _Section.utilisateurs    => const UtilisateursAdminPage(),
+      _Section.utilisateurs    => UtilisateursAdminPage(
+          key: ValueKey('usr$_usersSub'),
+          initialTab: _usersSub,
+          showTabBar: false,
+        ),
       _Section.edls            => const AdminEdlPage(),
-      _Section.communication   => const CommunicationPage(),
+      _Section.communication   => CommunicationPage(
+          key: ValueKey('comm$_commSub'),
+          initialTab: _commSub,
+          showTabBar: false,
+        ),
       _Section.entreprises     => const ComptesEntreprisesPage(),
       _Section.paymentTypes    => const PaymentTypesPage(),
       _Section.configImmeuble  => _ConfigImmeublePage(
@@ -123,7 +173,19 @@ class _SuperAdminProfilPageState extends State<SuperAdminProfilPage> {
           icon: Icons.people_outlined,
           label: 'Utilisateurs',
           selected: _section == _Section.utilisateurs,
-          onTap: () => go(_Section.utilisateurs),
+          onTap: () => goSub(_Section.utilisateurs, () => _usersSub = 0),
+          children: [
+            NavChild(
+              label: 'Utilisateurs',
+              selected: _section == _Section.utilisateurs && _usersSub == 0,
+              onTap: () => goSub(_Section.utilisateurs, () => _usersSub = 0),
+            ),
+            NavChild(
+              label: 'Groupes',
+              selected: _section == _Section.utilisateurs && _usersSub == 1,
+              onTap: () => goSub(_Section.utilisateurs, () => _usersSub = 1),
+            ),
+          ],
         ),
         NavEntry(
           icon: Icons.assignment_outlined,
@@ -135,7 +197,19 @@ class _SuperAdminProfilPageState extends State<SuperAdminProfilPage> {
           icon: Icons.campaign_outlined,
           label: 'Communication',
           selected: _section == _Section.communication,
-          onTap: () => go(_Section.communication),
+          onTap: () => goSub(_Section.communication, () => _commSub = 0),
+          children: [
+            NavChild(
+              label: 'Nouveau message',
+              selected: _section == _Section.communication && _commSub == 0,
+              onTap: () => goSub(_Section.communication, () => _commSub = 0),
+            ),
+            NavChild(
+              label: 'Historique',
+              selected: _section == _Section.communication && _commSub == 1,
+              onTap: () => goSub(_Section.communication, () => _commSub = 1),
+            ),
+          ],
         ),
         NavEntry(
           icon: Icons.business_outlined,
@@ -230,50 +304,39 @@ class _SuperAdminProfilPageState extends State<SuperAdminProfilPage> {
   Widget build(BuildContext context) {
     final isNarrow = MediaQuery.sizeOf(context).width < 800;
 
+    // Sur mobile, le bouton « menu » (hamburger) est injecté dans la barre de
+    // titre de la page courante via [TopBarMenuScope] — plus de barre « Super
+    // Admin » séparée : chaque page montre son propre titre (nom du menu/
+    // sous-menu) + son action. Le swipe horizontal n'est actif QUE sur cette
+    // barre de titre (voir AppTopBar), et change de sous-menu.
+    final menuButton = isNarrow
+        ? IconButton(
+            icon: const Icon(Icons.menu),
+            tooltip: 'Ouvrir le menu',
+            onPressed: () {
+              if (!_navCtrl.extended) _navCtrl.setExtended(true);
+              _scaffoldKey.currentState?.openDrawer();
+            },
+          )
+        : null;
+
+    final content = TopBarMenuScope(
+      menuButton: menuButton,
+      onSwipeLeft: isNarrow && _subCount > 1 ? () => _swipeSub(1) : null,
+      onSwipeRight: isNarrow && _subCount > 1 ? () => _swipeSub(-1) : null,
+      child: KeyedSubtree(
+        key: _contentKey,
+        child: _buildContent(),
+      ),
+    );
+
     return Scaffold(
       key: _scaffoldKey,
       drawer: isNarrow ? _buildSidebar(isNarrow: true) : null,
-      appBar: isNarrow
-          ? AppBar(
-              leading: IconButton(
-                icon: const Icon(Icons.menu),
-                tooltip: 'Ouvrir le menu',
-                onPressed: () {
-                  if (!_navCtrl.extended) _navCtrl.setExtended(true);
-                  _scaffoldKey.currentState?.openDrawer();
-                },
-              ),
-              title: Row(
-                children: [
-                  const Text('Super Admin'),
-                  const SizedBox(width: AppSpacing.sm),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: AppColors.error.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      'ADMIN',
-                      style: AppTypography.labelSm.copyWith(
-                          color: AppColors.error,
-                          fontWeight: FontWeight.w700),
-                    ),
-                  ),
-                ],
-              ),
-            )
-          : null,
       body: Row(
         children: [
           if (!isNarrow) _buildSidebar(isNarrow: false),
-          Expanded(
-            child: KeyedSubtree(
-              key: _contentKey,
-              child: _buildContent(),
-            ),
-          ),
+          Expanded(child: content),
         ],
       ),
     );
@@ -333,6 +396,11 @@ class _SuperAdminDashboardState extends State<_SuperAdminDashboard> {
               // En-tête
               Row(
                 children: [
+                  // Bouton menu (mobile) injecté par la coquille.
+                  if (TopBarMenuScope.of(context)?.menuButton != null) ...[
+                    TopBarMenuScope.of(context)!.menuButton!,
+                    const SizedBox(width: AppSpacing.sm),
+                  ],
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -521,7 +589,9 @@ class _ConfigImmeublePageState extends State<_ConfigImmeublePage>
         Expanded(
           child: TabBarView(
             controller: _tabCtrl,
-            physics: _isFormOpen
+            // Balayage du contenu désactivé en mode sous-menus (ou formulaire
+            // ouvert) : la navigation se fait par la sidebar, pas au swipe.
+            physics: (_isFormOpen || !widget.showTabBar)
                 ? const NeverScrollableScrollPhysics()
                 : const ClampingScrollPhysics(),
             children: [

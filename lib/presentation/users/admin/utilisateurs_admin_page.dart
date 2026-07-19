@@ -16,6 +16,7 @@ import 'package:lacoloc_front/theme/app_button_sizes.dart';
 import 'package:lacoloc_front/theme/app_tab_bar.dart';
 import 'package:lacoloc_front/presentation/widgets/app_button.dart';
 import 'package:lacoloc_front/presentation/widgets/app_list_search_field.dart';
+import 'package:lacoloc_front/presentation/widgets/filter_button.dart';
 import 'package:lacoloc_front/utils/email_field.dart';
 import 'package:lacoloc_front/utils/phone_field.dart';
 
@@ -45,7 +46,19 @@ class _AdminData {
 }
 
 class UtilisateursAdminPage extends StatefulWidget {
-  const UtilisateursAdminPage({super.key});
+  /// Sous-onglet actif (0 = Utilisateurs, 1 = Groupes) quand piloté par les
+  /// sous-menus de la sidebar (`showTabBar = false`).
+  final int initialTab;
+
+  /// `true` = affiche les onglets internes (mode hérité) ; `false` = navigation
+  /// par sous-menus (pas d'onglets ni de balayage du contenu).
+  final bool showTabBar;
+
+  const UtilisateursAdminPage({
+    super.key,
+    this.initialTab = 0,
+    this.showTabBar = true,
+  });
 
   @override
   State<UtilisateursAdminPage> createState() => _UtilisateursAdminPageState();
@@ -59,7 +72,8 @@ class _UtilisateursAdminPageState extends State<UtilisateursAdminPage>
   @override
   void initState() {
     super.initState();
-    _tab = TabController(length: 2, vsync: this);
+    _tab = TabController(
+        length: 2, vsync: this, initialIndex: widget.initialTab);
     _reload();
   }
 
@@ -99,17 +113,29 @@ class _UtilisateursAdminPageState extends State<UtilisateursAdminPage>
 
   @override
   Widget build(BuildContext context) {
+    // Mode sous-menus (défaut de la coquille) : pas d'onglets, pas de balayage
+    // du contenu ; le titre = le nom du sous-menu et l'action « Nouvel
+    // utilisateur » n'apparaît que sur le sous-menu Utilisateurs.
+    final submenuMode = !widget.showTabBar;
+    final activeIndex = widget.initialTab;
+    final title = submenuMode
+        ? (activeIndex == 0 ? 'Utilisateurs' : 'Groupes')
+        : 'Utilisateurs & Groupes';
+    final showCreate = submenuMode ? activeIndex == 0 : true;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         AppTopBar(
-          title: 'Utilisateurs & Groupes',
-          trailing: AppButton.primary(
-            size: AppButtonSize.compact,
-            icon: Icons.person_add_outlined,
-            label: 'Nouvel utilisateur',
-            onPressed: _showCreateDialog,
-          ),
+          title: title,
+          trailing: showCreate
+              ? AppButton.primary(
+                  size: AppButtonSize.compact,
+                  icon: Icons.person_add_outlined,
+                  label: 'Nouvel utilisateur',
+                  onPressed: _showCreateDialog,
+                )
+              : null,
         ),
         Expanded(
           child: Padding(
@@ -117,15 +143,17 @@ class _UtilisateursAdminPageState extends State<UtilisateursAdminPage>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                AppTabBar(
-                  controller: _tab,
-                  isScrollable: true,
-                  tabs: const [
-                    Tab(text: 'Utilisateurs'),
-                    Tab(text: 'Groupes'),
-                  ],
-                ),
-                const SizedBox(height: AppSpacing.md),
+                if (!submenuMode) ...[
+                  AppTabBar(
+                    controller: _tab,
+                    isScrollable: true,
+                    tabs: const [
+                      Tab(text: 'Utilisateurs'),
+                      Tab(text: 'Groupes'),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                ],
                 Expanded(
                   child: FutureBuilder<_AdminData>(
                     future: _future,
@@ -138,6 +166,13 @@ class _UtilisateursAdminPageState extends State<UtilisateursAdminPage>
                         return Center(child: Text('Erreur : ${snap.error}'));
                       }
                       final data = snap.data!;
+                      if (submenuMode) {
+                        // Rendu direct du sous-onglet actif : aucun TabBarView
+                        // → le contenu ne peut pas être balayé.
+                        return activeIndex == 0
+                            ? _UsersTab(data: data, onChanged: _reload)
+                            : _GroupsTab(data: data, onChanged: _reload);
+                      }
                       return TabBarView(
                         controller: _tab,
                         children: [
@@ -256,6 +291,7 @@ class _AdminFilterChip extends StatelessWidget {
 class _UsersTabState extends State<_UsersTab> {
   String _search = '';
   final Set<_UserFilter> _filters = {};
+  bool _filterOpen = false;
 
   Future<void> _toggleActive(UsersClient user) async {
     try {
@@ -317,35 +353,59 @@ class _UsersTabState extends State<_UsersTab> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        AppListSearchField(
-          hint: 'Rechercher par nom ou e-mail…',
-          onChanged: (q) => setState(() => _search = q),
-          padding: EdgeInsets.zero,
+        // Recherche + bouton « Filtres » (le panneau de chips s'ouvre au clic,
+        // au lieu d'occuper l'écran en permanence).
+        Row(
+          children: [
+            Expanded(
+              child: AppListSearchField(
+                hint: 'Rechercher par nom ou e-mail…',
+                onChanged: (q) => setState(() => _search = q),
+                padding: EdgeInsets.zero,
+              ),
+            ),
+            const SizedBox(width: AppSpacing.md),
+            FilterButton(
+              isOpen: _filterOpen,
+              activeCount: _filters.length,
+              onTap: () => setState(() => _filterOpen = !_filterOpen),
+            ),
+          ],
         ),
-        const SizedBox(height: AppSpacing.sm),
-        // Filtros — même style compact (pill + compteur) que les autres
-        // barres de filtres de l'app (Inventaire, EDL, Lots).
-        Wrap(
-          spacing: AppSpacing.xs,
-          runSpacing: AppSpacing.xs,
-          children: _UserFilter.values.map((f) {
-            final selected = _filters.contains(f);
-            final count =
-                widget.data.users.where((u) => _inCategory(u, f)).length;
-            return _AdminFilterChip(
-              label: f.label,
-              count: count,
-              selected: selected,
-              onTap: () => setState(() {
-                if (selected) {
-                  _filters.remove(f);
-                } else {
-                  _filters.add(f);
-                }
-              }),
-            );
-          }).toList(),
-        ),
+        // Panneau de filtres (inline, ouvre/ferme avec le bouton).
+        if (_filterOpen) ...[
+          const SizedBox(height: AppSpacing.sm),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(AppSpacing.md),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceContainerLowest,
+              borderRadius: AppRadius.borderLg,
+              border: Border.all(color: AppColors.outlineVariant),
+            ),
+            child: Wrap(
+              spacing: AppSpacing.xs,
+              runSpacing: AppSpacing.xs,
+              children: _UserFilter.values.map((f) {
+                final selected = _filters.contains(f);
+                final count =
+                    widget.data.users.where((u) => _inCategory(u, f)).length;
+                return _AdminFilterChip(
+                  label: f.label,
+                  count: count,
+                  selected: selected,
+                  onTap: () => setState(() {
+                    if (selected) {
+                      _filters.remove(f);
+                    } else {
+                      _filters.add(f);
+                    }
+                  }),
+                );
+              }).toList(),
+            ),
+          ),
+        ],
         const SizedBox(height: AppSpacing.md),
         Expanded(
           child: users.isEmpty

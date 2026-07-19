@@ -42,6 +42,8 @@ class MaintenancePage extends StatelessWidget {
           ],
           const Expanded(
             child: TabBarView(
+              // Pas de balayage du contenu : navigation par sous-menus.
+              physics: NeverScrollableScrollPhysics(),
               children: [
                 ConnectionLogsPage(),
                 _ServicesTab(),
