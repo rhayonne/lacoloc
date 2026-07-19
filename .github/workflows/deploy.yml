@@ -52,9 +52,9 @@ jobs:
           {
             printf "SUPA_URL='%s'\n" "$SUPA_URL"
             printf "SUP_ANNON_KEY='%s'\n" "$SUP_ANNON_KEY"
-            printf "URL_EMAIL_CONFIRMATION='https://rhayonne.github.io/lacoloc/'\n"
+            printf "URL_EMAIL_CONFIRMATION='https://rhayonne.github.io/super-loc/'\n"
             printf "URL_EMAIL_CONFIRMATION_DEV='http://localhost:44785/'\n"
-            printf "URL_EMAIL_CONFIRMATION_PROD='https://rhayonne.github.io/lacoloc/'\n"
+            printf "URL_EMAIL_CONFIRMATION_PROD='https://rhayonne.github.io/super-loc/'\n"
             printf "ADDR_MAIL_CONFIRMATION=''\n"
           } > .env.prod
 
@@ -69,12 +69,12 @@ jobs:
 
       # 5. Build web production
       #    --dart-define=ENV=prod → sélectionne .env.prod
-      #    --base-href /lacoloc/  → chemin GitHub Pages (rhayonne.github.io/lacoloc/)
+      #    --base-href /super-loc/ → chemin GitHub Pages (rhayonne.github.io/super-loc/)
       - name: Build web — production
         run: |
           flutter build web \
             --dart-define=ENV=prod \
-            --base-href /lacoloc/ \
+            --base-href /super-loc/ \
             --release
 
       # 6. Fix SPA routing : GitHub Pages sert 404.html pour les URLs inconnues ;
