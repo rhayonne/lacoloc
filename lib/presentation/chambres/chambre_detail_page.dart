@@ -57,6 +57,15 @@ class _ChambreDetailViewState extends State<ChambreDetailView> {
     }
   }
 
+  /// Recarrega a fiche. O `_load()` roda FORA do `setState` — passá-lo dentro
+  /// faria o closure devolver um Future (erro "setState callback returned a Future").
+  void _reload() {
+    final f = _load();
+    setState(() {
+      _future = f;
+    });
+  }
+
   Future<_DetailBundle> _load() async {
     final chambre = await ChambresDatasource.byId(widget.chambreId);
     if (chambre == null) throw Exception('Chambre introuvable');
@@ -103,7 +112,7 @@ class _ChambreDetailViewState extends State<ChambreDetailView> {
           onVoirImmeuble: widget.onVoirImmeuble,
           bundle: snapshot.data!,
           onBack: widget.onBack,
-          onContactSent: () => setState(() => _future = _load()),
+          onContactSent: _reload,
         );
       },
     );
@@ -458,7 +467,7 @@ class _DetailContent extends StatelessWidget {
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.location_city,
+                    Icon(Icons.location_city,
                         size: 20, color: AppColors.primary),
                     const SizedBox(width: AppSpacing.sm),
                     Expanded(
@@ -498,7 +507,7 @@ class _DetailContent extends StatelessWidget {
                       if (imm.address != null) ...[
                         Row(
                           children: [
-                            const Icon(Icons.place_outlined,
+                            Icon(Icons.place_outlined,
                                 size: 16,
                                 color: AppColors.onSurfaceVariant),
                             const SizedBox(width: AppSpacing.xs),
@@ -592,7 +601,7 @@ class _OptionRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
       child: Row(
         children: [
-          const Icon(Icons.check_circle,
+          Icon(Icons.check_circle,
               size: 18, color: AppColors.tertiaryContainer),
           const SizedBox(width: AppSpacing.sm),
           Text(label, style: AppTypography.bodyMd),
@@ -639,7 +648,7 @@ class _ContactConfirmDialogState extends State<_ContactConfirmDialog> {
             children: [
               Row(
                 children: [
-                  const Icon(Icons.contact_mail_outlined,
+                  Icon(Icons.contact_mail_outlined,
                       color: AppColors.primary, size: 22),
                   const SizedBox(width: AppSpacing.sm),
                   Expanded(

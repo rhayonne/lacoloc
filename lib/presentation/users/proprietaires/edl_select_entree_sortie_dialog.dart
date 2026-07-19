@@ -64,7 +64,7 @@ class _SelectEntreeDialogState extends State<_SelectEntreeDialog> {
             children: [
               Row(
                 children: [
-                  const Icon(Icons.logout, color: AppColors.primary),
+                  Icon(Icons.logout, color: AppColors.primary),
                   const SizedBox(width: AppSpacing.sm),
                   Expanded(
                     child: Text(
@@ -174,7 +174,7 @@ class _EntreeCard extends StatelessWidget {
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right, color: AppColors.onSurfaceVariant),
+            Icon(Icons.chevron_right, color: AppColors.onSurfaceVariant),
           ],
         ),
       ),

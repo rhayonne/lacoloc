@@ -71,7 +71,7 @@ Future<AmendableCollectif?> showSelectCollectifAvenantDialog(
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.apartment_outlined,
+                          Icon(Icons.apartment_outlined,
                               color: AppColors.onSurfaceVariant),
                           const SizedBox(width: AppSpacing.md),
                           Expanded(
@@ -125,7 +125,7 @@ Future<AmendableCollectif?> showSelectCollectifAvenantDialog(
                               ),
                             ),
                           ),
-                          const Icon(Icons.chevron_right,
+                          Icon(Icons.chevron_right,
                               color: AppColors.onSurfaceVariant),
                         ],
                       ),

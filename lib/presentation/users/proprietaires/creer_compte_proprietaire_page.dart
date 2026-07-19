@@ -231,7 +231,7 @@ class _CrierCompteProprietairePageState
                       child: ElevatedButton(
                         onPressed: _isLoading ? null : _submit,
                         child: _isLoading
-                            ? const SizedBox(
+                            ? SizedBox(
                                 height: 22,
                                 width: 22,
                                 child: CircularProgressIndicator(

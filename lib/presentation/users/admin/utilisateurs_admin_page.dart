@@ -178,6 +178,78 @@ extension on _UserFilter {
       };
 }
 
+/// Chip de filtre compact (même style que l'Inventaire/EDL/Lots) : pill,
+/// compteur, coche quand sélectionné. Ici plusieurs chips peuvent être
+/// sélectionnés à la fois (filtre multi-sélection par dimension).
+class _AdminFilterChip extends StatelessWidget {
+  final String label;
+  final int count;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _AdminFilterChip({
+    required this.label,
+    required this.count,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = selected ? AppColors.primary : AppColors.surfaceContainerLowest;
+    final fg = selected ? AppColors.onPrimary : AppColors.onSurface;
+    final badgeBg = selected
+        ? AppColors.onPrimary.withValues(alpha: 0.18)
+        : AppColors.surfaceContainerHigh;
+    final borderColor = selected ? AppColors.primary : AppColors.outlineVariant;
+
+    return InkWell(
+      borderRadius: AppRadius.borderFull,
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: AppRadius.borderFull,
+          border: Border.all(color: borderColor),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (selected) ...[
+              Icon(Icons.check, size: 13, color: fg),
+              const SizedBox(width: 4),
+            ],
+            Text(
+              label,
+              style: AppTypography.labelSm.copyWith(
+                color: fg,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(width: 5),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+              decoration: BoxDecoration(
+                color: badgeBg,
+                borderRadius: AppRadius.borderFull,
+              ),
+              child: Text(
+                '$count',
+                style: AppTypography.labelSm.copyWith(
+                  color: fg,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 10,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _UsersTabState extends State<_UsersTab> {
   String _search = '';
   final Set<_UserFilter> _filters = {};
@@ -194,6 +266,14 @@ class _UsersTabState extends State<_UsersTab> {
       }
     }
   }
+
+  bool _inCategory(UsersClient u, _UserFilter f) => switch (f) {
+        _UserFilter.actifs => u.active,
+        _UserFilter.inactifs => !u.active,
+        _UserFilter.proprietaires => u.resolvedType == UserType.proprietaire,
+        _UserFilter.locataires => u.resolvedType == UserType.locataire,
+        _UserFilter.superAdmins => u.resolvedType == UserType.superAdmin,
+      };
 
   bool _matches(UsersClient u) {
     if (_search.isNotEmpty) {
@@ -240,20 +320,24 @@ class _UsersTabState extends State<_UsersTab> {
           padding: EdgeInsets.zero,
         ),
         const SizedBox(height: AppSpacing.sm),
-        // Filtros
+        // Filtros — même style compact (pill + compteur) que les autres
+        // barres de filtres de l'app (Inventaire, EDL, Lots).
         Wrap(
-          spacing: AppSpacing.sm,
+          spacing: AppSpacing.xs,
           runSpacing: AppSpacing.xs,
           children: _UserFilter.values.map((f) {
             final selected = _filters.contains(f);
-            return FilterChip(
-              label: Text(f.label),
+            final count =
+                widget.data.users.where((u) => _inCategory(u, f)).length;
+            return _AdminFilterChip(
+              label: f.label,
+              count: count,
               selected: selected,
-              onSelected: (v) => setState(() {
-                if (v) {
-                  _filters.add(f);
-                } else {
+              onTap: () => setState(() {
+                if (selected) {
                   _filters.remove(f);
+                } else {
+                  _filters.add(f);
                 }
               }),
             );
@@ -499,7 +583,7 @@ class _UserCardState extends State<_UserCard> {
                   label: const Text('Permissions'),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppColors.primary,
-                    side: const BorderSide(color: AppColors.primary),
+                    side: BorderSide(color: AppColors.primary),
                     padding: const EdgeInsets.symmetric(
                         horizontal: AppSpacing.md, vertical: AppSpacing.sm),
                   ),
@@ -512,7 +596,7 @@ class _UserCardState extends State<_UserCard> {
                     icon: const Icon(Icons.key_outlined, size: 18),
                     style: IconButton.styleFrom(
                       foregroundColor: AppColors.onSurfaceVariant,
-                      side: const BorderSide(color: AppColors.outlineVariant),
+                      side: BorderSide(color: AppColors.outlineVariant),
                     ),
                   ),
                 ),
@@ -550,7 +634,7 @@ class _UserCardState extends State<_UserCard> {
     if (!_loaded) return const SizedBox.shrink();
     return Container(
       width: double.infinity,
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         border: Border(top: BorderSide(color: AppColors.outlineVariant)),
       ),
       padding: const EdgeInsets.all(AppSpacing.md),
@@ -568,7 +652,7 @@ class _UserCardState extends State<_UserCard> {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.info_outline,
+                  Icon(Icons.info_outline,
                       size: 16, color: AppColors.error),
                   const SizedBox(width: AppSpacing.sm),
                   Expanded(
@@ -585,7 +669,7 @@ class _UserCardState extends State<_UserCard> {
           // Seletor de grupo
           Row(
             children: [
-              const Icon(Icons.groups_outlined,
+              Icon(Icons.groups_outlined,
                   size: 18, color: AppColors.primary),
               const SizedBox(width: AppSpacing.sm),
               Text('Groupe', style: AppTypography.labelMd),
@@ -671,7 +755,7 @@ class _GroupsTab extends StatelessWidget {
           ),
           child: Row(
             children: [
-              const Icon(Icons.info_outline, size: 16, color: AppColors.primary),
+              Icon(Icons.info_outline, size: 16, color: AppColors.primary),
               const SizedBox(width: AppSpacing.sm),
               Expanded(
                 child: Text(
@@ -765,7 +849,7 @@ class _GroupCardState extends State<_GroupCard> {
       child: Column(
         children: [
           ListTile(
-            leading: const Icon(Icons.groups, color: AppColors.primary),
+            leading: Icon(Icons.groups, color: AppColors.primary),
             title: Text(widget.group.name,
                 style:
                     AppTypography.bodyMd.copyWith(fontWeight: FontWeight.w600)),
@@ -781,7 +865,7 @@ class _GroupCardState extends State<_GroupCard> {
           if (_expanded)
             Container(
               width: double.infinity,
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 border:
                     Border(top: BorderSide(color: AppColors.outlineVariant)),
               ),
@@ -1138,7 +1222,7 @@ class _PasswordDialogState extends State<_PasswordDialog> {
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.mail_outline,
+                      Icon(Icons.mail_outline,
                           size: 18, color: AppColors.primary),
                       const SizedBox(width: AppSpacing.sm),
                       Text(
@@ -1218,7 +1302,7 @@ class _PasswordDialogState extends State<_PasswordDialog> {
             // ── Option 2 : définir directement ───────────────────────────────
             Row(
               children: [
-                const Icon(Icons.lock_outline,
+                Icon(Icons.lock_outline,
                     size: 18, color: AppColors.onSurfaceVariant),
                 const SizedBox(width: AppSpacing.sm),
                 Text(

@@ -94,7 +94,7 @@ class _SuccessCard extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const Icon(
+        Icon(
           Icons.check_circle_outline_rounded,
           size: 80,
           color: AppColors.tertiary,
@@ -138,7 +138,7 @@ class _ErrorCard extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const Icon(
+        Icon(
           Icons.link_off_rounded,
           size: 80,
           color: AppColors.error,

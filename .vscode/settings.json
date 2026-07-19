@@ -1,0 +1,8 @@
+{
+  // Ne pas s'arrêter dans le code du SDK / des packages pub-cache pendant le
+  // debug : évite les pauses sur des exceptions DÉJÀ CAPTURÉES à l'intérieur
+  // des libs (ex. realtime_client toInt → FormatException sur colonne int8
+  // nulle d'un payload Realtime — comportement interne normal, sans impact).
+  "dart.debugSdkLibraries": false,
+  "dart.debugExternalPackageLibraries": false
+}

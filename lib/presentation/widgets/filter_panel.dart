@@ -2,7 +2,9 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
 import 'package:lacoloc_front/data/datasources/inventaire.dart';
+import 'package:lacoloc_front/presentation/widgets/app_date_picker.dart';
 import 'package:lacoloc_front/presentation/widgets/filter_button.dart';
 import 'package:lacoloc_front/data/datasources/reference.dart';
 import 'package:lacoloc_front/data/models/filter_state.dart';
@@ -64,6 +66,9 @@ enum FilterModule {
 
   /// Charges locatives incluses (tout inclus / avec charges / sans charges).
   charges,
+
+  /// Disponibilité : masquer les chambres louées / disponible à partir d'une date.
+  disponibilite,
 }
 
 /// Painel de filtros reutilizável (catálogo de módulos).
@@ -232,6 +237,8 @@ class _FilterPanelState extends State<FilterPanel> {
         return _buildEquipements();
       case FilterModule.charges:
         return _buildCharges();
+      case FilterModule.disponibilite:
+        return _buildDisponibilite();
     }
   }
 
@@ -636,6 +643,75 @@ class _FilterPanelState extends State<FilterPanel> {
                 widget.filter.copyWith(avecCharges: sel ? false : null),
               ),
             ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  /// MODULE `disponibilite` — Masquer les chambres louées / disponible à partir
+  /// d'une date donnée.
+  /// Quand l'utiliser : recherche de chambre (public + « Rechercher location »
+  /// du locataire), là où les chambres louées restent visibles par défaut.
+  /// Émet `masquerLouees` (bool) et `disponibleAPartirDe` (date, null = indifférent).
+  Widget _buildDisponibilite() {
+    final date = widget.filter.disponibleAPartirDe;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Disponibilité', style: AppTypography.labelMd),
+        const SizedBox(height: AppSpacing.sm),
+        Wrap(
+          spacing: AppSpacing.sm,
+          runSpacing: AppSpacing.xs,
+          children: [
+            _chip(
+              label: 'Masquer les chambres louées',
+              selected: widget.filter.masquerLouees,
+              onSelected: (v) =>
+                  widget.onChanged(widget.filter.copyWith(masquerLouees: v)),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Text(
+          'Disponible à partir du',
+          style: AppTypography.labelSm
+              .copyWith(color: AppColors.onSurfaceVariant),
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: () async {
+                  final picked = await showAppDatePicker(
+                    context,
+                    initial: date ?? DateTime.now(),
+                    firstDate: DateTime.now(),
+                  );
+                  if (picked != null) {
+                    widget.onChanged(
+                      widget.filter.copyWith(disponibleAPartirDe: picked),
+                    );
+                  }
+                },
+                icon: const Icon(Icons.event_available_outlined, size: 18),
+                label: Text(
+                  date != null
+                      ? DateFormat('dd/MM/yyyy').format(date)
+                      : 'Choisir une date',
+                ),
+              ),
+            ),
+            if (date != null)
+              IconButton(
+                icon: const Icon(Icons.clear, size: 18),
+                tooltip: 'Effacer la date',
+                onPressed: () => widget.onChanged(
+                  widget.filter.copyWith(disponibleAPartirDe: null),
+                ),
+              ),
           ],
         ),
       ],

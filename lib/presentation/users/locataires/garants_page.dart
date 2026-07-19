@@ -201,7 +201,7 @@ class _GarantsPageState extends State<GarantsPage> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.shield_outlined,
+                      Icon(Icons.shield_outlined,
                           size: 56, color: AppColors.outline),
                       const SizedBox(height: AppSpacing.md),
                       Text('Aucun garant enregistré',
@@ -581,6 +581,38 @@ class _GarantFormWithBackState extends State<_GarantFormWithBack> {
     if (!_dirty && mounted) setState(() => _dirty = true);
   }
 
+  /// Aligne 2 champs sur une ligne (desktop/tablette, le formulaire fait au
+  /// plus 600px de large) ; les empile en colonne sur mobile pour éviter des
+  /// champs trop étroits (ex. « Code postal » à largeur fixe qui écrasait
+  /// « Ville » sur petit écran). [flexes] permet des largeurs proportionnelles
+  /// différentes (ex. Code postal plus étroit que Ville).
+  Widget _responsiveFields(List<Widget> fields, {List<int>? flexes}) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 420) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (var i = 0; i < fields.length; i++) ...[
+                if (i > 0) const SizedBox(height: AppSpacing.md),
+                fields[i],
+              ],
+            ],
+          );
+        }
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (var i = 0; i < fields.length; i++) ...[
+              if (i > 0) const SizedBox(width: AppSpacing.md),
+              Expanded(flex: flexes?[i] ?? 1, child: fields[i]),
+            ],
+          ],
+        );
+      },
+    );
+  }
+
   /// Retour avec confirmation si des modifications non sauvegardées existent.
   Future<void> _handleBack() async {
     if (!_dirty) {
@@ -822,37 +854,30 @@ class _GarantFormWithBackState extends State<_GarantFormWithBack> {
                           textCapitalization: TextCapitalization.words,
                         ),
                         const SizedBox(height: AppSpacing.md),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: TextFormField(
-                                readOnly: true,
-                                onTap: _pickDateNaissance,
-                                decoration: InputDecoration(
-                                  labelText: 'Date de naissance',
-                                  hintText: 'jj/mm/aaaa',
-                                  suffixIcon: const Icon(
-                                      Icons.calendar_today_outlined,
-                                      size: 18),
-                                ),
-                                controller: TextEditingController(
-                                  text: _dateNaissance != null
-                                      ? _dateFmt.format(_dateNaissance!)
-                                      : '',
-                                ),
-                              ),
+                        _responsiveFields([
+                          TextFormField(
+                            readOnly: true,
+                            onTap: _pickDateNaissance,
+                            decoration: InputDecoration(
+                              labelText: 'Date de naissance',
+                              hintText: 'jj/mm/aaaa',
+                              suffixIcon: const Icon(
+                                  Icons.calendar_today_outlined,
+                                  size: 18),
                             ),
-                            const SizedBox(width: AppSpacing.md),
-                            Expanded(
-                              child: FormBuilderTextField(
-                                name: 'lieu_naissance',
-                                initialValue: g?.lieuNaissance,
-                                decoration: const InputDecoration(
-                                    labelText: 'Lieu de naissance'),
-                              ),
+                            controller: TextEditingController(
+                              text: _dateNaissance != null
+                                  ? _dateFmt.format(_dateNaissance!)
+                                  : '',
                             ),
-                          ],
-                        ),
+                          ),
+                          FormBuilderTextField(
+                            name: 'lieu_naissance',
+                            initialValue: g?.lieuNaissance,
+                            decoration: const InputDecoration(
+                                labelText: 'Lieu de naissance'),
+                          ),
+                        ]),
                         const SizedBox(height: AppSpacing.md),
                         FormBuilderTextField(
                           name: 'nationalite',
@@ -906,31 +931,22 @@ class _GarantFormWithBackState extends State<_GarantFormWithBack> {
                         onSuggestionSelected: _onAddressSelected,
                       ),
                       const SizedBox(height: AppSpacing.md),
-                      Row(
-                        children: [
-                          SizedBox(
-                            width: 130,
-                            child: TextFormField(
-                              controller: _codePostalCtrl,
-                              decoration: const InputDecoration(
-                                  labelText: 'Code postal'),
-                              keyboardType: TextInputType.number,
-                              inputFormatters: [
-                                FilteringTextInputFormatter.digitsOnly,
-                                LengthLimitingTextInputFormatter(5),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: AppSpacing.md),
-                          Expanded(
-                            child: TextFormField(
-                              controller: _villeCtrl,
-                              decoration:
-                                  const InputDecoration(labelText: 'Ville'),
-                            ),
-                          ),
-                        ],
-                      ),
+                      _responsiveFields([
+                        TextFormField(
+                          controller: _codePostalCtrl,
+                          decoration:
+                              const InputDecoration(labelText: 'Code postal'),
+                          keyboardType: TextInputType.number,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                            LengthLimitingTextInputFormatter(5),
+                          ],
+                        ),
+                        TextFormField(
+                          controller: _villeCtrl,
+                          decoration: const InputDecoration(labelText: 'Ville'),
+                        ),
+                      ], flexes: const [1, 2]),
                       const SizedBox(height: AppSpacing.md),
                       FormBuilderTextField(
                         name: 'email',

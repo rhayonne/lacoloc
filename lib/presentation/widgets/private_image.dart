@@ -35,7 +35,7 @@ class PrivateImage extends StatelessWidget {
         height: height,
         placeholder: (_, _) => const SizedBox.shrink(),
         errorWidget: (_, _, _) =>
-            const Icon(Icons.broken_image_outlined, color: AppColors.outline),
+            Icon(Icons.broken_image_outlined, color: AppColors.outline),
       );
     }
 
@@ -46,7 +46,7 @@ class PrivateImage extends StatelessWidget {
           return const SizedBox.shrink();
         }
         if (snap.hasError || snap.data == null) {
-          return const Icon(Icons.broken_image_outlined,
+          return Icon(Icons.broken_image_outlined,
               color: AppColors.outline);
         }
         return CachedNetworkImage(
@@ -56,7 +56,7 @@ class PrivateImage extends StatelessWidget {
           height: height,
           placeholder: (_, _) => const SizedBox.shrink(),
           errorWidget: (_, _, _) =>
-              const Icon(Icons.broken_image_outlined, color: AppColors.outline),
+              Icon(Icons.broken_image_outlined, color: AppColors.outline),
         );
       },
     );

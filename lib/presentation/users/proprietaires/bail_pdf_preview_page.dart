@@ -75,7 +75,7 @@ class _BailPdfPreviewPageState extends State<BailPdfPreviewPage> {
       setState(() {
         _dataFuture = BailPdfData.fromEdl(fresh ?? data.edl);
       });
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('Signature enregistrée sur le bail.'),
         backgroundColor: AppColors.success,
       ));

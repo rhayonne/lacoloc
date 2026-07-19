@@ -14,13 +14,14 @@ import 'package:lacoloc_front/presentation/users/admin/communication_page.dart';
 import 'package:lacoloc_front/presentation/users/admin/admin_edl_page.dart';
 import 'package:lacoloc_front/presentation/users/admin/comptes_entreprises_page.dart';
 import 'package:lacoloc_front/presentation/users/admin/maintenance_page.dart';
+import 'package:lacoloc_front/presentation/users/admin/themes_admin_page.dart';
 import 'package:lacoloc_front/presentation/users/admin/utilisateurs_admin_page.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
 import 'package:lacoloc_front/theme/app_typography.dart';
 import 'package:lacoloc_front/theme/app_tab_bar.dart';
 
-enum _Section { dashboard, utilisateurs, edls, communication, entreprises, paymentTypes, configImmeuble, maintenance }
+enum _Section { dashboard, utilisateurs, edls, communication, entreprises, paymentTypes, configImmeuble, configuration, maintenance }
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -85,6 +86,8 @@ class _SuperAdminProfilPageState extends State<SuperAdminProfilPage> {
           initialTab: _configSub,
           showTabBar: false,
         ),
+      // Configuration → un seul sous-menu pour l'instant (Thèmes).
+      _Section.configuration   => const ThemesAdminPage(),
       _Section.maintenance     => MaintenancePage(
           key: ValueKey('mnt$_maintSub'),
           initialTab: _maintSub,
@@ -166,6 +169,19 @@ class _SuperAdminProfilPageState extends State<SuperAdminProfilPage> {
               label: 'Charges locatives',
               selected: _section == _Section.configImmeuble && _configSub == 2,
               onTap: () => goSub(_Section.configImmeuble, () => _configSub = 2),
+            ),
+          ],
+        ),
+        NavEntry(
+          icon: Icons.tune,
+          label: 'Configuration',
+          selected: _section == _Section.configuration,
+          onTap: () => go(_Section.configuration),
+          children: [
+            NavChild(
+              label: 'Thèmes',
+              selected: _section == _Section.configuration,
+              onTap: () => go(_Section.configuration),
             ),
           ],
         ),

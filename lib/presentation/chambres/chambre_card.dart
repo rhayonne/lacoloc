@@ -1,7 +1,9 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:lacoloc_front/data/models/chambre.dart';
 import 'package:lacoloc_front/data/models/chambre_charge.dart';
+import 'package:lacoloc_front/data/models/chambre_disponibilite.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_radius.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
@@ -19,6 +21,11 @@ class ChambreCard extends StatelessWidget {
   /// Charges locatives associées à cette chambre.
   final List<ChambreChargeModel> charges;
 
+  /// Disponibilité (RPC `chambre_disponibilite`) — `null` = pas encore chargée
+  /// (aucun badge affiché). Quand la chambre est louée, affiche la date de
+  /// libération connue ou « Actuellement louée » si elle est inconnue.
+  final ChambreDisponibiliteModel? disponibilite;
+
   /// Máximo de chips de équipements listados antes do indicador "+N".
   static const _maxOptionChips = 4;
 
@@ -28,6 +35,7 @@ class ChambreCard extends StatelessWidget {
     required this.onTap,
     this.equipementLabels = const [],
     this.charges = const [],
+    this.disponibilite,
   });
 
   @override
@@ -53,14 +61,26 @@ class ChambreCard extends StatelessWidget {
             // ── Photo ─────────────────────────────────────────────────────────
             AspectRatio(
               aspectRatio: 16 / 9,
-              child: cover != null
-                  ? CachedNetworkImage(
-                      imageUrl: cover,
-                      fit: BoxFit.cover,
-                      placeholder: (_, _) => Container(color: AppColors.surfaceContainerLow),
-                      errorWidget: (_, _, _) => _placeholder(),
-                    )
-                  : _placeholder(),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  cover != null
+                      ? CachedNetworkImage(
+                          imageUrl: cover,
+                          fit: BoxFit.cover,
+                          placeholder: (_, _) =>
+                              Container(color: AppColors.surfaceContainerLow),
+                          errorWidget: (_, _, _) => _placeholder(),
+                        )
+                      : _placeholder(),
+                  if (disponibilite != null && !disponibilite!.disponible)
+                    Positioned(
+                      top: AppSpacing.sm,
+                      left: AppSpacing.sm,
+                      child: _DisponibiliteBadge(disponibilite: disponibilite!),
+                    ),
+                ],
+              ),
             ),
 
             // ── Contenu ───────────────────────────────────────────────────────
@@ -143,11 +163,46 @@ class ChambreCard extends StatelessWidget {
 
   Widget _placeholder() => Container(
         color: AppColors.surfaceContainerLow,
-        child: const Icon(Icons.bed_outlined, size: 48, color: AppColors.outline),
+        child: Icon(Icons.bed_outlined, size: 48, color: AppColors.outline),
       );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+
+/// Badge « Louée » superposé à la photo, avec la date de libération connue.
+class _DisponibiliteBadge extends StatelessWidget {
+  final ChambreDisponibiliteModel disponibilite;
+  const _DisponibiliteBadge({required this.disponibilite});
+
+  @override
+  Widget build(BuildContext context) {
+    final date = disponibilite.dateDisponible;
+    final label = date != null
+        ? 'Libre le ${DateFormat('dd/MM/yyyy').format(date)}'
+        : 'Actuellement louée';
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: 4,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.65),
+        borderRadius: AppRadius.borderFull,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.lock_clock, size: 13, color: Colors.white),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: AppTypography.labelSm.copyWith(color: Colors.white),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 /// Badge synthétique indiquant si des charges sont incluses ou leur montant total.
 class _ChargesBadge extends StatelessWidget {

@@ -113,11 +113,11 @@ class AppSidebar extends StatelessWidget {
           color: AppColors.surfaceContainerLowest,
           border: Border(right: BorderSide(color: AppColors.outlineVariant)),
         ),
-        iconTheme: const IconThemeData(
+        iconTheme: IconThemeData(
           color: AppColors.onSurfaceVariant,
           size: 20,
         ),
-        selectedIconTheme: const IconThemeData(
+        selectedIconTheme: IconThemeData(
           color: AppColors.primary,
           size: 20,
         ),
@@ -200,7 +200,7 @@ class _SidebarCollapseButton extends StatelessWidget {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.chevron_left,
+                          Icon(Icons.chevron_left,
                               size: 20, color: AppColors.onSurfaceVariant),
                           const SizedBox(width: 12),
                           Flexible(
@@ -215,7 +215,7 @@ class _SidebarCollapseButton extends StatelessWidget {
                         ],
                       ),
                     )
-                  : const Center(
+                  : Center(
                       child: Icon(Icons.chevron_right,
                           size: 20, color: AppColors.onSurfaceVariant),
                     ),
@@ -301,7 +301,7 @@ class _SidebarHeader extends StatelessWidget {
                   CircleAvatar(
                     radius: 18,
                     backgroundColor: AppColors.primaryFixed,
-                    child: const Icon(
+                    child: Icon(
                       Icons.person,
                       color: AppColors.primary,
                       size: 18,
@@ -605,7 +605,7 @@ class _AppLogoIcon extends StatelessWidget {
         color: AppColors.primary,
         borderRadius: AppRadius.borderSm,
       ),
-      child: const Icon(Icons.home_work, color: AppColors.onPrimary, size: 16),
+      child: Icon(Icons.home_work, color: AppColors.onPrimary, size: 16),
     );
   }
 }

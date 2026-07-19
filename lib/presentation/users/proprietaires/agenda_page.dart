@@ -426,7 +426,7 @@ class _AgendaPageState extends State<AgendaPage> {
             Container(
               width: 8,
               height: 8,
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                   color: AppColors.error, shape: BoxShape.circle),
             ),
             Expanded(child: Container(height: 2, color: AppColors.error)),
@@ -893,7 +893,7 @@ class _SlotCellState extends State<_SlotCell> {
                     border: Border.all(
                         color: AppColors.hoverCellBorder, width: 1),
                   ),
-                  child: const Center(
+                  child: Center(
                     child: Icon(Icons.add,
                         size: 16, color: AppColors.hoverCellBorder),
                   ),
@@ -1083,7 +1083,7 @@ class _MoisDayCellState extends State<_MoisDayCell> {
                           color: isToday ? AppColors.primary : null)),
                   const Spacer(),
                   if (_hover)
-                    const Icon(Icons.add,
+                    Icon(Icons.add,
                         size: 14, color: AppColors.hoverCellBorder),
                 ],
               ),
@@ -1138,7 +1138,7 @@ class _ListeView extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.event_busy_outlined,
+            Icon(Icons.event_busy_outlined,
                 size: 52, color: AppColors.onSurfaceVariant),
             const SizedBox(height: AppSpacing.md),
             Text('Aucun rendez-vous planifié.',

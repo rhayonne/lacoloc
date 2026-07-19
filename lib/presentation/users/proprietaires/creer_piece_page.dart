@@ -446,7 +446,7 @@ class _PieceThumbnail extends StatelessWidget {
               imageUrl: photo.url,
               fit: BoxFit.cover,
               placeholder: (_, _) => const SizedBox.shrink(),
-              errorWidget: (_, _, _) => const Icon(
+              errorWidget: (_, _, _) => Icon(
                 Icons.broken_image_outlined,
                 color: AppColors.outline,
               ),
@@ -462,7 +462,7 @@ class _PieceThumbnail extends StatelessWidget {
             child: Container(
               width: 22,
               height: 22,
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 color: AppColors.error,
                 shape: BoxShape.circle,
               ),

@@ -125,7 +125,7 @@ class _CompleterInscriptionPageState extends State<CompleterInscriptionPage> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.link_off,
                       size: 64,
                       color: AppColors.error,
@@ -270,7 +270,7 @@ class _CompleterInscriptionPageState extends State<CompleterInscriptionPage> {
                                     ),
                                   ),
                                 ),
-                                const Icon(
+                                Icon(
                                   Icons.calendar_today_outlined,
                                   size: 18,
                                   color: AppColors.primary,
@@ -364,7 +364,7 @@ class _CompleterInscriptionPageState extends State<CompleterInscriptionPage> {
                             onPressed:
                                 _isLoading ? null : () => _submit(profile),
                             child: _isLoading
-                                ? const SizedBox(
+                                ? SizedBox(
                                     height: 22,
                                     width: 22,
                                     child: CircularProgressIndicator(

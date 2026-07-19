@@ -241,7 +241,7 @@ class _ImmeubleCard extends StatelessWidget {
                   color: AppColors.primaryFixed,
                   borderRadius: AppRadius.borderMd,
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.apartment,
                   color: AppColors.primary,
                   size: 20,
@@ -410,13 +410,13 @@ class _ChambreThumbnailStrip extends StatelessWidget {
                   ? CachedNetworkImage(
                       imageUrl: photo,
                       fit: BoxFit.cover,
-                      errorWidget: (_, _, _) => const Icon(
+                      errorWidget: (_, _, _) => Icon(
                         Icons.bed_outlined,
                         size: 21,
                         color: AppColors.outline,
                       ),
                     )
-                  : const Icon(
+                  : Icon(
                       Icons.bed_outlined,
                       size: 21,
                       color: AppColors.outline,
@@ -443,7 +443,7 @@ class _EmptyState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(
+            Icon(
               Icons.home_work_outlined,
               size: 64,
               color: AppColors.outline,

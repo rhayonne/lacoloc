@@ -295,7 +295,7 @@ class _ImmeubleCard extends StatelessWidget {
 
   Widget _placeholder() => Container(
         color: AppColors.surfaceContainerLow,
-        child: const Center(
+        child: Center(
           child: Icon(Icons.apartment_outlined,
               size: 48, color: AppColors.outline),
         ),

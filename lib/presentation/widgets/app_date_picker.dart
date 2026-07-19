@@ -250,7 +250,7 @@ class _DatePopupState extends State<_DatePopup> {
             height: 38,
             alignment: Alignment.center,
             decoration: selected
-                ? const BoxDecoration(
+                ? BoxDecoration(
                     color: AppColors.primary, shape: BoxShape.circle)
                 : (isToday
                     ? BoxDecoration(

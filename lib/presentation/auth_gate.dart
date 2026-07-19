@@ -104,7 +104,7 @@ class _PendingActivationPage extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(
+                Icon(
                   Icons.hourglass_top_rounded,
                   size: 72,
                   color: AppColors.primary,

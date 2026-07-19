@@ -4,6 +4,7 @@ import 'package:lacoloc_front/data/datasources/chambres.dart';
 import 'package:lacoloc_front/data/datasources/inventaire.dart';
 import 'package:lacoloc_front/data/models/chambre.dart';
 import 'package:lacoloc_front/data/models/chambre_charge.dart';
+import 'package:lacoloc_front/data/models/chambre_disponibilite.dart';
 import 'package:lacoloc_front/data/models/filter_state.dart';
 import 'package:lacoloc_front/presentation/chambres/chambre_card.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
@@ -46,13 +47,30 @@ class _ChambresListState extends State<ChambresList> {
     final ids = chambres.map((c) => c.id).toList();
     final chargesMap = await ChambreChargesDatasource.listByChambres(ids);
     final equipMap = await InventaireDatasource.annonceLabelsByChambre(ids);
+    final dispoMap = await ChambresDatasource.disponibiliteByIds(ids);
     return _ListData(
-        chambres: chambres, chargesMap: chargesMap, equipMap: equipMap);
+      chambres: chambres,
+      chargesMap: chargesMap,
+      equipMap: equipMap,
+      dispoMap: dispoMap,
+    );
   }
 
   bool _matches(
-      ChambreModel c, List<ChambreChargeModel> charges, List<String> equip) {
+    ChambreModel c,
+    List<ChambreChargeModel> charges,
+    List<String> equip,
+    ChambreDisponibiliteModel? dispo,
+  ) {
     final f = widget.chambreFilter;
+
+    // Disponibilité : par défaut les chambres louées restent visibles.
+    if (f.masquerLouees && dispo != null && !dispo.disponible) return false;
+    if (f.disponibleAPartirDe != null) {
+      if (dispo == null || !dispo.disponibleAvant(f.disponibleAPartirDe!)) {
+        return false;
+      }
+    }
 
     // Filtro de texto da barra de busca
     final text = widget.filter.toLowerCase();
@@ -130,7 +148,11 @@ class _ChambresListState extends State<ChambresList> {
         final data = snapshot.data!;
         final filtered = data.chambres
             .where((c) => _matches(
-                c, data.chargesMap[c.id] ?? [], data.equipMap[c.id] ?? []))
+                  c,
+                  data.chargesMap[c.id] ?? [],
+                  data.equipMap[c.id] ?? [],
+                  data.dispoMap[c.id],
+                ))
             .toList();
 
         if (filtered.isEmpty) {
@@ -160,6 +182,7 @@ class _ChambresListState extends State<ChambresList> {
               chambre: chambre,
               equipementLabels: data.equipMap[chambre.id] ?? const [],
               charges: charges,
+              disponibilite: data.dispoMap[chambre.id],
               onTap: () {
                 if (widget.onTapChambre != null) {
                   widget.onTapChambre!(chambre.id);
@@ -179,9 +202,11 @@ class _ListData {
   final List<ChambreModel> chambres;
   final Map<int, List<ChambreChargeModel>> chargesMap;
   final Map<int, List<String>> equipMap;
+  final Map<int, ChambreDisponibiliteModel> dispoMap;
   _ListData({
     required this.chambres,
     required this.chargesMap,
     required this.equipMap,
+    required this.dispoMap,
   });
 }

@@ -133,7 +133,7 @@ class _BailRequirementsBodyState extends State<_BailRequirementsBody> {
       await EtatDesLieuxDatasource.requestBailCompletion(widget.edlId);
       if (!mounted) return;
       setState(() => _busy = false);
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('Demande envoyée au locataire.'),
         backgroundColor: AppColors.success,
       ));
@@ -169,7 +169,7 @@ class _BailRequirementsBodyState extends State<_BailRequirementsBody> {
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.error_outline, color: AppColors.error),
+                    Icon(Icons.error_outline, color: AppColors.error),
                     const SizedBox(width: AppSpacing.sm),
                     Expanded(
                       child: Text('Impossible de charger le document',
@@ -223,7 +223,7 @@ class _BailRequirementsBodyState extends State<_BailRequirementsBody> {
             children: [
               Row(
                 children: [
-                  const Icon(Icons.description_outlined, color: AppColors.primary),
+                  Icon(Icons.description_outlined, color: AppColors.primary),
                   const SizedBox(width: AppSpacing.sm),
                   Expanded(
                     child: Text('Documents requis pour le bail',
@@ -256,7 +256,7 @@ class _BailRequirementsBodyState extends State<_BailRequirementsBody> {
                       Padding(
                         padding: const EdgeInsets.only(top: 2),
                         child: Row(children: [
-                          const Icon(Icons.phone_outlined,
+                          Icon(Icons.phone_outlined,
                               size: 14, color: AppColors.onSurfaceVariant),
                           const SizedBox(width: 4),
                           SelectableText(contactTel,

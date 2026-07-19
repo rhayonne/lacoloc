@@ -330,7 +330,7 @@ class _OptionTile extends StatelessWidget {
                 ),
               ),
               if (selected)
-                const Icon(Icons.check, size: 15, color: AppColors.onPrimary),
+                Icon(Icons.check, size: 15, color: AppColors.onPrimary),
             ],
           ),
         ),

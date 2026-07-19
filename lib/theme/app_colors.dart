@@ -1,134 +1,158 @@
 import 'package:flutter/material.dart';
+import 'package:lacoloc_front/theme/app_palette.dart';
+import 'package:lacoloc_front/theme/theme_controller.dart';
 
-/// Paleta de cores do app, espelhando `pallete.md`.
-/// Centralizada aqui para que qualquer alteração se propague via [ColorScheme].
+/// Tokens de couleur de l'app — **le seul point d'accès aux couleurs** depuis
+/// les écrans.
+///
+/// ## Important : ces tokens ne sont plus des constantes
+///
+/// Chaque token lit la **palette courante** ([ThemeController.palette]), pour
+/// que l'utilisateur puisse changer de thème depuis son profil. Conséquence
+/// pratique : on ne peut plus écrire `const Icon(color: AppColors.primary)`.
+/// Retirez simplement le `const` (le compilateur vous le dira).
+///
+/// ## Que choisir
+///
+/// - [primary] — l'action principale, la décision, ce qui est actif. Dans le
+///   thème par défaut c'est l'ocre : la couleur de l'annotation, du trait que
+///   l'on pose sur un relevé.
+/// - [secondary] — un **état**, une information. Pas une action.
+/// - [success] / [tertiary] — validé, signé, payé.
+/// - [error] — danger, suppression, litige.
+/// - `surface*` — les fonds, du plus bas ([surfaceContainerLowest], les cartes)
+///   au plus haut. Le fond de page est [surface].
+/// - [onSurface] pour le texte principal, [onSurfaceVariant] pour le secondaire.
+///
+/// Les valeurs, leurs contrastes et le raisonnement derrière chaque teinte sont
+/// documentés dans `app_palette.dart`. Pour changer l'apparence de l'app,
+/// modifiez une palette là-bas — jamais une couleur en dur dans un écran.
 class AppColors {
   AppColors._();
 
-  // Surface
-  static const Color surface = Color(0xFFF6FAFD);
-  static const Color surfaceDim = Color(0xFFD6DADE);
-  static const Color surfaceBright = Color(0xFFF6FAFD);
-  static const Color surfaceContainerLowest = Color(0xFFFFFFFF);
-  static const Color surfaceContainerLow = Color(0xFFF0F4F8);
-  static const Color surfaceContainer = Color(0xFFEAEEF2);
-  static const Color surfaceContainerHigh = Color(0xFFE5E9EC);
-  static const Color surfaceContainerHighest = Color(0xFFDFE3E6);
-  static const Color onSurface = Color(0xFF181C1F);
-  static const Color onSurfaceVariant = Color(0xFF3E484E);
-  static const Color inverseSurface = Color(0xFF2C3134);
-  static const Color inverseOnSurface = Color(0xFFEDF1F5);
-  static const Color outline = Color(0xFF6E797F);
-  static const Color outlineVariant = Color(0xFFBEC8CF);
-  static const Color surfaceTint = Color(0xFF006685);
-  static const Color surfaceVariant = Color(0xFFDFE3E6);
+  static AppPalette get _p => ThemeController.palette;
 
-  // Primary (Blue) - ações principais e branding
-  static const Color primary = Color(0xFF006685);
-  static const Color onPrimary = Color(0xFFFFFFFF);
-  static const Color primaryContainer = Color(0xFF31A2CC);
-  static const Color onPrimaryContainer = Color(0xFF003445);
-  static const Color inversePrimary = Color(0xFF6DD2FE);
-  static const Color primaryFixed = Color(0xFFBFE9FF);
-  static const Color primaryFixedDim = Color(0xFF6DD2FE);
-  static const Color onPrimaryFixed = Color(0xFF001F2A);
-  static const Color onPrimaryFixedVariant = Color(0xFF004D65);
+  // ── Surfaces / neutres ─────────────────────────────────────────────────────
+  static Color get surface => _p.surface;
+  static Color get surfaceDim => _p.surfaceDim;
+  static Color get surfaceBright => _p.surfaceBright;
+  static Color get surfaceContainerLowest => _p.surfaceContainerLowest;
+  static Color get surfaceContainerLow => _p.surfaceContainerLow;
+  static Color get surfaceContainer => _p.surfaceContainer;
+  static Color get surfaceContainerHigh => _p.surfaceContainerHigh;
+  static Color get surfaceContainerHighest => _p.surfaceContainerHighest;
+  static Color get onSurface => _p.onSurface;
+  static Color get onSurfaceVariant => _p.onSurfaceVariant;
+  static Color get inverseSurface => _p.inverseSurface;
+  static Color get inverseOnSurface => _p.inverseOnSurface;
+  static Color get outline => _p.outline;
+  static Color get outlineVariant => _p.outlineVariant;
+  static Color get surfaceTint => _p.surfaceTint;
+  static Color get surfaceVariant => _p.surfaceVariant;
 
-  // Secondary (Yellow) - alertas e destaques
-  static const Color secondary = Color(0xFF795900);
-  static const Color onSecondary = Color(0xFFFFFFFF);
-  static const Color secondaryContainer = Color(0xFFFEC330);
-  static const Color onSecondaryContainer = Color(0xFF6F5100);
-  static const Color secondaryFixed = Color(0xFFFFDFA0);
-  static const Color secondaryFixedDim = Color(0xFFF8BD2A);
-  static const Color onSecondaryFixed = Color(0xFF261A00);
-  static const Color onSecondaryFixedVariant = Color(0xFF5C4300);
+  // ── Primary — action / décision / annotation ───────────────────────────────
+  static Color get primary => _p.primary;
+  static Color get onPrimary => _p.onPrimary;
+  static Color get primaryContainer => _p.primaryContainer;
+  static Color get onPrimaryContainer => _p.onPrimaryContainer;
+  static Color get inversePrimary => _p.inversePrimary;
+  static Color get primaryFixed => _p.primaryFixed;
+  static Color get primaryFixedDim => _p.primaryFixedDim;
+  static Color get onPrimaryFixed => _p.onPrimaryFixed;
+  static Color get onPrimaryFixedVariant => _p.onPrimaryFixedVariant;
 
-  // Tertiary (Green) - sucesso e ações positivas
-  static const Color tertiary = Color(0xFF3C6A00);
-  static const Color onTertiary = Color(0xFFFFFFFF);
-  static const Color tertiaryContainer = Color(0xFF70A636);
-  static const Color onTertiaryContainer = Color(0xFF1C3600);
-  static const Color tertiaryFixed = Color(0xFFB8F47A);
-  static const Color tertiaryFixedDim = Color(0xFF9DD761);
-  static const Color onTertiaryFixed = Color(0xFF0E2000);
-  static const Color onTertiaryFixedVariant = Color(0xFF2C5000);
+  // ── Secondary — état / information ─────────────────────────────────────────
+  static Color get secondary => _p.secondary;
+  static Color get onSecondary => _p.onSecondary;
+  static Color get secondaryContainer => _p.secondaryContainer;
+  static Color get onSecondaryContainer => _p.onSecondaryContainer;
+  static Color get secondaryFixed => _p.secondaryFixed;
+  static Color get secondaryFixedDim => _p.secondaryFixedDim;
+  static Color get onSecondaryFixed => _p.onSecondaryFixed;
+  static Color get onSecondaryFixedVariant => _p.onSecondaryFixedVariant;
 
-  // Success (Green) — succès / validations. Calqué sur le Tertiary (vert)
-  // pour garder une sémantique « positive » cohérente dans toute l'app.
-  static const Color success = tertiary; // 0xFF3C6A00
-  static const Color onSuccess = onTertiary;
-  static const Color successContainer = tertiaryContainer;
-  static const Color onSuccessContainer = onTertiaryContainer;
-  static const Color successFixed = tertiaryFixed;
-  static const Color onSuccessFixed = onTertiaryFixed;
+  // ── Tertiary — validé / signé / payé ───────────────────────────────────────
+  static Color get tertiary => _p.tertiary;
+  static Color get onTertiary => _p.onTertiary;
+  static Color get tertiaryContainer => _p.tertiaryContainer;
+  static Color get onTertiaryContainer => _p.onTertiaryContainer;
+  static Color get tertiaryFixed => _p.tertiaryFixed;
+  static Color get tertiaryFixedDim => _p.tertiaryFixedDim;
+  static Color get onTertiaryFixed => _p.onTertiaryFixed;
+  static Color get onTertiaryFixedVariant => _p.onTertiaryFixedVariant;
 
-  // Error
-  static const Color error = Color(0xFFBA1A1A);
-  static const Color onError = Color(0xFFFFFFFF);
-  static const Color errorContainer = Color(0xFFFFDAD6);
-  static const Color onErrorContainer = Color(0xFF93000A);
+  // ── Success — alias sémantique du Tertiary ─────────────────────────────────
+  // Un « ✓ » et un « bail signé » doivent avoir la même couleur : on garde donc
+  // un seul vert dans l'app, exposé sous deux noms selon l'intention.
+  static Color get success => _p.tertiary;
+  static Color get onSuccess => _p.onTertiary;
+  static Color get successContainer => _p.tertiaryContainer;
+  static Color get onSuccessContainer => _p.onTertiaryContainer;
+  static Color get successFixed => _p.tertiaryFixed;
+  static Color get onSuccessFixed => _p.onTertiaryFixed;
 
-  // Background
-  static const Color background = Color(0xFFF6FAFD);
-  static const Color onBackground = Color(0xFF181C1F);
+  // ── Error — danger / suppression / litige ──────────────────────────────────
+  static Color get error => _p.error;
+  static Color get onError => _p.onError;
+  static Color get errorContainer => _p.errorContainer;
+  static Color get onErrorContainer => _p.onErrorContainer;
 
-  // Tonalidade para sombras (mantém aspecto profissional, não preto puro)
-  static const Color shadowTint = Color(0xFF1E293B);
+  // ── Fond de page ───────────────────────────────────────────────────────────
+  static Color get background => _p.surface;
+  static Color get onBackground => _p.onSurface;
 
-  // ── Interactions / survol ───────────────────────────────────────────────
-  /// Couleur de **survol (hover)** d'une cellule cliquable — utilisée par la
-  /// grille de l'agenda (`AgendaPage`, créneaux de 30 min) et réutilisable
-  /// partout où l'on veut un retour visuel de survol **bien marqué**
-  /// (« sobressaliente »). C'est une teinte primaire semi-opaque posée
-  /// **par-dessus** le fond de la cellule (dispo/pause/hors plage), donc elle
-  /// se voit quel que soit ce fond. Pour la rendre plus/moins voyante, ajuster
-  /// le canal alpha (les 2 premiers hex : `0x33` ≈ 20 %).
-  static const Color hoverCell = Color(0x40006685); // primary @ ~25 %
+  /// Teinte des ombres (jamais du noir pur : ça « salit » un fond coloré).
+  static Color get shadowTint => _p.shadowTint;
+
+  // ── Interactions / survol ─────────────────────────────────────────────────
+  /// Survol d'une **cellule cliquable** — utilisé par la grille de l'agenda
+  /// (créneaux de 30 min). Teinte primaire semi-opaque posée *par-dessus* le
+  /// fond de la cellule, donc visible quel que soit ce fond (dispo/pause/hors
+  /// plage). Ajuster l'alpha pour la rendre plus ou moins voyante.
+  static Color get hoverCell => _p.primary.withValues(alpha: 0.25);
 
   /// Bordure de survol de la cellule (accentue le contour au hover).
-  static const Color hoverCellBorder = primary;
+  static Color get hoverCellBorder => _p.primary;
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // TOKENS SÉMANTIQUES — Barre de titre & menu latéral (sous-menus)
-  // ───────────────────────────────────────────────────────────────────────────
+  // TOKENS SÉMANTIQUES — Barre de titre & menu latéral
   // Point unique de configuration : changez ces valeurs pour modifier
-  // l'apparence de TOUTES les barres de titre (FormPageHeader / AppTopBar) et du
-  // menu latéral (AppNavSidebar) d'un seul coup. La décoration prête à l'emploi
-  // de la barre est dans `AppTheme.barDecoration`.
+  // l'apparence de TOUTES les barres de titre (FormPageHeader / AppTopBar) et
+  // du menu latéral (AppNavSidebar) d'un seul coup. La décoration prête à
+  // l'emploi de la barre est dans `AppTheme.barDecoration`.
   // ═══════════════════════════════════════════════════════════════════════════
 
   // ── Barre de titre (FormPageHeader / AppTopBar) ────────────────────────────
-  /// Fond de la barre — volontairement **distinct** du fond de page (`surface`)
+  /// Fond de la barre — volontairement **distinct** du fond de page ([surface])
   /// pour la détacher visuellement.
-  static const Color barBackground = surfaceContainerLowest;
+  static Color get barBackground => _p.surfaceContainerLowest;
 
-  /// Couleur (déjà semi-transparente) de l'**ombre portée** sous la barre.
-  /// Pour une ombre plus/moins marquée, ajustez l'alpha (0.12 ≈ 12 %).
-  static final Color barShadow = shadowTint.withValues(alpha: 0.12);
+  /// Couleur (semi-transparente) de l'**ombre portée** sous la barre.
+  static Color get barShadow => _p.shadowTint.withValues(alpha: 0.12);
 
   // ── Menu latéral (AppNavSidebar) ───────────────────────────────────────────
   /// Fond d'un **item de menu sélectionné** (feuille).
-  static final Color navItemSelected = primaryFixed.withValues(alpha: 0.45);
+  static Color get navItemSelected => _p.primaryFixed.withValues(alpha: 0.45);
 
   /// Fond du **bloc d'un groupe déplié** (en-tête + sous-menus).
-  static final Color navGroupBackground = primaryFixed.withValues(alpha: 0.22);
+  static Color get navGroupBackground =>
+      _p.primaryFixed.withValues(alpha: 0.22);
 
-  /// Fond du **sous-menu sélectionné** — un peu plus foncé que le fond du groupe.
-  static final Color navChildSelected = primaryFixed.withValues(alpha: 0.60);
+  /// Fond du **sous-menu sélectionné** — un peu plus marqué que le groupe.
+  static Color get navChildSelected => _p.primaryFixed.withValues(alpha: 0.60);
 
   /// Survol (hover) des items / sous-menus du menu latéral.
-  static const Color navHover = surfaceContainerLow;
+  static Color get navHover => _p.surfaceContainerLow;
 
   /// Trait d'arborescence des sous-menus (partie neutre).
-  static const Color navConnector = outlineVariant;
+  static Color get navConnector => _p.outlineVariant;
 
   /// Trait d'arborescence coloré (du haut jusqu'au sous-menu actif) + tiret actif.
-  static const Color navConnectorActive = primary;
+  static Color get navConnectorActive => _p.primary;
 
-  /// [ColorScheme] derivado da paleta. Material 3 distribui automaticamente
-  /// essas cores nos componentes que usam o tema.
-  static const ColorScheme lightScheme = ColorScheme(
+  /// [ColorScheme] dérivé de la palette courante. Material 3 distribue
+  /// automatiquement ces couleurs dans les composants qui utilisent le thème.
+  static ColorScheme get lightScheme => ColorScheme(
     brightness: Brightness.light,
     primary: primary,
     onPrimary: onPrimary,

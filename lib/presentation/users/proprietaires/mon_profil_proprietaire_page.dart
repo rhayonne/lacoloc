@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:lacoloc_front/data/datasources/auth_service.dart';
 import 'package:lacoloc_front/data/models/users_client.dart';
+import 'package:lacoloc_front/presentation/widgets/theme_picker.dart';
 import 'package:lacoloc_front/utils/phone_field.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
@@ -283,6 +284,13 @@ class _ProfilFormState extends State<_ProfilForm> {
                     const Divider(),
                     const SizedBox(height: AppSpacing.lg),
 
+                    // ── Apparence (choix du thème) ─────────────────────────
+                    const ThemePickerSection(),
+
+                    const SizedBox(height: AppSpacing.xl),
+                    const Divider(),
+                    const SizedBox(height: AppSpacing.lg),
+
                     Container(
                       padding: const EdgeInsets.all(AppSpacing.md),
                       decoration: BoxDecoration(
@@ -293,7 +301,7 @@ class _ProfilFormState extends State<_ProfilForm> {
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Icon(
+                          Icon(
                             Icons.info_outline,
                             size: 18,
                             color: AppColors.onSurfaceVariant,

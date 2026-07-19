@@ -3,8 +3,8 @@ import 'package:lacoloc_front/data/cache/realtime_refresh_mixin.dart';
 import 'package:lacoloc_front/data/datasources/auth_service.dart';
 import 'package:lacoloc_front/data/datasources/chambres.dart';
 import 'package:lacoloc_front/data/datasources/demandes_contact.dart';
+import 'package:lacoloc_front/data/datasources/messages.dart';
 import 'package:lacoloc_front/data/datasources/immeubles.dart';
-import 'package:lacoloc_front/data/datasources/notifications.dart';
 import 'package:lacoloc_front/data/models/chambre.dart';
 import 'package:lacoloc_front/data/models/facture.dart';
 import 'package:lacoloc_front/data/models/immeubles.dart';
@@ -24,6 +24,7 @@ import 'package:lacoloc_front/presentation/users/proprietaires/mon_profil_propri
 import 'package:lacoloc_front/presentation/users/proprietaires/vue_generale_page.dart';
 import 'package:lacoloc_front/presentation/users/proprietaires/immeuble_detail_page.dart';
 import 'package:lacoloc_front/presentation/users/proprietaires/inventaire_page.dart';
+import 'package:lacoloc_front/presentation/users/proprietaires/lots_page.dart';
 import 'package:lacoloc_front/presentation/users/proprietaires/mes_chambres_page.dart';
 import 'package:lacoloc_front/presentation/users/proprietaires/mes_immeubles_page.dart';
 import 'package:lacoloc_front/presentation/users/proprietaires/nouveau_immeuble_page.dart';
@@ -97,7 +98,6 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage>
   // Sous-onglet courant des sections à sous-menus (piloté par la sidebar).
   int _finSub = 0;
   int _docSub = 0;
-  int _interSub = 0;
   int _edlSub = 0;
 
   // Perfil do usuário atual (para detectar admin de groupe → config entreprise).
@@ -106,12 +106,14 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage>
   // Configuration entreprise (admin de groupe) — renderiza no frame principal.
   bool _showEntrepriseConfig = false;
 
-  // Pastille du menu « Interactions » : notifications non lues + demandes de
-  // contact non établies. Recalculé sur changement Realtime.
+  // Pastille du menu « Interactions » : demandes de contact non établies +
+  // messages reçus non lus. Les notifications proprement dites (garant
+  // requis, bail à signer…) sont visibles dans la Vue générale (dashboard),
+  // pas comptées ici. Recalculé sur changement Realtime.
   int _interactionsBadge = 0;
 
   @override
-  Set<String> get watchedEntities => {'notifications', 'demandes'};
+  Set<String> get watchedEntities => {'demandes', 'messages'};
 
   @override
   void onRealtimeChange() => _refreshBadges();
@@ -119,15 +121,15 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage>
   Future<void> _refreshBadges() async {
     try {
       final results = await Future.wait([
-        NotificationsDatasource.unreadCount(),
         DemandesContactDatasource.listByOwner(),
+        MessagesDatasource.unreadCount(refresh: true),
       ]);
       if (!mounted) return;
-      final unread = results[0] as int;
-      final demandes = results[1] as List;
+      final demandes = results[0] as List;
+      final msgNonLus = results[1] as int;
       final pendingDemandes =
           demandes.where((d) => d.contactEtabli == false).length;
-      setState(() => _interactionsBadge = unread + pendingDemandes);
+      setState(() => _interactionsBadge = pendingDemandes + msgNonLus);
     } catch (_) {
       // best-effort : pastille non bloquante
     }
@@ -138,7 +140,7 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage>
     super.initState();
     _loadProfile();
     _refreshBadges();
-    _gestionTabCtrl = TabController(length: 3, vsync: this);
+    _gestionTabCtrl = TabController(length: 4, vsync: this);
     // Rebuild la sidebar quand le sous-onglet de Gestion change (état sélectionné).
     _gestionTabCtrl.addListener(() {
       if (mounted) setState(() {});
@@ -258,7 +260,7 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage>
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        icon: const Icon(Icons.school_outlined, color: AppColors.primary, size: 34),
+        icon: Icon(Icons.school_outlined, color: AppColors.primary, size: 34),
         title: const Text('Tour guidé'),
         content: const Text(
           "Souhaitez-vous être guidé pas à pas pour créer un immeuble ?\n\n"
@@ -557,11 +559,7 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage>
       );
     }
     if (_section == _Section.interactions) {
-      return InteractionsPage(
-        key: ValueKey('inter$_interSub'),
-        initialTab: _interSub,
-        showTabBar: false,
-      );
+      return const InteractionsPage();
     }
 
     // Section Gestion Immobilière — les onglets sont devenus des sous-menus de
@@ -582,6 +580,7 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage>
           onCreerChambre: _openChambreCreation,
         ),
         const InventairePage(),
+        const LotsPage(),
       ],
     );
   }
@@ -636,6 +635,11 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage>
             label: 'Inventaire',
             selected: inGestion && _gestionTabCtrl.index == 2,
             onTap: () => goGestionTab(2),
+          ),
+          NavChild(
+            label: 'Lots',
+            selected: inGestion && _gestionTabCtrl.index == 3,
+            onTap: () => goGestionTab(3),
           ),
         ],
       ),
@@ -734,14 +738,9 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage>
         children: [
           NavChild(
             label: 'Demandes de contact',
-            selected: _section == _Section.interactions && _interSub == 0,
-            onTap: () => goSub(_Section.interactions, () => _interSub = 0),
-          ),
-          NavChild(
-            label: 'Notifications',
-            selected: _section == _Section.interactions && _interSub == 1,
+            selected: _section == _Section.interactions,
             count: _interactionsBadge,
-            onTap: () => goSub(_Section.interactions, () => _interSub = 1),
+            onTap: () => go(_Section.interactions),
           ),
         ],
       ),

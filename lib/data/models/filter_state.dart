@@ -23,6 +23,15 @@ class ChambreFilter {
   /// Charges incluses : true = au moins une charge incluse ; false = sans charges ; null = indifférent.
   final bool? avecCharges;
 
+  /// Masquer les chambres déjà louées (par défaut, elles restent visibles —
+  /// le locataire peut vouloir repérer ce qui va bientôt se libérer).
+  final bool masquerLouees;
+
+  /// Ne garder que les chambres qui seront libres au plus tard à cette date
+  /// (déjà libres, ou date de fin de bail connue ≤ cette date). `null` =
+  /// indifférent. Une chambre occupée sans date de fin connue ne matche jamais.
+  final DateTime? disponibleAPartirDe;
+
   const ChambreFilter({
     this.equipements = const {},
     this.city = '',
@@ -36,6 +45,8 @@ class ChambreFilter {
     this.prixMin,
     this.prixMax,
     this.avecCharges,
+    this.masquerLouees = false,
+    this.disponibleAPartirDe,
   });
 
   bool get isEmpty =>
@@ -50,7 +61,9 @@ class ChambreFilter {
       m2Max == null &&
       prixMin == null &&
       prixMax == null &&
-      avecCharges == null;
+      avecCharges == null &&
+      !masquerLouees &&
+      disponibleAPartirDe == null;
 
   int get activeCount =>
       (equipements.isNotEmpty ? 1 : 0) +
@@ -62,7 +75,9 @@ class ChambreFilter {
       (immeubleTypeId != null ? 1 : 0) +
       (m2Min != null || m2Max != null ? 1 : 0) +
       (prixMin != null || prixMax != null ? 1 : 0) +
-      (avecCharges != null ? 1 : 0);
+      (avecCharges != null ? 1 : 0) +
+      (masquerLouees ? 1 : 0) +
+      (disponibleAPartirDe != null ? 1 : 0);
 
   ChambreFilter copyWith({
     Set<String>? equipements,
@@ -77,6 +92,8 @@ class ChambreFilter {
     Object? prixMin = _sentinel,
     Object? prixMax = _sentinel,
     Object? avecCharges = _sentinel,
+    bool? masquerLouees,
+    Object? disponibleAPartirDe = _sentinel,
   }) =>
       ChambreFilter(
         equipements: equipements ?? this.equipements,
@@ -97,6 +114,10 @@ class ChambreFilter {
         avecCharges: avecCharges == _sentinel
             ? this.avecCharges
             : avecCharges as bool?,
+        masquerLouees: masquerLouees ?? this.masquerLouees,
+        disponibleAPartirDe: disponibleAPartirDe == _sentinel
+            ? this.disponibleAPartirDe
+            : disponibleAPartirDe as DateTime?,
       );
 
   static const empty = ChambreFilter();

@@ -162,7 +162,7 @@ class _NavEntryTile extends StatelessWidget {
                 count: entry.count,
                 extended: extended,
                 noOuterMargin: true,
-                trailing: const Icon(Icons.expand_less,
+                trailing: Icon(Icons.expand_less,
                     size: 18, color: AppColors.primary),
                 onTap: entry.onTap,
               ),
@@ -183,7 +183,7 @@ class _NavEntryTile extends StatelessWidget {
       count: entry.count,
       extended: extended,
       trailing: entry.isGroup && extended
-          ? const Icon(Icons.expand_more,
+          ? Icon(Icons.expand_more,
               size: 18, color: AppColors.onSurfaceVariant)
           : null,
       onTap: () {

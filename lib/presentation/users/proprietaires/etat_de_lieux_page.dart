@@ -55,10 +55,12 @@ import 'package:lacoloc_front/presentation/widgets/private_image.dart';
 import 'package:lacoloc_front/utils/phone_field.dart';
 import 'package:lacoloc_front/utils/signature_pad.dart';
 import 'package:lacoloc_front/presentation/widgets/edl_signature_flow.dart';
+import 'package:lacoloc_front/theme/app_breakpoints.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/card_delete_button.dart';
 import 'package:lacoloc_front/theme/app_radius.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
+import 'package:lacoloc_front/theme/app_table_theme.dart';
 import 'package:lacoloc_front/theme/app_theme.dart';
 import 'package:lacoloc_front/theme/app_typography.dart';
 import 'package:lacoloc_front/theme/app_tab_bar.dart';
@@ -170,7 +172,7 @@ Widget _edlReqHeader(BuildContext context, String title, bool done) => Row(
               text: title,
               style: Theme.of(context).textTheme.titleMedium,
             ),
-            const TextSpan(
+            TextSpan(
               text: '  *',
               style: TextStyle(
                 color: AppColors.error,
@@ -182,7 +184,7 @@ Widget _edlReqHeader(BuildContext context, String title, bool done) => Row(
       ),
     ),
     if (done)
-      const Icon(Icons.check_circle, color: AppColors.success, size: 20)
+      Icon(Icons.check_circle, color: AppColors.success, size: 20)
     else
       Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -190,7 +192,7 @@ Widget _edlReqHeader(BuildContext context, String title, bool done) => Row(
           color: AppColors.errorContainer,
           borderRadius: BorderRadius.circular(12),
         ),
-        child: const Text(
+        child: Text(
           'Obligatoire',
           style: TextStyle(
             color: AppColors.onErrorContainer,
@@ -354,7 +356,7 @@ Widget _edlGarantRequisBanner(String message) => Container(
   child: Row(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      const Icon(Icons.warning_amber_rounded, color: AppColors.error, size: 20),
+      Icon(Icons.warning_amber_rounded, color: AppColors.error, size: 20),
       const SizedBox(width: AppSpacing.sm),
       Expanded(
         child: Text(
@@ -943,7 +945,7 @@ class _EtatDesLieuxPageState extends State<EtatDesLieuxPage>
     showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
-        icon: const Icon(Icons.block, color: AppColors.error),
+        icon: Icon(Icons.block, color: AppColors.error),
         title: const Text('Suppression impossible'),
         content: Text(message),
         actions: [
@@ -1819,7 +1821,7 @@ class _InitialsAvatar extends StatelessWidget {
       return Container(
         width: size,
         height: size,
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           color: AppColors.primaryFixed,
           shape: BoxShape.circle,
         ),
@@ -2026,8 +2028,10 @@ class _EdlTableCardState extends State<_EdlTableCard> {
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
-      builder: (context, constraints) =>
-          _buildCard(context, isNarrow: constraints.maxWidth < 950),
+      builder: (context, constraints) => _buildCard(
+        context,
+        isNarrow: constraints.maxWidth < AppBreakpoints.tableToCards,
+      ),
     );
   }
 
@@ -2380,7 +2384,7 @@ class _EdlActionButtonState extends State<_EdlActionButton> {
         _busy = false;
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text('Demande de signature envoyée au locataire.'),
           backgroundColor: AppColors.success,
         ),
@@ -2695,245 +2699,252 @@ class _EdlRow extends StatelessWidget {
   Widget _buildWide(String typeBailLabel) {
     // Barre colorée à gauche (bord) pour regrouper le contrat ; la marge gauche
     // est compensée de 4 px pour ne pas décaler le contenu vs les autres lignes.
-    return Container(
-      decoration: contratColor != null
-          ? BoxDecoration(
-              border: Border(left: BorderSide(color: contratColor!, width: 4)),
-            )
-          : null,
-      padding: EdgeInsets.only(
-        left: AppSpacing.lg - (contratColor != null ? 4 : 0),
-        right: AppSpacing.lg,
-        top: AppSpacing.sm,
-        bottom: AppSpacing.sm,
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          // Icône de lien de contrat (slot toujours réservé pour l'alignement)
-          SizedBox(
-            width: _colLink,
-            child: contratColor != null
-                ? _ContratLink(color: contratColor!, tooltip: _contratTooltip)
-                : null,
-          ),
-          // Avatar
-          _InitialsAvatar(names: _avatarNames),
-          const SizedBox(width: AppSpacing.md),
-
-          // LOCATAIRE (flex 3)
-          Expanded(
-            flex: 3,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  edl.displayLocataire,
-                  style: AppTypography.bodyMd.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+    // `HoverTableRow` (même comportement que l'Inventaire) englobe la ligne
+    // entière : la couleur de survol passe derrière (le Container interne n'a
+    // pas de fond propre, seulement une bordure).
+    return HoverTableRow(
+      child: Container(
+        decoration: contratColor != null
+            ? BoxDecoration(
+                border: Border(
+                  left: BorderSide(color: contratColor!, width: 4),
                 ),
-                if (edl.locataireNom != null && edl.locataireEmail != null)
+              )
+            : null,
+        padding: EdgeInsets.only(
+          left: AppSpacing.lg - (contratColor != null ? 4 : 0),
+          right: AppSpacing.lg,
+          top: 6,
+          bottom: 6,
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            // Icône de lien de contrat (slot toujours réservé pour l'alignement)
+            SizedBox(
+              width: _colLink,
+              child: contratColor != null
+                  ? _ContratLink(color: contratColor!, tooltip: _contratTooltip)
+                  : null,
+            ),
+            // Avatar
+            _InitialsAvatar(names: _avatarNames),
+            const SizedBox(width: AppSpacing.md),
+
+            // LOCATAIRE (flex 3)
+            Expanded(
+              flex: 3,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                   Text(
-                    edl.locataireEmail!,
+                    edl.displayLocataire,
+                    style: AppTypography.bodyMd.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (edl.locataireNom != null && edl.locataireEmail != null)
+                    Text(
+                      edl.locataireEmail!,
+                      style: AppTypography.labelSm.copyWith(
+                        color: AppColors.onSurfaceVariant,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(width: AppSpacing.md),
+
+            // IMMEUBLE (flex 2)
+            Expanded(
+              flex: 2,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    edl.immeubleNom ?? '—',
+                    style: AppTypography.bodyMd.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Text(
+                    edl.chambreNom != null
+                        ? '${edl.chambreNom} · $typeBailLabel'
+                        : typeBailLabel,
                     style: AppTypography.labelSm.copyWith(
                       color: AppColors.onSurfaceVariant,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
-              ],
-            ),
-          ),
-          const SizedBox(width: AppSpacing.md),
-
-          // IMMEUBLE (flex 2)
-          Expanded(
-            flex: 2,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  edl.immeubleNom ?? '—',
-                  style: AppTypography.bodyMd.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                Text(
-                  edl.chambreNom != null
-                      ? '${edl.chambreNom} · $typeBailLabel'
-                      : typeBailLabel,
-                  style: AppTypography.labelSm.copyWith(
-                    color: AppColors.onSurfaceVariant,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                if (edl.code != null)
-                  Text(
-                    edl.code!,
-                    style: AppTypography.labelSm.copyWith(
-                      color: AppColors.onSurfaceVariant,
-                      fontFeatures: const [FontFeature.tabularFigures()],
-                      letterSpacing: 0.3,
+                  if (edl.code != null)
+                    Text(
+                      edl.code!,
+                      style: AppTypography.labelSm.copyWith(
+                        color: AppColors.onSurfaceVariant,
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                        letterSpacing: 0.3,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
+                ],
+              ),
+            ),
+            const SizedBox(width: AppSpacing.md),
+
+            // TYPE : type d'immeuble + meublé/non + Collectif/Individuel
+            SizedBox(
+              width: _colType,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    edl.immeubleTypeLabel,
+                    textAlign: TextAlign.center,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
+                    style: AppTypography.labelSm.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-              ],
+                  const SizedBox(height: 3),
+                  _TypePill(label: edl.meubleLabel, muted: !edl.immeubleMeuble),
+                  const SizedBox(height: 3),
+                  _TypePill(label: edl.typeLabel, muted: true),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(width: AppSpacing.md),
+            const SizedBox(width: AppSpacing.md),
 
-          // TYPE : type d'immeuble + meublé/non + Collectif/Individuel
-          SizedBox(
-            width: _colType,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  edl.immeubleTypeLabel,
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTypography.labelSm.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
+            // SITUATION (4ᵉ colonne)
+            SizedBox(
+              width: _colSit,
+              child: Center(child: _situationCell()),
+            ),
+            const SizedBox(width: AppSpacing.md),
+
+            // SENS (Entrée / Sortie)
+            SizedBox(
+              width: _colSens,
+              child: Text(
+                edl.sensLabel,
+                textAlign: TextAlign.center,
+                style: AppTypography.labelSm.copyWith(
+                  color: AppColors.onSurfaceVariant,
                 ),
-                const SizedBox(height: 3),
-                _TypePill(label: edl.meubleLabel, muted: !edl.immeubleMeuble),
-                const SizedBox(height: 3),
-                _TypePill(label: edl.typeLabel, muted: true),
-              ],
-            ),
-          ),
-          const SizedBox(width: AppSpacing.md),
-
-          // SITUATION (4ᵉ colonne)
-          SizedBox(
-            width: _colSit,
-            child: Center(child: _situationCell()),
-          ),
-          const SizedBox(width: AppSpacing.md),
-
-          // SENS (Entrée / Sortie)
-          SizedBox(
-            width: _colSens,
-            child: Text(
-              edl.sensLabel,
-              textAlign: TextAlign.center,
-              style: AppTypography.labelSm.copyWith(
-                color: AppColors.onSurfaceVariant,
               ),
             ),
-          ),
-          const SizedBox(width: AppSpacing.md),
+            const SizedBox(width: AppSpacing.md),
 
-          // DATE EDL
-          SizedBox(
-            width: _colEtat,
-            child: Text(
-              edl.dateEdlFormatted,
-              textAlign: TextAlign.center,
-              style: AppTypography.labelSm.copyWith(
-                color: AppColors.onSurfaceVariant,
+            // DATE EDL
+            SizedBox(
+              width: _colEtat,
+              child: Text(
+                edl.dateEdlFormatted,
+                textAlign: TextAlign.center,
+                style: AppTypography.labelSm.copyWith(
+                  color: AppColors.onSurfaceVariant,
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: AppSpacing.md),
+            const SizedBox(width: AppSpacing.md),
 
-          // DT Sig. Bail (date de signature du bail, ou —)
-          SizedBox(
-            width: _colFin,
-            child: Text(
-              edl.bailSignedAtFormatted ?? '—',
-              textAlign: TextAlign.center,
-              style: AppTypography.labelSm.copyWith(
-                color: edl.bailSignedAt == null
-                    ? AppColors.onSurfaceVariant
-                    : null,
+            // DT Sig. Bail (date de signature du bail, ou —)
+            SizedBox(
+              width: _colFin,
+              child: Text(
+                edl.bailSignedAtFormatted ?? '—',
+                textAlign: TextAlign.center,
+                style: AppTypography.labelSm.copyWith(
+                  color: edl.bailSignedAt == null
+                      ? AppColors.onSurfaceVariant
+                      : null,
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: AppSpacing.md),
+            const SizedBox(width: AppSpacing.md),
 
-          // Visualiser (œil + libellé « EDL ») — colonne réservée pour l'alignement.
-          SizedBox(
-            width: _colEye,
-            height: 38,
-            child: onVisualiser == null
-                ? null
-                : Tooltip(
-                    message: "Visualiser l'état des lieux (lecture seule)",
-                    child: OutlinedButton(
-                      onPressed: onVisualiser,
-                      style: OutlinedButton.styleFrom(
-                        padding: EdgeInsets.zero,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: AppRadius.borderMd,
+            // Visualiser (œil + libellé « EDL ») — colonne réservée pour l'alignement.
+            SizedBox(
+              width: _colEye,
+              height: 38,
+              child: onVisualiser == null
+                  ? null
+                  : Tooltip(
+                      message: "Visualiser l'état des lieux (lecture seule)",
+                      child: OutlinedButton(
+                        onPressed: onVisualiser,
+                        style: OutlinedButton.styleFrom(
+                          padding: EdgeInsets.zero,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: AppRadius.borderMd,
+                          ),
+                        ),
+                        child: const Column(
+                          mainAxisSize: MainAxisSize.min,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.visibility_outlined, size: 15),
+                            Text(
+                              'EDL',
+                              style: TextStyle(
+                                fontSize: 8,
+                                height: 1,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      child: const Column(
-                        mainAxisSize: MainAxisSize.min,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.visibility_outlined, size: 15),
-                          Text(
-                            'EDL',
-                            style: TextStyle(
-                              fontSize: 8,
-                              height: 1,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ],
+                    ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+
+            // Action principale (compacte) : Continuer / Demander signature /
+            // Générer bail selon l'état. Colonne réservée pour l'alignement.
+            SizedBox(
+              width: _colBtn,
+              child: _EdlActionButton(
+                edl: edl,
+                onContinuer: onVoir,
+                compact: true,
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            PermissionGate(
+              permission: Perm.edlDelete,
+              child: SizedBox(
+                width: _colDel,
+                height: 32,
+                child: Tooltip(
+                  message: onDelete != null
+                      ? "Supprimer l'état des lieux"
+                      : "Suppression impossible (EDL finalisé ou lié)",
+                  child: FilledButton(
+                    onPressed: onDelete,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: onDelete != null
+                          ? AppColors.error
+                          : AppColors.outlineVariant,
+                      padding: EdgeInsets.zero,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: AppRadius.borderMd,
                       ),
                     ),
+                    child: const Icon(Icons.delete_outline, size: 16),
                   ),
-          ),
-          const SizedBox(width: AppSpacing.sm),
-
-          // Action principale (compacte) : Continuer / Demander signature /
-          // Générer bail selon l'état. Colonne réservée pour l'alignement.
-          SizedBox(
-            width: _colBtn,
-            child: _EdlActionButton(
-              edl: edl,
-              onContinuer: onVoir,
-              compact: true,
-            ),
-          ),
-          const SizedBox(width: AppSpacing.sm),
-          PermissionGate(
-            permission: Perm.edlDelete,
-            child: SizedBox(
-              width: _colDel,
-              height: 32,
-              child: Tooltip(
-                message: onDelete != null
-                    ? "Supprimer l'état des lieux"
-                    : "Suppression impossible (EDL finalisé ou lié)",
-                child: FilledButton(
-                  onPressed: onDelete,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: onDelete != null
-                        ? AppColors.error
-                        : AppColors.outlineVariant,
-                    padding: EdgeInsets.zero,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: AppRadius.borderMd,
-                    ),
-                  ),
-                  child: const Icon(Icons.delete_outline, size: 16),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -3497,7 +3508,7 @@ class _EdlFormOverlayState extends State<_EdlFormOverlay> {
     ),
     child: Row(
       children: [
-        const Icon(Icons.info_outline, color: AppColors.onSurfaceVariant),
+        Icon(Icons.info_outline, color: AppColors.onSurfaceVariant),
         const SizedBox(width: AppSpacing.md),
         Expanded(
           child: Text(
@@ -3804,7 +3815,7 @@ class _EdlFormOverlayState extends State<_EdlFormOverlay> {
                     style: AppTypography.bodyMd,
                   ),
                 ),
-                const Icon(
+                Icon(
                   Icons.calendar_today_outlined,
                   size: 18,
                   color: AppColors.primary,
@@ -3872,7 +3883,7 @@ class _EdlFormOverlayState extends State<_EdlFormOverlay> {
             ),
             child: Row(
               children: [
-                const Icon(
+                Icon(
                   Icons.check_circle_outlined,
                   color: AppColors.secondary,
                 ),
@@ -3914,7 +3925,7 @@ class _EdlFormOverlayState extends State<_EdlFormOverlay> {
       ),
       child: Row(
         children: [
-          const Icon(Icons.info_outline, color: AppColors.onSurfaceVariant),
+          Icon(Icons.info_outline, color: AppColors.onSurfaceVariant),
           const SizedBox(width: AppSpacing.md),
           Expanded(
             child: Text(
@@ -3987,7 +3998,7 @@ class _EdlFormOverlayState extends State<_EdlFormOverlay> {
         ),
         child: Row(
           children: [
-            const Icon(Icons.info_outline, color: AppColors.onSurfaceVariant),
+            Icon(Icons.info_outline, color: AppColors.onSurfaceVariant),
             const SizedBox(width: AppSpacing.md),
             Expanded(
               child: Text(
@@ -4308,7 +4319,7 @@ class _EdlFormOverlayState extends State<_EdlFormOverlay> {
               child: FilledButton.icon(
                 onPressed: _isSaving ? null : _saveAndNextStep,
                 icon: _isSaving
-                    ? const SizedBox(
+                    ? SizedBox(
                         width: 16,
                         height: 16,
                         child: CircularProgressIndicator(
@@ -4325,8 +4336,13 @@ class _EdlFormOverlayState extends State<_EdlFormOverlay> {
             const SizedBox(height: AppSpacing.md),
           ],
           // BOTTOM — Annuler + Sauvegarder et sortir
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
+          // `Wrap` plutôt que `Row` : sur un écran très étroit, les deux
+          // boutons passent à la ligne suivante au lieu de provoquer un
+          // overflow (le libellé « Sauvegarder et sortir » est long).
+          Wrap(
+            alignment: WrapAlignment.end,
+            spacing: AppSpacing.sm,
+            runSpacing: AppSpacing.sm,
             children: [
               OutlinedButton.icon(
                 onPressed: () => widget.onClose(false),
@@ -4334,12 +4350,11 @@ class _EdlFormOverlayState extends State<_EdlFormOverlay> {
                 label: const Text('Annuler'),
                 style: AppTheme.cancelButtonStyle,
               ),
-              if (!isFinalized) ...[
-                const SizedBox(width: AppSpacing.sm),
+              if (!isFinalized)
                 FilledButton.icon(
                   onPressed: _isSaving ? null : _save,
                   icon: _isSaving
-                      ? const SizedBox(
+                      ? SizedBox(
                           width: 16,
                           height: 16,
                           child: CircularProgressIndicator(
@@ -4351,7 +4366,6 @@ class _EdlFormOverlayState extends State<_EdlFormOverlay> {
                   label: const Text('Sauvegarder et sortir'),
                   style: AppTheme.saveButtonStyle,
                 ),
-              ],
             ],
           ),
         ],
@@ -4428,7 +4442,7 @@ class _EdlFormOverlayState extends State<_EdlFormOverlay> {
                       onPressed: _isFinalising ? null : _finaliser,
                       style: OutlinedButton.styleFrom(
                         foregroundColor: AppColors.error,
-                        side: const BorderSide(color: AppColors.error),
+                        side: BorderSide(color: AppColors.error),
                       ),
                       child: _isFinalising
                           ? const SizedBox(
@@ -4465,7 +4479,7 @@ class _EdlFormOverlayState extends State<_EdlFormOverlay> {
                     controlsBuilder: (_, _) => _buildStepControls(isFinalized),
                     stepIconBuilder: (stepIndex, _) {
                       if (_headerStepIndices.contains(stepIndex)) {
-                        return const Icon(
+                        return Icon(
                           Icons.chevron_right,
                           size: 16,
                           color: AppColors.secondary,
@@ -4949,7 +4963,7 @@ class _EdlDetailProprietairePageState
                   ),
                   child: Row(
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.meeting_room_outlined,
                         size: 16,
                         color: AppColors.primary,
@@ -5054,222 +5068,219 @@ class _EdlDetailProprietairePageState
   Widget _detailBody() {
     final edl = widget.edl;
     return SingleChildScrollView(
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 720),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // ── Carte statut ───────────────────────────────────────────
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 720),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // ── Carte statut ───────────────────────────────────────────
+              Container(
+                padding: const EdgeInsets.all(AppSpacing.md),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceContainerLowest,
+                  borderRadius: AppRadius.borderMd,
+                  border: Border.all(color: AppColors.outlineVariant),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            edl.typeEdl == 'entree'
+                                ? "État des lieux d'entrée"
+                                : 'État des lieux de sortie',
+                            style: AppTypography.titleLg,
+                          ),
+                          const SizedBox(height: AppSpacing.xs),
+                          Text(
+                            edl.lieuLabel,
+                            style: AppTypography.bodyMd.copyWith(
+                              color: AppColors.onSurfaceVariant,
+                            ),
+                          ),
+                          const SizedBox(height: AppSpacing.xs),
+                          Text(
+                            'Le ${_fmt.format(edl.dateEtatLieux)}',
+                            style: AppTypography.bodyMd.copyWith(
+                              color: AppColors.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    _SituationBadge(situation: edl.situation),
+                  ],
+                ),
+              ),
+              const SizedBox(height: AppSpacing.xl),
+
+              // ── Locataire(s) ───────────────────────────────────────────
+              _sectionTitle(
+                edl.partie == PartieEdl.commune ? 'LOCATAIRES' : 'LOCATAIRE',
+              ),
+              FutureBuilder<_DetailData>(
+                future: _dataFuture,
+                builder: (context, snap) {
+                  final preneurs = snap.data?.preneurs ?? const [];
+                  final rows = <Widget>[];
+                  if (preneurs.isNotEmpty) {
+                    for (final p in preneurs) {
+                      rows.add(_infoRow(p.nom ?? '—', p.email ?? ''));
+                    }
+                  } else if (edl.locataireNom != null) {
+                    rows.add(_infoRow('Nom', edl.locataireNom!));
+                    if (edl.locataireEmail != null) {
+                      rows.add(_infoRow('E-mail', edl.locataireEmail!));
+                    }
+                    if (edl.locatairePhone != null &&
+                        edl.locatairePhone!.isNotEmpty) {
+                      rows.add(_infoRow('Téléphone', edl.locatairePhone!));
+                    }
+                  } else {
+                    rows.add(
+                      Text(
+                        'Aucun locataire.',
+                        style: AppTypography.bodyMd.copyWith(
+                          color: AppColors.onSurfaceVariant,
+                        ),
+                      ),
+                    );
+                  }
+                  return _infoCard(rows);
+                },
+              ),
+              const SizedBox(height: AppSpacing.lg),
+
+              // ── Lieu ───────────────────────────────────────────────────
+              _sectionTitle('LIEU'),
+              _infoCard([
+                _infoRow('Immeuble', edl.immeubleNom ?? '—'),
+                if (edl.immeubleAdresse != null)
+                  _infoRow('Adresse', edl.immeubleAdresse!),
+                if (edl.chambreNom != null)
+                  _infoRow('Chambre', edl.chambreNom!),
+              ]),
+              const SizedBox(height: AppSpacing.lg),
+
+              // ── Détails ────────────────────────────────────────────────
+              _sectionTitle('DÉTAILS'),
+              _infoCard([
+                _infoRow('Type de bail', edl.typeLabel),
+                _infoRow('Date état des lieux', _fmt.format(edl.dateEtatLieux)),
+                if (edl.dateFinalisation != null)
+                  _infoRow(
+                    'Date de finalisation',
+                    _fmt.format(edl.dateFinalisation!),
+                  ),
+                if (edl.montant != null)
+                  _infoRow('Montant', '€ ${edl.montant!.toStringAsFixed(2)}'),
+              ]),
+              const SizedBox(height: AppSpacing.lg),
+
+              // ── Notes ──────────────────────────────────────────────────
+              if (edl.notes != null && edl.notes!.isNotEmpty) ...[
+                _sectionTitle('NOTES'),
                 Container(
+                  width: double.infinity,
                   padding: const EdgeInsets.all(AppSpacing.md),
                   decoration: BoxDecoration(
-                    color: AppColors.surfaceContainerLowest,
+                    color: AppColors.surfaceContainerLow,
                     borderRadius: AppRadius.borderMd,
                     border: Border.all(color: AppColors.outlineVariant),
                   ),
+                  child: Text(edl.notes!, style: AppTypography.bodyMd),
+                ),
+                const SizedBox(height: AppSpacing.lg),
+              ],
+
+              // ── Signature locataire ────────────────────────────────────
+              if (edl.situation == SituationEdl.finalise) ...[
+                _sectionTitle('SIGNATURE LOCATAIRE'),
+                Container(
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  decoration: BoxDecoration(
+                    color: edl.locataireAccepte
+                        ? AppColors.secondaryFixed.withValues(alpha: 0.3)
+                        : AppColors.errorContainer.withValues(alpha: 0.15),
+                    borderRadius: AppRadius.borderMd,
+                    border: Border.all(
+                      color: edl.locataireAccepte
+                          ? AppColors.secondary.withValues(alpha: 0.4)
+                          : AppColors.error.withValues(alpha: 0.35),
+                    ),
+                  ),
                   child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      Icon(
+                        edl.locataireAccepte
+                            ? Icons.check_circle_outlined
+                            : Icons.pending_outlined,
+                        color: edl.locataireAccepte
+                            ? AppColors.secondary
+                            : AppColors.error,
+                      ),
+                      const SizedBox(width: AppSpacing.sm),
                       Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              edl.typeEdl == 'entree'
-                                  ? "État des lieux d'entrée"
-                                  : 'État des lieux de sortie',
-                              style: AppTypography.titleLg,
-                            ),
-                            const SizedBox(height: AppSpacing.xs),
-                            Text(
-                              edl.lieuLabel,
-                              style: AppTypography.bodyMd.copyWith(
-                                color: AppColors.onSurfaceVariant,
-                              ),
-                            ),
-                            const SizedBox(height: AppSpacing.xs),
-                            Text(
-                              'Le ${_fmt.format(edl.dateEtatLieux)}',
-                              style: AppTypography.bodyMd.copyWith(
-                                color: AppColors.onSurfaceVariant,
-                              ),
-                            ),
-                          ],
+                        child: Text(
+                          edl.locataireAccepte
+                              ? 'Le locataire a accepté et signé.'
+                              : 'En attente de signature du locataire.',
+                          style: AppTypography.bodyMd,
                         ),
                       ),
-                      _SituationBadge(situation: edl.situation),
                     ],
                   ),
                 ),
-                const SizedBox(height: AppSpacing.xl),
-
-                // ── Locataire(s) ───────────────────────────────────────────
-                _sectionTitle(
-                  edl.partie == PartieEdl.commune ? 'LOCATAIRES' : 'LOCATAIRE',
-                ),
-                FutureBuilder<_DetailData>(
-                  future: _dataFuture,
-                  builder: (context, snap) {
-                    final preneurs = snap.data?.preneurs ?? const [];
-                    final rows = <Widget>[];
-                    if (preneurs.isNotEmpty) {
-                      for (final p in preneurs) {
-                        rows.add(_infoRow(p.nom ?? '—', p.email ?? ''));
-                      }
-                    } else if (edl.locataireNom != null) {
-                      rows.add(_infoRow('Nom', edl.locataireNom!));
-                      if (edl.locataireEmail != null) {
-                        rows.add(_infoRow('E-mail', edl.locataireEmail!));
-                      }
-                      if (edl.locatairePhone != null &&
-                          edl.locatairePhone!.isNotEmpty) {
-                        rows.add(_infoRow('Téléphone', edl.locatairePhone!));
-                      }
-                    } else {
-                      rows.add(
-                        Text(
-                          'Aucun locataire.',
-                          style: AppTypography.bodyMd.copyWith(
-                            color: AppColors.onSurfaceVariant,
-                          ),
-                        ),
-                      );
-                    }
-                    return _infoCard(rows);
-                  },
-                ),
                 const SizedBox(height: AppSpacing.lg),
-
-                // ── Lieu ───────────────────────────────────────────────────
-                _sectionTitle('LIEU'),
-                _infoCard([
-                  _infoRow('Immeuble', edl.immeubleNom ?? '—'),
-                  if (edl.immeubleAdresse != null)
-                    _infoRow('Adresse', edl.immeubleAdresse!),
-                  if (edl.chambreNom != null)
-                    _infoRow('Chambre', edl.chambreNom!),
-                ]),
-                const SizedBox(height: AppSpacing.lg),
-
-                // ── Détails ────────────────────────────────────────────────
-                _sectionTitle('DÉTAILS'),
-                _infoCard([
-                  _infoRow('Type de bail', edl.typeLabel),
-                  _infoRow(
-                    'Date état des lieux',
-                    _fmt.format(edl.dateEtatLieux),
-                  ),
-                  if (edl.dateFinalisation != null)
-                    _infoRow(
-                      'Date de finalisation',
-                      _fmt.format(edl.dateFinalisation!),
-                    ),
-                  if (edl.montant != null)
-                    _infoRow('Montant', '€ ${edl.montant!.toStringAsFixed(2)}'),
-                ]),
-                const SizedBox(height: AppSpacing.lg),
-
-                // ── Notes ──────────────────────────────────────────────────
-                if (edl.notes != null && edl.notes!.isNotEmpty) ...[
-                  _sectionTitle('NOTES'),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(AppSpacing.md),
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceContainerLow,
-                      borderRadius: AppRadius.borderMd,
-                      border: Border.all(color: AppColors.outlineVariant),
-                    ),
-                    child: Text(edl.notes!, style: AppTypography.bodyMd),
-                  ),
-                  const SizedBox(height: AppSpacing.lg),
-                ],
-
-                // ── Signature locataire ────────────────────────────────────
-                if (edl.situation == SituationEdl.finalise) ...[
-                  _sectionTitle('SIGNATURE LOCATAIRE'),
-                  Container(
-                    padding: const EdgeInsets.all(AppSpacing.md),
-                    decoration: BoxDecoration(
-                      color: edl.locataireAccepte
-                          ? AppColors.secondaryFixed.withValues(alpha: 0.3)
-                          : AppColors.errorContainer.withValues(alpha: 0.15),
-                      borderRadius: AppRadius.borderMd,
-                      border: Border.all(
-                        color: edl.locataireAccepte
-                            ? AppColors.secondary.withValues(alpha: 0.4)
-                            : AppColors.error.withValues(alpha: 0.35),
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          edl.locataireAccepte
-                              ? Icons.check_circle_outlined
-                              : Icons.pending_outlined,
-                          color: edl.locataireAccepte
-                              ? AppColors.secondary
-                              : AppColors.error,
-                        ),
-                        const SizedBox(width: AppSpacing.sm),
-                        Expanded(
-                          child: Text(
-                            edl.locataireAccepte
-                                ? 'Le locataire a accepté et signé.'
-                                : 'En attente de signature du locataire.',
-                            style: AppTypography.bodyMd,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.lg),
-                ],
-
-                // ── État des pièces et chambres ────────────────────────────
-                _sectionTitle(
-                  edl.partie == PartieEdl.commune
-                      ? 'ÉTAT DES PIÈCES ET CHAMBRES'
-                      : 'ÉTAT DE LA CHAMBRE',
-                ),
-                FutureBuilder<_DetailData>(
-                  future: _dataFuture,
-                  builder: (context, snap) {
-                    if (snap.connectionState == ConnectionState.waiting) {
-                      return const Padding(
-                        padding: EdgeInsets.symmetric(vertical: AppSpacing.lg),
-                        child: Center(child: CircularProgressIndicator()),
-                      );
-                    }
-                    final data = snap.data;
-                    final obs = data?.observations ?? const [];
-                    if (obs.isEmpty) {
-                      return Container(
-                        padding: const EdgeInsets.all(AppSpacing.md),
-                        decoration: BoxDecoration(
-                          color: AppColors.surfaceContainerLow,
-                          borderRadius: AppRadius.borderMd,
-                          border: Border.all(color: AppColors.outlineVariant),
-                        ),
-                        child: Text(
-                          'Aucune observation enregistrée.',
-                          style: AppTypography.bodyMd.copyWith(
-                            color: AppColors.onSurfaceVariant,
-                          ),
-                        ),
-                      );
-                    }
-                    return _buildObservationsGroupees(obs, data!);
-                  },
-                ),
-                const SizedBox(height: AppSpacing.xl),
               ],
-            ),
+
+              // ── État des pièces et chambres ────────────────────────────
+              _sectionTitle(
+                edl.partie == PartieEdl.commune
+                    ? 'ÉTAT DES PIÈCES ET CHAMBRES'
+                    : 'ÉTAT DE LA CHAMBRE',
+              ),
+              FutureBuilder<_DetailData>(
+                future: _dataFuture,
+                builder: (context, snap) {
+                  if (snap.connectionState == ConnectionState.waiting) {
+                    return const Padding(
+                      padding: EdgeInsets.symmetric(vertical: AppSpacing.lg),
+                      child: Center(child: CircularProgressIndicator()),
+                    );
+                  }
+                  final data = snap.data;
+                  final obs = data?.observations ?? const [];
+                  if (obs.isEmpty) {
+                    return Container(
+                      padding: const EdgeInsets.all(AppSpacing.md),
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceContainerLow,
+                        borderRadius: AppRadius.borderMd,
+                        border: Border.all(color: AppColors.outlineVariant),
+                      ),
+                      child: Text(
+                        'Aucune observation enregistrée.',
+                        style: AppTypography.bodyMd.copyWith(
+                          color: AppColors.onSurfaceVariant,
+                        ),
+                      ),
+                    );
+                  }
+                  return _buildObservationsGroupees(obs, data!);
+                },
+              ),
+              const SizedBox(height: AppSpacing.xl),
+            ],
           ),
         ),
-      );
+      ),
+    );
   }
 }
 
@@ -5719,7 +5730,7 @@ class _CreerLocataireDialogState extends State<_CreerLocataireDialog> {
         FilledButton(
           onPressed: _isSaving ? null : _save,
           child: _isSaving
-              ? const SizedBox(
+              ? SizedBox(
                   width: 16,
                   height: 16,
                   child: CircularProgressIndicator(
@@ -5769,7 +5780,7 @@ class _RoomDiagram extends StatelessWidget {
       children: [
         Row(
           children: [
-            const Icon(Icons.home_outlined, size: 18, color: AppColors.primary),
+            Icon(Icons.home_outlined, size: 18, color: AppColors.primary),
             const SizedBox(width: AppSpacing.xs),
             Text(
               planLabel ??
@@ -5859,7 +5870,7 @@ class _RoomDiagram extends StatelessWidget {
                                       ),
                                     ),
                                   ),
-                                  errorWidget: (_, _, _) => const Center(
+                                  errorWidget: (_, _, _) => Center(
                                     child: Icon(
                                       Icons.home_outlined,
                                       size: 36,
@@ -5867,7 +5878,7 @@ class _RoomDiagram extends StatelessWidget {
                                     ),
                                   ),
                                 )
-                              : const Center(
+                              : Center(
                                   child: Icon(
                                     Icons.home_outlined,
                                     size: 36,
@@ -5964,7 +5975,7 @@ class _EntreeContrepoint extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(
+              Icon(
                 Icons.login,
                 size: 16,
                 color: AppColors.onSurfaceVariant,
@@ -6354,7 +6365,7 @@ class _ObservationTile extends StatelessWidget {
                   if (hasDesc) const SizedBox(height: AppSpacing.xs),
                   Row(
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.photo_outlined,
                         size: 14,
                         color: AppColors.onSurfaceVariant,
@@ -6387,7 +6398,7 @@ class _ObservationTile extends StatelessWidget {
               visualDensity: VisualDensity.compact,
             ),
             IconButton(
-              icon: const Icon(
+              icon: Icon(
                 Icons.delete_outline,
                 size: 16,
                 color: AppColors.error,
@@ -6416,7 +6427,7 @@ class _LocataireBadge extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(
+          Icon(
             Icons.person_outline,
             size: 12,
             color: AppColors.onTertiaryFixed,
@@ -6780,14 +6791,18 @@ class _EcheanceDiagBanner extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Icon(Icons.warning_amber_outlined,
-                color: AppColors.onErrorContainer, size: 20),
+            Icon(
+              Icons.warning_amber_outlined,
+              color: AppColors.onErrorContainer,
+              size: 20,
+            ),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: Text(
                 'Échéances non générées — $message',
-                style: AppTypography.bodyMd
-                    .copyWith(color: AppColors.onErrorContainer),
+                style: AppTypography.bodyMd.copyWith(
+                  color: AppColors.onErrorContainer,
+                ),
               ),
             ),
           ],
@@ -6981,11 +6996,13 @@ class _EdlCollectifNonMeubleePageState
   bool get _isLocataire => widget.isLocataire;
   // Locataires non éditables ici (collectif d'un bail individuel).
   bool get _lockLocataires => widget.lockLocataires;
+
   /// Une fois finalisé (signé), plus aucun champ n'est modifiable — seul le
   /// super admin peut encore intervenir.
   bool get _readOnly =>
       !widget.superAdmin &&
       (_isLocataire || _situation == SituationEdl.finalise);
+
   /// Contenu structurel (pièces/chambres, murs, observations) figé une fois
   /// le collectif finalisé — pour les DEUX parties, seul le super admin y
   /// échappe.
@@ -7673,8 +7690,9 @@ class _EdlCollectifNonMeubleePageState
     );
   }
 
-  Widget? _headerLeading() =>
-      _edlFullySigned ? BackButton(onPressed: () => widget.onClose(false)) : null;
+  Widget? _headerLeading() => _edlFullySigned
+      ? BackButton(onPressed: () => widget.onClose(false))
+      : null;
 
   @override
   Widget build(BuildContext context) {
@@ -7982,7 +8000,7 @@ class _EdlCollectifNonMeubleePageState
                 ),
               ),
               if (linked.isNotEmpty)
-                const Icon(
+                Icon(
                   Icons.check_circle,
                   color: AppColors.success,
                   size: 18,
@@ -8244,7 +8262,7 @@ class _EdlCollectifNonMeubleePageState
               padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
               child: Row(
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.person_add_alt_1_outlined,
                     size: 18,
                     color: AppColors.onSurfaceVariant,
@@ -8296,7 +8314,7 @@ class _EdlCollectifNonMeubleePageState
         children: [
           Row(
             children: [
-              const Icon(
+              Icon(
                 Icons.meeting_room_outlined,
                 size: 18,
                 color: AppColors.primary,
@@ -8508,7 +8526,7 @@ class _EdlCollectifNonMeubleePageState
                     const SizedBox(height: AppSpacing.sm),
                     Row(
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.lock_outline,
                           size: 14,
                           color: AppColors.onSurfaceVariant,
@@ -8565,7 +8583,7 @@ class _EdlCollectifNonMeubleePageState
                     const SizedBox(height: AppSpacing.lg),
                     Row(
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.inventory_2_outlined,
                           size: 16,
                           color: AppColors.onSurfaceVariant,
@@ -8778,7 +8796,7 @@ class _GarantCard extends StatelessWidget {
           CircleAvatar(
             radius: 14,
             backgroundColor: AppColors.success.withValues(alpha: 0.14),
-            child: const Icon(
+            child: Icon(
               Icons.verified_user_outlined,
               size: 15,
               color: AppColors.success,
@@ -8952,6 +8970,7 @@ class _EdlIndividuelMeubleePageState extends State<EdlIndividuelMeubleePage>
   /// Une fois finalisé, l'EDL ne peut plus être modifié (seuls les ajouts via
   /// l'onglet Additions restent possibles, dans la fenêtre).
   bool get _finalise => _situation == SituationEdl.finalise;
+
   /// Bail résilié (rupture du contrat) : le document est figé, y compris
   /// pour le propriétaire — plus aucune modification, même hors Additions.
   bool get _resilie => _bailCongeDate != null;
@@ -9804,8 +9823,9 @@ class _EdlIndividuelMeubleePageState extends State<EdlIndividuelMeubleePage>
         });
         _snack('Bail signé.');
         if (!_isLocataire && _bailSignedProprio && _bailSignedLocataire) {
-          final r =
-              await EtatDesLieuxDatasource.ensureBailEcheances(_privatifId!);
+          final r = await EtatDesLieuxDatasource.ensureBailEcheances(
+            _privatifId!,
+          );
           if (mounted) setState(() => _echeanceDiag = r);
         }
       }
@@ -9856,7 +9876,7 @@ class _EdlIndividuelMeubleePageState extends State<EdlIndividuelMeubleePage>
       ),
       child: Row(
         children: [
-          const Icon(
+          Icon(
             Icons.note_add_outlined,
             size: 20,
             color: AppColors.onTertiaryFixed,
@@ -9987,8 +10007,9 @@ class _EdlIndividuelMeubleePageState extends State<EdlIndividuelMeubleePage>
     );
   }
 
-  Widget? _headerLeading() =>
-      _edlFullySigned ? BackButton(onPressed: () => widget.onClose(false)) : null;
+  Widget? _headerLeading() => _edlFullySigned
+      ? BackButton(onPressed: () => widget.onClose(false))
+      : null;
 
   // ── Build ───────────────────────────────────────────────────────────────────
 
@@ -10068,7 +10089,7 @@ class _EdlIndividuelMeubleePageState extends State<EdlIndividuelMeubleePage>
     ),
     child: Row(
       children: [
-        const Icon(Icons.info_outline, color: AppColors.primary),
+        Icon(Icons.info_outline, color: AppColors.primary),
         const SizedBox(width: AppSpacing.sm),
         Expanded(
           child: Text(
@@ -10594,7 +10615,7 @@ class _EdlIndividuelMeubleePageState extends State<EdlIndividuelMeubleePage>
         children: [
           Row(
             children: [
-              const Icon(
+              Icon(
                 Icons.add_location_alt_outlined,
                 size: 16,
                 color: AppColors.primary,
@@ -10749,11 +10770,11 @@ class _EdlIndividuelMeubleePageState extends State<EdlIndividuelMeubleePage>
 
   Future<void> _rompreBail() async {
     if (_privatifId == null) return;
-    final res = await showDialog<
-        ({DateTime conge, String? motif, bool proRata})>(
-      context: context,
-      builder: (_) => _RompreBailDialog(preavisMois: _preavisEffectif),
-    );
+    final res =
+        await showDialog<({DateTime conge, String? motif, bool proRata})>(
+          context: context,
+          builder: (_) => _RompreBailDialog(preavisMois: _preavisEffectif),
+        );
     if (res == null || !mounted) return;
     try {
       final settlement = await EtatDesLieuxDatasource.resilierBail(
@@ -10809,9 +10830,11 @@ class _EdlIndividuelMeubleePageState extends State<EdlIndividuelMeubleePage>
     try {
       final data = await ResiliationPdfData.fromEntree(_privatifId!);
       if (!mounted) return;
-      Navigator.of(context).push(MaterialPageRoute(
-        builder: (_) => ResiliationPdfPreviewPage(data: data),
-      ));
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ResiliationPdfPreviewPage(data: data),
+        ),
+      );
     } catch (e) {
       if (mounted) _snack('Erreur : $e');
     }
@@ -11307,13 +11330,13 @@ class _EdlIndividuelMeubleePageState extends State<EdlIndividuelMeubleePage>
           const SizedBox(width: 6),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               color: AppColors.error,
               borderRadius: BorderRadius.all(Radius.circular(10)),
             ),
             child: Text(
               '$count',
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppColors.onError,
                 fontSize: 11,
                 fontWeight: FontWeight.bold,
@@ -11492,7 +11515,7 @@ class _EdlIndividuelMeubleePageState extends State<EdlIndividuelMeubleePage>
                     const SizedBox(height: AppSpacing.lg),
                     Row(
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.inventory_2_outlined,
                           size: 16,
                           color: AppColors.onSurfaceVariant,
@@ -11707,7 +11730,7 @@ class _FinaliserBailDialogState extends State<_FinaliserBailDialog> {
       ),
       child: Row(
         children: [
-          const Icon(
+          Icon(
             Icons.calendar_today_outlined,
             size: 18,
             color: AppColors.primary,
@@ -11724,7 +11747,9 @@ class _FinaliserBailDialogState extends State<_FinaliserBailDialog> {
     return AlertDialog(
       title: const Text("Finaliser l'état des lieux"),
       content: ConstrainedBox(
-        constraints: const BoxConstraints(minWidth: 340, maxWidth: 480),
+        // Pas de minWidth : sur un écran étroit (< 420px), un plancher fixe
+        // forcerait le contenu à dépasser l'espace disponible (overflow).
+        constraints: const BoxConstraints(maxWidth: 480),
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,

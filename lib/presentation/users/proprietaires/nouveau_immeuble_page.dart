@@ -6,6 +6,7 @@ import 'package:lacoloc_front/data/datasources/auth_service.dart';
 import 'package:lacoloc_front/data/datasources/charges_reference.dart';
 import 'package:lacoloc_front/data/datasources/commons_seeder.dart';
 import 'package:lacoloc_front/data/datasources/immeuble_charges.dart';
+import 'package:lacoloc_front/data/datasources/immeuble_lots.dart';
 import 'package:lacoloc_front/data/datasources/immeubles.dart';
 import 'package:lacoloc_front/data/datasources/inventaire.dart';
 import 'package:lacoloc_front/data/datasources/reference.dart';
@@ -14,12 +15,15 @@ import 'package:lacoloc_front/data/models/address_suggestion.dart';
 import 'package:lacoloc_front/data/models/charge_reference.dart';
 import 'package:lacoloc_front/data/models/immeuble_charge.dart';
 import 'package:lacoloc_front/data/models/immeuble_draft.dart';
+import 'package:lacoloc_front/data/models/immeuble_lot.dart';
 import 'package:lacoloc_front/data/models/immeuble_type.dart';
 import 'package:lacoloc_front/data/models/immeubles.dart';
 import 'package:lacoloc_front/data/models/inventaire.dart';
 import 'package:lacoloc_front/presentation/widgets/address_autocomplete_field.dart';
 import 'package:lacoloc_front/presentation/widgets/charges_selector.dart';
 import 'package:lacoloc_front/presentation/widgets/electromenager_dialog.dart';
+import 'package:lacoloc_front/presentation/widgets/lot_dialog.dart';
+import 'package:lacoloc_front/presentation/widgets/lot_search_field.dart';
 import 'package:lacoloc_front/presentation/widgets/form_page_header.dart';
 import 'package:lacoloc_front/presentation/widgets/number_stepper_field.dart';
 import 'package:lacoloc_front/presentation/widgets/photo_picker_field.dart';
@@ -29,6 +33,7 @@ import 'package:lacoloc_front/theme/card_delete_button.dart';
 import 'package:lacoloc_front/utils/currency.dart';
 import 'package:lacoloc_front/presentation/tour/guided_tours.dart';
 import 'package:lacoloc_front/theme/app_accordion.dart';
+import 'package:lacoloc_front/theme/app_breakpoints.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
 import 'package:lacoloc_front/theme/app_typography.dart';
@@ -70,6 +75,12 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
 
   // Charges sélectionnées
   List<ChargeSelection> _charges = [];
+
+  // Lots de copropriété : en création, vivent dans le brouillon (créés au
+  // save) ; en édition, l'immeuble existe → persistés tout de suite.
+  List<ImmeubleLotModel> _existingLots = [];
+  // Catalogue complet des lots du propriétaire (pour la recherche).
+  List<ImmeubleLotModel> _allLots = [];
 
   // Valeurs « live » de champs qui pilotent l'UI (réactivité).
   bool? _meuble; // location meublée ? (déverrouille le dépôt de garantie)
@@ -137,7 +148,7 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        icon: const Icon(
+        icon: Icon(
           Icons.school_outlined,
           color: AppColors.primary,
           size: 34,
@@ -214,7 +225,7 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
-        icon: const Icon(
+        icon: Icon(
           Icons.celebration_outlined,
           color: AppColors.primary,
           size: 34,
@@ -253,10 +264,16 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
       activeOnly: true,
     );
     List<ImmeubleChargeModel> existing = [];
+    List<ImmeubleLotModel> existingLots = [];
     final imm = widget.immeuble;
     if (imm != null) {
       existing = await ImmeubleChargesDatasource.listByImmeuble(imm.id);
+      existingLots = await ImmeubleLotsDatasource.listByImmeuble(imm.id);
     }
+    final ownerId = AuthService.currentUser?.id;
+    final allLots = ownerId == null
+        ? <ImmeubleLotModel>[]
+        : await ImmeubleLotsDatasource.listByOwner(ownerId);
     // Convertir en ChargeSelection initiales
     final initSel = existing
         .map((ic) {
@@ -270,7 +287,12 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
         .toList();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) setState(() => _charges = initSel);
+      if (!mounted) return;
+      setState(() {
+        _charges = initSel;
+        _existingLots = existingLots;
+        _allLots = allLots;
+      });
     });
 
     return _Bundle(chargesRef: chargesRef);
@@ -402,6 +424,9 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
       await InventaireDatasource.createMany([
         for (final a in _draft.electromenager) _articleToModel(a, immeubleId),
       ]);
+    }
+    for (final l in _draft.lots) {
+      await ImmeubleLotsDatasource.assignToImmeuble(l.id, immeubleId);
     }
   }
 
@@ -547,7 +572,9 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
     if (imm != null) {
       // Édition : persiste immédiatement dans l'inventaire de l'immeuble.
       try {
-        await InventaireDatasource.createMany([_articleToModel(article, imm.id)]);
+        await InventaireDatasource.createMany([
+          _articleToModel(article, imm.id),
+        ]);
         if (!mounted) return;
         setState(() => _electroAddedInEdit.add(article));
         _snack('Électroménager ajouté à l\'inventaire.');
@@ -559,6 +586,67 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
     }
   }
 
+  // ── Lots de copropriété ───────────────────────────────────────────────────
+  // Les lots sont un catalogue indépendant (page « Lots ») : on les
+  // recherche/sélectionne ici, ou on en crée un nouveau à la volée. En
+  // création d'immeuble, la sélection reste en brouillon (rattachée au save) ;
+  // en édition, le rattachement (`assignToImmeuble`) est immédiat.
+
+  Future<void> _ajouterLot() async {
+    final ownerId = AuthService.currentUser?.id;
+    if (ownerId == null) return;
+    final imm = _persistedImmeuble;
+    final created = await showLotDialog(
+      context,
+      ownerId: ownerId,
+      immeubleId: imm?.id,
+    );
+    if (created == null || !mounted) return;
+    setState(() {
+      _allLots = [..._allLots, created];
+      if (imm != null) {
+        _existingLots = [..._existingLots, created];
+      } else {
+        _draft.lots.add(created);
+      }
+    });
+  }
+
+  Future<void> _selectionnerLot(ImmeubleLotModel lot) async {
+    final imm = _persistedImmeuble;
+    if (imm != null) {
+      try {
+        await ImmeubleLotsDatasource.assignToImmeuble(lot.id, imm.id);
+        if (!mounted) return;
+        setState(() => _existingLots = [..._existingLots, lot]);
+        _snack('Lot rattaché.');
+      } catch (e) {
+        if (mounted) _snack('Erreur : $e');
+      }
+    } else {
+      setState(() => _draft.lots.add(lot));
+    }
+  }
+
+  Future<void> _retirerLot(ImmeubleLotModel lot) async {
+    final imm = _persistedImmeuble;
+    if (imm != null) {
+      try {
+        await ImmeubleLotsDatasource.unassignFromImmeuble(lot.id);
+        if (!mounted) return;
+        setState(
+          () => _existingLots = _existingLots
+              .where((l) => l.id != lot.id)
+              .toList(),
+        );
+      } catch (e) {
+        if (mounted) _snack('Erreur : $e');
+      }
+    } else {
+      setState(() => _draft.lots.removeWhere((l) => l.id == lot.id));
+    }
+  }
+
   // ── Sections « brouillon » (création seulement) ──────────────────────────
 
   /// En édition, les pièces/inventaire existent déjà : on renvoie une note qui
@@ -566,7 +654,7 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
   Widget _editNote(String texte) => Row(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      const Icon(
+      Icon(
         Icons.info_outline,
         size: 16,
         color: AppColors.onSurfaceVariant,
@@ -643,7 +731,7 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
           const SizedBox(height: AppSpacing.xs),
           Row(
             children: [
-              const Icon(
+              Icon(
                 Icons.check_circle_outline,
                 size: 16,
                 color: AppColors.tertiary,
@@ -674,7 +762,7 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
         Text(
           editing
               ? "Ajoutez un électroménager : il sera rattaché à l'inventaire "
-                  'de cet immeuble.'
+                    'de cet immeuble.'
               : 'Ajoutez les électroménagers : ils seront rattachés à cet immeuble.',
           style: AppTypography.bodyMd.copyWith(
             color: AppColors.onSurfaceVariant,
@@ -699,19 +787,22 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
         ],
         if (editing && _electroAddedInEdit.isNotEmpty) ...[
           _electroTableHeader(),
-          ..._electroAddedInEdit.map((a) => _electroTableRow(
-                nom: a.displayNom,
-                categorie: a.ref?.categorie ?? '—',
-                quantite: a.quantite,
-                valeur: a.valeur,
-                onDelete: null,
-              )),
+          ..._electroAddedInEdit.map(
+            (a) => _electroTableRow(
+              nom: a.displayNom,
+              categorie: a.ref?.categorie ?? '—',
+              quantite: a.quantite,
+              valeur: a.valeur,
+              onDelete: null,
+            ),
+          ),
           const SizedBox(height: AppSpacing.xs),
           Text(
             'Gérez tout l\'inventaire (modifier/supprimer) depuis l\'onglet '
             'Inventaire de l\'immeuble.',
-            style: AppTypography.labelSm
-                .copyWith(color: AppColors.onSurfaceVariant),
+            style: AppTypography.labelSm.copyWith(
+              color: AppColors.onSurfaceVariant,
+            ),
           ),
           const SizedBox(height: AppSpacing.sm),
         ],
@@ -728,28 +819,38 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
   }
 
   // Table d'électroménager : Nom · Catégorie · Qté · (€) · suppression.
+  // Sous AppBreakpoints.compact, les 4 colonnes en flex fixe deviennent trop
+  // étroites/illisibles : on bascule sur une carte empilée (comme le fait déjà
+  // le tableau de l'Inventaire en dessous de son propre seuil).
   static const _electroFlex = [4, 3, 2, 3];
 
-  Widget _electroTableHeader() => Padding(
-    padding: const EdgeInsets.symmetric(
-      horizontal: AppSpacing.sm,
-      vertical: AppSpacing.xs,
-    ),
-    child: Row(
-      children: [
-        for (var i = 0; i < 4; i++)
-          Expanded(
-            flex: _electroFlex[i],
-            child: Text(
-              const ['NOM', 'CATÉGORIE', 'QTÉ', 'VALEUR'][i],
-              style: AppTypography.labelSm.copyWith(
-                color: AppColors.onSurfaceVariant,
+  Widget _electroTableHeader() => LayoutBuilder(
+    builder: (context, constraints) {
+      if (constraints.maxWidth < AppBreakpoints.compact) {
+        return const SizedBox.shrink();
+      }
+      return Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.sm,
+          vertical: AppSpacing.xs,
+        ),
+        child: Row(
+          children: [
+            for (var i = 0; i < 4; i++)
+              Expanded(
+                flex: _electroFlex[i],
+                child: Text(
+                  const ['NOM', 'CATÉGORIE', 'QTÉ', 'VALEUR'][i],
+                  style: AppTypography.labelSm.copyWith(
+                    color: AppColors.onSurfaceVariant,
+                  ),
+                ),
               ),
-            ),
-          ),
-        const SizedBox(width: 40),
-      ],
-    ),
+            const SizedBox(width: 40),
+          ],
+        ),
+      );
+    },
   );
 
   Widget _electroTableRow({
@@ -758,43 +859,82 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
     required int quantite,
     required double? valeur,
     required VoidCallback? onDelete,
-  }) => Card(
-    margin: const EdgeInsets.only(bottom: AppSpacing.xs),
-    child: Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.sm,
-        vertical: AppSpacing.xs,
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            flex: _electroFlex[0],
-            child: Text(nom, overflow: TextOverflow.ellipsis),
-          ),
-          Expanded(
-            flex: _electroFlex[1],
-            child: Text(
-              categorie,
-              overflow: TextOverflow.ellipsis,
-              style: AppTypography.bodyMd.copyWith(
-                color: AppColors.onSurfaceVariant,
-              ),
+  }) => LayoutBuilder(
+    builder: (context, constraints) {
+      final deleteButton = onDelete == null
+          ? null
+          : CardDeleteButton(onPressed: onDelete);
+      if (constraints.maxWidth < AppBreakpoints.compact) {
+        return Card(
+          margin: const EdgeInsets.only(bottom: AppSpacing.xs),
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.sm),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(nom, overflow: TextOverflow.ellipsis),
+                      Text(
+                        categorie,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTypography.labelSm.copyWith(
+                          color: AppColors.onSurfaceVariant,
+                        ),
+                      ),
+                      const SizedBox(height: AppSpacing.xs),
+                      Text(
+                        'Qté $quantite'
+                        '${valeur != null ? ' · ${formatEuros(valeur)}' : ''}',
+                        style: AppTypography.labelSm.copyWith(
+                          color: AppColors.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                ?deleteButton,
+              ],
             ),
           ),
-          Expanded(flex: _electroFlex[2], child: Text('$quantite')),
-          Expanded(
-            flex: _electroFlex[3],
-            child: Text(valeur != null ? formatEuros(valeur) : '—'),
+        );
+      }
+      return Card(
+        margin: const EdgeInsets.only(bottom: AppSpacing.xs),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.sm,
+            vertical: AppSpacing.xs,
           ),
-          SizedBox(
-            width: 40,
-            child: onDelete == null
-                ? null
-                : CardDeleteButton(onPressed: onDelete),
+          child: Row(
+            children: [
+              Expanded(
+                flex: _electroFlex[0],
+                child: Text(nom, overflow: TextOverflow.ellipsis),
+              ),
+              Expanded(
+                flex: _electroFlex[1],
+                child: Text(
+                  categorie,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.bodyMd.copyWith(
+                    color: AppColors.onSurfaceVariant,
+                  ),
+                ),
+              ),
+              Expanded(flex: _electroFlex[2], child: Text('$quantite')),
+              Expanded(
+                flex: _electroFlex[3],
+                child: Text(valeur != null ? formatEuros(valeur) : '—'),
+              ),
+              SizedBox(width: 40, child: deleteButton),
+            ],
           ),
-        ],
-      ),
-    ),
+        ),
+      );
+    },
   );
 
   Widget _chargesAccordion(_Bundle? bundle) {
@@ -820,6 +960,40 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
           ? 'Copiées automatiquement dans chaque nouvelle chambre.'
           : 'Définissez les charges pour ce bien.',
       children: [body],
+    );
+  }
+
+  Widget _lotsAccordion() {
+    final editing = _isEditing;
+    final selected = editing ? _existingLots : _draft.lots;
+    final selectedIds = selected.map((l) => l.id).toSet();
+    return AppAccordion(
+      icon: Icons.apartment_outlined,
+      title: 'Lots de copropriété',
+      subtitle: 'Recherchez un lot déjà créé, ou ajoutez-en un nouveau.',
+      children: [
+        LotSearchField(
+          lots: _allLots,
+          selectedIds: selectedIds,
+          onSelect: _selectionnerLot,
+          onCreateNew: _ajouterLot,
+        ),
+        if (selected.isNotEmpty) ...[
+          const SizedBox(height: AppSpacing.md),
+          Wrap(
+            spacing: AppSpacing.sm,
+            runSpacing: AppSpacing.sm,
+            children: selected
+                .map(
+                  (l) => Chip(
+                    label: Text(l.displayLabel),
+                    onDeleted: () => _retirerLot(l),
+                  ),
+                )
+                .toList(),
+          ),
+        ],
+      ],
     );
   }
 
@@ -1410,6 +1584,12 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
 
                                 // ══ 8 — Charges locatives ═══════════════════
                                 _chargesAccordion(bundle),
+                                const SizedBox(height: AppSpacing.lg),
+                                const Divider(),
+                                const SizedBox(height: AppSpacing.md),
+
+                                // ══ 8b — Lots de copropriété ═════════════════
+                                _lotsAccordion(),
                                 const SizedBox(height: AppSpacing.lg),
                                 const Divider(),
                                 const SizedBox(height: AppSpacing.sm),

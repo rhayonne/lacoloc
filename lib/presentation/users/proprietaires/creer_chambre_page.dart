@@ -278,7 +278,7 @@ class _CreerChambrePageState extends State<CreerChambrePage> {
         ),
         child: Row(
           children: [
-            const Icon(Icons.link, color: AppColors.primary),
+            Icon(Icons.link, color: AppColors.primary),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: Column(
@@ -326,7 +326,7 @@ class _CreerChambrePageState extends State<CreerChambrePage> {
       padding: const EdgeInsets.only(top: AppSpacing.xs),
       child: Row(
         children: [
-          const Icon(Icons.info_outline,
+          Icon(Icons.info_outline,
               size: 14, color: AppColors.onSurfaceVariant),
           const SizedBox(width: AppSpacing.xs),
           Expanded(
@@ -354,7 +354,7 @@ class _CreerChambrePageState extends State<CreerChambrePage> {
       ),
       child: Row(
         children: [
-          const Icon(Icons.lock_outline, color: AppColors.onSurfaceVariant),
+          Icon(Icons.lock_outline, color: AppColors.onSurfaceVariant),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
             child: Text(
@@ -677,7 +677,7 @@ class _BailBadge extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const Icon(Icons.description_outlined, size: 14, color: AppColors.primary),
+        Icon(Icons.description_outlined, size: 14, color: AppColors.primary),
         const SizedBox(width: AppSpacing.xs),
         Text(label, style: AppTypography.labelSm.copyWith(color: AppColors.primary)),
       ],

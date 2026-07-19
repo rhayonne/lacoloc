@@ -4,17 +4,17 @@ import 'package:form_builder_validators/form_builder_validators.dart';
 import 'package:lacoloc_front/data/datasources/entreprises.dart';
 import 'package:lacoloc_front/data/models/entreprise.dart';
 import 'package:lacoloc_front/data/models/users_client.dart';
+import 'package:lacoloc_front/presentation/widgets/app_top_bar.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
 import 'package:lacoloc_front/theme/app_typography.dart';
 import 'package:lacoloc_front/theme/app_theme.dart';
-import 'package:lacoloc_front/theme/app_tab_bar.dart';
 import 'package:lacoloc_front/utils/phone_field.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-/// Configuração da empresa (lado **admin de groupe**). Aba **Comptes**: lista os
-/// usuários da empresa e cria novos **propriétaires** com e-mail `local@domínio`
-/// — o domínio é fixo (definido pelo super admin) e o admin de groupe só edita o
+/// Configuração da empresa (lado **admin de groupe**): lista os usuários da
+/// empresa e cria novos **propriétaires** com e-mail `local@domínio` — o
+/// domínio é fixo (definido pelo super admin) e o admin de groupe só edita o
 /// `local` (parte antes do @).
 class EntrepriseConfigPage extends StatefulWidget {
   final int entrepriseId;
@@ -44,25 +44,23 @@ class _EntrepriseConfigPageState extends State<EntrepriseConfigPage> {
         }
         final entreprise = snap.data;
         if (entreprise == null) {
-          return Scaffold(
-            appBar: AppBar(title: const Text('Configuration entreprise')),
-            body: const Center(child: Text('Entreprise introuvable.')),
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: const [
+              AppTopBar(title: 'Configuration entreprise'),
+              Padding(
+                padding: EdgeInsets.all(AppSpacing.lg),
+                child: Text('Entreprise introuvable.'),
+              ),
+            ],
           );
         }
-        return DefaultTabController(
-          length: 1,
-          child: Scaffold(
-            appBar: AppBar(
-              title: Text('Entreprise — ${entreprise.name}'),
-              bottom: AppTabBar(
-                isScrollable: true,
-                tabs: [Tab(text: 'Comptes')],
-              ),
-            ),
-            body: TabBarView(
-              children: [_ComptesTab(entreprise: entreprise)],
-            ),
-          ),
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            AppTopBar(title: 'Entreprise — ${entreprise.name}'),
+            Expanded(child: _ComptesTab(entreprise: entreprise)),
+          ],
         );
       },
     );

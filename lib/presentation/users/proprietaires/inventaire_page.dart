@@ -21,7 +21,9 @@ import 'package:lacoloc_front/presentation/widgets/unsaved_changes_dialog.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_radius.dart';
 import 'package:lacoloc_front/presentation/widgets/app_top_bar.dart';
+import 'package:lacoloc_front/theme/app_breakpoints.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
+import 'package:lacoloc_front/theme/app_table_theme.dart';
 import 'package:lacoloc_front/theme/app_theme.dart';
 import 'package:lacoloc_front/theme/app_typography.dart';
 import 'package:lacoloc_front/utils/currency.dart';
@@ -72,10 +74,12 @@ class _InventairePageState extends State<InventairePage> {
     List<InventaireModel> items = [];
     if (widget.prefilledImmeubleId != null) {
       items = await InventaireDatasource.listByImmeuble(
-          widget.prefilledImmeubleId!);
+        widget.prefilledImmeubleId!,
+      );
     } else if (widget.prefilledChambreId != null) {
       items = await InventaireDatasource.listByChambre(
-          widget.prefilledChambreId!);
+        widget.prefilledChambreId!,
+      );
     } else {
       for (final id in ids) {
         items.addAll(await InventaireDatasource.listByImmeuble(id));
@@ -225,11 +229,7 @@ class _InventaireTable extends StatefulWidget {
 }
 
 class _InventaireTableState extends State<_InventaireTable> {
-  static const _hStyle = TextStyle(
-    fontWeight: FontWeight.w600,
-    fontSize: 12,
-    letterSpacing: 0.5,
-  );
+  static TextStyle get _hStyle => AppTableTheme.headerTextStyle;
 
   String _query = '';
   int? _filterImmeuble;
@@ -304,7 +304,11 @@ class _InventaireTableState extends State<_InventaireTable> {
         border: Border.all(color: AppColors.outlineVariant),
       ),
       padding: const EdgeInsets.fromLTRB(
-          AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.md),
+        AppSpacing.lg,
+        AppSpacing.md,
+        AppSpacing.lg,
+        AppSpacing.md,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -328,8 +332,11 @@ class _InventaireTableState extends State<_InventaireTable> {
                     label: _immeubleNom(e.key),
                     count: e.value,
                     selected: _filterImmeuble == e.key,
-                    onTap: () => setState(() => _filterImmeuble =
-                        _filterImmeuble == e.key ? null : e.key),
+                    onTap: () => setState(
+                      () => _filterImmeuble = _filterImmeuble == e.key
+                          ? null
+                          : e.key,
+                    ),
                   ),
                 ),
               ],
@@ -339,9 +346,12 @@ class _InventaireTableState extends State<_InventaireTable> {
           Text('Catégorie', style: AppTypography.labelMd),
           const SizedBox(height: AppSpacing.sm),
           if (categorieCounts.isEmpty)
-            Text('Aucune catégorie.',
-                style: AppTypography.bodyMd
-                    .copyWith(color: AppColors.onSurfaceVariant))
+            Text(
+              'Aucune catégorie.',
+              style: AppTypography.bodyMd.copyWith(
+                color: AppColors.onSurfaceVariant,
+              ),
+            )
           else
             Wrap(
               spacing: AppSpacing.xs,
@@ -352,8 +362,11 @@ class _InventaireTableState extends State<_InventaireTable> {
                       label: e.key,
                       count: e.value,
                       selected: _filterCategorie == e.key,
-                      onTap: () => setState(() => _filterCategorie =
-                          _filterCategorie == e.key ? null : e.key),
+                      onTap: () => setState(
+                        () => _filterCategorie = _filterCategorie == e.key
+                            ? null
+                            : e.key,
+                      ),
                     ),
                   )
                   .toList(),
@@ -373,14 +386,36 @@ class _InventaireTableState extends State<_InventaireTable> {
                     _filterCategorie = null;
                   });
                 },
-                style: AppTheme.deleteButtonStyle,
-                icon: const Icon(Icons.clear_all, size: 18),
+                style: AppTheme.deleteButtonStyle.copyWith(
+                  padding: const WidgetStatePropertyAll(
+                    EdgeInsets.symmetric(
+                      horizontal: AppSpacing.lg,
+                      vertical: 10,
+                    ),
+                  ),
+                  minimumSize: const WidgetStatePropertyAll(Size(0, 40)),
+                  textStyle: WidgetStatePropertyAll(
+                    AppTypography.labelSm.copyWith(fontWeight: FontWeight.w600),
+                  ),
+                ),
+                icon: const Icon(Icons.clear_all, size: 16),
                 label: const Text('Réinitialiser'),
               ),
               FilledButton.icon(
                 onPressed: () => setState(() => _filterOpen = false),
-                style: AppTheme.saveButtonStyle,
-                icon: const Icon(Icons.check, size: 18),
+                style: AppTheme.saveButtonStyle.copyWith(
+                  padding: const WidgetStatePropertyAll(
+                    EdgeInsets.symmetric(
+                      horizontal: AppSpacing.lg,
+                      vertical: 10,
+                    ),
+                  ),
+                  minimumSize: const WidgetStatePropertyAll(Size(0, 40)),
+                  textStyle: WidgetStatePropertyAll(
+                    AppTypography.labelSm.copyWith(fontWeight: FontWeight.w600),
+                  ),
+                ),
+                icon: const Icon(Icons.check, size: 16),
                 label: const Text('Appliquer'),
               ),
             ],
@@ -416,7 +451,7 @@ class _InventaireTableState extends State<_InventaireTable> {
           // ── Filtres (recherche + bouton Filtres) ──────────────────────
           LayoutBuilder(
             builder: (context, constraints) {
-              if (constraints.maxWidth < 600) {
+              if (constraints.maxWidth < AppBreakpoints.compact) {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -447,11 +482,13 @@ class _InventaireTableState extends State<_InventaireTable> {
                 border: Border.all(color: AppColors.outlineVariant),
               ),
               clipBehavior: Clip.antiAlias,
-              // Sous ~760px on bascule en cartes verticales (lisible sur mobile)
-              // au lieu de comprimer toutes les colonnes du tableau.
+              // Sous ce seuil (partagé par toutes les tables de l'app) on
+              // bascule en cartes verticales (lisible sur mobile) au lieu de
+              // comprimer toutes les colonnes du tableau.
               child: LayoutBuilder(
                 builder: (context, constraints) {
-                  final narrow = constraints.maxWidth < 760;
+                  final narrow =
+                      constraints.maxWidth < AppBreakpoints.tableToCards;
                   if (filtered.isEmpty) {
                     return Center(
                       child: Text(
@@ -485,25 +522,33 @@ class _InventaireTableState extends State<_InventaireTable> {
                           horizontal: AppSpacing.md,
                           vertical: AppSpacing.sm,
                         ),
-                        color: AppColors.surfaceContainerLow,
-                        child: const Row(
+                        color: AppTableTheme.headerBackgroundColor,
+                        child: Row(
                           children: [
                             Expanded(
-                                flex: 3,
-                                child: Text('Article', style: _hStyle)),
+                              flex: 3,
+                              child: Text('Article', style: _hStyle),
+                            ),
                             Expanded(
-                                flex: 2,
-                                child: Text('Catégorie', style: _hStyle)),
+                              flex: 2,
+                              child: Text('Catégorie', style: _hStyle),
+                            ),
                             Expanded(
-                                flex: 2,
-                                child: Text('Immeuble', style: _hStyle)),
+                              flex: 2,
+                              child: Text('Immeuble', style: _hStyle),
+                            ),
                             Expanded(
-                                flex: 2, child: Text('Lieu', style: _hStyle)),
+                              flex: 2,
+                              child: Text('Lieu', style: _hStyle),
+                            ),
                             Expanded(
-                                flex: 1, child: Text('Qté', style: _hStyle)),
+                              flex: 1,
+                              child: Text('Qté', style: _hStyle),
+                            ),
                             Expanded(
-                                flex: 2,
-                                child: Text('Valeur', style: _hStyle)),
+                              flex: 2,
+                              child: Text('Valeur', style: _hStyle),
+                            ),
                             SizedBox(width: 80),
                           ],
                         ),
@@ -515,8 +560,7 @@ class _InventaireTableState extends State<_InventaireTable> {
                           separatorBuilder: (_, _) => const Divider(height: 1),
                           itemBuilder: (_, i) => _InventaireRow(
                             item: filtered[i],
-                            immeubleNom:
-                                _immeubleNom(filtered[i].immeubleId),
+                            immeubleNom: _immeubleNom(filtered[i].immeubleId),
                             onEdit: () => widget.onEdit(filtered[i]),
                             onDelete: () => widget.onDelete(filtered[i]),
                           ),
@@ -551,104 +595,121 @@ class _InventaireRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final valeur = item.valeur != null ? formatEuros(item.valeur!) : '—';
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.md,
-        vertical: 10,
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            flex: 3,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Flexible(
-                      child: Text(item.displayNom,
+    return HoverTableRow(
+      child: Padding(
+        padding: AppTableTheme.rowPadding,
+        child: Row(
+          children: [
+            Expanded(
+              flex: 3,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          item.displayNom,
                           style: AppTypography.labelMd,
                           maxLines: 1,
-                          overflow: TextOverflow.ellipsis),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (item.photos.isNotEmpty) ...[
+                        const SizedBox(width: AppSpacing.xs),
+                        Tooltip(
+                          message: '${item.photos.length} photo(s)',
+                          child: Icon(
+                            Icons.photo_outlined,
+                            size: 14,
+                            color: AppColors.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                      if (item.dansAnnonce) ...[
+                        const SizedBox(width: AppSpacing.xs),
+                        Tooltip(
+                          message: "Affiché dans l'annonce",
+                          child: Icon(
+                            Icons.storefront_outlined,
+                            size: 14,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              flex: 2,
+              child: Text(
+                item.meubleCategorie ?? '—',
+                style: AppTypography.bodyMd.copyWith(
+                  color: AppColors.onSurfaceVariant,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            Expanded(
+              flex: 2,
+              child: Text(
+                immeubleNom,
+                style: AppTypography.bodyMd,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            Expanded(
+              flex: 2,
+              child: Text(item.displayLieu, style: AppTypography.bodyMd),
+            ),
+            Expanded(
+              flex: 1,
+              child: Text('${item.quantite}', style: AppTypography.bodyMd),
+            ),
+            Expanded(flex: 2, child: Text(valeur, style: AppTypography.bodyMd)),
+            SizedBox(
+              width: 80,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  PermissionGate(
+                    permission: Perm.inventaireEdit,
+                    child: IconButton(
+                      icon: const Icon(Icons.edit_outlined, size: 18),
+                      tooltip: 'Modifier',
+                      onPressed: onEdit,
+                      visualDensity: VisualDensity.compact,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(
+                        minWidth: 32,
+                        minHeight: 32,
+                      ),
                     ),
-                    if (item.photos.isNotEmpty) ...[
-                      const SizedBox(width: AppSpacing.xs),
-                      Tooltip(
-                        message: '${item.photos.length} photo(s)',
-                        child: Icon(Icons.photo_outlined,
-                            size: 14, color: AppColors.onSurfaceVariant),
-                      ),
-                    ],
-                    if (item.dansAnnonce) ...[
-                      const SizedBox(width: AppSpacing.xs),
-                      Tooltip(
-                        message: "Affiché dans l'annonce",
-                        child: Icon(Icons.storefront_outlined,
-                            size: 14, color: AppColors.primary),
-                      ),
-                    ],
-                  ],
-                ),
-              ],
-            ),
-          ),
-          Expanded(
-            flex: 2,
-            child: Text(
-              item.meubleCategorie ?? '—',
-              style: AppTypography.bodyMd
-                  .copyWith(color: AppColors.onSurfaceVariant),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          Expanded(
-            flex: 2,
-            child: Text(
-              immeubleNom,
-              style: AppTypography.bodyMd,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          Expanded(
-            flex: 2,
-            child: Text(item.displayLieu, style: AppTypography.bodyMd),
-          ),
-          Expanded(
-            flex: 1,
-            child: Text('${item.quantite}', style: AppTypography.bodyMd),
-          ),
-          Expanded(
-            flex: 2,
-            child: Text(valeur, style: AppTypography.bodyMd),
-          ),
-          SizedBox(
-            width: 80,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                PermissionGate(
-                  permission: Perm.inventaireEdit,
-                  child: IconButton(
-                    icon: const Icon(Icons.edit_outlined, size: 18),
-                    tooltip: 'Modifier',
-                    onPressed: onEdit,
                   ),
-                ),
-                PermissionGate(
-                  permission: Perm.inventaireDelete,
-                  child: IconButton(
-                    icon: const Icon(Icons.delete_outline, size: 18),
-                    tooltip: 'Supprimer',
-                    color: AppColors.error,
-                    onPressed: onDelete,
+                  PermissionGate(
+                    permission: Perm.inventaireDelete,
+                    child: IconButton(
+                      icon: const Icon(Icons.delete_outline, size: 18),
+                      tooltip: 'Supprimer',
+                      color: AppColors.error,
+                      onPressed: onDelete,
+                      visualDensity: VisualDensity.compact,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(
+                        minWidth: 32,
+                        minHeight: 32,
+                      ),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -673,23 +734,29 @@ class _InventaireCard extends StatelessWidget {
     final valeur = item.valeur != null ? formatEuros(item.valeur!) : '—';
 
     Widget infoLine(IconData icon, String label, String value) => Padding(
-          padding: const EdgeInsets.only(top: 4),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(icon, size: 14, color: AppColors.onSurfaceVariant),
-              const SizedBox(width: AppSpacing.xs),
-              Text('$label : ',
-                  style: AppTypography.labelSm
-                      .copyWith(color: AppColors.onSurfaceVariant)),
-              Expanded(
-                child: Text(value,
-                    style: AppTypography.bodyMd, maxLines: 2,
-                    overflow: TextOverflow.ellipsis),
-              ),
-            ],
+      padding: const EdgeInsets.only(top: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 14, color: AppColors.onSurfaceVariant),
+          const SizedBox(width: AppSpacing.xs),
+          Text(
+            '$label : ',
+            style: AppTypography.labelSm.copyWith(
+              color: AppColors.onSurfaceVariant,
+            ),
           ),
-        );
+          Expanded(
+            child: Text(
+              value,
+              style: AppTypography.bodyMd,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
 
     return Container(
       decoration: BoxDecoration(
@@ -698,7 +765,11 @@ class _InventaireCard extends StatelessWidget {
         border: Border.all(color: AppColors.outlineVariant),
       ),
       padding: const EdgeInsets.fromLTRB(
-          AppSpacing.md, AppSpacing.md, AppSpacing.sm, AppSpacing.md),
+        AppSpacing.md,
+        AppSpacing.md,
+        AppSpacing.sm,
+        AppSpacing.md,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -710,20 +781,28 @@ class _InventaireCard extends StatelessWidget {
                 child: Row(
                   children: [
                     Flexible(
-                      child: Text(item.displayNom,
-                          style: AppTypography.labelMd,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis),
+                      child: Text(
+                        item.displayNom,
+                        style: AppTypography.labelMd,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                     if (item.photos.isNotEmpty) ...[
                       const SizedBox(width: AppSpacing.xs),
-                      Icon(Icons.photo_outlined,
-                          size: 14, color: AppColors.onSurfaceVariant),
+                      Icon(
+                        Icons.photo_outlined,
+                        size: 14,
+                        color: AppColors.onSurfaceVariant,
+                      ),
                     ],
                     if (item.dansAnnonce) ...[
                       const SizedBox(width: AppSpacing.xs),
-                      Icon(Icons.storefront_outlined,
-                          size: 14, color: AppColors.primary),
+                      Icon(
+                        Icons.storefront_outlined,
+                        size: 14,
+                        color: AppColors.primary,
+                      ),
                     ],
                   ],
                 ),
@@ -749,8 +828,11 @@ class _InventaireCard extends StatelessWidget {
               ),
             ],
           ),
-          infoLine(Icons.category_outlined, 'Catégorie',
-              item.meubleCategorie ?? '—'),
+          infoLine(
+            Icons.category_outlined,
+            'Catégorie',
+            item.meubleCategorie ?? '—',
+          ),
           infoLine(Icons.apartment_outlined, 'Immeuble', immeubleNom),
           infoLine(Icons.place_outlined, 'Lieu', item.displayLieu),
           Padding(
@@ -780,9 +862,12 @@ class _CardStat extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label,
-            style: AppTypography.labelSm
-                .copyWith(color: AppColors.onSurfaceVariant)),
+        Text(
+          label,
+          style: AppTypography.labelSm.copyWith(
+            color: AppColors.onSurfaceVariant,
+          ),
+        ),
         Text(value, style: AppTypography.labelMd),
       ],
     );
@@ -816,10 +901,7 @@ class _InvFilterChip extends StatelessWidget {
       borderRadius: AppRadius.borderFull,
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.md,
-          vertical: 8,
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
           color: bg,
           borderRadius: AppRadius.borderFull,
@@ -829,13 +911,15 @@ class _InvFilterChip extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             if (selected) ...[
-              Icon(Icons.check, size: 14, color: fg),
+              Icon(Icons.check, size: 13, color: fg),
               const SizedBox(width: 4),
             ],
             Text(
               label,
-              style: AppTypography.labelSm
-                  .copyWith(color: fg, fontWeight: FontWeight.w600),
+              style: AppTypography.labelSm.copyWith(
+                color: fg,
+                fontWeight: FontWeight.w600,
+              ),
             ),
             const SizedBox(width: 6),
             Container(
@@ -950,8 +1034,9 @@ class _InventaireFormState extends State<_InventaireForm> {
       );
     }
     final refs = await InventaireDatasource.listMeubleReferences();
-    final categories =
-        (await MeubleCategoriesDatasource.listAll()).map((c) => c.nom).toList();
+    final categories = (await MeubleCategoriesDatasource.listAll())
+        .map((c) => c.nom)
+        .toList();
     final immeubles = await ImmeublesDatasource.listByOwner(ownerId);
     final ids = immeubles.map((i) => i.id).toList();
     final chambres = ids.isEmpty
@@ -973,16 +1058,19 @@ class _InventaireFormState extends State<_InventaireForm> {
 
     // Pre-fill immeuble/chambre after loading
     if (mounted) {
-      final preImmId = widget.existing?.immeubleId ?? widget.prefilledImmeubleId;
+      final preImmId =
+          widget.existing?.immeubleId ?? widget.prefilledImmeubleId;
       if (preImmId != null) {
         final imm = immeubles.where((i) => i.id == preImmId).firstOrNull;
         if (imm != null) {
           setState(() {
             _immeuble = imm;
-            _chambresForImmeuble =
-                chambres.where((c) => c.immeubleId == imm.id).toList();
-            _piecesForImmeuble =
-                pieces.where((p) => p.immeubleId == imm.id).toList();
+            _chambresForImmeuble = chambres
+                .where((c) => c.immeubleId == imm.id)
+                .toList();
+            _piecesForImmeuble = pieces
+                .where((p) => p.immeubleId == imm.id)
+                .toList();
           });
         }
       }
@@ -992,11 +1080,15 @@ class _InventaireFormState extends State<_InventaireForm> {
         if (ch != null) setState(() => _chambre = ch);
       }
       if (widget.existing?.pieceId != null) {
-        final p = pieces.where((p) => p.id == widget.existing!.pieceId).firstOrNull;
+        final p = pieces
+            .where((p) => p.id == widget.existing!.pieceId)
+            .firstOrNull;
         if (p != null) setState(() => _piece = p);
       }
       if (widget.existing?.meubleRefId != null) {
-        final ref = refs.where((r) => r.id == widget.existing!.meubleRefId).firstOrNull;
+        final ref = refs
+            .where((r) => r.id == widget.existing!.meubleRefId)
+            .firstOrNull;
         if (ref != null) setState(() => _meubleRef = ref);
       }
     }
@@ -1012,8 +1104,9 @@ class _InventaireFormState extends State<_InventaireForm> {
     _qtCtrl.text = '${e.quantite}';
     _descCtrl.text = e.description ?? '';
     _photos = List.from(e.photos);
-    _valeurAchatCtrl.text =
-        e.valeurAchat != null ? formatEuros(e.valeurAchat!) : '';
+    _valeurAchatCtrl.text = e.valeurAchat != null
+        ? formatEuros(e.valeurAchat!)
+        : '';
     _dateAcquisition = e.dateAcquisition;
     _categorieVetuste = e.categorieVetuste;
     _dansAnnonce = e.dansAnnonce;
@@ -1024,22 +1117,26 @@ class _InventaireFormState extends State<_InventaireForm> {
   /// continuer (pas de doublon, ou l'utilisateur confirme malgré tout).
   Future<bool> _checkDuplicate(String nom) async {
     try {
-      final existing =
-          await InventaireDatasource.listByImmeuble(_immeuble!.id);
+      final existing = await InventaireDatasource.listByImmeuble(_immeuble!.id);
       final n = nom.toLowerCase().trim();
-      final dup = existing.where((it) =>
-          it.id != (widget.existing?.id ?? -1) &&
-          it.chambreId == _chambre?.id &&
-          it.pieceId == _piece?.id &&
-          it.displayNom.toLowerCase().trim() == n);
+      final dup = existing.where(
+        (it) =>
+            it.id != (widget.existing?.id ?? -1) &&
+            it.chambreId == _chambre?.id &&
+            it.pieceId == _piece?.id &&
+            it.displayNom.toLowerCase().trim() == n,
+      );
       if (dup.isEmpty) return true;
       if (!mounted) return false;
       final lieu = _chambre?.roomName ?? _piece?.nom ?? 'parties communes';
       final ok = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
-          icon: const Icon(Icons.copy_all_outlined,
-              color: AppColors.secondary, size: 32),
+          icon: Icon(
+            Icons.copy_all_outlined,
+            color: AppColors.secondary,
+            size: 32,
+          ),
           title: const Text('Article déjà présent'),
           content: Text(
             "« $nom » existe déjà dans « $lieu » de cet immeuble.\n\n"
@@ -1137,31 +1234,30 @@ class _InventaireFormState extends State<_InventaireForm> {
   }
 
   void _snack(String msg) =>
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(msg)));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
 
   String _meubleDisplayText(MeubleReferenceModel r) => r.nom;
 
   Widget _label(String text, {String? help}) => Padding(
-        padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-        child: Row(
-          children: [
-            Flexible(
-              child: Text(
-                text,
-                style: AppTypography.labelSm.copyWith(
-                  color: AppColors.onSurfaceVariant,
-                  letterSpacing: 1.2,
-                ),
-              ),
+    padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+    child: Row(
+      children: [
+        Flexible(
+          child: Text(
+            text,
+            style: AppTypography.labelSm.copyWith(
+              color: AppColors.onSurfaceVariant,
+              letterSpacing: 1.2,
             ),
-            if (help != null) ...[
-              const SizedBox(width: AppSpacing.xs),
-              fieldHelpIcon(help),
-            ],
-          ],
+          ),
         ),
-      );
+        if (help != null) ...[
+          const SizedBox(width: AppSpacing.xs),
+          fieldHelpIcon(help),
+        ],
+      ],
+    ),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -1178,7 +1274,8 @@ class _InventaireFormState extends State<_InventaireForm> {
             child: Text('Erreur de chargement : ${snapshot.error}'),
           );
         }
-        final bundle = snapshot.data ??
+        final bundle =
+            snapshot.data ??
             const _FormBundle(
               immeubles: [],
               allChambres: [],
@@ -1192,7 +1289,10 @@ class _InventaireFormState extends State<_InventaireForm> {
             // Header
             Padding(
               padding: const EdgeInsets.fromLTRB(
-                AppSpacing.lg, AppSpacing.md, AppSpacing.lg, 0,
+                AppSpacing.lg,
+                AppSpacing.md,
+                AppSpacing.lg,
+                0,
               ),
               child: Row(
                 children: [
@@ -1230,16 +1330,20 @@ class _InventaireFormState extends State<_InventaireForm> {
                           optionsBuilder: (tev) {
                             final q = tev.text.toLowerCase().trim();
                             if (q.isEmpty) return bundle.refs.take(30);
-                            return bundle.refs.where((r) =>
-                                r.nom.toLowerCase().contains(q) ||
-                                (r.categorie?.toLowerCase().contains(q) ??
-                                    false));
+                            return bundle.refs.where(
+                              (r) =>
+                                  r.nom.toLowerCase().contains(q) ||
+                                  (r.categorie?.toLowerCase().contains(q) ??
+                                      false),
+                            );
                           },
                           onSelected: (r) => setState(() {
                             _meubleRef = r;
                             _nomText = r.nom;
                             // Hérite de la catégorie du meuble pour la vétusté.
-                            if (r.categorie != null) _categorieVetuste = r.categorie;
+                            if (r.categorie != null) {
+                              _categorieVetuste = r.categorie;
+                            }
                             _markDirty();
                           }),
                           fieldViewBuilder: (ctx, ctrl, focus, submit) {
@@ -1270,9 +1374,11 @@ class _InventaireFormState extends State<_InventaireForm> {
                                 // exactement à une référence du catalogue, on la lie
                                 // (meubleRefId), sinon c'est un nom libre (nomCustom).
                                 final match = bundle.refs
-                                    .where((r) =>
-                                        r.nom.toLowerCase() ==
-                                        v.toLowerCase().trim())
+                                    .where(
+                                      (r) =>
+                                          r.nom.toLowerCase() ==
+                                          v.toLowerCase().trim(),
+                                    )
                                     .firstOrNull;
                                 setState(() {
                                   _nomText = v;
@@ -1293,13 +1399,15 @@ class _InventaireFormState extends State<_InventaireForm> {
                           isExpanded: true,
                           hint: const Text('Sélectionner un immeuble…'),
                           items: bundle.immeubles
-                              .map((i) => DropdownMenuItem(
-                                    value: i,
-                                    child: Text(
-                                      i.name,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ))
+                              .map(
+                                (i) => DropdownMenuItem(
+                                  value: i,
+                                  child: Text(
+                                    i.name,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              )
                               .toList(),
                           onChanged: widget.prefilledImmeubleId != null
                               ? null
@@ -1311,13 +1419,17 @@ class _InventaireFormState extends State<_InventaireForm> {
                                     _piece = null;
                                     _chambresForImmeuble = v != null
                                         ? bundle.allChambres
-                                            .where((c) => c.immeubleId == v.id)
-                                            .toList()
+                                              .where(
+                                                (c) => c.immeubleId == v.id,
+                                              )
+                                              .toList()
                                         : [];
                                     _piecesForImmeuble = v != null
                                         ? bundle.allPieces
-                                            .where((p) => p.immeubleId == v.id)
-                                            .toList()
+                                              .where(
+                                                (p) => p.immeubleId == v.id,
+                                              )
+                                              .toList()
                                         : [];
                                   });
                                 },
@@ -1342,30 +1454,36 @@ class _InventaireFormState extends State<_InventaireForm> {
                                       _label('CHAMBRE'),
                                       DropdownButtonFormField<ChambreModel>(
                                         key: ValueKey(
-                                            'chambre_${_immeuble?.id}_${_chambre?.id}'),
+                                          'chambre_${_immeuble?.id}_${_chambre?.id}',
+                                        ),
                                         initialValue: _chambre,
                                         isExpanded: true,
                                         hint: const Text('—'),
                                         items: [
                                           const DropdownMenuItem(
-                                              value: null,
-                                              child: Text('—')),
+                                            value: null,
+                                            child: Text('—'),
+                                          ),
                                           ..._chambresForImmeuble.map(
                                             (c) => DropdownMenuItem(
                                               value: c,
-                                              child: Text(c.roomName,
-                                                  overflow:
-                                                      TextOverflow.ellipsis),
+                                              child: Text(
+                                                c.roomName,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
                                             ),
                                           ),
                                         ],
-                                        onChanged: (_piece != null ||
+                                        onChanged:
+                                            (_piece != null ||
                                                 widget.prefilledChambreId !=
                                                     null)
                                             ? null
-                                            : (v) => setState(() { _markDirty(); _chambre = v; }),
-                                        decoration:
-                                            const InputDecoration(),
+                                            : (v) => setState(() {
+                                                _markDirty();
+                                                _chambre = v;
+                                              }),
+                                        decoration: const InputDecoration(),
                                       ),
                                     ],
                                   ),
@@ -1379,28 +1497,33 @@ class _InventaireFormState extends State<_InventaireForm> {
                                       _label('PIÈCE'),
                                       DropdownButtonFormField<PieceModel>(
                                         key: ValueKey(
-                                            'piece_${_immeuble?.id}_${_piece?.id}'),
+                                          'piece_${_immeuble?.id}_${_piece?.id}',
+                                        ),
                                         initialValue: _piece,
                                         isExpanded: true,
                                         hint: const Text('—'),
                                         items: [
                                           const DropdownMenuItem(
-                                              value: null,
-                                              child: Text('—')),
+                                            value: null,
+                                            child: Text('—'),
+                                          ),
                                           ..._piecesForImmeuble.map(
                                             (p) => DropdownMenuItem(
                                               value: p,
-                                              child: Text(p.nom,
-                                                  overflow:
-                                                      TextOverflow.ellipsis),
+                                              child: Text(
+                                                p.nom,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
                                             ),
                                           ),
                                         ],
-                                        onChanged:
-                                            _chambre != null ? null : (v) =>
-                                                setState(() { _markDirty(); _piece = v; }),
-                                        decoration:
-                                            const InputDecoration(),
+                                        onChanged: _chambre != null
+                                            ? null
+                                            : (v) => setState(() {
+                                                _markDirty();
+                                                _piece = v;
+                                              }),
+                                        decoration: const InputDecoration(),
                                       ),
                                     ],
                                   ),
@@ -1411,46 +1534,62 @@ class _InventaireFormState extends State<_InventaireForm> {
                             _label('CHAMBRE'),
                             DropdownButtonFormField<ChambreModel>(
                               key: ValueKey(
-                                  'chambre_${_immeuble?.id}_${_chambre?.id}'),
+                                'chambre_${_immeuble?.id}_${_chambre?.id}',
+                              ),
                               initialValue: _chambre,
                               isExpanded: true,
                               hint: const Text('—'),
                               items: [
                                 const DropdownMenuItem(
-                                    value: null, child: Text('—')),
+                                  value: null,
+                                  child: Text('—'),
+                                ),
                                 ..._chambresForImmeuble.map(
                                   (c) => DropdownMenuItem(
                                     value: c,
-                                    child: Text(c.roomName,
-                                        overflow: TextOverflow.ellipsis),
+                                    child: Text(
+                                      c.roomName,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
                                   ),
                                 ),
                               ],
                               onChanged: widget.prefilledChambreId != null
                                   ? null
-                                  : (v) => setState(() { _markDirty(); _chambre = v; }),
+                                  : (v) => setState(() {
+                                      _markDirty();
+                                      _chambre = v;
+                                    }),
                               decoration: const InputDecoration(),
                             ),
                           ] else ...[
                             _label('PIÈCE'),
                             DropdownButtonFormField<PieceModel>(
                               key: ValueKey(
-                                  'piece_${_immeuble?.id}_${_piece?.id}'),
+                                'piece_${_immeuble?.id}_${_piece?.id}',
+                              ),
                               initialValue: _piece,
                               isExpanded: true,
                               hint: const Text('—'),
                               items: [
                                 const DropdownMenuItem(
-                                    value: null, child: Text('—')),
+                                  value: null,
+                                  child: Text('—'),
+                                ),
                                 ..._piecesForImmeuble.map(
                                   (p) => DropdownMenuItem(
                                     value: p,
-                                    child: Text(p.nom,
-                                        overflow: TextOverflow.ellipsis),
+                                    child: Text(
+                                      p.nom,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
                                   ),
                                 ),
                               ],
-                              onChanged: (v) => setState(() { _markDirty(); _piece = v; }),
+                              onChanged: (v) => setState(() {
+                                _markDirty();
+                                _piece = v;
+                              }),
                               decoration: const InputDecoration(),
                             ),
                           ],
@@ -1458,13 +1597,16 @@ class _InventaireFormState extends State<_InventaireForm> {
                         ],
 
                         // ── Valeur ────────────────────────────────────
-                        _label('VALEUR (€)',
-                            help:
-                                "Valeur actuelle (de remplacement) du bien, affichée dans l'inventaire."),
+                        _label(
+                          'VALEUR (€)',
+                          help:
+                              "Valeur actuelle (de remplacement) du bien, affichée dans l'inventaire.",
+                        ),
                         TextField(
                           controller: _valeurCtrl,
                           keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true),
+                            decimal: true,
+                          ),
                           inputFormatters: [CurrencyInputFormatter()],
                           onChanged: (_) => setState(_markDirty),
                           decoration: const InputDecoration(
@@ -1473,18 +1615,25 @@ class _InventaireFormState extends State<_InventaireForm> {
                           ),
                         ),
                         // Aperçu formaté (lisible) sous le champ.
-                        Builder(builder: (_) {
-                          final v = parseEuros(_valeurCtrl.text);
-                          if (v == null || v <= 0) return const SizedBox.shrink();
-                          return Padding(
-                            padding: const EdgeInsets.only(top: AppSpacing.xs),
-                            child: Text(
-                              '= ${formatEuros(v)}',
-                              style: AppTypography.labelSm
-                                  .copyWith(color: AppColors.onSurfaceVariant),
-                            ),
-                          );
-                        }),
+                        Builder(
+                          builder: (_) {
+                            final v = parseEuros(_valeurCtrl.text);
+                            if (v == null || v <= 0) {
+                              return const SizedBox.shrink();
+                            }
+                            return Padding(
+                              padding: const EdgeInsets.only(
+                                top: AppSpacing.xs,
+                              ),
+                              child: Text(
+                                '= ${formatEuros(v)}',
+                                style: AppTypography.labelSm.copyWith(
+                                  color: AppColors.onSurfaceVariant,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
                         const SizedBox(height: AppSpacing.md),
 
                         // ── Quantité ──────────────────────────────────
@@ -1531,13 +1680,16 @@ class _InventaireFormState extends State<_InventaireForm> {
                         const SizedBox(height: AppSpacing.md),
 
                         // ── Vétusté (pour le décompte de réparations) ──
-                        _label('VALEUR D\'ACHAT (€) — vétusté',
-                            help:
-                                "Prix d'achat d'origine. Avec la date d'acquisition, sert au calcul de la vétusté (abattement) à la sortie. Différent de la « Valeur » (valeur actuelle)."),
+                        _label(
+                          'VALEUR D\'ACHAT (€) — vétusté',
+                          help:
+                              "Prix d'achat d'origine. Avec la date d'acquisition, sert au calcul de la vétusté (abattement) à la sortie. Différent de la « Valeur » (valeur actuelle).",
+                        ),
                         TextField(
                           controller: _valeurAchatCtrl,
                           keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true),
+                            decimal: true,
+                          ),
                           inputFormatters: [CurrencyInputFormatter()],
                           onChanged: (_) => setState(_markDirty),
                           decoration: const InputDecoration(
@@ -1586,7 +1738,8 @@ class _InventaireFormState extends State<_InventaireForm> {
                               style: _dateAcquisition != null
                                   ? AppTypography.bodyMd
                                   : AppTypography.bodyMd.copyWith(
-                                      color: AppColors.onSurfaceVariant),
+                                      color: AppColors.onSurfaceVariant,
+                                    ),
                             ),
                           ),
                         ),
@@ -1595,7 +1748,8 @@ class _InventaireFormState extends State<_InventaireForm> {
                         _label('CATÉGORIE DE VÉTUSTÉ'),
                         DropdownButtonFormField<String>(
                           key: ValueKey('catvet_$_categorieVetuste'),
-                          initialValue: bundle.categories.contains(_categorieVetuste)
+                          initialValue:
+                              bundle.categories.contains(_categorieVetuste)
                               ? _categorieVetuste
                               : null,
                           isExpanded: true,
@@ -1605,8 +1759,10 @@ class _InventaireFormState extends State<_InventaireForm> {
                                 'Détermine le barème de vétusté appliqué.',
                           ),
                           items: bundle.categories
-                              .map((c) => DropdownMenuItem(
-                                  value: c, child: Text(c)))
+                              .map(
+                                (c) =>
+                                    DropdownMenuItem(value: c, child: Text(c)),
+                              )
                               .toList(),
                           onChanged: (v) => setState(() {
                             _categorieVetuste = v;
@@ -1632,7 +1788,7 @@ class _InventaireFormState extends State<_InventaireForm> {
                           child: FilledButton(
                             onPressed: _isSaving ? null : _save,
                             child: _isSaving
-                                ? const SizedBox(
+                                ? SizedBox(
                                     width: 20,
                                     height: 20,
                                     child: CircularProgressIndicator(
@@ -1640,9 +1796,11 @@ class _InventaireFormState extends State<_InventaireForm> {
                                       color: AppColors.onPrimary,
                                     ),
                                   )
-                                : Text(widget.isEditing
-                                    ? 'Enregistrer les modifications'
-                                    : 'Ajouter à l\'inventaire'),
+                                : Text(
+                                    widget.isEditing
+                                        ? 'Enregistrer les modifications'
+                                        : 'Ajouter à l\'inventaire',
+                                  ),
                           ),
                         ),
                       ],

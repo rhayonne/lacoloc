@@ -2,7 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:lacoloc_front/data/models/theme_ref.dart';
 import 'package:lacoloc_front/data/models/users_client.dart';
+import 'package:lacoloc_front/theme/theme_controller.dart';
 import 'package:lacoloc_front/utils/auth_error.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -211,5 +213,46 @@ class AuthService {
         .maybeSingle();
     if (row == null) return null;
     return UsersClient.fromJson(row);
+  }
+
+  // ── Thème choisi par l'utilisateur ────────────────────────────────────────
+  // La préférence vit en base (`Users_Client.theme_preference`) pour suivre la
+  // personne d'un appareil à l'autre. Le `ThemeController` ne connaît que la
+  // valeur courante ; la persistance est ici, dans la couche données.
+
+  /// Applique le thème enregistré de l'utilisateur connecté. Appelé à la
+  /// connexion. Son choix l'emporte sur le thème principal ; s'il n'a rien
+  /// choisi (ou si son thème a été désactivé depuis), il voit le principal.
+  /// Best-effort : si la lecture échoue, on garde le thème courant plutôt que
+  /// de bloquer l'ouverture de session.
+  static Future<void> loadThemePreference() async {
+    final user = currentUser;
+    if (user == null) return;
+    try {
+      final row = await _client
+          .from(_profileTable)
+          .select('theme_preference')
+          .eq('id', user.id)
+          .maybeSingle();
+      await ThemeController.instance.applyUserPreference(
+        row?['theme_preference'] as String?,
+      );
+    } catch (_) {
+      // Thème = confort, pas une donnée critique : on n'interrompt rien.
+    }
+  }
+
+  /// Enregistre le thème choisi et l'applique immédiatement.
+  /// Lève si l'écriture échoue, pour que l'écran puisse le dire à
+  /// l'utilisateur (sinon son choix serait perdu au prochain démarrage sans
+  /// qu'il le sache).
+  static Future<void> saveThemePreference(ThemeRef theme) async {
+    ThemeController.instance.set(theme);
+    final user = currentUser;
+    if (user == null) return;
+    await _client
+        .from(_profileTable)
+        .update({'theme_preference': theme.code})
+        .eq('id', user.id);
   }
 }

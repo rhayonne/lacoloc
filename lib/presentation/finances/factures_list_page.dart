@@ -9,6 +9,8 @@ import 'package:lacoloc_front/data/permissions/permissions_service.dart';
 import 'package:lacoloc_front/presentation/finances/nouvelle_facture_page.dart';
 import 'package:lacoloc_front/presentation/widgets/app_top_bar.dart';
 import 'package:lacoloc_front/presentation/widgets/permission_gate.dart';
+import 'package:lacoloc_front/presentation/widgets/app_list_search_field.dart';
+import 'package:lacoloc_front/theme/app_breakpoints.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_radius.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
@@ -175,35 +177,17 @@ class _FacturesListPageState extends State<FacturesListPage>
             ),
           ),
         ),
-        Padding(
+        AppListSearchField(
+          hint: 'Rechercher par immeuble, fournisseur, N° facture…',
+          controller: _searchCtrl,
           padding: const EdgeInsets.fromLTRB(
             AppSpacing.lg,
             AppSpacing.md,
             AppSpacing.lg,
             AppSpacing.md,
           ),
-          child: TextField(
-                controller: _searchCtrl,
-                decoration: InputDecoration(
-                  hintText:
-                      'Rechercher par immeuble, fournisseur, N° facture…',
-                  prefixIcon: const Icon(Icons.search, size: 20),
-                  suffixIcon: _query.isNotEmpty
-                      ? IconButton(
-                          icon: const Icon(Icons.close, size: 18),
-                          tooltip: 'Effacer',
-                          onPressed: _searchCtrl.clear,
-                        )
-                      : null,
-                  isDense: true,
-                  border: const OutlineInputBorder(),
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.md,
-                    vertical: AppSpacing.sm,
-                  ),
-                ),
-              ),
-            ),
+          onChanged: (_) {},
+        ),
             const Divider(height: 1),
             Expanded(
               child: FutureBuilder<List<FactureModel>>(
@@ -307,7 +291,7 @@ class _FinancesVisionGenerale extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.bar_chart_outlined,
+              Icon(Icons.bar_chart_outlined,
                   size: 64, color: AppColors.outline),
               const SizedBox(height: AppSpacing.md),
               Text(
@@ -526,33 +510,16 @@ class _RecettesTabState extends State<_RecettesTab> {
             ),
           ),
         ),
-        Padding(
+        AppListSearchField(
+          hint: 'Rechercher par bien, locataire, note…',
+          controller: _searchCtrl,
           padding: const EdgeInsets.fromLTRB(
             AppSpacing.lg,
             AppSpacing.md,
             AppSpacing.lg,
             0,
           ),
-          child: TextField(
-            controller: _searchCtrl,
-            decoration: InputDecoration(
-              hintText: 'Rechercher par bien, locataire, note…',
-              prefixIcon: const Icon(Icons.search, size: 20),
-              suffixIcon: _query.isNotEmpty
-                  ? IconButton(
-                      icon: const Icon(Icons.close, size: 18),
-                      tooltip: 'Effacer',
-                      onPressed: _searchCtrl.clear,
-                    )
-                  : null,
-              isDense: true,
-              border: const OutlineInputBorder(),
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.md,
-                vertical: AppSpacing.sm,
-              ),
-            ),
-          ),
+          onChanged: (_) {},
         ),
         Expanded(
           child: Padding(
@@ -608,7 +575,7 @@ class _RecettesTabState extends State<_RecettesTab> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.payments_outlined,
+                        Icon(Icons.payments_outlined,
                             size: 56, color: AppColors.outline),
                         const SizedBox(height: AppSpacing.md),
                         Text(
@@ -929,7 +896,7 @@ class _FacturesTableState extends State<_FacturesTable> {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final narrow = constraints.maxWidth < 700;
+        final narrow = constraints.maxWidth < AppBreakpoints.tableToCards;
         final sorted = _sorted;
 
         return SingleChildScrollView(
@@ -1026,9 +993,15 @@ class _FacturesTableState extends State<_FacturesTable> {
                             Tooltip(
                               message: 'Voir',
                               child: IconButton(
-                                icon: const Icon(Icons.search, size: 20),
+                                icon: const Icon(Icons.search, size: 18),
                                 color: AppColors.primary,
                                 onPressed: () => widget.onVoir(f),
+                                visualDensity: VisualDensity.compact,
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(
+                                  minWidth: 32,
+                                  minHeight: 32,
+                                ),
                               ),
                             ),
                             PermissionGate(
@@ -1038,10 +1011,16 @@ class _FacturesTableState extends State<_FacturesTable> {
                                 child: IconButton(
                                   icon: const Icon(
                                     Icons.edit_outlined,
-                                    size: 20,
+                                    size: 18,
                                   ),
                                   color: AppColors.onSurfaceVariant,
                                   onPressed: () => widget.onModifier(f),
+                                  visualDensity: VisualDensity.compact,
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(
+                                    minWidth: 32,
+                                    minHeight: 32,
+                                  ),
                                 ),
                               ),
                             ),
@@ -1101,7 +1080,7 @@ class _EmptyState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(
+            Icon(
               Icons.receipt_long_outlined,
               size: 64,
               color: AppColors.outline,

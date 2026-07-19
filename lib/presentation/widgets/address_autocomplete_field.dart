@@ -102,7 +102,7 @@ class _AddressAutocompleteFieldState extends State<AddressAutocompleteField> {
                       ),
                       child: Row(
                         children: [
-                          const Icon(
+                          Icon(
                             Icons.place_outlined,
                             size: 18,
                             color: AppColors.onSurfaceVariant,
