@@ -2,20 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:lacoloc_front/data/datasources/auth_service.dart';
 import 'package:lacoloc_front/data/datasources/etat_de_lieux.dart';
-import 'package:lacoloc_front/data/datasources/signatures.dart';
 import 'package:lacoloc_front/data/models/etat_de_lieux.dart';
 import 'package:lacoloc_front/presentation/users/proprietaires/bail_pdf_preview_page.dart';
 import 'package:lacoloc_front/presentation/widgets/app_list_search_field.dart';
 import 'package:lacoloc_front/presentation/widgets/app_top_bar.dart';
 import 'package:lacoloc_front/presentation/widgets/bail_signature_flow.dart';
-import 'package:lacoloc_front/presentation/widgets/private_image.dart';
+import 'package:lacoloc_front/presentation/widgets/signature_manager.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_radius.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
-import 'package:lacoloc_front/theme/app_theme.dart';
 import 'package:lacoloc_front/theme/app_typography.dart';
 import 'package:lacoloc_front/theme/app_tab_bar.dart';
-import 'package:lacoloc_front/utils/signature_pad.dart';
 
 class DocumentationPage extends StatefulWidget {
   /// Onglet initial (piloté par le sous-menu de la sidebar).
@@ -593,165 +590,24 @@ class _BailRow extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 // Tab : Ma signature
 
-class _SignaturePage extends StatefulWidget {
+class _SignaturePage extends StatelessWidget {
   const _SignaturePage();
 
   @override
-  State<_SignaturePage> createState() => _SignaturePageState();
-}
-
-class _SignaturePageState extends State<_SignaturePage> {
-  late Future<String?> _future;
-  bool _saving = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _future = SignaturesDatasource.getSavedUrl();
-  }
-
-  Future<void> _update() async {
-    final sig = await showSignatureDialog(context);
-    if (sig == null || !mounted) return;
-    setState(() => _saving = true);
-    try {
-      await SignaturesDatasource.saveUrl(sig.url);
-      if (mounted) {
-        setState(() {
-          _future = SignaturesDatasource.getSavedUrl();
-          _saving = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _saving = false);
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Erreur : $e')));
-      }
-    }
-  }
-
-  Future<void> _delete(String url) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Supprimer la signature ?'),
-        content: const Text('La signature sauvegardée sera supprimée.'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Annuler')),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: AppTheme.deleteButtonStyle,
-            child: const Text('Supprimer'),
-          ),
-        ],
-      ),
-    );
-    if (ok != true || !mounted) return;
-    setState(() => _saving = true);
-    try {
-      await SignaturesDatasource.deleteSignature();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Erreur : $e')));
-      }
-    }
-    if (mounted) {
-      setState(() {
-        _future = SignaturesDatasource.getSavedUrl();
-        _saving = false;
-      });
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return FutureBuilder<String?>(
-      future: _future,
-      builder: (context, snap) {
-        final url = snap.data;
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const AppTopBar(title: 'Ma signature'),
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.all(AppSpacing.lg),
-                children: [
-            Text('Ma signature par défaut', style: AppTypography.titleLg),
-            const SizedBox(height: AppSpacing.sm),
-            Text(
-              'Cette signature sera proposée automatiquement lors de la '
-              "finalisation ou de l'acceptation d'un état des lieux.",
-              style: AppTypography.bodyMd
-                  .copyWith(color: AppColors.onSurfaceVariant),
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            if (snap.connectionState == ConnectionState.waiting)
-              const Center(child: CircularProgressIndicator())
-            else if (url != null && url.isNotEmpty) ...[
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Container(
-                  width: 320,
-                  height: 90,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    border: Border.all(color: AppColors.outlineVariant),
-                    borderRadius: AppRadius.borderMd,
-                  ),
-                  child: PrivateImage(ref: url, fit: BoxFit.contain),
-                ),
-              ),
-              const SizedBox(height: AppSpacing.md),
-              Row(
-                children: [
-                  OutlinedButton.icon(
-                    onPressed: _saving ? null : _update,
-                    style: AppTheme.editButtonStyle,
-                    icon: const Icon(Icons.edit_outlined, size: 18),
-                    label: const Text('Modifier'),
-                  ),
-                  const SizedBox(width: AppSpacing.md),
-                  FilledButton.icon(
-                    onPressed: _saving ? null : () => _delete(url),
-                    style: AppTheme.deleteButtonStyle,
-                    icon: const Icon(Icons.delete_outline, size: 18),
-                    label: const Text('Supprimer'),
-                  ),
-                ],
-              ),
-            ] else ...[
-              Container(
-                height: 80,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceContainerLow,
-                  border: Border.all(color: AppColors.outlineVariant),
-                  borderRadius: AppRadius.borderMd,
-                ),
-                child: Text(
-                  'Aucune signature sauvegardée',
-                  style: AppTypography.bodyMd
-                      .copyWith(color: AppColors.onSurfaceVariant),
-                ),
-              ),
-              const SizedBox(height: AppSpacing.md),
-              FilledButton.icon(
-                onPressed: _saving ? null : _update,
-                icon: const Icon(Icons.draw_outlined, size: 18),
-                label: const Text('Ajouter ma signature'),
-              ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const AppTopBar(title: 'Ma signature'),
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            children: const [
+              SignatureManagerSection(),
             ],
-          ],
-              ),
-            ),
-          ],
-        );
-      },
+          ),
+        ),
+      ],
     );
   }
 }

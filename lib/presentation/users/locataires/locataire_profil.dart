@@ -25,6 +25,7 @@ import 'package:lacoloc_front/data/permissions/permissions_service.dart';
 import 'package:lacoloc_front/presentation/chambres/chambre_card.dart';
 import 'package:lacoloc_front/presentation/widgets/permission_gate.dart';
 import 'package:lacoloc_front/presentation/widgets/private_image.dart';
+import 'package:lacoloc_front/presentation/widgets/signature_manager.dart';
 import 'package:lacoloc_front/presentation/widgets/edl_filter_bar.dart';
 import 'package:lacoloc_front/presentation/widgets/bail_requirements_dialog.dart';
 import 'package:lacoloc_front/presentation/widgets/edl_parcours_badge.dart';
@@ -3794,83 +3795,8 @@ class _EdlDetailPageState extends State<_EdlDetailPage> {
 // ─────────────────────────────────────────────────────────────────────────────
 // Gestion de la signature du locataire (profil)
 
-class _LocataireSignatureSection extends StatefulWidget {
+class _LocataireSignatureSection extends StatelessWidget {
   const _LocataireSignatureSection();
-
-  @override
-  State<_LocataireSignatureSection> createState() =>
-      _LocataireSignatureSectionState();
-}
-
-class _LocataireSignatureSectionState
-    extends State<_LocataireSignatureSection> {
-  late Future<String?> _future;
-  bool _saving = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _future = SignaturesDatasource.getSavedUrl();
-  }
-
-  Future<void> _update() async {
-    final sig = await showSignatureDialog(context);
-    if (sig == null || !mounted) return;
-    setState(() => _saving = true);
-    try {
-      await SignaturesDatasource.saveUrl(sig.url);
-      if (mounted) {
-        setState(() {
-          _future = SignaturesDatasource.getSavedUrl();
-          _saving = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _saving = false);
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
-      }
-    }
-  }
-
-  Future<void> _delete() async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Supprimer la signature ?'),
-        content: const Text('La signature sauvegardée sera supprimée.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Annuler'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: AppTheme.deleteButtonStyle,
-            child: const Text('Supprimer'),
-          ),
-        ],
-      ),
-    );
-    if (ok != true || !mounted) return;
-    setState(() => _saving = true);
-    try {
-      await SignaturesDatasource.deleteSignature();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Erreur lors de la suppression : $e')));
-      }
-    }
-    if (mounted) {
-      setState(() {
-        _future = SignaturesDatasource.getSavedUrl();
-        _saving = false;
-      });
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -3886,55 +3812,7 @@ class _LocataireSignatureSectionState
           ),
         ),
         const SizedBox(height: AppSpacing.md),
-        FutureBuilder<String?>(
-          future: _future,
-          builder: (context, snap) {
-            if (snap.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            final url = snap.data;
-            if (url != null && url.isNotEmpty) {
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: 320,
-                    height: 80,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      border: Border.all(color: AppColors.outlineVariant),
-                      borderRadius: AppRadius.borderMd,
-                    ),
-                    child: PrivateImage(ref: url, fit: BoxFit.contain),
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  Row(
-                    children: [
-                      OutlinedButton.icon(
-                        onPressed: _saving ? null : _update,
-                        style: AppTheme.editButtonStyle,
-                        icon: const Icon(Icons.edit_outlined, size: 16),
-                        label: const Text('Modifier'),
-                      ),
-                      const SizedBox(width: AppSpacing.sm),
-                      FilledButton.icon(
-                        onPressed: _saving ? null : _delete,
-                        style: AppTheme.deleteButtonStyle,
-                        icon: const Icon(Icons.delete_outline, size: 16),
-                        label: const Text('Supprimer'),
-                      ),
-                    ],
-                  ),
-                ],
-              );
-            }
-            return FilledButton.icon(
-              onPressed: _saving ? null : _update,
-              icon: const Icon(Icons.draw_outlined, size: 16),
-              label: const Text('Ajouter ma signature'),
-            );
-          },
-        ),
+        const SignatureManagerSection(),
       ],
     );
   }
