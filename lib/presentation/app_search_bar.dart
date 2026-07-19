@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:lacoloc_front/data/datasources/auth_service.dart';
 import 'package:lacoloc_front/data/models/chambre.dart';
 import 'package:lacoloc_front/presentation/login_dialog.dart';
+import 'package:lacoloc_front/presentation/widgets/app_button.dart';
+import 'package:lacoloc_front/theme/app_button_sizes.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_radius.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
@@ -126,23 +128,20 @@ class _AppSearchBarState extends State<AppSearchBar> {
         ),
       ),
       actions: [
-        // IconButton(
-        //   icon: const Icon(Icons.search_outlined),
-        //   onPressed: () {
-        //     showSearch(
-        //       context: context,
-        //       delegate: SearchDelgateTobar(chambres: widget.listCache),
-        //     );
-        //   },
-        // ),
+        // Bouton compact (44pt, iOS HIG) : en taille standard (48) + padding, il
+        // débordait la barre (56px) et le libellé chevauchait l'icône. La taille
+        // compacte tient dans la toolbar. Widget réutilisable [AppButton].
         Padding(
           padding: const EdgeInsets.only(
-            top: AppSpacing.sm,
-            bottom: AppSpacing.sm,
+            top: AppSpacing.xs,
+            bottom: AppSpacing.xs,
             left: AppSpacing.sm,
-            right: AppSpacing.lg,
+            right: AppSpacing.md,
           ),
-          child: ElevatedButton.icon(
+          child: AppButton.primary(
+            size: AppButtonSize.compact,
+            icon: isLogged ? Icons.account_circle : Icons.login,
+            label: isLogged ? 'Mon compte' : 'Connexion',
             onPressed: () {
               if (isLogged) {
                 Navigator.of(context).pushNamed('/profile');
@@ -150,8 +149,6 @@ class _AppSearchBarState extends State<AppSearchBar> {
                 showConnexionDialog(context);
               }
             },
-            icon: Icon(isLogged ? Icons.account_circle : Icons.login, size: 18),
-            label: Text(isLogged ? 'Mon compte' : 'Connexion'),
           ),
         ),
       ],

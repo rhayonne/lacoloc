@@ -5,6 +5,8 @@ import 'package:lacoloc_front/data/models/chambre.dart';
 import 'package:lacoloc_front/data/models/chambre_charge.dart';
 import 'package:lacoloc_front/data/models/chambre_disponibilite.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
+import 'package:lacoloc_front/presentation/widgets/app_button.dart';
+import 'package:lacoloc_front/theme/app_button_sizes.dart';
 import 'package:lacoloc_front/theme/app_radius.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
 import 'package:lacoloc_front/theme/app_typography.dart';
@@ -144,15 +146,19 @@ class ChambreCard extends StatelessWidget {
             ),
 
             // ── Bouton ────────────────────────────────────────────────────────
+            // Padding vertical réduit + densité compacte (44pt) : évitait le
+            // débordement de 16px en bas de la carte (hauteur de cellule fixe).
             Padding(
-              padding: const EdgeInsets.all(AppSpacing.md),
-              child: SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: onTap,
-                  label: const Text('Voir détails'),
-                  icon: const Icon(Icons.remove_red_eye, size: 18),
-                ),
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md,
+                vertical: AppSpacing.sm,
+              ),
+              child: AppButton.primary(
+                size: AppButtonSize.compact,
+                fullWidth: true,
+                icon: Icons.remove_red_eye,
+                label: 'Voir détails',
+                onPressed: onTap,
               ),
             ),
           ],

@@ -4,15 +4,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:lacoloc_front/data/datasources/inventaire.dart';
+import 'package:lacoloc_front/presentation/widgets/app_button.dart';
 import 'package:lacoloc_front/presentation/widgets/app_date_picker.dart';
 import 'package:lacoloc_front/presentation/widgets/filter_button.dart';
 import 'package:lacoloc_front/data/datasources/reference.dart';
 import 'package:lacoloc_front/data/models/filter_state.dart';
 import 'package:lacoloc_front/data/models/immeuble_type.dart';
+import 'package:lacoloc_front/theme/app_button_sizes.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_radius.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
-import 'package:lacoloc_front/theme/app_theme.dart';
 import 'package:lacoloc_front/theme/app_typography.dart';
 
 export 'package:lacoloc_front/data/models/filter_state.dart'
@@ -343,27 +344,38 @@ class _FilterPanelState extends State<FilterPanel> {
                         const Divider(height: 1),
                         const SizedBox(height: AppSpacing.md),
                         // ── Actions (boutons thématiques) ──────────────────
-                        Wrap(
-                          alignment: WrapAlignment.end,
-                          spacing: AppSpacing.sm,
-                          runSpacing: AppSpacing.sm,
+                        // Ligne unique et proportionnelle : chaque bouton prend
+                        // une part égale (Expanded) en taille compacte (44pt)
+                        // au lieu de déborder/passer à la ligne (ancien Wrap).
+                        // Widget réutilisable [AppButton].
+                        Row(
                           children: [
-                            FilledButton.icon(
-                              onPressed: _reset,
-                              style: AppTheme.deleteButtonStyle,
-                              icon: const Icon(Icons.clear_all, size: 18),
-                              label: const Text('Réinitialiser'),
+                            Expanded(
+                              child: AppButton.delete(
+                                size: AppButtonSize.compact,
+                                fullWidth: true,
+                                icon: Icons.clear_all,
+                                label: 'Réinitialiser',
+                                onPressed: _reset,
+                              ),
                             ),
-                            OutlinedButton(
-                              onPressed: _cancel,
-                              style: AppTheme.cancelButtonStyle,
-                              child: const Text('Annuler'),
+                            const SizedBox(width: AppSpacing.sm),
+                            Expanded(
+                              child: AppButton.cancel(
+                                size: AppButtonSize.compact,
+                                fullWidth: true,
+                                label: 'Annuler',
+                                onPressed: _cancel,
+                              ),
                             ),
-                            FilledButton.icon(
-                              onPressed: _apply,
-                              style: AppTheme.saveButtonStyle,
-                              icon: const Icon(Icons.check, size: 18),
-                              label: const Text('Appliquer'),
+                            const SizedBox(width: AppSpacing.sm),
+                            Expanded(
+                              child: AppButton.save(
+                                size: AppButtonSize.compact,
+                                fullWidth: true,
+                                label: 'Appliquer',
+                                onPressed: _apply,
+                              ),
                             ),
                           ],
                         ),
@@ -391,35 +403,27 @@ class _FilterPanelState extends State<FilterPanel> {
       children: [
         Text('Localisation', style: AppTypography.labelMd),
         const SizedBox(height: AppSpacing.sm),
-        Row(
-          children: [
-            Expanded(
-              child: _LocationField(
-                controller: _cityCtrl,
-                label: 'Ville',
-                icon: Icons.location_city_outlined,
-                onSubmitted: (_) => _emitAll(),
-              ),
-            ),
-            const SizedBox(width: AppSpacing.md),
-            Expanded(
-              child: _LocationField(
-                controller: _deptCtrl,
-                label: 'Département',
-                icon: Icons.map_outlined,
-                onSubmitted: (_) => _emitAll(),
-              ),
-            ),
-            const SizedBox(width: AppSpacing.md),
-            Expanded(
-              child: _LocationField(
-                controller: _regionCtrl,
-                label: 'Région',
-                icon: Icons.public_outlined,
-                onSubmitted: (_) => _emitAll(),
-              ),
-            ),
-          ],
+        // Un champ par ligne (empilés) : sur mobile, trois champs sur une même
+        // ligne devenaient illisibles (« Vi… / D… / R… »).
+        _LocationField(
+          controller: _cityCtrl,
+          label: 'Ville',
+          icon: Icons.location_city_outlined,
+          onSubmitted: (_) => _emitAll(),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        _LocationField(
+          controller: _deptCtrl,
+          label: 'Département',
+          icon: Icons.map_outlined,
+          onSubmitted: (_) => _emitAll(),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        _LocationField(
+          controller: _regionCtrl,
+          label: 'Région',
+          icon: Icons.public_outlined,
+          onSubmitted: (_) => _emitAll(),
         ),
       ],
     );

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'app_button_sizes.dart';
 import 'app_colors.dart';
 import 'app_radius.dart';
 import 'app_spacing.dart';
@@ -63,12 +64,10 @@ class AppTheme {
           elevation: 1,
           shadowColor: AppColors.shadowTint.withValues(alpha: 0.15),
           textStyle: AppTypography.labelMd,
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.lg,
-            vertical: AppSpacing.md,
-          ),
+          // Dimensions issues de la source unique [AppButtonSizes.standard].
+          padding: AppButtonSizes.standard.padding,
           shape: RoundedRectangleBorder(borderRadius: AppRadius.borderMd),
-          minimumSize: const Size(0, 48),
+          minimumSize: AppButtonSizes.standard.minimumSize,
         ),
       ),
 
@@ -77,12 +76,10 @@ class AppTheme {
           foregroundColor: AppColors.primary,
           side: BorderSide(color: AppColors.outlineVariant),
           textStyle: AppTypography.labelMd,
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.lg,
-            vertical: AppSpacing.md,
-          ),
+          // Dimensions issues de la source unique [AppButtonSizes.standard].
+          padding: AppButtonSizes.standard.padding,
           shape: RoundedRectangleBorder(borderRadius: AppRadius.borderMd),
-          minimumSize: const Size(0, 48),
+          minimumSize: AppButtonSizes.standard.minimumSize,
         ),
       ),
 
@@ -99,12 +96,10 @@ class AppTheme {
           backgroundColor: AppColors.primary,
           foregroundColor: AppColors.onPrimary,
           textStyle: AppTypography.labelMd,
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.lg,
-            vertical: AppSpacing.md,
-          ),
+          // Dimensions issues de la source unique [AppButtonSizes.standard].
+          padding: AppButtonSizes.standard.padding,
           shape: RoundedRectangleBorder(borderRadius: AppRadius.borderMd),
-          minimumSize: const Size(0, 48),
+          minimumSize: AppButtonSizes.standard.minimumSize,
         ),
       ),
 
@@ -240,17 +235,53 @@ class AppTheme {
   static const double raisedButtonElevation = 1.5;
   static Color get raisedButtonShadowColor => Colors.black.withValues(alpha: 0.3);
 
+  // ── Cibles tactiles / dimensions de bouton ─────────────────────────────────
+  // ⭐ La **source unique** des dimensions de bouton (hauteurs, padding, taille
+  // d'icône, cibles tactiles) est [AppButtonSizes] (`app_button_sizes.dart`).
+  // Les alias ci-dessous et les `*ButtonStyle` de ce fichier s'y branchent pour
+  // qu'un seul endroit gouverne toute l'app. Pour changer la taille des boutons
+  // partout, modifier [AppButtonSizes] — pas ce fichier.
+
+  /// Cible tactile minimale absolue (iOS HIG / WCAG 2.5.5). Alias de
+  /// [AppButtonSizes.minTouchTarget].
+  static const double kMinTouchTarget = AppButtonSizes.minTouchTarget;
+
+  /// Hauteur de bouton standard (48dp Material). Alias de la taille standard.
+  static double get kButtonHeight => AppButtonSizes.standard.height;
+
+  /// Hauteur compacte (44pt iOS). Alias de la taille compacte.
+  static double get kButtonHeightCompact => AppButtonSizes.compact.height;
+
+  /// Surcouche de **densité compacte** à fusionner avec un style couleur
+  /// (`AppTheme.compactDensity.merge(AppTheme.saveButtonStyle)`). Délègue à
+  /// [AppButtonSizes.density] pour rester aligné sur la source unique.
+  static ButtonStyle get compactDensity =>
+      AppButtonSizes.density(AppButtonSize.compact);
+
+  /// Style de COULEUR de l'action **primaire** (bleu plein, légèrement élevé) —
+  /// même rendu que l'[elevatedButtonTheme] global, mais exposé comme *style*
+  /// nommé pour que le widget [AppButton] (variante `primary`) puisse le
+  /// fusionner avec une densité. Dimensions issues de [AppButtonSizes.standard].
+  static ButtonStyle get elevatedPrimaryStyle => ElevatedButton.styleFrom(
+    backgroundColor: AppColors.primary,
+    foregroundColor: AppColors.onPrimary,
+    elevation: 1,
+    shadowColor: AppColors.shadowTint.withValues(alpha: 0.15),
+    textStyle: AppTypography.labelMd,
+    padding: AppButtonSizes.standard.padding,
+    shape: RoundedRectangleBorder(borderRadius: AppRadius.borderMd),
+    minimumSize: AppButtonSizes.standard.minimumSize,
+  );
+
   /// Style bordé pour tous les boutons "Annuler" de l'app.
   static ButtonStyle get cancelButtonStyle => OutlinedButton.styleFrom(
     foregroundColor: AppColors.onSurfaceVariant,
     side: BorderSide(color: AppColors.outlineVariant),
     textStyle: AppTypography.labelMd,
-    padding: const EdgeInsets.symmetric(
-      horizontal: AppSpacing.lg,
-      vertical: AppSpacing.md,
-    ),
+    // Dimensions issues de la source unique [AppButtonSizes.standard].
+    padding: AppButtonSizes.standard.padding,
     shape: RoundedRectangleBorder(borderRadius: AppRadius.borderMd),
-    minimumSize: const Size(0, 48),
+    minimumSize: AppButtonSizes.standard.minimumSize,
   );
 
   /// Style vert clair pour tous les boutons "Sauvegarder" de l'app.
@@ -258,12 +289,10 @@ class AppTheme {
     backgroundColor: AppColors.tertiaryFixed,
     foregroundColor: AppColors.onTertiaryFixed,
     textStyle: AppTypography.labelMd,
-    padding: const EdgeInsets.symmetric(
-      horizontal: AppSpacing.lg,
-      vertical: AppSpacing.md,
-    ),
+    // Dimensions issues de la source unique [AppButtonSizes.standard].
+    padding: AppButtonSizes.standard.padding,
     shape: RoundedRectangleBorder(borderRadius: AppRadius.borderMd),
-    minimumSize: const Size(0, 48),
+    minimumSize: AppButtonSizes.standard.minimumSize,
   );
 
   /// Style rouge pour tous les boutons "Supprimer" de l'app.
@@ -271,12 +300,10 @@ class AppTheme {
     backgroundColor: AppColors.error,
     foregroundColor: Colors.white,
     textStyle: AppTypography.labelMd,
-    padding: const EdgeInsets.symmetric(
-      horizontal: AppSpacing.lg,
-      vertical: AppSpacing.md,
-    ),
+    // Dimensions issues de la source unique [AppButtonSizes.standard].
+    padding: AppButtonSizes.standard.padding,
     shape: RoundedRectangleBorder(borderRadius: AppRadius.borderMd),
-    minimumSize: const Size(0, 48),
+    minimumSize: AppButtonSizes.standard.minimumSize,
   );
 
   /// Style bordé (couleur primaire) pour tous les boutons "Modifier" / édition
@@ -286,12 +313,10 @@ class AppTheme {
     foregroundColor: AppColors.primary,
     side: BorderSide(color: AppColors.primary),
     textStyle: AppTypography.labelMd,
-    padding: const EdgeInsets.symmetric(
-      horizontal: AppSpacing.lg,
-      vertical: AppSpacing.md,
-    ),
+    // Dimensions issues de la source unique [AppButtonSizes.standard].
+    padding: AppButtonSizes.standard.padding,
     shape: RoundedRectangleBorder(borderRadius: AppRadius.borderMd),
-    minimumSize: const Size(0, 48),
+    minimumSize: AppButtonSizes.standard.minimumSize,
   );
 
   /// Style bordé (couleur primaire) pour tous les boutons "Document" / impression
@@ -300,12 +325,10 @@ class AppTheme {
     foregroundColor: AppColors.primary,
     side: BorderSide(color: AppColors.primary),
     textStyle: AppTypography.labelMd,
-    padding: const EdgeInsets.symmetric(
-      horizontal: AppSpacing.lg,
-      vertical: AppSpacing.md,
-    ),
+    // Dimensions issues de la source unique [AppButtonSizes.standard].
+    padding: AppButtonSizes.standard.padding,
     shape: RoundedRectangleBorder(borderRadius: AppRadius.borderMd),
-    minimumSize: const Size(0, 48),
+    minimumSize: AppButtonSizes.standard.minimumSize,
   );
 
   // ── Barre de titre standard (AppTopBar / FormPageHeader) ───────────────────
