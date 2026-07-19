@@ -36,7 +36,21 @@
         "--dart-define",
         "ENV=dev"
       ]
-    }
+    },
+    {
+      "name": "Flutter: Dev (Pixel 10)",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "args": [
+        "-d",
+        "Android",
+        "--dart-define",
+        "ENV=dev",
+        "--web-port",
+        "44785"
+      ]
+    },
   ]
 }
 // {
