@@ -5,7 +5,6 @@ import 'package:lacoloc_front/data/datasources/chambres.dart';
 import 'package:lacoloc_front/data/datasources/demandes_contact.dart';
 import 'package:lacoloc_front/data/datasources/messages.dart';
 import 'package:lacoloc_front/data/datasources/immeubles.dart';
-import 'package:lacoloc_front/data/datasources/notifications.dart';
 import 'package:lacoloc_front/data/models/chambre.dart';
 import 'package:lacoloc_front/data/models/facture.dart';
 import 'package:lacoloc_front/data/models/immeubles.dart';
@@ -99,7 +98,6 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage>
   // Sous-onglet courant des sections à sous-menus (piloté par la sidebar).
   int _finSub = 0;
   int _docSub = 0;
-  int _interSub = 0;
   int _edlSub = 0;
 
   // Perfil do usuário atual (para detectar admin de groupe → config entreprise).
@@ -108,12 +106,14 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage>
   // Configuration entreprise (admin de groupe) — renderiza no frame principal.
   bool _showEntrepriseConfig = false;
 
-  // Pastille du menu « Interactions » : notifications non lues + demandes de
-  // contact non établies. Recalculé sur changement Realtime.
+  // Pastille du menu « Interactions » : demandes de contact non établies +
+  // messages reçus non lus. Les notifications proprement dites (garant
+  // requis, bail à signer…) sont visibles dans la Vue générale (dashboard),
+  // pas comptées ici. Recalculé sur changement Realtime.
   int _interactionsBadge = 0;
 
   @override
-  Set<String> get watchedEntities => {'notifications', 'demandes', 'messages'};
+  Set<String> get watchedEntities => {'demandes', 'messages'};
 
   @override
   void onRealtimeChange() => _refreshBadges();
@@ -121,20 +121,15 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage>
   Future<void> _refreshBadges() async {
     try {
       final results = await Future.wait([
-        NotificationsDatasource.unreadCount(),
         DemandesContactDatasource.listByOwner(),
         MessagesDatasource.unreadCount(refresh: true),
       ]);
       if (!mounted) return;
-      final unread = results[0] as int;
-      final demandes = results[1] as List;
-      final msgNonLus = results[2] as int;
+      final demandes = results[0] as List;
+      final msgNonLus = results[1] as int;
       final pendingDemandes =
           demandes.where((d) => d.contactEtabli == false).length;
-      // Pastille = notifications non lues + demandes à traiter + messages reçus.
-      setState(
-        () => _interactionsBadge = unread + pendingDemandes + msgNonLus,
-      );
+      setState(() => _interactionsBadge = pendingDemandes + msgNonLus);
     } catch (_) {
       // best-effort : pastille non bloquante
     }
@@ -564,11 +559,7 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage>
       );
     }
     if (_section == _Section.interactions) {
-      return InteractionsPage(
-        key: ValueKey('inter$_interSub'),
-        initialTab: _interSub,
-        showTabBar: false,
-      );
+      return const InteractionsPage();
     }
 
     // Section Gestion Immobilière — les onglets sont devenus des sous-menus de
@@ -747,14 +738,9 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage>
         children: [
           NavChild(
             label: 'Demandes de contact',
-            selected: _section == _Section.interactions && _interSub == 0,
-            onTap: () => goSub(_Section.interactions, () => _interSub = 0),
-          ),
-          NavChild(
-            label: 'Notifications',
-            selected: _section == _Section.interactions && _interSub == 1,
+            selected: _section == _Section.interactions,
             count: _interactionsBadge,
-            onTap: () => goSub(_Section.interactions, () => _interSub = 1),
+            onTap: () => go(_Section.interactions),
           ),
         ],
       ),

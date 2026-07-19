@@ -108,6 +108,37 @@ class MessagesDatasource {
     }, refresh: refresh);
   }
 
+  /// Texte concaténé de chaque fil (pour la recherche « Mes discussions » /
+  /// « Demandes de contact » — nom de l'interlocuteur + contenu des messages).
+  ///
+  /// Aucun filtre explicite sur sender/recipient n'est nécessaire : la RLS de
+  /// `Messages` (`auth.uid() IN (sender_id, recipient_id)`) restreint déjà le
+  /// SELECT aux messages qu'on a **envoyés ou reçus** — impossible de faire
+  /// remonter ici un message ou un fil auquel on n'a jamais participé.
+  static Future<Map<int, String>> searchableTextByDemande(
+    List<int> demandeIds, {
+    bool refresh = false,
+  }) {
+    if (demandeIds.isEmpty) return Future.value({});
+    final sorted = [...demandeIds]..sort();
+    return _cache.get(
+      '${CacheKeys.messages}searchtext:${sorted.join(",")}',
+      () async {
+        final rows = await _db
+            .from(_table)
+            .select('demande_id, body')
+            .inFilter('demande_id', sorted);
+        final map = <int, StringBuffer>{};
+        for (final r in rows) {
+          final id = r['demande_id'] as int;
+          (map[id] ??= StringBuffer()).write('${r['body']} ');
+        }
+        return map.map((k, v) => MapEntry(k, v.toString()));
+      },
+      refresh: refresh,
+    );
+  }
+
   /// Supprime un de ses propres messages (RLS : expéditeur uniquement).
   static Future<void> delete(int id) async {
     await _db.from(_table).delete().eq('id', id);

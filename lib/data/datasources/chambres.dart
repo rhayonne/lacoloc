@@ -2,6 +2,7 @@ import 'package:lacoloc_front/data/cache/data_cache.dart';
 import 'package:lacoloc_front/data/cache/realtime_service.dart';
 import 'package:lacoloc_front/data/datasources/inventaire.dart';
 import 'package:lacoloc_front/data/models/chambre.dart';
+import 'package:lacoloc_front/data/models/chambre_disponibilite.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class ChambresDatasource {
@@ -105,6 +106,36 @@ class ChambresDatasource {
   static Future<void> setOccupied(int chambreId, {required bool occupied}) async {
     await _client.from(_table).update({'est_loue': occupied}).eq('id', chambreId);
     _invalidate();
+  }
+
+  /// Disponibilité (+ date de libération connue) via RPC publique
+  /// `chambre_disponibilite` — même patron que
+  /// `InventaireDatasource.annonceLabelsByChambre` (aucune donnée sensible,
+  /// exécutable par `anon` : sert la recherche publique de chambres).
+  static Future<Map<int, ChambreDisponibiliteModel>> disponibiliteByIds(
+    List<int> chambreIds, {
+    bool refresh = false,
+  }) {
+    if (chambreIds.isEmpty) return Future.value({});
+    final sorted = [...chambreIds]..sort();
+    return _cache.get(
+      '${CacheKeys.chambres}disponibilite:${sorted.join(",")}',
+      () async {
+        final rows = await _client.rpc(
+          'chambre_disponibilite',
+          params: {'p_chambre_ids': sorted},
+        );
+        final map = <int, ChambreDisponibiliteModel>{};
+        for (final r in (rows as List)) {
+          final m = ChambreDisponibiliteModel.fromMap(
+            Map<String, dynamic>.from(r as Map),
+          );
+          map[m.chambreId] = m;
+        }
+        return map;
+      },
+      refresh: refresh,
+    );
   }
 
   /// Retorna { immeubleId → quantidade de chambres } para uma lista de ids.

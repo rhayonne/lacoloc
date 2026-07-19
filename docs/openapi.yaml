@@ -2,7 +2,7 @@ openapi: 3.0.3
 
 info:
   title: Super Loc — API (Supabase)
-  version: "1.6.0"
+  version: "1.7.0"
   description: |
     Especificação detalhada da superfície de API consumida pelo app Flutter `lacoloc_front`.
 
@@ -1047,6 +1047,13 @@ paths:
         vers Demandes_Contact → Immeubles) y coûterait cher et a déjà gelé le web
         (cf. `RealtimeService`). La table est donc **publiée en realtime** (le chat se
         met à jour tout seul).
+
+        `MessagesDatasource.searchableTextByDemande(demandeIds)` — même endpoint,
+        `select=demande_id,body` avec `demande_id=in.(…)` — alimente la **recherche**
+        des écrans « Demandes de contact » / « Mes discussions » (nom du contact ou
+        contenu des messages). Aucun filtre sender/recipient explicite n'est
+        nécessaire : la RLS ci-dessus restreint déjà le résultat aux fils dont on
+        est partie prenante.
       parameters:
         - { name: demande_id, in: query, schema: { type: integer } }
         - { $ref: '#/components/parameters/select' }
@@ -1184,6 +1191,52 @@ paths:
         content: { application/json: { schema: { type: object, properties: { p_chambre_ids: { type: array, items: { type: integer }, nullable: true } } } } }
       responses:
         '200': { description: OK, content: { application/json: { schema: { type: array, items: { type: object, properties: { chambre_id: { type: integer }, nom: { type: string } } } } } } }
+
+  /rest/v1/rpc/chambre_disponibilite:
+    post:
+      tags: [RPC]
+      summary: Disponibilité + date de libération par chambre (ChambresDatasource.disponibiliteByIds)
+      description: |
+        `SECURITY DEFINER` (stable), même modèle que `chambre_equipements_annonce` :
+        `EXECUTE` accordé à `anon` + `authenticated` (recherche publique de
+        chambres), n'expose **aucune** identité de locataire ni montant.
+
+        Les chambres louées restent affichées dans la recherche (par défaut) — le
+        locataire doit pouvoir repérer ce qui va bientôt se libérer. Ce RPC calcule
+        `disponible = NOT est_loue` et `date_disponible` :
+        - chambre libre → `CURRENT_DATE` ;
+        - chambre louée → `coalesce(bail_fin_effective, date_fin_bail)` de l'EDL
+          **entrée** privatif actif le plus récent pour cette chambre, ou `null`
+          si la fin du contrat n'est pas connue (ex. chambre marquée « louée »
+          manuellement, sans EDL lié).
+
+        Nécessaire car la RLS de `etat_de_lieux` est réservée aux parties du
+        contrat — un visiteur qui parcourt les annonces ne peut pas lire la date
+        de fin de bail directement.
+        `p_chambre_ids = NULL` → toutes les chambres actives.
+      requestBody:
+        content: { application/json: { schema: { type: object, properties: { p_chambre_ids: { type: array, items: { type: integer }, nullable: true } } } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { type: object, properties: { chambre_id: { type: integer }, disponible: { type: boolean }, date_disponible: { type: string, format: date, nullable: true } } } } } } }
+
+  /rest/v1/rpc/notify_nouvelle_demande:
+    post:
+      tags: [RPC]
+      summary: Notifier le propriétaire d'une nouvelle demande de contact (DemandesContactDatasource.create)
+      description: |
+        `SECURITY DEFINER` (même modèle que `notify_edl_proprietaire`). Insère une
+        `Notifications` (type `nouvelle_demande`, `recipient_id` = owner_id de
+        l'immeuble, dérivé côté serveur) pour que la demande apparaisse dans la
+        section « Notifications » du tableau de bord du propriétaire. Vérifie que
+        l'appelant est bien le **locataire** de cette demande — sinon exception
+        (empêche de déclencher une notification sur une demande à laquelle on
+        n'est pas partie). Appelée en best-effort juste après l'insertion de la
+        demande ; un échec ne bloque pas la création de la demande elle-même.
+      requestBody:
+        content: { application/json: { schema: { type: object, properties: { p_demande_id: { type: integer } } } } }
+      responses:
+        '200': { description: OK }
+        '400': { description: "demande introuvable, ou appelant non partie prenante (exception SQL)" }
 
   # ──────────────────────── EDGE FUNCTIONS ────────────────────────
   /functions/v1/invite-locataire:
@@ -1467,7 +1520,13 @@ components:
         description: { type: string, nullable: true }
     UsersClient:
       type: object
-      description: "Modelo Dart: UsersClient (tabela Users_Client). Idade deve ser calculada de date_of_birth."
+      description: |
+        Modelo Dart: UsersClient (tabela Users_Client). Idade deve ser calculada de date_of_birth.
+
+        RLS SELECT (croisée, en plus du propre profil) : `invited_by_proprietaire_id`,
+        un `etat_de_lieux` partagé, **ou** `shares_demande_with(id)` — deux comptes
+        qui partagent une `Demandes_Contact` (peu importe son état) se voient
+        mutuellement (nom, e-mail, téléphone…), et uniquement l'un l'autre.
       properties:
         id: { type: string, format: uuid, description: "= auth.users.id" }
         created_at: { type: string, format: date-time }
@@ -2240,6 +2299,16 @@ components:
         m2Max: { type: number, nullable: true }
         prixMin: { type: number, nullable: true }
         prixMax: { type: number, nullable: true }
+        masquerLouees: { type: boolean, default: false, description: "MODULE `disponibilite` — par défaut les chambres louées restent visibles" }
+        disponibleAPartirDe: { type: string, format: date, nullable: true, description: "MODULE `disponibilite` — ne garde que les chambres libres au plus tard à cette date (RPC chambre_disponibilite)" }
+
+    ChambreDisponibilite:
+      type: object
+      description: "Modelo Dart: ChambreDisponibiliteModel (retour de la RPC chambre_disponibilite)"
+      properties:
+        chambre_id: { type: integer }
+        disponible: { type: boolean }
+        date_disponible: { type: string, format: date, nullable: true }
 
     # ───────── Edge functions ─────────
     InviteLocataireRequest:
@@ -2362,7 +2431,7 @@ components:
         id: { type: integer }
         proprietaire_id: { type: string, format: uuid, description: "Legado — le destinataire effectif est `recipient_id`" }
         recipient_id: { type: string, format: uuid, nullable: true, description: "**Destinataire effectif** (proprietaire OU locataire). Null sur les lignes legadas → vaut `proprietaire_id`." }
-        type: { type: string, enum: [edl_accepte, edl_addition, edl_a_signer, bail_garant_requis, bail_remplissage, admin_message] }
+        type: { type: string, enum: [edl_accepte, edl_addition, edl_a_signer, bail_garant_requis, bail_remplissage, admin_message, nouvelle_demande] }
         title: { type: string }
         body: { type: string, nullable: true, description: "Markdown (rendu sans HTML brut)" }
         etat_de_lieux_id: { type: integer, nullable: true }

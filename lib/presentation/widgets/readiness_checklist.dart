@@ -48,6 +48,10 @@ class ReadinessChecklist extends StatelessWidget {
     final allDone = doneCount == total;
     final progress = total == 0 ? 1.0 : doneCount / total;
 
+    // Une fois toutes les conditions remplies, la carte n'a plus rien à
+    // signaler — elle disparaît (au lieu de rester affichée barrée en vert).
+    if (allDone) return const SizedBox.shrink();
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(AppSpacing.lg),

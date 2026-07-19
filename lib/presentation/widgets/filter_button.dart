@@ -45,23 +45,23 @@ class FilterButton extends StatelessWidget {
         onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.symmetric(
-            horizontal: 10,
-            vertical: 6,
+            horizontal: AppSpacing.md,
+            vertical: 10,
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.tune, size: 16, color: AppColors.onSurfaceVariant),
-              const SizedBox(width: 5),
+              Icon(Icons.tune, size: 20, color: AppColors.onSurfaceVariant),
+              const SizedBox(width: AppSpacing.xs),
               Text(
                 label,
-                style: AppTypography.labelSm.copyWith(fontWeight: FontWeight.w600),
+                style: AppTypography.labelMd.copyWith(fontWeight: FontWeight.w600),
               ),
               if (activeCount > 0) ...[
-                const SizedBox(width: AppSpacing.xs),
+                const SizedBox(width: AppSpacing.sm),
                 Container(
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                      const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                   decoration: BoxDecoration(
                     color: AppColors.primary,
                     borderRadius: AppRadius.borderFull,
@@ -69,13 +69,13 @@ class FilterButton extends StatelessWidget {
                   child: Text('$activeCount',
                       style: AppTypography.labelSm.copyWith(
                         color: AppColors.onPrimary,
-                        fontSize: 10,
+                        fontSize: 12,
                       )),
                 ),
               ],
-              const SizedBox(width: 3),
+              const SizedBox(width: AppSpacing.xs),
               Icon(isOpen ? Icons.expand_less : Icons.expand_more,
-                  size: 17, color: AppColors.onSurfaceVariant),
+                  size: 22, color: AppColors.onSurfaceVariant),
             ],
           ),
         ),

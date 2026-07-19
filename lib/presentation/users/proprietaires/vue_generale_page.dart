@@ -1,19 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:lacoloc_front/data/datasources/auth_service.dart';
 import 'package:lacoloc_front/data/datasources/chambres.dart';
-import 'package:lacoloc_front/data/datasources/demandes_contact.dart';
 import 'package:lacoloc_front/data/datasources/etat_de_lieux.dart';
 import 'package:lacoloc_front/data/cache/realtime_refresh_mixin.dart';
 import 'package:lacoloc_front/data/datasources/immeubles.dart';
 import 'package:lacoloc_front/data/datasources/notifications.dart';
 import 'package:lacoloc_front/data/datasources/signatures.dart';
 import 'package:lacoloc_front/data/models/chambre.dart';
-import 'package:lacoloc_front/data/models/demande_contact.dart';
 import 'package:lacoloc_front/data/models/etat_de_lieux.dart';
 import 'package:lacoloc_front/data/models/immeubles.dart';
 import 'package:lacoloc_front/data/models/notification_model.dart';
 import 'package:lacoloc_front/data/models/users_client.dart';
 import 'package:lacoloc_front/presentation/users/proprietaires/interactions_page.dart';
+import 'package:lacoloc_front/presentation/widgets/bail_requirements_dialog.dart';
 import 'package:lacoloc_front/presentation/widgets/readiness_checklist.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_radius.dart';
@@ -67,13 +66,12 @@ class _VueGeneralePageState extends State<VueGeneralePage>
     final chambres = ids.isEmpty
         ? <ChambreModel>[]
         : await ChambresDatasource.listByImmeubles(ids);
-    final demandes = await DemandesContactDatasource.listByOwner();
-    final pending = demandes.where((d) => !d.contactEtabli).toList()
-      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
+    // Notifications non lues — inclut désormais les nouvelles demandes de
+    // contact (notify_nouvelle_demande), qui n'ont plus de bloc dédié.
     List<NotificationModel> notifs = [];
     try {
-      final all = await NotificationsDatasource.listByOwner(limit: 5);
+      final all = await NotificationsDatasource.listByOwner();
       notifs = all.where((n) => !n.isRead).toList();
     } catch (_) {}
 
@@ -96,7 +94,6 @@ class _VueGeneralePageState extends State<VueGeneralePage>
     return _VueData(
       immeubles: immeubles,
       chambres: chambres,
-      pendingDemandes: pending,
       notifications: notifs,
       bauxASigner: bauxASigner,
       profile: profile,
@@ -120,6 +117,43 @@ class _VueGeneralePageState extends State<VueGeneralePage>
         );
       }
     }
+  }
+
+  Future<void> _markNotifRead(NotificationModel n) async {
+    if (n.isRead) return;
+    await NotificationsDatasource.markRead(n.id);
+    final f = _load();
+    setState(() => _future = f);
+  }
+
+  /// Tap sur une notification : marque comme lue + ouvre le pop-up des
+  /// documents requis du bail pour celles liées à un EDL.
+  Future<void> _onNotifTap(NotificationModel n) async {
+    await _markNotifRead(n);
+    if (!mounted) return;
+    const bailTypes = {
+      'bail_garant_requis',
+      'bail_remplissage',
+      'edl_a_signer',
+      'edl_accepte',
+    };
+    if (n.etatDeLieuxId != null && bailTypes.contains(n.type)) {
+      await showBailRequirementsDialog(
+        context,
+        edlId: n.etatDeLieuxId!,
+        asProprietaire: true,
+      );
+      if (mounted) {
+        final f = _load();
+        setState(() => _future = f);
+      }
+    }
+  }
+
+  Future<void> _markAllNotifsRead() async {
+    await NotificationsDatasource.markAllRead();
+    final f = _load();
+    setState(() => _future = f);
   }
 
   /// Conditions « prêt à louer » du propriétaire.
@@ -234,13 +268,11 @@ class _VueGeneralePageState extends State<VueGeneralePage>
                       if (data.notifications.isNotEmpty) ...[
                         _NotificationsSection(
                           notifications: data.notifications,
+                          onTapNotif: _onNotifTap,
+                          onMarkAllRead: _markAllNotifsRead,
                         ),
                         const SizedBox(height: AppSpacing.xl),
                       ],
-                      _PendingDemandesSection(
-                        demandes: data.pendingDemandes,
-                      ),
-                      const SizedBox(height: AppSpacing.xl),
                     ],
                   ),
                 );
@@ -352,138 +384,20 @@ class _StatCard extends StatelessWidget {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _PendingDemandesSection extends StatelessWidget {
-  final List<DemandeContactModel> demandes;
-
-  const _PendingDemandesSection({required this.demandes});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Icon(
-              Icons.notifications_active_outlined,
-              size: 20,
-              color: AppColors.error,
-            ),
-            const SizedBox(width: AppSpacing.sm),
-            Text(
-              "Nouvelles demandes d'interactions",
-              style: AppTypography.titleLg,
-            ),
-            if (demandes.isNotEmpty) ...[
-              const SizedBox(width: AppSpacing.sm),
-              Badge(
-                label: Text('${demandes.length}'),
-                backgroundColor: AppColors.error,
-              ),
-            ],
-          ],
-        ),
-        const SizedBox(height: AppSpacing.md),
-        if (demandes.isEmpty)
-          Container(
-            padding: const EdgeInsets.all(AppSpacing.md),
-            decoration: BoxDecoration(
-              color: AppColors.surfaceContainerLowest,
-              borderRadius: AppRadius.borderMd,
-              border: Border.all(color: AppColors.outlineVariant),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.check_circle_outline,
-                  color: AppColors.tertiary,
-                  size: 20,
-                ),
-                const SizedBox(width: AppSpacing.sm),
-                Text(
-                  'Aucune nouvelle demande de contact.',
-                  style: AppTypography.bodyMd.copyWith(
-                    color: AppColors.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ),
-          )
-        else
-          ...demandes.map((d) => _PendingCard(demande: d)),
-      ],
-    );
-  }
-}
-
-class _PendingCard extends StatelessWidget {
-  final DemandeContactModel demande;
-
-  const _PendingCard({required this.demande});
-
-  static String _formatDate(DateTime dt) =>
-      '${dt.day.toString().padLeft(2, '0')}/'
-      '${dt.month.toString().padLeft(2, '0')}/'
-      '${dt.year}';
-
-  @override
-  Widget build(BuildContext context) {
-    final bien = [demande.chambreName, demande.immeubleName]
-        .whereType<String>()
-        .join(' — ');
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.md,
-        vertical: AppSpacing.sm,
-      ),
-      decoration: BoxDecoration(
-        color: AppColors.errorContainer.withValues(alpha: 0.15),
-        borderRadius: AppRadius.borderMd,
-        border: Border.all(
-          color: AppColors.error.withValues(alpha: 0.3),
-        ),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.person_outline, size: 20),
-          const SizedBox(width: AppSpacing.sm),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  demande.locataireFullName ?? '—',
-                  style: AppTypography.labelMd,
-                ),
-                if (bien.isNotEmpty)
-                  Text(
-                    bien,
-                    style: AppTypography.labelSm.copyWith(
-                      color: AppColors.onSurfaceVariant,
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          Text(
-            _formatDate(demande.createdAt),
-            style: AppTypography.labelSm.copyWith(
-              color: AppColors.onSurfaceVariant,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-
+/// Bloc « Notifications » du tableau de bord : réunit tout ce qui doit être
+/// notifié au propriétaire (nouvelles demandes de contact, garant requis,
+/// bail à signer…) — remplace l'ancien bloc ad-hoc « Nouvelles demandes
+/// d'interactions » qui ne couvrait que les demandes de contact.
 class _NotificationsSection extends StatelessWidget {
   final List<NotificationModel> notifications;
-  const _NotificationsSection({required this.notifications});
+  final ValueChanged<NotificationModel> onTapNotif;
+  final VoidCallback onMarkAllRead;
+
+  const _NotificationsSection({
+    required this.notifications,
+    required this.onTapNotif,
+    required this.onMarkAllRead,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -495,11 +409,18 @@ class _NotificationsSection extends StatelessWidget {
             Icon(Icons.notifications_active_outlined,
                 size: 20, color: AppColors.primary),
             const SizedBox(width: AppSpacing.sm),
-            Text('Notifications récentes', style: AppTypography.titleLg),
-            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Text('Notifications', style: AppTypography.titleLg),
+            ),
             Chip(
               label: Text('${notifications.length}'),
               visualDensity: VisualDensity.compact,
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            TextButton.icon(
+              onPressed: onMarkAllRead,
+              icon: const Icon(Icons.done_all, size: 18),
+              label: const Text('Tout marquer comme lu'),
             ),
           ],
         ),
@@ -507,7 +428,10 @@ class _NotificationsSection extends StatelessWidget {
         for (final n in notifications)
           Padding(
             padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-            child: NotificationCard(notification: n),
+            child: NotificationCard(
+              notification: n,
+              onTap: () => onTapNotif(n),
+            ),
           ),
       ],
     );
@@ -595,7 +519,6 @@ class _BauxASignerSection extends StatelessWidget {
 class _VueData {
   final List<ImmeublesModel> immeubles;
   final List<ChambreModel> chambres;
-  final List<DemandeContactModel> pendingDemandes;
   final List<NotificationModel> notifications;
   final List<EtatDesLieuxModel> bauxASigner;
   final UsersClient? profile;
@@ -604,16 +527,11 @@ class _VueData {
   const _VueData({
     required this.immeubles,
     required this.chambres,
-    required this.pendingDemandes,
     this.notifications = const [],
     this.bauxASigner = const [],
     this.profile,
     this.hasSignature = false,
   });
 
-  factory _VueData.empty() => const _VueData(
-    immeubles: [],
-    chambres: [],
-    pendingDemandes: [],
-  );
+  factory _VueData.empty() => const _VueData(immeubles: [], chambres: []);
 }

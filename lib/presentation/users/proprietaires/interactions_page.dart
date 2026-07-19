@@ -1,13 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
-import 'package:lacoloc_front/presentation/widgets/bail_requirements_dialog.dart';
 import 'package:lacoloc_front/utils/media_embed.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:intl/intl.dart';
 import 'package:lacoloc_front/data/cache/realtime_refresh_mixin.dart';
 import 'package:lacoloc_front/data/datasources/demandes_contact.dart';
 import 'package:lacoloc_front/data/datasources/messages.dart';
-import 'package:lacoloc_front/data/datasources/notifications.dart';
 import 'package:lacoloc_front/presentation/widgets/conversation_view.dart';
 import 'package:lacoloc_front/data/permissions/permissions_service.dart';
 import 'package:lacoloc_front/presentation/widgets/permission_gate.dart';
@@ -20,76 +18,21 @@ import 'package:lacoloc_front/theme/app_radius.dart';
 import 'package:lacoloc_front/presentation/widgets/app_top_bar.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
 import 'package:lacoloc_front/theme/app_typography.dart';
-import 'package:lacoloc_front/theme/app_tab_bar.dart';
 
-class InteractionsPage extends StatefulWidget {
-  final int initialTab;
-  final bool showTabBar;
-  const InteractionsPage({super.key, this.initialTab = 0, this.showTabBar = true});
-
-  @override
-  State<InteractionsPage> createState() => _InteractionsPageState();
-}
-
-class _InteractionsPageState extends State<InteractionsPage>
-    with SingleTickerProviderStateMixin {
-  late final TabController _tabCtrl;
-
-  @override
-  void initState() {
-    super.initState();
-    _tabCtrl = TabController(
-        length: 2, vsync: this, initialIndex: widget.initialTab);
-  }
-
-  @override
-  void dispose() {
-    _tabCtrl.dispose();
-    super.dispose();
-  }
+/// Page « Interactions » du propriétaire — les demandes de contact des
+/// locataires. Les notifications proprement dites (garant requis, bail à
+/// signer…) vivent désormais dans la section « Notifications » de la Vue
+/// générale (le tableau de bord), pas ici.
+class InteractionsPage extends StatelessWidget {
+  const InteractionsPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // Titre de la barre : nom du sous-menu quand la navigation est pilotée par
-    // la sidebar ; sinon titre générique de la section.
-    const subLabels = ['Demandes de contact', 'Notifications'];
-    final barTitle = widget.showTabBar
-        ? 'Interactions'
-        : subLabels[widget.initialTab.clamp(0, 1)];
-
-    return Column(
+    return const Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        AppTopBar(title: barTitle),
-        if (widget.showTabBar) ...[
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.lg,
-              AppSpacing.md,
-              AppSpacing.lg,
-              AppSpacing.sm,
-            ),
-            child: AppTabBar(
-              controller: _tabCtrl,
-              isScrollable: true,
-              tabs: const [
-                Tab(text: 'Demandes de contact'),
-                Tab(text: 'Notifications'),
-              ],
-            ),
-          ),
-          const Divider(height: 1),
-        ],
-        Expanded(
-          child: TabBarView(
-            controller: _tabCtrl,
-            physics: const NeverScrollableScrollPhysics(),
-            children: const [
-              _DemandesContactTab(),
-              _NotificationsTab(),
-            ],
-          ),
-        ),
+        AppTopBar(title: 'Demandes de contact'),
+        Expanded(child: _DemandesContactTab()),
       ],
     );
   }
@@ -114,6 +57,14 @@ class _DemandesContactTabState extends State<_DemandesContactTab>
   /// Messages non lus par demande (pastille sur le bouton Discussion).
   Map<int, int> _unread = const {};
 
+  /// Texte concaténé des messages de chaque fil, pour la recherche — voir
+  /// [MessagesDatasource.searchableTextByDemande] (scope garanti par la RLS :
+  /// impossible d'y trouver un message qu'on n'a pas envoyé/reçu).
+  Map<int, String> _searchText = const {};
+
+  final _searchCtrl = TextEditingController();
+  String _query = '';
+
   /// Fil ouvert : rendu **dans le cadre**, à la place de la liste.
   DemandeContactModel? _conversation;
 
@@ -133,6 +84,12 @@ class _DemandesContactTabState extends State<_DemandesContactTab>
     _load();
   }
 
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
   Future<void> _load() async {
     setState(() {
       _loading = true;
@@ -140,13 +97,16 @@ class _DemandesContactTabState extends State<_DemandesContactTab>
     });
     try {
       final data = await DemandesContactDatasource.listByOwner();
-      final unread = await MessagesDatasource.unreadCountByDemande(
-        refresh: true,
-      );
+      final ids = data.map((d) => d.id).toList();
+      final results = await Future.wait([
+        MessagesDatasource.unreadCountByDemande(refresh: true),
+        MessagesDatasource.searchableTextByDemande(ids, refresh: true),
+      ]);
       if (mounted) {
         setState(() {
           _demandes = data;
-          _unread = unread;
+          _unread = results[0] as Map<int, int>;
+          _searchText = results[1] as Map<int, String>;
           _loading = false;
           _applySort();
           // Garder le fil ouvert à jour (ex. la demande vient d'être acceptée).
@@ -165,6 +125,18 @@ class _DemandesContactTabState extends State<_DemandesContactTab>
         });
       }
     }
+  }
+
+  /// Filtre par nom du locataire **ou** contenu des messages du fil — jamais
+  /// au-delà de ce que la RLS autoriserait déjà à lire (voir [_searchText]).
+  List<DemandeContactModel> get _filtered {
+    if (_query.isEmpty) return _demandes;
+    final q = _query.toLowerCase();
+    return _demandes.where((d) {
+      final nom = (d.locataireFullName ?? '').toLowerCase();
+      final texte = (_searchText[d.id] ?? '').toLowerCase();
+      return nom.contains(q) || texte.contains(q);
+    }).toList();
   }
 
   void _applySort() {
@@ -270,13 +242,37 @@ class _DemandesContactTabState extends State<_DemandesContactTab>
       padding: const EdgeInsets.all(AppSpacing.lg),
       child: Column(
         children: [
-          Align(
-            alignment: Alignment.centerRight,
-            child: IconButton.outlined(
-              icon: const Icon(Icons.refresh),
-              tooltip: 'Actualiser',
-              onPressed: _load,
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _searchCtrl,
+                  onChanged: (v) => setState(() => _query = v.trim()),
+                  decoration: InputDecoration(
+                    hintText:
+                        'Rechercher un locataire ou dans les messages…',
+                    prefixIcon: const Icon(Icons.search, size: 20),
+                    isDense: true,
+                    suffixIcon: _query.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.close, size: 18),
+                            tooltip: 'Effacer la recherche',
+                            onPressed: () {
+                              _searchCtrl.clear();
+                              setState(() => _query = '');
+                            },
+                          )
+                        : null,
+                  ),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              IconButton.outlined(
+                icon: const Icon(Icons.refresh),
+                tooltip: 'Actualiser',
+                onPressed: _load,
+              ),
+            ],
           ),
           const SizedBox(height: AppSpacing.sm),
           Expanded(child: _buildBody()),
@@ -328,8 +324,20 @@ class _DemandesContactTabState extends State<_DemandesContactTab>
       );
     }
 
+    final filtered = _filtered;
+    if (filtered.isEmpty) {
+      return Center(
+        child: Text(
+          'Aucun résultat pour « $_query ».',
+          style: AppTypography.bodyMd.copyWith(
+            color: AppColors.onSurfaceVariant,
+          ),
+        ),
+      );
+    }
+
     return _SortableDemandesTable(
-      demandes: _demandes,
+      demandes: filtered,
       toggling: _toggling,
       unread: _unread,
       sortCol: _sortCol,
@@ -703,132 +711,6 @@ class _DemandeCard extends StatelessWidget {
       );
 }
 
-// ═════════════════════════════════════════════════════════════════════════════
-// Onglet Notifications
-// ═════════════════════════════════════════════════════════════════════════════
-
-class _NotificationsTab extends StatefulWidget {
-  const _NotificationsTab();
-
-  @override
-  State<_NotificationsTab> createState() => _NotificationsTabState();
-}
-
-class _NotificationsTabState extends State<_NotificationsTab>
-    with RealtimeRefreshMixin {
-  bool _loading = true;
-  String? _error;
-  List<NotificationModel> _items = [];
-
-  @override
-  Set<String> get watchedEntities => {'notifications'};
-
-  @override
-  void onRealtimeChange() => _load();
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-    try {
-      final data = await NotificationsDatasource.listByOwner();
-      if (!mounted) return;
-      setState(() => _items = data);
-    } catch (e) {
-      if (mounted) setState(() => _error = e.toString());
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  Future<void> _markRead(NotificationModel n) async {
-    if (n.isRead) return;
-    await NotificationsDatasource.markRead(n.id);
-    await _load();
-  }
-
-  /// Tap sur une notification : marque comme lue + ouvre le pop-up des
-  /// documents requis du bail pour les notifications liées à un EDL.
-  Future<void> _onNotifTap(NotificationModel n) async {
-    await _markRead(n);
-    if (!mounted) return;
-    if (n.etatDeLieuxId != null && _isBailNotif(n.type)) {
-      await showBailRequirementsDialog(context,
-          edlId: n.etatDeLieuxId!, asProprietaire: true);
-      if (mounted) _load();
-    }
-  }
-
-  static bool _isBailNotif(String type) => const {
-        'bail_garant_requis',
-        'bail_remplissage',
-        'edl_a_signer',
-        'edl_accepte',
-      }.contains(type);
-
-  Future<void> _markAllRead() async {
-    await NotificationsDatasource.markAllRead();
-    await _load();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_loading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-    if (_error != null) {
-      return Center(child: Text('Erreur : $_error'));
-    }
-    if (_items.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.xl),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.notifications_none,
-                  size: 48, color: AppColors.onSurfaceVariant),
-              const SizedBox(height: AppSpacing.md),
-              Text('Aucune notification.',
-                  style: AppTypography.bodyMd
-                      .copyWith(color: AppColors.onSurfaceVariant)),
-            ],
-          ),
-        ),
-      );
-    }
-    final hasUnread = _items.any((n) => !n.isRead);
-    return RefreshIndicator(
-      onRefresh: _load,
-      child: ListView(
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        children: [
-          if (hasUnread)
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton.icon(
-                onPressed: _markAllRead,
-                icon: const Icon(Icons.done_all, size: 18),
-                label: const Text('Tout marquer comme lu'),
-              ),
-            ),
-          for (final n in _items)
-            Padding(
-              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-              child: NotificationCard(notification: n, onTap: () => _onNotifTap(n)),
-            ),
-        ],
-      ),
-    );
-  }
-}
 
 /// Carte de notification réutilisable (Interactions + Vue générale).
 class NotificationCard extends StatelessWidget {
@@ -840,6 +722,7 @@ class NotificationCard extends StatelessWidget {
   IconData get _icon => switch (notification.type) {
         'edl_accepte' => Icons.verified_outlined,
         'admin_message' => Icons.campaign_outlined,
+        'nouvelle_demande' => Icons.person_add_alt_outlined,
         _ => Icons.notifications_outlined,
       };
 

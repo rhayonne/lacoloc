@@ -15,6 +15,7 @@ import 'package:lacoloc_front/data/datasources/notifications.dart';
 import 'package:lacoloc_front/data/datasources/recettes.dart';
 import 'package:lacoloc_front/data/models/recette.dart';
 import 'package:lacoloc_front/data/models/chambre.dart';
+import 'package:lacoloc_front/data/models/chambre_disponibilite.dart';
 import 'package:lacoloc_front/data/models/immeubles.dart';
 import 'package:lacoloc_front/data/models/etat_de_lieux.dart';
 import 'package:lacoloc_front/data/models/garant.dart';
@@ -154,7 +155,10 @@ class _LocataireProfilPageState extends State<LocataireProfilPage>
       final garants = results[4] as List<GarantModel>;
       final signatureUrl = results[5] as String?;
       final msgNonLus = results[6] as int;
-      final available = all.where((c) => !c.estLoue && c.isActive).toList();
+      // Les chambres louées restent visibles dans la recherche (le locataire
+      // peut vouloir repérer ce qui va bientôt se libérer) — le filtre
+      // « Disponibilité » de _ChambresSection permet de les masquer.
+      final available = all.where((c) => c.isActive).toList();
       final pending = edls
           .where(
             (e) => e.situation == SituationEdl.finalise && !e.locataireAccepte,
@@ -182,8 +186,10 @@ class _LocataireProfilPageState extends State<LocataireProfilPage>
         _pendingBails = pendingBails;
         _unreadNotifs = unread;
         _edlBadge = pending.length + pendingBails.length;
-        // « Interactions » = notifications non lues + messages de chat non lus.
-        _msgBadge = unread.length + msgNonLus;
+        // « Interactions » = messages de chat non lus uniquement — les
+        // notifications proprement dites vivent désormais dans le Tableau de
+        // bord (pas comptées dans la pastille du menu Interactions).
+        _msgBadge = msgNonLus;
         _needsGarant = needsGarant;
         _hasSignature = signatureUrl != null;
         _hasGarant = garants.isNotEmpty;
@@ -214,7 +220,6 @@ class _LocataireProfilPageState extends State<LocataireProfilPage>
 
   void _goToChambres() => _go(_idxChambres);
   void _goToEdl() => _go(_idxEdl);
-  void _goToMessages() => _go(_idxMessages);
 
   void _goToProfil() => _go(_idxProfil);
 
@@ -239,6 +244,36 @@ class _LocataireProfilPageState extends State<LocataireProfilPage>
   void _goToGarants() {
     setState(() => _docSub = 1);
     _go(_idxDocuments);
+  }
+
+  Future<void> _markNotifRead(NotificationModel n) async {
+    if (!n.isRead) await NotificationsDatasource.markRead(n.id);
+    await _refresh();
+  }
+
+  /// Tap sur une notification (Tableau de bord) : marque comme lue + ouvre le
+  /// pop-up des documents requis du bail pour celles liées à un EDL.
+  Future<void> _onNotifTap(NotificationModel n) async {
+    await _markNotifRead(n);
+    if (!mounted) return;
+    const bailTypes = {
+      'bail_garant_requis',
+      'bail_remplissage',
+      'edl_a_signer',
+    };
+    if (n.etatDeLieuxId != null && bailTypes.contains(n.type)) {
+      await showBailRequirementsDialog(
+        context,
+        edlId: n.etatDeLieuxId!,
+        asProprietaire: false,
+      );
+      if (mounted) await _refresh();
+    }
+  }
+
+  Future<void> _markAllNotifsRead() async {
+    await NotificationsDatasource.markAllRead();
+    await _refresh();
   }
 
   Widget _buildSidebar({required bool isNarrow}) {
@@ -315,6 +350,14 @@ class _LocataireProfilPageState extends State<LocataireProfilPage>
           count: _msgBadge,
           selected: _navIndex == _idxMessages,
           onTap: () => go(_idxMessages),
+          children: [
+            NavChild(
+              label: 'Mes discussions',
+              selected: _navIndex == _idxMessages,
+              count: _msgBadge,
+              onTap: () => go(_idxMessages),
+            ),
+          ],
         ),
         NavEntry(
           icon: Icons.folder_outlined,
@@ -394,7 +437,8 @@ class _LocataireProfilPageState extends State<LocataireProfilPage>
         hasGarant: _hasGarant,
         onVoirChambres: _goToChambres,
         onVoirEdl: _goToEdl,
-        onVoirMessages: _goToMessages,
+        onNotifTap: _onNotifTap,
+        onMarkAllNotifsRead: _markAllNotifsRead,
         onVoirGarants: _goToGarants,
         onCompleterProfil: _goToProfil,
         onCreerSignature: _createSignature,
@@ -409,7 +453,7 @@ class _LocataireProfilPageState extends State<LocataireProfilPage>
           initialTab: _edlSub,
           showTabBar: false,
         ),
-      _idxMessages => const _MessagesSection(),
+      _idxMessages => const _MesDiscussionsTab(),
       _idxDocuments => _DocumentsSection(
         key: ValueKey('doc$_docSub'),
         initialTab: _docSub,
@@ -503,7 +547,8 @@ class _DashboardSection extends StatelessWidget {
   final bool hasGarant;
   final VoidCallback onVoirChambres;
   final VoidCallback onVoirEdl;
-  final VoidCallback onVoirMessages;
+  final ValueChanged<NotificationModel> onNotifTap;
+  final VoidCallback onMarkAllNotifsRead;
   final VoidCallback onVoirGarants;
   final VoidCallback onCompleterProfil;
   final VoidCallback onCreerSignature;
@@ -518,7 +563,8 @@ class _DashboardSection extends StatelessWidget {
     required this.hasGarant,
     required this.onVoirChambres,
     required this.onVoirEdl,
-    required this.onVoirMessages,
+    required this.onNotifTap,
+    required this.onMarkAllNotifsRead,
     required this.onVoirGarants,
     required this.onCompleterProfil,
     required this.onCreerSignature,
@@ -703,13 +749,28 @@ class _DashboardSection extends StatelessWidget {
                         const SizedBox(height: AppSpacing.xl),
                       ],
 
-                      // ── Messages non lus ──────────────────────────────────
+                      // ── Notifications ─────────────────────────────────────
                       if (unreadNotifs.isNotEmpty) ...[
-                        _sectionHeader(
-                          icon: Icons.mail_outline,
-                          title: 'Messages non lus',
-                          actionLabel: 'Voir tout',
-                          onAction: onVoirMessages,
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.notifications_active_outlined,
+                              size: 20,
+                              color: AppColors.onSurfaceVariant,
+                            ),
+                            const SizedBox(width: AppSpacing.sm),
+                            Expanded(
+                              child: Text(
+                                'Notifications',
+                                style: AppTypography.titleLg,
+                              ),
+                            ),
+                            TextButton.icon(
+                              onPressed: onMarkAllNotifsRead,
+                              icon: const Icon(Icons.done_all, size: 18),
+                              label: const Text('Tout marquer comme lu'),
+                            ),
+                          ],
                         ),
                         const SizedBox(height: AppSpacing.md),
                         ...unreadNotifs.map(
@@ -719,7 +780,7 @@ class _DashboardSection extends StatelessWidget {
                             ),
                             child: NotificationCard(
                               notification: n,
-                              onTap: onVoirMessages,
+                              onTap: () => onNotifTap(n),
                             ),
                           ),
                         ),
@@ -775,7 +836,7 @@ class _DashboardSection extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.xs),
           Text(
-            "Aucun état des lieux à signer, aucun message en attente.",
+            "Aucun état des lieux à signer, aucune notification en attente.",
             style: AppTypography.bodyMd.copyWith(
               color: AppColors.onSurfaceVariant,
             ),
@@ -856,204 +917,6 @@ class _DashboardEdlTile extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Section Messages (notifications du locataire)
-
-class _MessagesSection extends StatefulWidget {
-  const _MessagesSection();
-
-  @override
-  State<_MessagesSection> createState() => _MessagesSectionState();
-}
-
-class _MessagesSectionState extends State<_MessagesSection>
-    with RealtimeRefreshMixin, SingleTickerProviderStateMixin {
-  late final TabController _tabCtrl;
-  bool _loading = true;
-  String? _error;
-  List<NotificationModel> _items = [];
-
-  @override
-  Set<String> get watchedEntities => {'notifications'};
-
-  @override
-  void onRealtimeChange() => _load();
-
-  @override
-  void initState() {
-    super.initState();
-    _tabCtrl = TabController(length: 2, vsync: this);
-    _load();
-  }
-
-  @override
-  void dispose() {
-    _tabCtrl.dispose();
-    super.dispose();
-  }
-
-  Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-    try {
-      final data = await NotificationsDatasource.listByOwner(refresh: true);
-      if (!mounted) return;
-      setState(() => _items = data);
-    } catch (e) {
-      if (mounted) setState(() => _error = e.toString());
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  Future<void> _markRead(NotificationModel n) async {
-    if (n.isRead) return;
-    await NotificationsDatasource.markRead(n.id);
-    await _load();
-  }
-
-  /// Tap : marque comme lue + ouvre le pop-up des documents requis du bail
-  /// (avec boutons « Résoudre ») pour les notifications liées à un EDL.
-  Future<void> _onNotifTap(NotificationModel n) async {
-    await _markRead(n);
-    if (!mounted) return;
-    const bailTypes = {
-      'bail_garant_requis',
-      'bail_remplissage',
-      'edl_a_signer',
-    };
-    if (n.etatDeLieuxId != null && bailTypes.contains(n.type)) {
-      await showBailRequirementsDialog(
-        context,
-        edlId: n.etatDeLieuxId!,
-        asProprietaire: false,
-      );
-      if (mounted) _load();
-    }
-  }
-
-  Future<void> _markAllRead() async {
-    await NotificationsDatasource.markAllRead();
-    await _load();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    // Même en-tête que les Interactions du propriétaire (titre + sous-titre).
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.lg,
-            AppSpacing.lg,
-            AppSpacing.lg,
-            AppSpacing.md,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Interactions', style: AppTypography.headlineMd),
-              const SizedBox(height: AppSpacing.xs),
-              Text(
-                'Suivi de vos échanges et notifications.',
-                style: AppTypography.bodyMd.copyWith(
-                  color: AppColors.onSurfaceVariant,
-                ),
-              ),
-            ],
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-          child: AppTabBar(
-            controller: _tabCtrl,
-            isScrollable: true,
-            tabs: const [
-              Tab(text: 'Mes discussions'),
-              Tab(text: 'Notifications'),
-            ],
-          ),
-        ),
-        const Divider(height: 1),
-        Expanded(
-          child: TabBarView(
-            controller: _tabCtrl,
-            physics: const NeverScrollableScrollPhysics(),
-            children: [const _MesDiscussionsTab(), _buildBody()],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildBody() {
-    if (_loading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-    if (_error != null) {
-      return Center(child: Text('Erreur : $_error'));
-    }
-    if (_items.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.xl),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.mail_outline,
-                size: 48,
-                color: AppColors.onSurfaceVariant,
-              ),
-              const SizedBox(height: AppSpacing.md),
-              Text(
-                'Aucun message.',
-                style: AppTypography.bodyMd.copyWith(
-                  color: AppColors.onSurfaceVariant,
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-    final hasUnread = _items.any((n) => !n.isRead);
-    return RefreshIndicator(
-      onRefresh: _load,
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 800),
-          child: ListView(
-            padding: const EdgeInsets.all(AppSpacing.lg),
-            children: [
-              if (hasUnread)
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton.icon(
-                    onPressed: _markAllRead,
-                    icon: const Icon(Icons.done_all, size: 18),
-                    label: const Text('Tout marquer comme lu'),
-                  ),
-                ),
-              for (final n in _items)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                  child: NotificationCard(
-                    notification: n,
-                    onTap: () => _onNotifTap(n),
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 
 /// Les demandes de contact envoyées par le locataire, et le fil de discussion
 /// de chacune (ouvert dès que le propriétaire a accepté la demande).
@@ -1071,6 +934,13 @@ class _MesDiscussionsTabState extends State<_MesDiscussionsTab>
   List<DemandeContactModel> _demandes = [];
   Map<int, int> _unread = const {};
 
+  /// Texte concaténé de chaque fil, pour la recherche (voir
+  /// [MessagesDatasource.searchableTextByDemande] — scope garanti par la RLS).
+  Map<int, String> _searchText = const {};
+
+  final _searchCtrl = TextEditingController();
+  String _query = '';
+
   /// Fil ouvert : rendu dans le cadre, à la place de la liste.
   DemandeContactModel? _conversation;
 
@@ -1086,6 +956,12 @@ class _MesDiscussionsTabState extends State<_MesDiscussionsTab>
     _load();
   }
 
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
   Future<void> _load() async {
     setState(() {
       _loading = true;
@@ -1095,13 +971,16 @@ class _MesDiscussionsTabState extends State<_MesDiscussionsTab>
       final data = await DemandesContactDatasource.listByLocataire(
         refresh: true,
       );
-      final unread = await MessagesDatasource.unreadCountByDemande(
-        refresh: true,
-      );
+      final ids = data.map((d) => d.id).toList();
+      final results = await Future.wait([
+        MessagesDatasource.unreadCountByDemande(refresh: true),
+        MessagesDatasource.searchableTextByDemande(ids, refresh: true),
+      ]);
       if (!mounted) return;
       setState(() {
         _demandes = data;
-        _unread = unread;
+        _unread = results[0] as Map<int, int>;
+        _searchText = results[1] as Map<int, String>;
         // Garder le fil ouvert à jour (ex. le proprio vient d'accepter).
         final open = _conversation;
         if (open != null) {
@@ -1114,6 +993,18 @@ class _MesDiscussionsTabState extends State<_MesDiscussionsTab>
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  /// Filtre par nom du propriétaire **ou** contenu des messages du fil —
+  /// jamais au-delà de ce que la RLS autoriserait déjà à lire.
+  List<DemandeContactModel> get _filtered {
+    if (_query.isEmpty) return _demandes;
+    final q = _query.toLowerCase();
+    return _demandes.where((d) {
+      final nom = (d.proprietaireFullName ?? '').toLowerCase();
+      final texte = (_searchText[d.id] ?? '').toLowerCase();
+      return nom.contains(q) || texte.contains(q);
+    }).toList();
   }
 
   @override
@@ -1132,6 +1023,47 @@ class _MesDiscussionsTabState extends State<_MesDiscussionsTab>
       );
     }
 
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const _LocataireSectionBar(title: 'Mes discussions'),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                TextField(
+                  controller: _searchCtrl,
+                  onChanged: (v) => setState(() => _query = v.trim()),
+                  decoration: InputDecoration(
+                    hintText:
+                        'Rechercher un propriétaire ou dans les messages…',
+                    prefixIcon: const Icon(Icons.search, size: 20),
+                    isDense: true,
+                    suffixIcon: _query.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.close, size: 18),
+                            tooltip: 'Effacer la recherche',
+                            onPressed: () {
+                              _searchCtrl.clear();
+                              setState(() => _query = '');
+                            },
+                          )
+                        : null,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                Expanded(child: _buildBody()),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBody() {
     if (_loading) return const Center(child: CircularProgressIndicator());
     if (_error != null) {
       return Center(
@@ -1183,17 +1115,29 @@ class _MesDiscussionsTabState extends State<_MesDiscussionsTab>
       );
     }
 
+    final filtered = _filtered;
+    if (filtered.isEmpty) {
+      return Center(
+        child: Text(
+          'Aucun résultat pour « $_query ».',
+          style: AppTypography.bodyMd.copyWith(
+            color: AppColors.onSurfaceVariant,
+          ),
+        ),
+      );
+    }
+
     return RefreshIndicator(
       onRefresh: _load,
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 800),
           child: ListView.separated(
-            padding: const EdgeInsets.all(AppSpacing.lg),
-            itemCount: _demandes.length,
+            padding: const EdgeInsets.only(bottom: AppSpacing.lg),
+            itemCount: filtered.length,
             separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.sm),
             itemBuilder: (_, i) {
-              final d = _demandes[i];
+              final d = filtered[i];
               return _DemandeLocataireCard(
                 demande: d,
                 unread: _unread[d.id] ?? 0,
@@ -1318,17 +1262,35 @@ class _ChambresSectionState extends State<_ChambresSection> {
   /// Équipements « dans l'annonce » par chambre (carte + filtre).
   Map<int, List<String>> _equip = const {};
 
+  /// Disponibilité (+ date de libération connue) par chambre (carte + filtre).
+  Map<int, ChambreDisponibiliteModel> _dispo = const {};
+
   @override
   void initState() {
     super.initState();
-    _loadEquip();
+    _loadExtras();
   }
 
-  Future<void> _loadEquip() async {
-    final map = await InventaireDatasource.annonceLabelsByChambre(
-      widget.chambres.map((c) => c.id).toList(),
-    );
-    if (mounted) setState(() => _equip = map);
+  @override
+  void didUpdateWidget(_ChambresSection old) {
+    super.didUpdateWidget(old);
+    if (old.chambres.map((c) => c.id).toSet() !=
+        widget.chambres.map((c) => c.id).toSet()) {
+      _loadExtras();
+    }
+  }
+
+  Future<void> _loadExtras() async {
+    final ids = widget.chambres.map((c) => c.id).toList();
+    final results = await Future.wait([
+      InventaireDatasource.annonceLabelsByChambre(ids),
+      ChambresDatasource.disponibiliteByIds(ids),
+    ]);
+    if (!mounted) return;
+    setState(() {
+      _equip = results[0] as Map<int, List<String>>;
+      _dispo = results[1] as Map<int, ChambreDisponibiliteModel>;
+    });
   }
 
   List<ChambreModel> get _filtered {
@@ -1342,6 +1304,13 @@ class _ChambresSectionState extends State<_ChambresSection> {
         if (!inName && !inImm && !inAddr && !inCity) return false;
       }
       final f = _filter;
+      final dispo = _dispo[c.id];
+      if (f.masquerLouees && dispo != null && !dispo.disponible) return false;
+      if (f.disponibleAPartirDe != null) {
+        if (dispo == null || !dispo.disponibleAvant(f.disponibleAPartirDe!)) {
+          return false;
+        }
+      }
       if (f.equipements.isNotEmpty) {
         final labels = _equip[c.id] ?? const [];
         if (!f.equipements.every(labels.contains)) return false;
@@ -1449,6 +1418,7 @@ class _ChambresSectionState extends State<_ChambresSection> {
                         FilterModule.surface,
                         FilterModule.prix,
                         FilterModule.equipements,
+                        FilterModule.disponibilite,
                       },
                     ),
                     const SizedBox(height: AppSpacing.sm),
@@ -1516,6 +1486,7 @@ class _ChambresSectionState extends State<_ChambresSection> {
                               chambre: filtered[i],
                               equipementLabels:
                                   _equip[filtered[i].id] ?? const [],
+                              disponibilite: _dispo[filtered[i].id],
                               onTap: () => widget.onTap(filtered[i].id),
                             ),
                           );

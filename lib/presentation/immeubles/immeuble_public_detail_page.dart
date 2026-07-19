@@ -3,6 +3,7 @@ import 'package:lacoloc_front/data/datasources/chambres.dart';
 import 'package:lacoloc_front/data/datasources/inventaire.dart';
 import 'package:lacoloc_front/data/datasources/immeubles.dart';
 import 'package:lacoloc_front/data/models/chambre.dart';
+import 'package:lacoloc_front/data/models/chambre_disponibilite.dart';
 import 'package:lacoloc_front/data/models/immeubles.dart';
 import 'package:lacoloc_front/presentation/chambres/chambre_card.dart';
 import 'package:lacoloc_front/presentation/widgets/photo_carousel.dart';
@@ -52,10 +53,15 @@ class _ImmeublePublicDetailViewState extends State<ImmeublePublicDetailView> {
     final chambres = (await ChambresDatasource.listByImmeuble(widget.immeubleId))
         .where((c) => c.isActive)
         .toList();
-    final equipMap = await InventaireDatasource.annonceLabelsByChambre(
-        chambres.map((c) => c.id).toList());
+    final ids = chambres.map((c) => c.id).toList();
+    final equipMap = await InventaireDatasource.annonceLabelsByChambre(ids);
+    final dispoMap = await ChambresDatasource.disponibiliteByIds(ids);
     return _Bundle(
-        immeuble: immeuble, chambres: chambres, equipMap: equipMap);
+      immeuble: immeuble,
+      chambres: chambres,
+      equipMap: equipMap,
+      dispoMap: dispoMap,
+    );
   }
 
   List<String> _photos(ImmeublesModel imm) {
@@ -189,6 +195,7 @@ class _ImmeublePublicDetailViewState extends State<ImmeublePublicDetailView> {
                       return ChambreCard(
                         chambre: c,
                         equipementLabels: b.equipMap[c.id] ?? const [],
+                        disponibilite: b.dispoMap[c.id],
                         onTap: () => Navigator.of(context)
                             .pushNamed('/chambre', arguments: c.id),
                       );
@@ -207,10 +214,12 @@ class _Bundle {
   final ImmeublesModel immeuble;
   final List<ChambreModel> chambres;
   final Map<int, List<String>> equipMap;
+  final Map<int, ChambreDisponibiliteModel> dispoMap;
   const _Bundle({
     required this.immeuble,
     required this.chambres,
     required this.equipMap,
+    required this.dispoMap,
   });
 }
 

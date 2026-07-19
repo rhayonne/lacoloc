@@ -182,6 +182,7 @@ class _HomePageState extends State<HomePage> {
                 FilterModule.prix,
                 FilterModule.equipements,
                 FilterModule.charges,
+                FilterModule.disponibilite,
               },
               trailing: isPhone
                   ? OutlinedButton.icon(

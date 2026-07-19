@@ -13,6 +13,10 @@ class DemandesContactDatasource {
   static void _invalidate() => _cache.invalidatePrefix(CacheKeys.demandes);
 
   /// Cria uma nova demanda de contato pelo locataire autenticado.
+  ///
+  /// Notifica o proprietaire (via RPC `notify_nouvelle_demande`, best-effort —
+  /// a demanda é criada mesmo se a notificação falhar) para que a nova demanda
+  /// apareça na seção « Notifications » do tableau de bord.
   static Future<void> create({
     required String locataireId,
     required int immeubleId,
@@ -24,8 +28,17 @@ class DemandesContactDatasource {
       'contact_etabli': false,
     };
     if (chambreId != null) payload['chambre_id'] = chambreId;
-    await _db.from(_table).insert(payload);
+    final inserted =
+        await _db.from(_table).insert(payload).select('id').single();
     _invalidate();
+    try {
+      await _db.rpc(
+        'notify_nouvelle_demande',
+        params: {'p_demande_id': inserted['id']},
+      );
+    } catch (_) {
+      // best-effort
+    }
   }
 
   /// Embeds partagés. `Immeubles.owner_id` + le nom du proprietaire donnent au
