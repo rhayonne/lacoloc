@@ -16,14 +16,17 @@ import 'package:lacoloc_front/theme/app_typography.dart';
 import 'package:lacoloc_front/utils/signature_pad.dart';
 
 /// Section **« Ma signature »** (inline, réutilisable) : gère les deux
-/// signatures possibles de l'utilisateur — **manuscrite** (dessinée) et
-/// **image** (fichier importé). Chaque emplacement se crée sur place ; l'une
-/// des deux est **principale** (encadrée en bleu). L'édition (pivoter / rogner /
-/// remplacer) se fait via une boîte de dialogue, avec avertissement avant de
-/// remplacer.
+/// signatures possibles de l'utilisateur — **manuscrite** (dessinée, gestuelle)
+/// et **image** (fichier importé). **Au plus une par type.**
 ///
-/// Remplace l'ancien parcours « bouton → popup Signer » sur les écrans de
-/// réglages (Documentation / profil locataire).
+/// La liste n'affiche que les signatures **existantes**. Un unique bouton
+/// **« Ajouter une signature »** ouvre un **menu déroulant** proposant
+/// uniquement le(s) type(s) manquant(s) : *gestuelle* (ouvre l'écran de
+/// signature gestuelle — tactile ou souris) et/ou *importer une image* (galerie).
+/// Le bouton disparaît quand les **deux** types existent.
+///
+/// Une signature créée peut ensuite être modifiée (pivoter / rogner / refaire /
+/// remplacer). L'une des deux est **principale** (encadrée en bleu).
 class SignatureManagerSection extends StatefulWidget {
   const SignatureManagerSection({super.key});
 
@@ -34,6 +37,7 @@ class SignatureManagerSection extends StatefulWidget {
 
 class _SignatureManagerSectionState extends State<SignatureManagerSection> {
   late Future<List<SignatureEntry>> _future;
+  bool _busy = false;
 
   @override
   void initState() {
@@ -44,6 +48,47 @@ class _SignatureManagerSectionState extends State<SignatureManagerSection> {
   void _reload() {
     final f = SignaturesDatasource.listByUser();
     setState(() => _future = f);
+  }
+
+  Future<void> _run(Future<void> Function() action) async {
+    setState(() => _busy = true);
+    try {
+      await action();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Erreur : $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  /// Ajoute une signature **gestuelle** : ouvre l'écran de dessin puis enregistre.
+  Future<void> _addDraw() async {
+    final bytes = await showDrawSignatureDialog(context);
+    if (bytes == null || !mounted) return;
+    await _run(() async {
+      final ref = await SignaturesDatasource.uploadPng(bytes);
+      await SignaturesDatasource.saveForKind(
+          kind: SignatureKind.draw, ref: ref);
+      _reload();
+    });
+  }
+
+  /// Ajoute une signature **image** : sélection depuis la galerie puis upload.
+  Future<void> _addImage() async {
+    final picker = ImagePicker();
+    final xfile = await picker.pickImage(
+        source: ImageSource.gallery, imageQuality: 90);
+    if (xfile == null) return;
+    final bytes = await xfile.readAsBytes();
+    await _run(() async {
+      final ref = await SignaturesDatasource.uploadPng(bytes);
+      await SignaturesDatasource.saveForKind(
+          kind: SignatureKind.image, ref: ref);
+      _reload();
+    });
   }
 
   @override
@@ -61,6 +106,12 @@ class _SignatureManagerSectionState extends State<SignatureManagerSection> {
         SignatureEntry? byKind(SignatureKind k) =>
             list.where((s) => s.kind == k).firstOrNull;
 
+        // Types encore manquants (proposés dans le menu « Ajouter »).
+        final missing = <SignatureKind>[
+          if (byKind(SignatureKind.draw) == null) SignatureKind.draw,
+          if (byKind(SignatureKind.image) == null) SignatureKind.image,
+        ];
+
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -72,17 +123,31 @@ class _SignatureManagerSectionState extends State<SignatureManagerSection> {
                   .copyWith(color: AppColors.onSurfaceVariant),
             ),
             const SizedBox(height: AppSpacing.lg),
-            _SignatureSlot(
-              kind: SignatureKind.draw,
-              entry: byKind(SignatureKind.draw),
-              onChanged: _reload,
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            _SignatureSlot(
-              kind: SignatureKind.image,
-              entry: byKind(SignatureKind.image),
-              onChanged: _reload,
-            ),
+
+            // Liste des signatures existantes uniquement.
+            if (list.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+                child: Text(
+                  'Aucune signature enregistrée pour le moment.',
+                  style: AppTypography.bodyMd
+                      .copyWith(color: AppColors.onSurfaceVariant),
+                ),
+              )
+            else
+              for (final entry in list) ...[
+                _SignatureSlot(entry: entry, onChanged: _reload),
+                const SizedBox(height: AppSpacing.lg),
+              ],
+
+            // Bouton « Ajouter » : visible tant qu'un type manque.
+            if (missing.isNotEmpty)
+              _AddSignatureButton(
+                missing: missing,
+                busy: _busy,
+                onDraw: _addDraw,
+                onImage: _addImage,
+              ),
           ],
         );
       },
@@ -91,15 +156,59 @@ class _SignatureManagerSectionState extends State<SignatureManagerSection> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Un emplacement (draw ou image)
+// Bouton « Ajouter une signature » + menu déroulant des types manquants
+
+class _AddSignatureButton extends StatelessWidget {
+  final List<SignatureKind> missing;
+  final bool busy;
+  final Future<void> Function() onDraw;
+  final Future<void> Function() onImage;
+
+  const _AddSignatureButton({
+    required this.missing,
+    required this.busy,
+    required this.onDraw,
+    required this.onImage,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return MenuAnchor(
+      builder: (context, controller, _) => AppButton.primary(
+        size: AppButtonSize.compact,
+        fullWidth: true,
+        icon: Icons.add,
+        label: 'Ajouter une signature',
+        onPressed: busy
+            ? null
+            : () => controller.isOpen ? controller.close() : controller.open(),
+      ),
+      menuChildren: [
+        if (missing.contains(SignatureKind.draw))
+          MenuItemButton(
+            leadingIcon: const Icon(Icons.draw_outlined),
+            onPressed: onDraw,
+            child: const Text('Signature gestuelle'),
+          ),
+        if (missing.contains(SignatureKind.image))
+          MenuItemButton(
+            leadingIcon: const Icon(Icons.image_outlined),
+            onPressed: onImage,
+            child: const Text('Importer une image'),
+          ),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Un emplacement rempli (draw ou image)
 
 class _SignatureSlot extends StatefulWidget {
-  final SignatureKind kind;
-  final SignatureEntry? entry;
+  final SignatureEntry entry;
   final VoidCallback onChanged;
 
   const _SignatureSlot({
-    required this.kind,
     required this.entry,
     required this.onChanged,
   });
@@ -109,15 +218,13 @@ class _SignatureSlot extends StatefulWidget {
 }
 
 class _SignatureSlotState extends State<_SignatureSlot> {
-  final _padKey = GlobalKey<SignaturePadState>();
-  bool _editingDraw = false; // pad de dessin affiché (création / remplacement)
   bool _busy = false;
 
-  bool get _isPrincipal => widget.entry?.isPrincipal ?? false;
+  SignatureKind get _kind => widget.entry.kind;
+  bool get _isPrincipal => widget.entry.isPrincipal;
 
-  IconData get _icon => widget.kind == SignatureKind.draw
-      ? Icons.draw_outlined
-      : Icons.image_outlined;
+  IconData get _icon =>
+      _kind == SignatureKind.draw ? Icons.draw_outlined : Icons.image_outlined;
 
   Future<void> _run(Future<void> Function() action) async {
     setState(() => _busy = true);
@@ -133,26 +240,7 @@ class _SignatureSlotState extends State<_SignatureSlot> {
     }
   }
 
-  Future<void> _saveDrawing() async {
-    final bytes = await _padKey.currentState?.exportPng();
-    if (bytes == null) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Veuillez dessiner votre signature.')),
-        );
-      }
-      return;
-    }
-    await _run(() async {
-      final ref = await SignaturesDatasource.uploadPng(bytes);
-      await SignaturesDatasource.saveForKind(
-          kind: SignatureKind.draw, ref: ref);
-      _editingDraw = false;
-      widget.onChanged();
-    });
-  }
-
-  Future<void> _importImage() async {
+  Future<void> _importImage({bool asPrincipal = false}) async {
     final picker = ImagePicker();
     final xfile = await picker.pickImage(
         source: ImageSource.gallery, imageQuality: 90);
@@ -161,7 +249,7 @@ class _SignatureSlotState extends State<_SignatureSlot> {
     await _run(() async {
       final ref = await SignaturesDatasource.uploadPng(bytes);
       await SignaturesDatasource.saveForKind(
-          kind: SignatureKind.image, ref: ref);
+          kind: SignatureKind.image, ref: ref, asPrincipal: asPrincipal);
       widget.onChanged();
     });
   }
@@ -169,7 +257,7 @@ class _SignatureSlotState extends State<_SignatureSlot> {
   Future<void> _setPrincipal() async {
     if (_isPrincipal) return;
     await _run(() async {
-      await SignaturesDatasource.setPrincipal(widget.kind);
+      await SignaturesDatasource.setPrincipal(_kind);
       widget.onChanged();
     });
   }
@@ -179,7 +267,7 @@ class _SignatureSlotState extends State<_SignatureSlot> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Supprimer la signature'),
-        content: Text('Supprimer votre ${widget.kind.label.toLowerCase()} ? '
+        content: Text('Supprimer votre ${_kind.label.toLowerCase()} ? '
             'Cette action est définitive.'),
         actions: [
           TextButton(
@@ -193,17 +281,15 @@ class _SignatureSlotState extends State<_SignatureSlot> {
     );
     if (ok != true) return;
     await _run(() async {
-      await SignaturesDatasource.deleteByKind(widget.kind);
+      await SignaturesDatasource.deleteByKind(_kind);
       widget.onChanged();
     });
   }
 
   Future<void> _edit() async {
-    final entry = widget.entry;
-    if (entry == null) return;
     final action = await showModalBottomSheet<_EditAction>(
       context: context,
-      builder: (ctx) => _EditActionSheet(kind: widget.kind),
+      builder: (ctx) => _EditActionSheet(kind: _kind),
     );
     if (action == null || !mounted) return;
 
@@ -221,22 +307,20 @@ class _SignatureSlotState extends State<_SignatureSlot> {
 
   /// Télécharge les bytes courants, applique [fn], ré-upload (même type).
   Future<void> _transform(Future<Uint8List> Function(Uint8List) fn) async {
-    final ref = widget.entry?.ref;
-    if (ref == null) return;
+    final ref = widget.entry.ref;
     await _run(() async {
       final bytes = await StorageService.downloadBytes(ref);
       if (bytes == null) return;
       final out = await fn(bytes);
       final newRef = await SignaturesDatasource.uploadPng(out);
       await SignaturesDatasource.saveForKind(
-          kind: widget.kind, ref: newRef, asPrincipal: _isPrincipal);
+          kind: _kind, ref: newRef, asPrincipal: _isPrincipal);
       widget.onChanged();
     });
   }
 
   Future<void> _cropCurrent() async {
-    final ref = widget.entry?.ref;
-    if (ref == null) return;
+    final ref = widget.entry.ref;
     final bytes = await StorageService.downloadBytes(ref);
     if (bytes == null || !mounted) return;
     final cropped = await showDialog<Uint8List>(
@@ -247,13 +331,13 @@ class _SignatureSlotState extends State<_SignatureSlot> {
     await _run(() async {
       final newRef = await SignaturesDatasource.uploadPng(cropped);
       await SignaturesDatasource.saveForKind(
-          kind: widget.kind, ref: newRef, asPrincipal: _isPrincipal);
+          kind: _kind, ref: newRef, asPrincipal: _isPrincipal);
       widget.onChanged();
     });
   }
 
   /// Remplacer : avertit que la signature actuelle sera perdue, puis
-  /// (image → galerie ; draw → pad vierge).
+  /// (image → galerie ; draw → écran de signature gestuelle).
   Future<void> _replace() async {
     final ok = await showDialog<bool>(
       context: context,
@@ -272,16 +356,22 @@ class _SignatureSlotState extends State<_SignatureSlot> {
       ),
     );
     if (ok != true || !mounted) return;
-    if (widget.kind == SignatureKind.image) {
-      await _importImage();
+    if (_kind == SignatureKind.image) {
+      await _importImage(asPrincipal: _isPrincipal);
     } else {
-      setState(() => _editingDraw = true); // pad vierge inline
+      final bytes = await showDrawSignatureDialog(context);
+      if (bytes == null || !mounted) return;
+      await _run(() async {
+        final newRef = await SignaturesDatasource.uploadPng(bytes);
+        await SignaturesDatasource.saveForKind(
+            kind: SignatureKind.draw, ref: newRef, asPrincipal: _isPrincipal);
+        widget.onChanged();
+      });
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final has = widget.entry != null && !_editingDraw;
     // Emplacement principal = encadré en bleu (bord + ombre bleus).
     final borderColor =
         _isPrincipal ? AppColors.primary : AppColors.outlineVariant;
@@ -289,8 +379,7 @@ class _SignatureSlotState extends State<_SignatureSlot> {
       decoration: BoxDecoration(
         color: AppColors.surfaceContainerLowest,
         borderRadius: AppRadius.borderLg,
-        border: Border.all(
-            color: borderColor, width: _isPrincipal ? 2 : 1),
+        border: Border.all(color: borderColor, width: _isPrincipal ? 2 : 1),
         boxShadow: _isPrincipal
             ? [
                 BoxShadow(
@@ -310,7 +399,7 @@ class _SignatureSlotState extends State<_SignatureSlot> {
             children: [
               Icon(_icon, size: 20, color: AppColors.onSurfaceVariant),
               const SizedBox(width: AppSpacing.sm),
-              Text(widget.kind.label, style: AppTypography.titleLs),
+              Text(_kind.label, style: AppTypography.titleLs),
               const Spacer(),
               if (_isPrincipal)
                 Container(
@@ -327,19 +416,11 @@ class _SignatureSlotState extends State<_SignatureSlot> {
             ],
           ),
           const SizedBox(height: AppSpacing.md),
-
-          if (has)
-            _filled(context)
-          else if (widget.kind == SignatureKind.draw)
-            _drawEditor(context)
-          else
-            _imageEmpty(context),
+          _filled(context),
         ],
       ),
     );
   }
-
-  // ── États ──────────────────────────────────────────────────────────────────
 
   Widget _filled(BuildContext context) {
     return Column(
@@ -353,7 +434,7 @@ class _SignatureSlotState extends State<_SignatureSlot> {
             border: Border.all(color: AppColors.outlineVariant),
           ),
           clipBehavior: Clip.antiAlias,
-          child: PrivateImage(ref: widget.entry!.ref, fit: BoxFit.contain),
+          child: PrivateImage(ref: widget.entry.ref, fit: BoxFit.contain),
         ),
         const SizedBox(height: AppSpacing.sm),
         // Case « principale »
@@ -404,76 +485,6 @@ class _SignatureSlotState extends State<_SignatureSlot> {
       ],
     );
   }
-
-  Widget _drawEditor(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text('Dessinez votre signature dans le cadre.',
-            style: AppTypography.labelSm
-                .copyWith(color: AppColors.onSurfaceVariant)),
-        const SizedBox(height: AppSpacing.sm),
-        SizedBox(height: 160, child: SignaturePad(key: _padKey)),
-        const SizedBox(height: AppSpacing.sm),
-        Row(
-          children: [
-            Expanded(
-              child: AppButton.cancel(
-                size: AppButtonSize.compact,
-                fullWidth: true,
-                icon: Icons.refresh,
-                label: 'Effacer',
-                onPressed:
-                    _busy ? null : () => _padKey.currentState?.clear(),
-              ),
-            ),
-            const SizedBox(width: AppSpacing.sm),
-            Expanded(
-              child: AppButton.save(
-                size: AppButtonSize.compact,
-                fullWidth: true,
-                label: 'Enregistrer',
-                isBusy: _busy,
-                onPressed: _busy ? null : _saveDrawing,
-              ),
-            ),
-          ],
-        ),
-        if (_editingDraw) ...[
-          const SizedBox(height: AppSpacing.xs),
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton(
-              onPressed: _busy
-                  ? null
-                  : () => setState(() => _editingDraw = false),
-              child: const Text('Annuler'),
-            ),
-          ),
-        ],
-      ],
-    );
-  }
-
-  Widget _imageEmpty(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text('Importez une image de votre signature.',
-            style: AppTypography.labelSm
-                .copyWith(color: AppColors.onSurfaceVariant)),
-        const SizedBox(height: AppSpacing.sm),
-        AppButton.primary(
-          size: AppButtonSize.compact,
-          fullWidth: true,
-          icon: Icons.photo_library_outlined,
-          label: 'Importer une image',
-          isBusy: _busy,
-          onPressed: _busy ? null : _importImage,
-        ),
-      ],
-    );
-  }
 }
 
 /// Rotation des bytes PNG (angle en degrés, +90 = horaire).
@@ -482,6 +493,98 @@ Future<Uint8List> _rotate(Uint8List png, int angle) async {
   if (decoded == null) return png;
   final rotated = img.copyRotate(decoded, angle: angle);
   return Uint8List.fromList(img.encodePng(rotated));
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Écran de signature gestuelle (dessin — tactile ou souris)
+
+/// Ouvre l'écran de **signature gestuelle**. Le pad fonctionne au doigt
+/// (tactile) comme à la souris. Retourne les bytes PNG dessinés, ou null si
+/// l'utilisateur annule.
+Future<Uint8List?> showDrawSignatureDialog(BuildContext context) {
+  return showDialog<Uint8List>(
+    context: context,
+    barrierDismissible: false,
+    builder: (_) => const _DrawSignatureDialog(),
+  );
+}
+
+class _DrawSignatureDialog extends StatefulWidget {
+  const _DrawSignatureDialog();
+
+  @override
+  State<_DrawSignatureDialog> createState() => _DrawSignatureDialogState();
+}
+
+class _DrawSignatureDialogState extends State<_DrawSignatureDialog> {
+  final _padKey = GlobalKey<SignaturePadState>();
+  bool _busy = false;
+
+  Future<void> _save() async {
+    setState(() => _busy = true);
+    final bytes = await _padKey.currentState?.exportPng();
+    if (!mounted) return;
+    if (bytes == null) {
+      setState(() => _busy = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Veuillez dessiner votre signature.')),
+      );
+      return;
+    }
+    Navigator.pop(context, bytes);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: AppRadius.borderLg),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 540),
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('Signature gestuelle', style: AppTypography.titleLg),
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                'Dessinez votre signature ci-dessous (au doigt ou à la souris).',
+                style: AppTypography.bodyMd
+                    .copyWith(color: AppColors.onSurfaceVariant),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              SizedBox(height: 200, child: SignaturePad(key: _padKey)),
+              const SizedBox(height: AppSpacing.sm),
+              Row(
+                children: [
+                  TextButton.icon(
+                    onPressed:
+                        _busy ? null : () => _padKey.currentState?.clear(),
+                    icon: const Icon(Icons.refresh, size: 16),
+                    label: const Text('Effacer'),
+                  ),
+                  const Spacer(),
+                  AppButton.cancel(
+                    size: AppButtonSize.compact,
+                    label: 'Annuler',
+                    onPressed: _busy ? null : () => Navigator.pop(context),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  AppButton.save(
+                    size: AppButtonSize.compact,
+                    label: 'Enregistrer',
+                    isBusy: _busy,
+                    onPressed: _busy ? null : _save,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
