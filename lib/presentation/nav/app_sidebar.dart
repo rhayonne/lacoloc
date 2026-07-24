@@ -460,13 +460,12 @@ class _ManualButtonState extends State<_ManualButton>
   }
 
   void _open() {
-    // Em web: abre /manual/index.html numa nova aba.
-    final base = Uri.base;
-    final url = base.replace(
-      path: '/manual/index.html',
-      query: '',
-      fragment: '',
-    );
+    // Em web: abre `manual/index.html` numa nova aba, **relativo** à base da
+    // app. Antes usava um path absoluto `/manual/index.html`, o que quebrava
+    // no GitHub Pages (site sob `/super-loc/`) → 404. Como as rotas têm um só
+    // segmento (ex. `/super-loc/profile`), `resolve` preserva o prefixo e dá
+    // `/super-loc/manual/index.html`.
+    final url = Uri.base.resolve('manual/index.html');
     launchUrl(url, mode: LaunchMode.externalApplication);
   }
 

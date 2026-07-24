@@ -337,22 +337,23 @@ class _ColocationBanner extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: AppSpacing.sm),
-                // `Flexible` protège contre l'overflow si l'espace réel est
-                // insuffisant même en mode "large" (ex. sidebar étendue).
-                Flexible(
-                  child: isNarrow
-                      ? IconButton(
-                          onPressed: onVoirImmeubles,
-                          tooltip: 'Voir les immeubles',
-                          icon: const Icon(Icons.apartment_outlined),
-                          color: AppColors.secondary,
-                        )
-                      : OutlinedButton.icon(
-                          onPressed: onVoirImmeubles,
-                          icon: const Icon(Icons.apartment_outlined, size: 18),
-                          label: const Text('Voir les immeubles'),
-                        ),
-                ),
+                // Le bouton garde sa largeur intrinsèque (hors compétition de
+                // flex) : ainsi le texte (Expanded) occupe **tout** l'espace
+                // restant et tient sur une seule ligne quand il y a la place —
+                // au lieu d'être confiné à la moitié et de passer à la ligne.
+                if (isNarrow)
+                  IconButton(
+                    onPressed: onVoirImmeubles,
+                    tooltip: 'Voir les immeubles',
+                    icon: const Icon(Icons.apartment_outlined),
+                    color: AppColors.secondary,
+                  )
+                else
+                  OutlinedButton.icon(
+                    onPressed: onVoirImmeubles,
+                    icon: const Icon(Icons.apartment_outlined, size: 18),
+                    label: const Text('Voir les immeubles'),
+                  ),
               ],
             ),
           ),

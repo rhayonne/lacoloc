@@ -36,8 +36,14 @@ class FilterButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: isOpen ? AppColors.primaryFixed : AppColors.surfaceContainerLow,
-      borderRadius: AppRadius.borderFull,
+      color: isOpen ? AppColors.primaryFixed : AppColors.surfaceContainerLowest,
+      shape: RoundedRectangleBorder(
+        borderRadius: AppRadius.borderFull,
+        // Bordure teintée « primary » : le bouton était trop pâle et
+        // passait inaperçu ; on lui donne de la présence avec la couleur du
+        // thème, sans fond criard.
+        side: BorderSide(color: AppColors.primary.withValues(alpha: 0.55)),
+      ),
       elevation: AppTheme.raisedButtonElevation,
       shadowColor: AppTheme.raisedButtonShadowColor,
       child: InkWell(
@@ -51,11 +57,12 @@ class FilterButton extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.tune, size: 20, color: AppColors.onSurfaceVariant),
+              Icon(Icons.tune, size: 20, color: AppColors.primary),
               const SizedBox(width: AppSpacing.xs),
               Text(
                 label,
-                style: AppTypography.labelMd.copyWith(fontWeight: FontWeight.w600),
+                style: AppTypography.labelMd.copyWith(
+                    fontWeight: FontWeight.w600, color: AppColors.primary),
               ),
               if (activeCount > 0) ...[
                 const SizedBox(width: AppSpacing.sm),
@@ -75,7 +82,7 @@ class FilterButton extends StatelessWidget {
               ],
               const SizedBox(width: AppSpacing.xs),
               Icon(isOpen ? Icons.expand_less : Icons.expand_more,
-                  size: 22, color: AppColors.onSurfaceVariant),
+                  size: 22, color: AppColors.primary),
             ],
           ),
         ),

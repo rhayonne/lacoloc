@@ -12,7 +12,7 @@ import 'package:lacoloc_front/theme/app_spacing.dart';
 import 'package:lacoloc_front/theme/app_typography.dart';
 
 /// Card visual de um quarto na grid pública.
-class ChambreCard extends StatelessWidget {
+class ChambreCard extends StatefulWidget {
   final ChambreModel chambre;
   final VoidCallback onTap;
 
@@ -28,9 +28,6 @@ class ChambreCard extends StatelessWidget {
   /// libération connue ou « Actuellement louée » si elle est inconnue.
   final ChambreDisponibiliteModel? disponibilite;
 
-  /// Máximo de chips de équipements listados antes do indicador "+N".
-  static const _maxOptionChips = 4;
-
   const ChambreCard({
     super.key,
     required this.chambre,
@@ -41,7 +38,23 @@ class ChambreCard extends StatelessWidget {
   });
 
   @override
+  State<ChambreCard> createState() => _ChambreCardState();
+}
+
+class _ChambreCardState extends State<ChambreCard> {
+  /// Máximo de chips de équipements listados antes do indicador "+N".
+  static const _maxOptionChips = 4;
+
+  bool _hover = false;
+
+  @override
   Widget build(BuildContext context) {
+    final chambre = widget.chambre;
+    final onTap = widget.onTap;
+    final equipementLabels = widget.equipementLabels;
+    final charges = widget.charges;
+    final disponibilite = widget.disponibilite;
+
     final cover = chambre.roomPhotos.isNotEmpty ? chambre.roomPhotos.first : null;
 
     final shown = equipementLabels.take(_maxOptionChips).toList();
@@ -53,10 +66,30 @@ class ChambreCard extends StatelessWidget {
     final fixe      = charges.where((c) => c.type == 'fixe').toList();
     final totalFixe = fixe.fold<double>(0, (s, c) => s + (c.montant ?? 0));
 
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
+    // Survol : la carte se soulève légèrement + ombre portée (feedback subtil).
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        curve: Curves.easeOut,
+        transform: Matrix4.translationValues(0, _hover ? -6 : 0, 0),
+        decoration: BoxDecoration(
+          borderRadius: AppRadius.borderLg,
+          boxShadow: _hover
+              ? [
+                  BoxShadow(
+                    color: AppColors.onSurface.withValues(alpha: 0.18),
+                    blurRadius: 20,
+                    offset: const Offset(0, 10),
+                  ),
+                ]
+              : const [],
+        ),
+        child: Card(
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onTap,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -75,11 +108,11 @@ class ChambreCard extends StatelessWidget {
                           errorWidget: (_, _, _) => _placeholder(),
                         )
                       : _placeholder(),
-                  if (disponibilite != null && !disponibilite!.disponible)
+                  if (disponibilite != null && !disponibilite.disponible)
                     Positioned(
                       top: AppSpacing.sm,
                       left: AppSpacing.sm,
-                      child: _DisponibiliteBadge(disponibilite: disponibilite!),
+                      child: _DisponibiliteBadge(disponibilite: disponibilite),
                     ),
                 ],
               ),
@@ -149,10 +182,8 @@ class ChambreCard extends StatelessWidget {
             // Padding vertical réduit + densité compacte (44pt) : évitait le
             // débordement de 16px en bas de la carte (hauteur de cellule fixe).
             Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.md,
-                vertical: AppSpacing.sm,
-              ),
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.md, AppSpacing.sm, AppSpacing.md, AppSpacing.md),
               child: AppButton.primary(
                 size: AppButtonSize.compact,
                 fullWidth: true,
@@ -164,6 +195,8 @@ class ChambreCard extends StatelessWidget {
           ],
         ),
       ),
+          ),
+        ),
     );
   }
 

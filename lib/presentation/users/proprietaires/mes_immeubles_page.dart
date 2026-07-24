@@ -48,7 +48,7 @@ class _MesImmeublesPageState extends State<MesImmeublesPage>
   @override
   void onRealtimeChange() {
     final f = _load();
-    setState(() => _future = f);
+    setState(() { _future = f; });
   }
 
   Future<_Bundle> _load() async {
@@ -143,16 +143,15 @@ class _Grid extends StatelessWidget {
         children: [
           LayoutBuilder(
             builder: (context, constraints) {
-              final cols = constraints.maxWidth < 480
-                  ? 1
-                  : constraints.maxWidth < 820
-                  ? 2
-                  : 3;
+              // Nombre de colonnes calculé pour une **largeur de carte bornée**
+              // (~420 px max) : sur grand écran on ajoute des colonnes au lieu
+              // d'étirer une carte sur toute la largeur (qui paraissait
+              // disproportionnée pour son contenu). `ceil` garantit que chaque
+              // carte reste ≤ ~420 px.
+              const targetCardWidth = 420.0;
+              final cols =
+                  (constraints.maxWidth / targetCardWidth).ceil().clamp(1, 4).toInt();
               // Largeur de colonne = largeur réelle disponible / nb de colonnes.
-              // On utilise FixedCrossAxisCount (et non MaxCrossAxisExtent, qui
-              // recalculait lui-même le nombre de colonnes et rétrécissait les
-              // cartes) → les cartes remplissent la largeur, proportionnellement
-              // à l'écran.
               final colWidth =
                   (constraints.maxWidth - (cols - 1) * AppSpacing.md) / cols;
               // Hauteur proportionnelle à la largeur de colonne, bornée pour ne
