@@ -81,7 +81,7 @@ class _FacturesListPageState extends State<FacturesListPage>
     final ownerId = AuthService.currentUser?.id;
     if (ownerId == null) return;
     final f = RecettesDatasource.listByOwner(ownerId, refresh: true);
-    setState(() => _futureRecettes = f);
+    setState(() { _futureRecettes = f; });
   }
 
   List<FactureModel> _filter(List<FactureModel> all) {

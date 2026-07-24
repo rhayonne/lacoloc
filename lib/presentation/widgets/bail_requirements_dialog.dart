@@ -77,7 +77,10 @@ class _BailRequirementsBodyState extends State<_BailRequirementsBody> {
     return _Data(edl: edl, garantsCount: garants);
   }
 
-  void _reload() => setState(() => _future = _load());
+  void _reload() {
+    final f = _load();
+    setState(() { _future = f; });
+  }
 
   List<_Req> _requirements(_Data d) {
     final edl = d.edl;

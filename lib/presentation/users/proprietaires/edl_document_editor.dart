@@ -903,7 +903,7 @@ class _EdlCompositionTableState extends State<EdlCompositionTable> {
 
   void _reload() {
     final f = EdlDetailsDatasource.listSections(widget.edlId);
-    setState(() => _future = f);
+    setState(() { _future = f; });
   }
 
   Future<void> _addSection() async {

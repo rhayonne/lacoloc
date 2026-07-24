@@ -117,7 +117,7 @@ class _VetustePageState extends State<VetustePage> {
 
   Future<void> _reload() async {
     final f = _load();
-    setState(() => _future = f);
+    setState(() { _future = f; });
     await f;
   }
 

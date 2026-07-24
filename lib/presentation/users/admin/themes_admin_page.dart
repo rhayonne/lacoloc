@@ -38,7 +38,8 @@ class _ThemesAdminPageState extends State<ThemesAdminPage> {
   }
 
   void _reload() {
-    setState(() => _future = ThemesDatasource.listAll(refresh: true));
+    final f = ThemesDatasource.listAll(refresh: true);
+    setState(() { _future = f; });
   }
 
   /// Après toute écriture : la liste ET le thème courant peuvent avoir changé

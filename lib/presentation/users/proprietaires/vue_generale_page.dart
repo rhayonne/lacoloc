@@ -54,7 +54,7 @@ class _VueGeneralePageState extends State<VueGeneralePage>
   @override
   void onRealtimeChange() {
     final f = _load();
-    setState(() => _future = f);
+    setState(() { _future = f; });
   }
 
   Future<_VueData> _load() async {
@@ -109,7 +109,7 @@ class _VueGeneralePageState extends State<VueGeneralePage>
     try {
       await SignaturesDatasource.saveUrl(res.url);
       final f = _load();
-      setState(() => _future = f);
+      setState(() { _future = f; });
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -123,7 +123,7 @@ class _VueGeneralePageState extends State<VueGeneralePage>
     if (n.isRead) return;
     await NotificationsDatasource.markRead(n.id);
     final f = _load();
-    setState(() => _future = f);
+    setState(() { _future = f; });
   }
 
   /// Tap sur une notification : marque comme lue + ouvre le pop-up des
@@ -145,7 +145,7 @@ class _VueGeneralePageState extends State<VueGeneralePage>
       );
       if (mounted) {
         final f = _load();
-        setState(() => _future = f);
+        setState(() { _future = f; });
       }
     }
   }
@@ -153,7 +153,7 @@ class _VueGeneralePageState extends State<VueGeneralePage>
   Future<void> _markAllNotifsRead() async {
     await NotificationsDatasource.markAllRead();
     final f = _load();
-    setState(() => _future = f);
+    setState(() { _future = f; });
   }
 
   /// Conditions « prêt à louer » du propriétaire.
