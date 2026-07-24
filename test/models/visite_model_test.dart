@@ -183,8 +183,9 @@ void main() {
         );
       });
 
-      test('"visite_entree" → "Visite entrée"', () {
-        expect(typeVisiteLabel('visite_entree'), 'Visite entrée');
+      // Depuis la refonte « rendez-vous » (226b945), le libellé est « Visite ».
+      test('"visite_entree" → "Visite"', () {
+        expect(typeVisiteLabel('visite_entree'), 'Visite');
       });
 
       test('"reparation" → "Réparation"', () {
@@ -197,12 +198,14 @@ void main() {
     });
 
     group('kTypesVisite', () {
-      test('contém os 4 tipos esperados', () {
+      // La refonte « rendez-vous » (226b945) a ajouté le type « autre ».
+      test('contém os 5 tipos esperados', () {
         expect(kTypesVisite, contains('etat_des_lieux_entree'));
         expect(kTypesVisite, contains('etat_des_lieux_sortie'));
         expect(kTypesVisite, contains('visite_entree'));
         expect(kTypesVisite, contains('reparation'));
-        expect(kTypesVisite, hasLength(4));
+        expect(kTypesVisite, contains('autre'));
+        expect(kTypesVisite, hasLength(5));
       });
     });
 
