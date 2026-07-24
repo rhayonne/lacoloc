@@ -58,6 +58,12 @@ class _AgendaPageState extends State<AgendaPage> {
   List<ImmeublesModel> _immeubles = [];
 
   AgendaView _view = AgendaView.semaine;
+
+  // Position globale du dernier appui — capturée dans `onTapDown` puis utilisée
+  // dans `onTap` pour ancrer le popover. On agit sur `onTap` (et non `onTapUp`)
+  // car c'est le callback de tap canonique, fiable au **toucher** (mobile) ;
+  // `onTapUp` seul pouvait ne pas se déclencher dans une zone défilable tactile.
+  Offset _tapGlobal = Offset.zero;
   late DateTime _anchor; // date de référence (jour, sans heure)
 
   @override
@@ -207,7 +213,8 @@ class _AgendaPageState extends State<AgendaPage> {
               else
                 InkWell(
                   borderRadius: AppRadius.borderSm,
-                  onTapUp: (d) => _openPeriodPicker(d.globalPosition),
+                  onTapDown: (d) => _tapGlobal = d.globalPosition,
+                  onTap: () => _openPeriodPicker(_tapGlobal),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 8, vertical: 6),
@@ -457,7 +464,8 @@ class _AgendaPageState extends State<AgendaPage> {
       height: height,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTapUp: (d) => _openRdvPopover(d.globalPosition, existing: v),
+        onTapDown: (d) => _tapGlobal = d.globalPosition,
+        onTap: () => _openRdvPopover(_tapGlobal, existing: v),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
           decoration: BoxDecoration(
@@ -851,6 +859,8 @@ class _SlotCell extends StatefulWidget {
 
 class _SlotCellState extends State<_SlotCell> {
   bool _hover = false;
+  // Position de l'appui (voir note sur `_tapGlobal` dans _AgendaPageState).
+  Offset _tapGlobal = Offset.zero;
 
   @override
   Widget build(BuildContext context) {
@@ -866,7 +876,8 @@ class _SlotCellState extends State<_SlotCell> {
       onExit: (_) => setState(() => _hover = false),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTapUp: (d) => widget.onTap(d.globalPosition),
+        onTapDown: (d) => _tapGlobal = d.globalPosition,
+        onTap: () => widget.onTap(_tapGlobal),
         child: Container(
           height: _hourH / 2,
           decoration: BoxDecoration(
@@ -1159,8 +1170,10 @@ class _ListeView extends StatelessWidget {
         final imm = immeubles.where((m) => m.id == v.immeubleId).firstOrNull;
         final color = typeVisiteColor(v.typeVisite);
         return Builder(builder: (ctx) {
+          Offset tapGlobal = Offset.zero;
           return InkWell(
-            onTapUp: (d) => onOpen(v, d.globalPosition),
+            onTapDown: (d) => tapGlobal = d.globalPosition,
+            onTap: () => onOpen(v, tapGlobal),
             borderRadius: AppRadius.borderMd,
             child: Container(
               padding: const EdgeInsets.all(AppSpacing.md),
