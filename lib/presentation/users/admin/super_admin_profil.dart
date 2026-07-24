@@ -275,6 +275,17 @@ class _SuperAdminProfilPageState extends State<SuperAdminProfilPage> {
               selected: _section == _Section.maintenance && _maintSub == 1,
               onTap: () => goSub(_Section.maintenance, () => _maintSub = 1),
             ),
+            // Lien externe : ouvre la spec OpenAPI (Redoc) dans un nouvel
+            // onglet du navigateur — ce n'est pas une section de l'app, donc
+            // jamais « selected ».
+            NavChild(
+              label: 'Documentation API',
+              selected: false,
+              onTap: () {
+                if (isNarrow) Navigator.of(context).pop();
+                openApiDocumentation();
+              },
+            ),
           ],
         ),
       ],

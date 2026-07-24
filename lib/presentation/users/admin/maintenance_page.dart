@@ -10,10 +10,15 @@ import 'package:lacoloc_front/theme/app_radius.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
 import 'package:lacoloc_front/theme/app_typography.dart';
 import 'package:lacoloc_front/theme/app_tab_bar.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 /// Section **Maintenance** du super admin. Regroupe en onglets :
 ///  - **Connexions** : le journal des connexions ([ConnectionLogsPage]).
 ///  - **Services** : des outils de maintenance (ex. test d'envoi d'e-mail).
+///
+/// La **Documentation API** n'est pas un onglet : c'est un lien du sous-menu
+/// qui ouvre la spec OpenAPI (Redoc) dans un nouvel onglet du navigateur —
+/// voir `openApiDocumentation` ci-dessous.
 class MaintenancePage extends StatelessWidget {
   final int initialTab;
   final bool showTabBar;
@@ -54,6 +59,21 @@ class MaintenancePage extends StatelessWidget {
       ),
     );
   }
+}
+
+// ─── Documentation API (Swagger / Redoc) — lien externe ───────────────────────
+
+/// Ouvre la documentation OpenAPI (Redoc, `web/api/index.html` bundlé avec
+/// l'app) **dans un nouvel onglet du navigateur** — elle n'est plus intégrée
+/// dans le cadre de l'app. L'URL est résolue relativement à la base, donc elle
+/// reste valable sous un sous-chemin (ex. `/super-loc/`).
+Future<void> openApiDocumentation() async {
+  final url = Uri.base.resolve('api/index.html');
+  await launchUrl(
+    url,
+    mode: LaunchMode.externalApplication,
+    webOnlyWindowName: '_blank',
+  );
 }
 
 // ─── Onglet Services ──────────────────────────────────────────────────────────
