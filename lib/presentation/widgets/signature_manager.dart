@@ -1,13 +1,12 @@
 import 'dart:typed_data';
 
-import 'package:crop_your_image/crop_your_image.dart';
 import 'package:flutter/material.dart';
-import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
 import 'package:lacoloc_front/data/datasources/signatures.dart';
 import 'package:lacoloc_front/data/datasources/storage_service.dart';
 import 'package:lacoloc_front/presentation/widgets/app_button.dart';
 import 'package:lacoloc_front/presentation/widgets/private_image.dart';
+import 'package:lacoloc_front/presentation/widgets/signature_image_edit.dart';
 import 'package:lacoloc_front/theme/app_button_sizes.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_radius.dart';
@@ -47,7 +46,7 @@ class _SignatureManagerSectionState extends State<SignatureManagerSection> {
 
   void _reload() {
     final f = SignaturesDatasource.listByUser();
-    setState(() => _future = f);
+    setState(() { _future = f; });
   }
 
   Future<void> _run(Future<void> Function() action) async {
@@ -287,20 +286,20 @@ class _SignatureSlotState extends State<_SignatureSlot> {
   }
 
   Future<void> _edit() async {
-    final action = await showModalBottomSheet<_EditAction>(
-      context: context,
-      builder: (ctx) => _EditActionSheet(kind: _kind),
+    final action = await showSignatureEditSheet(
+      context,
+      isImage: _kind == SignatureKind.image,
     );
     if (action == null || !mounted) return;
 
     switch (action) {
-      case _EditAction.rotateLeft:
-        await _transform((b) => _rotate(b, -90));
-      case _EditAction.rotateRight:
-        await _transform((b) => _rotate(b, 90));
-      case _EditAction.crop:
+      case SignatureEditAction.rotateLeft:
+        await _transform((b) => rotateSignatureBytes(b, -90));
+      case SignatureEditAction.rotateRight:
+        await _transform((b) => rotateSignatureBytes(b, 90));
+      case SignatureEditAction.crop:
         await _cropCurrent();
-      case _EditAction.replace:
+      case SignatureEditAction.replace:
         await _replace();
     }
   }
@@ -323,10 +322,7 @@ class _SignatureSlotState extends State<_SignatureSlot> {
     final ref = widget.entry.ref;
     final bytes = await StorageService.downloadBytes(ref);
     if (bytes == null || !mounted) return;
-    final cropped = await showDialog<Uint8List>(
-      context: context,
-      builder: (ctx) => _CropDialog(bytes: bytes),
-    );
+    final cropped = await showSignatureCropDialog(context, bytes);
     if (cropped == null) return;
     await _run(() async {
       final newRef = await SignaturesDatasource.uploadPng(cropped);
@@ -487,14 +483,6 @@ class _SignatureSlotState extends State<_SignatureSlot> {
   }
 }
 
-/// Rotation des bytes PNG (angle en degrés, +90 = horaire).
-Future<Uint8List> _rotate(Uint8List png, int angle) async {
-  final decoded = img.decodeImage(png);
-  if (decoded == null) return png;
-  final rotated = img.copyRotate(decoded, angle: angle);
-  return Uint8List.fromList(img.encodePng(rotated));
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Écran de signature gestuelle (dessin — tactile ou souris)
 
@@ -587,133 +575,3 @@ class _DrawSignatureDialogState extends State<_DrawSignatureDialog> {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Feuille d'actions d'édition
-
-enum _EditAction { rotateLeft, rotateRight, crop, replace }
-
-class _EditActionSheet extends StatelessWidget {
-  final SignatureKind kind;
-  const _EditActionSheet({required this.kind});
-
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const SizedBox(height: AppSpacing.sm),
-          Text('Modifier la signature', style: AppTypography.titleLs),
-          const SizedBox(height: AppSpacing.sm),
-          ListTile(
-            leading: const Icon(Icons.rotate_left),
-            title: const Text('Pivoter à gauche'),
-            onTap: () => Navigator.pop(context, _EditAction.rotateLeft),
-          ),
-          ListTile(
-            leading: const Icon(Icons.rotate_right),
-            title: const Text('Pivoter à droite'),
-            onTap: () => Navigator.pop(context, _EditAction.rotateRight),
-          ),
-          ListTile(
-            leading: const Icon(Icons.crop),
-            title: const Text('Rogner'),
-            onTap: () => Navigator.pop(context, _EditAction.crop),
-          ),
-          ListTile(
-            leading: const Icon(Icons.swap_horiz),
-            title: Text(kind == SignatureKind.image
-                ? 'Remplacer par une autre image'
-                : 'Refaire la signature'),
-            onTap: () => Navigator.pop(context, _EditAction.replace),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-        ],
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Boîte de rognage (crop_your_image)
-
-class _CropDialog extends StatefulWidget {
-  final Uint8List bytes;
-  const _CropDialog({required this.bytes});
-
-  @override
-  State<_CropDialog> createState() => _CropDialogState();
-}
-
-class _CropDialogState extends State<_CropDialog> {
-  final _controller = CropController();
-  bool _cropping = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: AppRadius.borderLg),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 540),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(AppSpacing.md),
-              child: Row(
-                children: [
-                  Text('Rogner la signature', style: AppTypography.titleLs),
-                ],
-              ),
-            ),
-            SizedBox(
-              height: 340,
-              child: Crop(
-                image: widget.bytes,
-                controller: _controller,
-                baseColor: AppColors.surfaceContainerLow,
-                maskColor: Colors.black.withValues(alpha: 0.5),
-                onCropped: (result) {
-                  if (!mounted) return;
-                  if (result is CropSuccess) {
-                    Navigator.pop(context, result.croppedImage);
-                  } else {
-                    setState(() => _cropping = false);
-                    Navigator.pop(context);
-                  }
-                },
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(AppSpacing.md),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  AppButton.cancel(
-                    size: AppButtonSize.compact,
-                    label: 'Annuler',
-                    onPressed:
-                        _cropping ? null : () => Navigator.pop(context),
-                  ),
-                  const SizedBox(width: AppSpacing.sm),
-                  AppButton.save(
-                    size: AppButtonSize.compact,
-                    icon: Icons.crop,
-                    label: 'Rogner',
-                    isBusy: _cropping,
-                    onPressed: _cropping
-                        ? null
-                        : () {
-                            setState(() => _cropping = true);
-                            _controller.crop();
-                          },
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}

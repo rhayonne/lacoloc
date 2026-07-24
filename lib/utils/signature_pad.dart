@@ -5,11 +5,12 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lacoloc_front/data/datasources/signatures.dart';
-import 'package:lacoloc_front/presentation/widgets/private_image.dart';
+import 'package:lacoloc_front/presentation/widgets/app_button.dart';
+import 'package:lacoloc_front/presentation/widgets/signature_image_edit.dart';
+import 'package:lacoloc_front/theme/app_button_sizes.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_radius.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
-import 'package:lacoloc_front/theme/app_theme.dart';
 import 'package:lacoloc_front/theme/app_typography.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -208,89 +209,120 @@ class _SignatureDialog extends StatefulWidget {
   State<_SignatureDialog> createState() => _SignatureDialogState();
 }
 
-enum _SignatureTab { dessiner, importer, sauvegardee }
-
-class _SignatureDialogState extends State<_SignatureDialog>
-    with SingleTickerProviderStateMixin {
-  late final TabController _tab;
+class _SignatureDialogState extends State<_SignatureDialog> {
   final _padKey = GlobalKey<SignaturePadState>();
 
-  // Onglet importer / sauvegardée
+  /// Type choisi via le sélecteur en haut (gestuelle / image). Remplace les
+  /// anciens onglets qui défilaient latéralement (le défilement volait les
+  /// gestes horizontaux du tracé → la signature gestuelle ne marchait pas).
+  SignatureKind _kind = SignatureKind.draw;
+
+  /// Image importée (mode image), éventuellement éditée (pivotée / rognée).
   Uint8List? _importedBytes;
-  String? _savedUrl; // URL de la signature sauvegardée existante
-  bool _loadingSaved = true;
-  bool _uploading = false;
-  bool _saveAsDefault = false;
+
+  bool _busy = false;
   String? _error;
-
-  @override
-  void initState() {
-    super.initState();
-    final hasSaved = widget.existingUrl != null;
-    _tab = TabController(
-      length: 3,
-      vsync: this,
-      initialIndex: hasSaved ? 2 : 0,
-    );
-    _loadSaved();
-  }
-
-  Future<void> _loadSaved() async {
-    try {
-      final url = widget.existingUrl ?? await SignaturesDatasource.getSavedUrl();
-      if (mounted) setState(() { _savedUrl = url; _loadingSaved = false; });
-    } catch (_) {
-      if (mounted) setState(() => _loadingSaved = false);
-    }
-  }
-
-  @override
-  void dispose() {
-    _tab.dispose();
-    super.dispose();
-  }
 
   Future<void> _pickImage() async {
     final picker = ImagePicker();
-    final xfile = await picker.pickImage(source: ImageSource.gallery, imageQuality: 90);
+    final xfile =
+        await picker.pickImage(source: ImageSource.gallery, imageQuality: 90);
     if (xfile == null) return;
     final bytes = await xfile.readAsBytes();
     if (mounted) setState(() => _importedBytes = bytes);
   }
 
+  /// « Modifier l'image » : mêmes options que le menu « Ma signature »
+  /// (pivoter / rogner / remplacer), appliquées aux bytes en mémoire.
+  Future<void> _editImage() async {
+    if (_importedBytes == null) return;
+    final action = await showSignatureEditSheet(context, isImage: true);
+    if (action == null || !mounted) return;
+    switch (action) {
+      case SignatureEditAction.rotateLeft:
+        final out = await rotateSignatureBytes(_importedBytes!, -90);
+        if (mounted) setState(() => _importedBytes = out);
+      case SignatureEditAction.rotateRight:
+        final out = await rotateSignatureBytes(_importedBytes!, 90);
+        if (mounted) setState(() => _importedBytes = out);
+      case SignatureEditAction.crop:
+        final out = await showSignatureCropDialog(context, _importedBytes!);
+        if (out != null && mounted) setState(() => _importedBytes = out);
+      case SignatureEditAction.replace:
+        await _pickImage();
+    }
+  }
+
+  /// Règle métier : **une seule** signature par type. Demande confirmation
+  /// avant d'écraser une signature existante du même type.
+  Future<bool> _confirmReplace() async {
+    final res = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Remplacer la signature'),
+        content: Text('Vous avez déjà une ${_kind.label.toLowerCase()}. '
+            'Elle sera remplacée par la nouvelle. Continuer ?'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Annuler')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Remplacer')),
+        ],
+      ),
+    );
+    return res ?? false;
+  }
+
   Future<void> _confirm() async {
-    setState(() { _uploading = true; _error = null; });
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
     try {
       Uint8List? bytes;
-
-      switch (_SignatureTab.values[_tab.index]) {
-        case _SignatureTab.dessiner:
-          bytes = await _padKey.currentState?.exportPng();
-          if (bytes == null) {
-            setState(() { _uploading = false; _error = 'Veuillez dessiner votre signature.'; });
-            return;
-          }
-        case _SignatureTab.importer:
-          bytes = _importedBytes;
-          if (bytes == null) {
-            setState(() { _uploading = false; _error = 'Veuillez sélectionner une image.'; });
-            return;
-          }
-        case _SignatureTab.sauvegardee:
-          if (_savedUrl == null) {
-            setState(() { _uploading = false; _error = 'Aucune signature sauvegardée.'; });
-            return;
-          }
-          // Réutilise l'URL existante sans nouvel upload
-          if (mounted) Navigator.pop(context, (url: _savedUrl!, saveAsDefault: false));
+      if (_kind == SignatureKind.draw) {
+        bytes = await _padKey.currentState?.exportPng();
+        if (bytes == null) {
+          setState(() {
+            _busy = false;
+            _error = 'Veuillez dessiner votre signature.';
+          });
           return;
+        }
+      } else {
+        bytes = _importedBytes;
+        if (bytes == null) {
+          setState(() {
+            _busy = false;
+            _error = 'Veuillez sélectionner une image.';
+          });
+          return;
+        }
       }
 
-      final url = await SignaturesDatasource.uploadPng(bytes);
-      if (_saveAsDefault) await SignaturesDatasource.saveUrl(url);
-      if (mounted) Navigator.pop(context, (url: url, saveAsDefault: _saveAsDefault));
+      // Une seule signature par type → prévenir avant de remplacer.
+      final existing = await SignaturesDatasource.getByKind(_kind);
+      if (!mounted) return;
+      if (existing != null) {
+        final ok = await _confirmReplace();
+        if (!ok) {
+          if (mounted) setState(() => _busy = false);
+          return;
+        }
+      }
+
+      final ref = await SignaturesDatasource.uploadPng(bytes);
+      await SignaturesDatasource.saveForKind(kind: _kind, ref: ref);
+      if (mounted) Navigator.pop(context, (url: ref, saveAsDefault: true));
     } catch (e) {
-      if (mounted) setState(() { _uploading = false; _error = 'Erreur : $e'; });
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _error = 'Erreur : $e';
+        });
+      }
     }
   }
 
@@ -308,130 +340,68 @@ class _SignatureDialogState extends State<_SignatureDialog>
             children: [
               Text('Signer', style: AppTypography.titleLg),
               const SizedBox(height: AppSpacing.md),
-              TabBar(
-                controller: _tab,
-                tabs: const [
-                  Tab(text: 'Dessiner'),
-                  Tab(text: 'Importer'),
-                  Tab(text: 'Ma signature'),
-                ],
+              // Sélecteur de type en haut (ne défile pas → gestuel fiable).
+              Center(
+                child: SegmentedButton<SignatureKind>(
+                  segments: const [
+                    ButtonSegment(
+                      value: SignatureKind.draw,
+                      icon: Icon(Icons.draw_outlined),
+                      label: Text('Gestuelle'),
+                    ),
+                    ButtonSegment(
+                      value: SignatureKind.image,
+                      icon: Icon(Icons.image_outlined),
+                      label: Text('Image'),
+                    ),
+                  ],
+                  selected: {_kind},
+                  onSelectionChanged: _busy
+                      ? null
+                      : (s) => setState(() {
+                            _kind = s.first;
+                            _error = null;
+                          }),
+                ),
               ),
               const SizedBox(height: AppSpacing.md),
               SizedBox(
-                height: 220,
-                child: TabBarView(
-                  controller: _tab,
-                  children: [
-                    // ── Dessiner ──────────────────────────────────────────
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Expanded(child: SignaturePad(key: _padKey)),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: TextButton.icon(
-                            onPressed: () => _padKey.currentState?.clear(),
-                            icon: const Icon(Icons.refresh, size: 16),
-                            label: const Text('Effacer'),
-                          ),
-                        ),
-                      ],
-                    ),
-                    // ── Importer ──────────────────────────────────────────
-                    Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        if (_importedBytes != null)
-                          Expanded(
-                            child: Image.memory(
-                              _importedBytes!,
-                              fit: BoxFit.contain,
-                            ),
-                          )
-                        else
-                          const Text(
-                            'Sélectionnez une image de votre signature.',
-                            textAlign: TextAlign.center,
-                          ),
-                        const SizedBox(height: AppSpacing.md),
-                        OutlinedButton.icon(
-                          onPressed: _pickImage,
-                          icon: const Icon(Icons.photo_library_outlined),
-                          label: const Text('Choisir depuis la galerie'),
-                        ),
-                      ],
-                    ),
-                    // ── Signature sauvegardée ─────────────────────────────
-                    _loadingSaved
-                        ? const Center(child: CircularProgressIndicator())
-                        : _savedUrl != null
-                            ? Column(
-                                children: [
-                                  Expanded(
-                                    child: Container(
-                                      decoration: BoxDecoration(
-                                        border: Border.all(color: AppColors.outlineVariant),
-                                        borderRadius: AppRadius.borderMd,
-                                        color: Colors.white,
-                                      ),
-                                      child: PrivateImage(
-                                        ref: _savedUrl!,
-                                        fit: BoxFit.contain,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              )
-                            : Center(
-                                child: Text(
-                                  'Aucune signature sauvegardée.\nDessinez ou importez une signature.',
-                                  textAlign: TextAlign.center,
-                                  style: AppTypography.bodyMd.copyWith(
-                                    color: AppColors.onSurfaceVariant,
-                                  ),
-                                ),
-                              ),
-                  ],
+                height: 200,
+                child:
+                    _kind == SignatureKind.draw ? _drawArea() : _imageArea(),
+              ),
+              // « Modifier l'image » sous l'aperçu (mode image, image choisie).
+              if (_kind == SignatureKind.image && _importedBytes != null) ...[
+                const SizedBox(height: AppSpacing.sm),
+                AppButton.edit(
+                  size: AppButtonSize.compact,
+                  fullWidth: true,
+                  icon: Icons.tune,
+                  label: "Modifier l'image",
+                  onPressed: _busy ? null : _editImage,
                 ),
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              // Option "sauvegarder comme défaut" (visible sauf onglet Ma signature)
-              ListenableBuilder(
-                listenable: _tab,
-                builder: (_, _) => _tab.index != 2
-                    ? CheckboxListTile(
-                        value: _saveAsDefault,
-                        onChanged: (v) => setState(() => _saveAsDefault = v ?? false),
-                        title: const Text('Sauvegarder comme ma signature par défaut'),
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                      )
-                    : const SizedBox.shrink(),
-              ),
+              ],
               if (_error != null) ...[
                 const SizedBox(height: AppSpacing.sm),
-                Text(_error!, style: TextStyle(color: AppColors.error, fontSize: 13)),
+                Text(_error!,
+                    style: AppTypography.labelSm
+                        .copyWith(color: AppColors.error)),
               ],
-              const SizedBox(height: AppSpacing.md),
+              const SizedBox(height: AppSpacing.lg),
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  OutlinedButton(
-                    onPressed: _uploading ? null : () => Navigator.pop(context),
-                    style: AppTheme.cancelButtonStyle,
-                    child: const Text('Annuler'),
+                  AppButton.cancel(
+                    size: AppButtonSize.compact,
+                    label: 'Annuler',
+                    onPressed: _busy ? null : () => Navigator.pop(context),
                   ),
-                  const SizedBox(width: AppSpacing.md),
-                  FilledButton.icon(
-                    onPressed: _uploading ? null : _confirm,
-                    icon: _uploading
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                          )
-                        : const Icon(Icons.check, size: 18),
-                    label: const Text('Signer'),
+                  const SizedBox(width: AppSpacing.sm),
+                  AppButton.save(
+                    size: AppButtonSize.compact,
+                    label: 'Enregistrer',
+                    isBusy: _busy,
+                    onPressed: _busy ? null : _confirm,
                   ),
                 ],
               ),
@@ -439,6 +409,57 @@ class _SignatureDialogState extends State<_SignatureDialog>
           ),
         ),
       ),
+    );
+  }
+
+  Widget _drawArea() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(child: SignaturePad(key: _padKey)),
+        Align(
+          alignment: Alignment.centerRight,
+          child: TextButton.icon(
+            onPressed: _busy ? null : () => _padKey.currentState?.clear(),
+            icon: const Icon(Icons.refresh, size: 16),
+            label: const Text('Effacer'),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _imageArea() {
+    if (_importedBytes == null) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.image_outlined,
+                size: 40, color: AppColors.onSurfaceVariant),
+            const SizedBox(height: AppSpacing.sm),
+            Text('Aucune image sélectionnée',
+                style: AppTypography.bodyMd
+                    .copyWith(color: AppColors.onSurfaceVariant)),
+            const SizedBox(height: AppSpacing.md),
+            AppButton.primary(
+              size: AppButtonSize.compact,
+              icon: Icons.photo_library_outlined,
+              label: 'Sélectionner une image',
+              onPressed: _busy ? null : _pickImage,
+            ),
+          ],
+        ),
+      );
+    }
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: AppColors.outlineVariant),
+        borderRadius: AppRadius.borderMd,
+        color: Colors.white,
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Image.memory(_importedBytes!, fit: BoxFit.contain),
     );
   }
 }
