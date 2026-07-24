@@ -1,3 +1,41 @@
+/// Statut d'une demande **du point de vue du propriétaire** (qui gère ses
+/// annonces). Remplace l'ancien booléen d'acceptation `contact_etabli`.
+enum StatutDemande {
+  /// Reçue, le propriétaire ne l'a pas encore ouverte.
+  nouveau,
+
+  /// Le propriétaire a vu le fil mais n'a pas (encore) répondu.
+  nonRepondu,
+
+  /// Le propriétaire a répondu (≥ 1 message de sa part).
+  repondu,
+
+  /// Le propriétaire a choisi d'ignorer la demande.
+  ignore;
+
+  String get code => switch (this) {
+        StatutDemande.nouveau => 'nouveau',
+        StatutDemande.nonRepondu => 'non_repondu',
+        StatutDemande.repondu => 'repondu',
+        StatutDemande.ignore => 'ignore',
+      };
+
+  static StatutDemande fromCode(String? c) => switch (c) {
+        'non_repondu' => StatutDemande.nonRepondu,
+        'repondu' => StatutDemande.repondu,
+        'ignore' => StatutDemande.ignore,
+        _ => StatutDemande.nouveau,
+      };
+
+  /// Libellé affiché (FR).
+  String get label => switch (this) {
+        StatutDemande.nouveau => 'Nouveau',
+        StatutDemande.nonRepondu => 'Non répondu',
+        StatutDemande.repondu => 'Répondu',
+        StatutDemande.ignore => 'Ignoré',
+      };
+}
+
 class DemandeContactModel {
   final int id;
   final DateTime createdAt;
@@ -5,6 +43,7 @@ class DemandeContactModel {
   final int? chambreId;
   final int? immeubleId;
   final bool contactEtabli;
+  final StatutDemande statut;
 
   // Dados do locataire (join)
   final String? locataireFullName;
@@ -30,6 +69,7 @@ class DemandeContactModel {
     this.chambreId,
     this.immeubleId,
     required this.contactEtabli,
+    this.statut = StatutDemande.nouveau,
     this.locataireFullName,
     this.locataireEmail,
     this.locatairePhone,
@@ -58,8 +98,10 @@ class DemandeContactModel {
     return locataireFullName ?? 'Le locataire';
   }
 
-  /// Le fil de discussion est-il ouvert ? (le proprietaire a accepté)
-  bool get discussionOuverte => contactEtabli;
+  /// Le fil de discussion est-il ouvert ? **Toujours** désormais : la
+  /// messagerie ne requiert plus d'acceptation préalable (une demande = un fil
+  /// ouvert entre les deux parties). Conservé pour compat UI.
+  bool get discussionOuverte => true;
 
   /// Idade calculada a partir da data de nascimento; fallback para o campo age.
   int? get calculatedAge {
@@ -87,6 +129,7 @@ class DemandeContactModel {
       chambreId: json['chambre_id'] as int?,
       immeubleId: json['immeuble_id'] as int?,
       contactEtabli: (json['contact_etabli'] as bool?) ?? false,
+      statut: StatutDemande.fromCode(json['statut'] as String?),
       locataireFullName: locataire?['full_name'] as String?,
       locataireEmail: locataire?['email'] as String?,
       locatairePhone: locataire?['phone'] as String?,
@@ -101,13 +144,15 @@ class DemandeContactModel {
     );
   }
 
-  DemandeContactModel copyWith({bool? contactEtabli}) => DemandeContactModel(
+  DemandeContactModel copyWith({bool? contactEtabli, StatutDemande? statut}) =>
+      DemandeContactModel(
     id: id,
     createdAt: createdAt,
     locataireId: locataireId,
     chambreId: chambreId,
     immeubleId: immeubleId,
     contactEtabli: contactEtabli ?? this.contactEtabli,
+    statut: statut ?? this.statut,
     locataireFullName: locataireFullName,
     locataireEmail: locataireEmail,
     locatairePhone: locatairePhone,

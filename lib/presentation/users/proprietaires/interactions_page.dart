@@ -6,23 +6,24 @@ import 'package:intl/intl.dart';
 import 'package:lacoloc_front/data/cache/realtime_refresh_mixin.dart';
 import 'package:lacoloc_front/data/datasources/demandes_contact.dart';
 import 'package:lacoloc_front/data/datasources/messages.dart';
+import 'package:lacoloc_front/presentation/widgets/app_button.dart';
 import 'package:lacoloc_front/presentation/widgets/conversation_view.dart';
-import 'package:lacoloc_front/data/permissions/permissions_service.dart';
-import 'package:lacoloc_front/presentation/widgets/permission_gate.dart';
 import 'package:lacoloc_front/data/models/demande_contact.dart';
 import 'package:lacoloc_front/data/models/notification_model.dart';
 import 'package:lacoloc_front/presentation/chambres/chambre_detail_page.dart';
-import 'package:lacoloc_front/theme/app_breakpoints.dart';
+import 'package:lacoloc_front/theme/app_button_sizes.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_radius.dart';
 import 'package:lacoloc_front/presentation/widgets/app_top_bar.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
 import 'package:lacoloc_front/theme/app_typography.dart';
 
-/// Page « Interactions » du propriétaire — les demandes de contact des
-/// locataires. Les notifications proprement dites (garant requis, bail à
-/// signer…) vivent désormais dans la section « Notifications » de la Vue
-/// générale (le tableau de bord), pas ici.
+/// Page « Messages » du propriétaire — les prises de contact des locataires,
+/// façon messagerie : **liste** à gauche + **fiche détail** à droite ; le
+/// **fil de discussion** vient prendre la place de la liste (glissé depuis la
+/// gauche) quand on clique « Discuter ». Plus d'acceptation préalable : dès
+/// qu'un locataire écrit, le fil est ouvert. Les notifications vivent dans la
+/// Vue générale, pas ici. Rafraîchissement **automatique** (Realtime).
 class InteractionsPage extends StatelessWidget {
   const InteractionsPage({super.key});
 
@@ -31,8 +32,8 @@ class InteractionsPage extends StatelessWidget {
     return const Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        AppTopBar(title: 'Demandes de contact'),
-        Expanded(child: _DemandesContactTab()),
+        AppTopBar(title: 'Messages'),
+        Expanded(child: _MessagesTab()),
       ],
     );
   }
@@ -40,37 +41,31 @@ class InteractionsPage extends StatelessWidget {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _DemandesContactTab extends StatefulWidget {
-  const _DemandesContactTab();
+class _MessagesTab extends StatefulWidget {
+  const _MessagesTab();
 
   @override
-  State<_DemandesContactTab> createState() => _DemandesContactTabState();
+  State<_MessagesTab> createState() => _MessagesTabState();
 }
 
-class _DemandesContactTabState extends State<_DemandesContactTab>
-    with RealtimeRefreshMixin {
+class _MessagesTabState extends State<_MessagesTab> with RealtimeRefreshMixin {
   bool _loading = true;
   String? _error;
   List<DemandeContactModel> _demandes = [];
-  final Set<int> _toggling = {};
-
-  /// Messages non lus par demande (pastille sur le bouton Discussion).
   Map<int, int> _unread = const {};
-
-  /// Texte concaténé des messages de chaque fil, pour la recherche — voir
-  /// [MessagesDatasource.searchableTextByDemande] (scope garanti par la RLS :
-  /// impossible d'y trouver un message qu'on n'a pas envoyé/reçu).
   Map<int, String> _searchText = const {};
 
   final _searchCtrl = TextEditingController();
   String _query = '';
 
-  /// Fil ouvert : rendu **dans le cadre**, à la place de la liste.
-  DemandeContactModel? _conversation;
+  /// Filtre de statut actif (null = tous).
+  StatutDemande? _statutFilter;
 
-  // Coluna 7 = "Contact établi", ascending = pending (false) primeiro
-  int _sortCol = 7;
-  bool _sortAsc = true;
+  /// Demande sélectionnée (fiche détail à droite).
+  int? _selectedId;
+
+  /// Le fil de discussion prend la place de la liste.
+  bool _chatOpen = false;
 
   @override
   Set<String> get watchedEntities => {'demandes', 'messages'};
@@ -91,32 +86,28 @@ class _DemandesContactTabState extends State<_DemandesContactTab>
   }
 
   Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+    if (mounted && _demandes.isEmpty) setState(() => _loading = true);
     try {
-      final data = await DemandesContactDatasource.listByOwner();
+      final data = await DemandesContactDatasource.listByOwner(refresh: true);
       final ids = data.map((d) => d.id).toList();
       final results = await Future.wait([
         MessagesDatasource.unreadCountByDemande(refresh: true),
         MessagesDatasource.searchableTextByDemande(ids, refresh: true),
       ]);
-      if (mounted) {
-        setState(() {
-          _demandes = data;
-          _unread = results[0] as Map<int, int>;
-          _searchText = results[1] as Map<int, String>;
-          _loading = false;
-          _applySort();
-          // Garder le fil ouvert à jour (ex. la demande vient d'être acceptée).
-          final open = _conversation;
-          if (open != null) {
-            final idx = _demandes.indexWhere((d) => d.id == open.id);
-            _conversation = idx >= 0 ? _demandes[idx] : null;
-          }
-        });
-      }
+      if (!mounted) return;
+      setState(() {
+        _demandes = data;
+        _unread = results[0] as Map<int, int>;
+        _searchText = results[1] as Map<int, String>;
+        _loading = false;
+        _error = null;
+        // Garder une sélection valide.
+        if (_selectedId != null &&
+            !_demandes.any((d) => d.id == _selectedId)) {
+          _selectedId = null;
+          _chatOpen = false;
+        }
+      });
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -127,157 +118,136 @@ class _DemandesContactTabState extends State<_DemandesContactTab>
     }
   }
 
-  /// Filtre par nom du locataire **ou** contenu des messages du fil — jamais
-  /// au-delà de ce que la RLS autoriserait déjà à lire (voir [_searchText]).
+  DemandeContactModel? get _selected =>
+      _demandes.where((d) => d.id == _selectedId).firstOrNull;
+
+  /// Filtre : recherche (nom OU contenu du fil, borné par la RLS) + statut.
   List<DemandeContactModel> get _filtered {
-    if (_query.isEmpty) return _demandes;
-    final q = _query.toLowerCase();
     return _demandes.where((d) {
+      if (_statutFilter != null && d.statut != _statutFilter) return false;
+      if (_query.isEmpty) return true;
+      final q = _query.toLowerCase();
       final nom = (d.locataireFullName ?? '').toLowerCase();
       final texte = (_searchText[d.id] ?? '').toLowerCase();
       return nom.contains(q) || texte.contains(q);
     }).toList();
   }
 
-  void _applySort() {
-    _demandes.sort((a, b) {
-      int cmp;
-      switch (_sortCol) {
-        case 0: // Nom
-          cmp = (a.locataireFullName ?? '').compareTo(
-            b.locataireFullName ?? '',
-          );
-        case 1: // Âge
-          cmp = (a.calculatedAge ?? 0).compareTo(b.calculatedAge ?? 0);
-        case 5: // Date
-          cmp = a.createdAt.compareTo(b.createdAt);
-        case 7: // Contact établi — false (pending) deve vir primeiro quando asc
-          cmp = a.contactEtabli == b.contactEtabli
-              ? 0
-              : a.contactEtabli
-              ? 1
-              : -1;
-        default:
-          cmp = 0;
-      }
-      return _sortAsc ? cmp : -cmp;
-    });
+  Map<StatutDemande, int> get _counts {
+    final m = {for (final s in StatutDemande.values) s: 0};
+    for (final d in _demandes) {
+      m[d.statut] = (m[d.statut] ?? 0) + 1;
+    }
+    return m;
   }
 
-  void _onSort(int col, bool asc) {
+  void _select(DemandeContactModel d) {
     setState(() {
-      _sortCol = col;
-      _sortAsc = asc;
-      _applySort();
+      _selectedId = d.id;
+      _chatOpen = false;
     });
   }
 
-  Future<void> _toggleContact(
-    DemandeContactModel demande,
-    bool newValue,
-  ) async {
-    setState(() => _toggling.add(demande.id));
+  /// Ouvre le fil : `nouveau` → `non_repondu` (vu, pas encore répondu).
+  Future<void> _openChat(DemandeContactModel d) async {
+    setState(() {
+      _selectedId = d.id;
+      _chatOpen = true;
+    });
+    if (d.statut == StatutDemande.nouveau) {
+      try {
+        await DemandesContactDatasource.markVu(d.id);
+        await _load();
+      } catch (_) {/* best-effort */}
+    }
+  }
+
+  void _closeChat() {
+    setState(() => _chatOpen = false);
+    _load();
+  }
+
+  Future<void> _markRepondu(DemandeContactModel d) async {
     try {
-      await DemandesContactDatasource.updateContactEtabli(
-        demande.id,
-        value: newValue,
-      );
-      if (mounted) {
-        setState(() {
-          final idx = _demandes.indexWhere((d) => d.id == demande.id);
-          if (idx >= 0) {
-            _demandes[idx] = demande.copyWith(contactEtabli: newValue);
-          }
-          _toggling.remove(demande.id);
-          _applySort();
-        });
-      }
+      await DemandesContactDatasource.markRepondu(d.id);
+      await _load();
+    } catch (_) {/* best-effort */}
+  }
+
+  Future<void> _ignorer(DemandeContactModel d) async {
+    try {
+      await DemandesContactDatasource.ignorer(d.id);
+      if (mounted) setState(() => _chatOpen = false);
+      await _load();
     } catch (e) {
       if (mounted) {
-        setState(() => _toggling.remove(demande.id));
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur : $e')),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Erreur : $e')));
       }
     }
   }
 
-  /// Ouvre le fil **dans le cadre** (le menu reste à gauche) — pas de
-  /// `Navigator.push`, conformément à la convention des fiches détail.
-  void _ouvrirDiscussion(DemandeContactModel demande) {
-    setState(() => _conversation = demande);
+  void _email(DemandeContactModel d) {
+    final mail = d.locataireEmail;
+    if (mail == null || mail.isEmpty) return;
+    launchUrl(Uri(scheme: 'mailto', path: mail));
   }
 
-  void _fermerDiscussion() {
-    setState(() => _conversation = null);
-    _load(); // rafraîchit les pastilles « non lus »
-  }
-
-  void _voirDetails(DemandeContactModel demande) {
-    if (demande.chambreId == null) return;
+  void _voirAnnonce(DemandeContactModel d) {
+    if (d.chambreId == null) return;
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => ChambreDetailPage(chambreId: demande.chambreId!),
+        builder: (_) => ChambreDetailPage(chambreId: d.chambreId!),
       ),
     );
   }
 
-  static String _formatDate(DateTime dt) =>
-      '${dt.day.toString().padLeft(2, '0')}/'
-      '${dt.month.toString().padLeft(2, '0')}/'
-      '${dt.year}';
-
   @override
   Widget build(BuildContext context) {
-    // Fil ouvert → il prend la place de la liste (le menu reste à gauche).
-    final conv = _conversation;
-    if (conv != null) {
-      return Padding(
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        child: ConversationView(demande: conv, onClose: _fermerDiscussion),
-      );
-    }
-
-    return Padding(
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      child: Column(
-        children: [
-          Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // ── Barre d'outils : recherche + filtres de statut (pas de refresh) ──
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+              AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.sm),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Expanded(
-                child: TextField(
-                  controller: _searchCtrl,
-                  onChanged: (v) => setState(() => _query = v.trim()),
-                  decoration: InputDecoration(
-                    hintText:
-                        'Rechercher un locataire ou dans les messages…',
-                    prefixIcon: const Icon(Icons.search, size: 20),
-                    isDense: true,
-                    suffixIcon: _query.isNotEmpty
-                        ? IconButton(
-                            icon: const Icon(Icons.close, size: 18),
-                            tooltip: 'Effacer la recherche',
-                            onPressed: () {
-                              _searchCtrl.clear();
-                              setState(() => _query = '');
-                            },
-                          )
-                        : null,
-                  ),
+              TextField(
+                controller: _searchCtrl,
+                onChanged: (v) => setState(() => _query = v.trim()),
+                decoration: InputDecoration(
+                  hintText: 'Rechercher un locataire ou dans les messages…',
+                  prefixIcon: const Icon(Icons.search, size: 20),
+                  isDense: true,
+                  border:
+                      OutlineInputBorder(borderRadius: AppRadius.borderMd),
+                  suffixIcon: _query.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.close, size: 18),
+                          tooltip: 'Effacer',
+                          onPressed: () {
+                            _searchCtrl.clear();
+                            setState(() => _query = '');
+                          },
+                        )
+                      : null,
                 ),
               ),
-              const SizedBox(width: AppSpacing.sm),
-              IconButton.outlined(
-                icon: const Icon(Icons.refresh),
-                tooltip: 'Actualiser',
-                onPressed: _load,
+              const SizedBox(height: AppSpacing.sm),
+              _FilterChips(
+                selected: _statutFilter,
+                total: _demandes.length,
+                counts: _counts,
+                onSelect: (s) => setState(() => _statutFilter = s),
               ),
             ],
           ),
-          const SizedBox(height: AppSpacing.sm),
-          Expanded(child: _buildBody()),
-        ],
-      ),
+        ),
+        const Divider(height: 1),
+        Expanded(child: _buildBody()),
+      ],
     );
   }
 
@@ -285,263 +255,627 @@ class _DemandesContactTabState extends State<_DemandesContactTab>
     if (_loading) return const Center(child: CircularProgressIndicator());
     if (_error != null) {
       return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'Erreur : $_error',
-              style: AppTypography.bodyMd.copyWith(color: AppColors.error),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            FilledButton.icon(
-              onPressed: _load,
-              icon: const Icon(Icons.refresh),
-              label: const Text('Réessayer'),
-            ),
-          ],
-        ),
+        child: Text('Erreur : $_error',
+            style: AppTypography.bodyMd.copyWith(color: AppColors.error)),
       );
     }
     if (_demandes.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.inbox_outlined,
-              size: 64,
-              color: AppColors.onSurfaceVariant,
-            ),
-            const SizedBox(height: AppSpacing.md),
-            Text(
-              'Aucune demande de contact pour le moment.',
-              style: AppTypography.bodyMd.copyWith(
-                color: AppColors.onSurfaceVariant,
-              ),
-            ),
-          ],
-        ),
-      );
+      return _empty('Aucun message pour le moment.');
     }
 
-    final filtered = _filtered;
-    if (filtered.isEmpty) {
-      return Center(
-        child: Text(
-          'Aucun résultat pour « $_query ».',
-          style: AppTypography.bodyMd.copyWith(
-            color: AppColors.onSurfaceVariant,
-          ),
-        ),
-      );
-    }
-
-    return _SortableDemandesTable(
-      demandes: filtered,
-      toggling: _toggling,
-      unread: _unread,
-      sortCol: _sortCol,
-      sortAsc: _sortAsc,
-      onSort: _onSort,
-      onToggle: _toggleContact,
-      onVoirDetails: _voirDetails,
-      onDiscussion: _ouvrirDiscussion,
-      formatDate: _formatDate,
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _SortableDemandesTable extends StatelessWidget {
-  final List<DemandeContactModel> demandes;
-  final Set<int> toggling;
-  final Map<int, int> unread;
-  final int sortCol;
-  final bool sortAsc;
-  final void Function(int col, bool asc) onSort;
-  final void Function(DemandeContactModel, bool) onToggle;
-  final void Function(DemandeContactModel) onVoirDetails;
-  final void Function(DemandeContactModel) onDiscussion;
-  final String Function(DateTime) formatDate;
-
-  const _SortableDemandesTable({
-    required this.demandes,
-    required this.toggling,
-    required this.unread,
-    required this.sortCol,
-    required this.sortAsc,
-    required this.onSort,
-    required this.onToggle,
-    required this.onVoirDetails,
-    required this.onDiscussion,
-    required this.formatDate,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    // Tablette/mobile : la DataTable dense devient une liste de cartes lisibles
-    // et tactiles ; au-dessus du seuil, on garde le tableau triable.
     return LayoutBuilder(
-      builder: (context, constraints) {
-        if (constraints.maxWidth < AppBreakpoints.tableToCards) {
-          return _buildCards(context);
+      builder: (context, c) {
+        final wide = c.maxWidth >= 820;
+        final sel = _selected;
+
+        if (wide) {
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Zone gauche : liste ↔ fil (glisse depuis la gauche).
+              Expanded(
+                child: _SwitcherSlide(
+                  fromLeft: true,
+                  child: _chatOpen && sel != null
+                      ? _chat(sel, key: const ValueKey('chat'))
+                      : _list(key: const ValueKey('list')),
+                ),
+              ),
+              if (sel != null) ...[
+                const VerticalDivider(width: 1),
+                SizedBox(
+                  width: 360,
+                  // Fiche détail : glisse depuis la droite à chaque sélection.
+                  child: _SwitcherSlide(
+                    fromLeft: false,
+                    child: _detail(sel, key: ValueKey('detail-${sel.id}')),
+                  ),
+                ),
+              ],
+            ],
+          );
         }
-        return _buildTable(context);
+
+        // Étroit : un seul volet à la fois.
+        if (_chatOpen && sel != null) {
+          return _SwitcherSlide(
+              fromLeft: true, child: _chat(sel, key: const ValueKey('chat')));
+        }
+        if (sel != null) {
+          return _SwitcherSlide(
+            fromLeft: false,
+            child: _detail(sel,
+                key: ValueKey('detail-${sel.id}'), showBack: true),
+          );
+        }
+        return _list(key: const ValueKey('list'));
       },
     );
   }
 
-  Widget _buildCards(BuildContext context) {
-    return ListView.separated(
-      padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
-      itemCount: demandes.length,
-      separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.sm),
-      itemBuilder: (_, i) => _DemandeCard(
-        demande: demandes[i],
-        isToggling: toggling.contains(demandes[i].id),
-        unread: unread[demandes[i].id] ?? 0,
-        onToggle: onToggle,
-        onVoirDetails: onVoirDetails,
-        onDiscussion: onDiscussion,
-        formatDate: formatDate,
-      ),
-    );
-  }
-
-  Widget _buildTable(BuildContext context) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.vertical,
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: DataTable(
-          sortColumnIndex: sortCol,
-          sortAscending: sortAsc,
-          columnSpacing: 20,
-          headingRowColor: WidgetStatePropertyAll(
-            AppColors.surfaceContainerHighest,
-          ),
-          columns: [
-            DataColumn(
-              label: const Text('Nom complet'),
-              headingRowAlignment: MainAxisAlignment.center,
-              onSort: onSort,
-            ),
-            DataColumn(
-              label: const Text('Âge'),
-              numeric: true,
-              headingRowAlignment: MainAxisAlignment.center,
-              onSort: onSort,
-            ),
-            const DataColumn(
-              label: Text('Téléphone'),
-              headingRowAlignment: MainAxisAlignment.center,
-            ),
-            const DataColumn(
-              label: Text('E-mail'),
-              headingRowAlignment: MainAxisAlignment.center,
-            ),
-            const DataColumn(
-              label: Text('Chambre / Immeuble'),
-              headingRowAlignment: MainAxisAlignment.center,
-            ),
-            DataColumn(
-              label: const Text('Date'),
-              headingRowAlignment: MainAxisAlignment.center,
-              onSort: onSort,
-            ),
-            const DataColumn(
-              label: Text('Détails'),
-              headingRowAlignment: MainAxisAlignment.center,
-            ),
-            DataColumn(
-              label: const Text('Contact établi'),
-              headingRowAlignment: MainAxisAlignment.center,
-              onSort: onSort,
-            ),
-            const DataColumn(
-              label: Text('Discussion'),
-              headingRowAlignment: MainAxisAlignment.center,
-            ),
+  Widget _empty(String msg) => Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.forum_outlined,
+                size: 56, color: AppColors.onSurfaceVariant),
+            const SizedBox(height: AppSpacing.md),
+            Text(msg,
+                style: AppTypography.bodyMd
+                    .copyWith(color: AppColors.onSurfaceVariant)),
           ],
-          rows: demandes.map((d) => _buildRow(context, d)).toList(),
         ),
-      ),
+      );
+
+  Widget _list({Key? key}) {
+    final filtered = _filtered;
+    if (filtered.isEmpty) {
+      return _empty(_query.isNotEmpty
+          ? 'Aucun résultat pour « $_query ».'
+          : 'Aucun message pour ce filtre.');
+    }
+    return ListView.separated(
+      key: key,
+      padding: const EdgeInsets.all(AppSpacing.md),
+      itemCount: filtered.length,
+      separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.sm),
+      itemBuilder: (_, i) {
+        final d = filtered[i];
+        return _MessageRow(
+          demande: d,
+          selected: d.id == _selectedId,
+          unread: _unread[d.id] ?? 0,
+          snippet: (_searchText[d.id] ?? '').trim(),
+          onTap: () => _select(d),
+          onDiscuter: () => _openChat(d),
+        );
+      },
     );
   }
 
-  DataRow _buildRow(BuildContext context, DemandeContactModel d) {
-    final isToggling = toggling.contains(d.id);
-    final bien = [d.chambreName, d.immeubleName]
-        .where((s) => s != null && s.isNotEmpty)
-        .join(' — ');
+  Widget _detail(DemandeContactModel d, {Key? key, bool showBack = false}) {
+    return _DetailPanel(
+      key: key,
+      demande: d,
+      showBack: showBack,
+      onBack: () => setState(() => _selectedId = null),
+      onEmail: () => _email(d),
+      onDiscuter: () => _openChat(d),
+      onVoirAnnonce: () => _voirAnnonce(d),
+    );
+  }
 
-    return DataRow(
-      color: d.contactEtabli
-          ? WidgetStatePropertyAll(
-              AppColors.primaryContainer.withValues(alpha: 0.25),
-            )
-          : null,
-      cells: [
-        DataCell(Center(child: Text(d.locataireFullName ?? '—'))),
-        DataCell(
-          Center(child: Text(d.calculatedAge?.toString() ?? '—')),
-        ),
-        DataCell(Center(child: Text(d.locatairePhone ?? '—'))),
-        DataCell(Center(child: Text(d.locataireEmail ?? '—'))),
-        DataCell(Center(child: Text(bien.isEmpty ? '—' : bien))),
-        DataCell(Center(child: Text(formatDate(d.createdAt)))),
-        DataCell(
-          d.chambreId != null
-              ? Center(
-                  child: TextButton.icon(
-                    icon: const Icon(Icons.open_in_new, size: 16),
-                    label: const Text('Voir Annonce'),
-                    onPressed: () => onVoirDetails(d),
-                  ),
-                )
-              : const Center(child: Text('—')),
-        ),
-        DataCell(
-          isToggling
-              ? const Center(
-                  child: SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-                )
-              : Center(
-                  child: PermissionGate(
-                    permission: Perm.demandesManage,
-                    fallback: Switch(value: d.contactEtabli, onChanged: null),
-                    child: Switch(
-                      value: d.contactEtabli,
-                      onChanged: (v) => onToggle(d, v),
-                    ),
-                  ),
-                ),
-        ),
-        DataCell(
-          Center(
-            child: DiscussionButton(
-              demande: d,
-              unread: unread[d.id] ?? 0,
-              onPressed: () => onDiscussion(d),
-            ),
+  Widget _chat(DemandeContactModel d, {Key? key}) {
+    return ConversationView(
+      key: key,
+      demande: d,
+      onClose: _closeChat,
+      onSent: () => _markRepondu(d),
+      headerActions: [
+        if (d.statut != StatutDemande.ignore)
+          IconButton(
+            icon: const Icon(Icons.block_outlined),
+            tooltip: 'Ignorer cette demande',
+            onPressed: () => _ignorer(d),
           ),
-        ),
       ],
     );
   }
 }
 
-/// Bouton d'accès au fil de discussion d'une demande, avec pastille de messages
-/// non lus. Désactivé tant que la demande n'est pas acceptée — c'est
-/// l'acceptation qui ouvre le fil (la RLS de `Messages` s'appuie dessus).
-///
-/// Partagé par le tableau, les cartes et l'écran locataire : une seule règle
-/// d'activation, un seul visuel.
+// ─────────────────────────────────────────────────────────────────────────────
+// Transition partagée : glissé + fondu (depuis la gauche ou la droite).
+
+class _SwitcherSlide extends StatelessWidget {
+  final Widget child;
+  final bool fromLeft;
+  const _SwitcherSlide({required this.child, required this.fromLeft});
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 260),
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeInCubic,
+      transitionBuilder: (child, anim) {
+        final begin = Offset(fromLeft ? -0.12 : 0.12, 0);
+        return FadeTransition(
+          opacity: anim,
+          child: SlideTransition(
+            position: Tween(begin: begin, end: Offset.zero).animate(anim),
+            child: child,
+          ),
+        );
+      },
+      layoutBuilder: (current, previous) => Stack(
+        alignment: Alignment.center,
+        children: [...previous, ?current],
+      ),
+      child: child,
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Filtres de statut (chips avec compteurs)
+
+class _FilterChips extends StatelessWidget {
+  final StatutDemande? selected;
+  final int total;
+  final Map<StatutDemande, int> counts;
+  final ValueChanged<StatutDemande?> onSelect;
+
+  const _FilterChips({
+    required this.selected,
+    required this.total,
+    required this.counts,
+    required this.onSelect,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          _chip('Tous', total, selected == null, () => onSelect(null),
+              AppColors.primary),
+          for (final s in StatutDemande.values) ...[
+            const SizedBox(width: AppSpacing.xs),
+            _chip(s.label, counts[s] ?? 0, selected == s,
+                () => onSelect(selected == s ? null : s), _statutColor(s)),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _chip(
+      String label, int count, bool on, VoidCallback onTap, Color color) {
+    return InkWell(
+      borderRadius: AppRadius.borderFull,
+      onTap: onTap,
+      child: Container(
+        padding:
+            const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 7),
+        decoration: BoxDecoration(
+          color: on ? color : AppColors.surfaceContainerLowest,
+          borderRadius: AppRadius.borderFull,
+          border: Border.all(color: on ? color : AppColors.outlineVariant),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(label,
+                style: AppTypography.labelSm.copyWith(
+                  color: on ? AppColors.onPrimary : AppColors.onSurface,
+                  fontWeight: FontWeight.w600,
+                )),
+            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+              decoration: BoxDecoration(
+                color: on
+                    ? AppColors.onPrimary.withValues(alpha: 0.2)
+                    : AppColors.surfaceContainerHigh,
+                borderRadius: AppRadius.borderFull,
+              ),
+              child: Text('$count',
+                  style: AppTypography.labelSm.copyWith(
+                    color: on ? AppColors.onPrimary : AppColors.onSurface,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  )),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Couleur sémantique d'un statut (dérivée du thème).
+Color _statutColor(StatutDemande s) => switch (s) {
+      StatutDemande.nouveau => AppColors.primary,
+      StatutDemande.nonRepondu => AppColors.secondary,
+      StatutDemande.repondu => AppColors.success,
+      StatutDemande.ignore => AppColors.onSurfaceVariant,
+    };
+
+class _StatutBadge extends StatelessWidget {
+  final StatutDemande statut;
+  const _StatutBadge(this.statut);
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _statutColor(statut);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: AppRadius.borderFull,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 6,
+            height: 6,
+            margin: const EdgeInsets.only(right: 5),
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          Text(statut.label,
+              style: AppTypography.labelSm.copyWith(color: color)),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Avatar à initiales (couleur déterministe du thème)
+
+Color _avatarColor(String key) {
+  final colors = [
+    AppColors.primary,
+    AppColors.secondary,
+    AppColors.tertiary,
+    AppColors.error,
+  ];
+  return colors[key.hashCode.abs() % colors.length];
+}
+
+String _initiales(String? nom) {
+  final parts = (nom ?? '').trim().split(RegExp(r'\s+'));
+  if (parts.isEmpty || parts.first.isEmpty) return '?';
+  if (parts.length == 1) return parts.first[0].toUpperCase();
+  return (parts.first[0] + parts.last[0]).toUpperCase();
+}
+
+class _Avatar extends StatelessWidget {
+  final String? nom;
+  final double size;
+  const _Avatar({required this.nom, this.size = 42});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _avatarColor(nom ?? '?');
+    return Container(
+      width: size,
+      height: size,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+      child: Text(
+        _initiales(nom),
+        style: AppTypography.labelMd.copyWith(
+          color: AppColors.onPrimary,
+          fontWeight: FontWeight.w600,
+          fontSize: size * 0.36,
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Ligne de la liste (modèle Page.html .rowline)
+
+class _MessageRow extends StatelessWidget {
+  final DemandeContactModel demande;
+  final bool selected;
+  final int unread;
+  final String snippet;
+  final VoidCallback onTap;
+  final VoidCallback onDiscuter;
+
+  const _MessageRow({
+    required this.demande,
+    required this.selected,
+    required this.unread,
+    required this.snippet,
+    required this.onTap,
+    required this.onDiscuter,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final d = demande;
+    final bien = [d.chambreName, d.immeubleName]
+        .where((s) => s != null && s.isNotEmpty)
+        .join(' — ');
+    final date = DateFormat('dd/MM/yyyy').format(d.createdAt);
+
+    return Material(
+      color: selected
+          ? AppColors.primaryFixed.withValues(alpha: 0.35)
+          : AppColors.surfaceContainerLowest,
+      borderRadius: AppRadius.borderLg,
+      child: InkWell(
+        borderRadius: AppRadius.borderLg,
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          decoration: BoxDecoration(
+            borderRadius: AppRadius.borderLg,
+            border: Border.all(
+              color: selected ? AppColors.primary : AppColors.outlineVariant,
+            ),
+          ),
+          child: Row(
+            children: [
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  _Avatar(nom: d.locataireFullName, size: 44),
+                  if (unread > 0)
+                    Positioned(
+                      right: -2,
+                      top: -2,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: AppColors.error,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                              color: AppColors.surfaceContainerLowest,
+                              width: 2),
+                        ),
+                        constraints:
+                            const BoxConstraints(minWidth: 18, minHeight: 18),
+                        child: Text('$unread',
+                            textAlign: TextAlign.center,
+                            style: AppTypography.labelSm.copyWith(
+                              color: AppColors.onError,
+                              fontSize: 10,
+                              height: 1,
+                            )),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            d.locataireFullName ?? '—',
+                            style: AppTypography.titleLs,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (d.calculatedAge != null) ...[
+                          const SizedBox(width: 6),
+                          Text('· ${d.calculatedAge} ans',
+                              style: AppTypography.labelSm.copyWith(
+                                  color: AppColors.onSurfaceVariant)),
+                        ],
+                      ],
+                    ),
+                    if (bien.isNotEmpty)
+                      Text(bien,
+                          style: AppTypography.labelSm
+                              .copyWith(color: AppColors.primary),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis),
+                    if (snippet.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text('« $snippet »',
+                          style: AppTypography.bodyMd.copyWith(
+                              color: AppColors.onSurfaceVariant),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(date,
+                      style: AppTypography.labelSm
+                          .copyWith(color: AppColors.onSurfaceVariant)),
+                  const SizedBox(height: 6),
+                  _StatutBadge(d.statut),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Fiche détail (modèle Page.html .detail)
+
+class _DetailPanel extends StatelessWidget {
+  final DemandeContactModel demande;
+  final bool showBack;
+  final VoidCallback onBack;
+  final VoidCallback onEmail;
+  final VoidCallback onDiscuter;
+  final VoidCallback onVoirAnnonce;
+
+  const _DetailPanel({
+    super.key,
+    required this.demande,
+    required this.showBack,
+    required this.onBack,
+    required this.onEmail,
+    required this.onDiscuter,
+    required this.onVoirAnnonce,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final d = demande;
+    final bien = [d.chambreName, d.immeubleName]
+        .where((s) => s != null && s.isNotEmpty)
+        .join(' — ');
+    final dateStr = DateFormat('dd/MM/yyyy à HH:mm').format(d.createdAt);
+
+    return Container(
+      color: AppColors.surfaceContainerLowest,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Héro
+          Container(
+            padding: const EdgeInsets.fromLTRB(
+                AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.lg),
+            decoration: BoxDecoration(
+              color: AppColors.primaryFixed.withValues(alpha: 0.25),
+              border: Border(
+                  bottom: BorderSide(color: AppColors.outlineVariant)),
+            ),
+            child: Column(
+              children: [
+                if (showBack)
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: IconButton(
+                      icon: const Icon(Icons.arrow_back),
+                      tooltip: 'Retour',
+                      onPressed: onBack,
+                    ),
+                  ),
+                _Avatar(nom: d.locataireFullName, size: 64),
+                const SizedBox(height: AppSpacing.sm),
+                Text(d.locataireFullName ?? '—',
+                    style: AppTypography.titleLg,
+                    textAlign: TextAlign.center),
+                if (bien.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(bien,
+                      style: AppTypography.labelSm
+                          .copyWith(color: AppColors.primary),
+                      textAlign: TextAlign.center),
+                ],
+                const SizedBox(height: AppSpacing.sm),
+                _StatutBadge(d.statut),
+              ],
+            ),
+          ),
+          // Corps
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.all(AppSpacing.lg),
+              children: [
+                _field(Icons.cake_outlined, 'Âge',
+                    d.calculatedAge != null ? '${d.calculatedAge} ans' : '—'),
+                _field(Icons.phone_outlined, 'Téléphone',
+                    d.locatairePhone ?? '—'),
+                _field(Icons.mail_outline, 'E-mail', d.locataireEmail ?? '—'),
+                _field(Icons.event_outlined, 'Reçu le', dateStr),
+                if (d.chambreId != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: AppSpacing.sm),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        icon: const Icon(Icons.open_in_new, size: 16),
+                        label: const Text('Voir l\'annonce'),
+                        onPressed: onVoirAnnonce,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          // Pied : E-mail + Discuter
+          Container(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            decoration: BoxDecoration(
+              border:
+                  Border(top: BorderSide(color: AppColors.outlineVariant)),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: AppButton.cancel(
+                    size: AppButtonSize.compact,
+                    fullWidth: true,
+                    icon: Icons.mail_outline,
+                    label: 'E-mail',
+                    onPressed: (d.locataireEmail ?? '').isEmpty ? null : onEmail,
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: AppButton.primary(
+                    size: AppButtonSize.compact,
+                    fullWidth: true,
+                    icon: Icons.forum_outlined,
+                    label: 'Discuter',
+                    onPressed: onDiscuter,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _field(IconData icon, String label, String value) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, size: 18, color: AppColors.primary),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label.toUpperCase(),
+                      style: AppTypography.labelSm
+                          .copyWith(color: AppColors.onSurfaceVariant)),
+                  const SizedBox(height: 1),
+                  Text(value, style: AppTypography.bodyMd),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Bouton d'accès au fil de discussion (avec pastille de non-lus). Partagé avec
+/// l'écran locataire (« Mes discussions »). La messagerie étant toujours
+/// ouverte, il est toujours actif.
 class DiscussionButton extends StatelessWidget {
   final DemandeContactModel demande;
   final int unread;
@@ -556,17 +890,11 @@ class DiscussionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ouverte = demande.discussionOuverte;
-    final icone = Icon(
-      ouverte ? Icons.forum_outlined : Icons.lock_outline,
-      size: 18,
-    );
+    const icone = Icon(Icons.forum_outlined, size: 18);
     return Tooltip(
-      message: ouverte
-          ? 'Ouvrir la discussion'
-          : 'Acceptez la demande (« Contact établi ») pour discuter',
+      message: 'Ouvrir la discussion',
       child: TextButton.icon(
-        onPressed: ouverte ? onPressed : null,
+        onPressed: onPressed,
         icon: unread > 0
             ? Badge(label: Text('$unread'), child: icone)
             : icone,
@@ -576,141 +904,7 @@ class DiscussionButton extends StatelessWidget {
   }
 }
 
-/// Carte d'une demande de contact (tablette/mobile) — équivalent d'une ligne du
-/// tableau, mais empilée et tactile.
-class _DemandeCard extends StatelessWidget {
-  final DemandeContactModel demande;
-  final bool isToggling;
-  final int unread;
-  final void Function(DemandeContactModel, bool) onToggle;
-  final void Function(DemandeContactModel) onVoirDetails;
-  final void Function(DemandeContactModel) onDiscussion;
-  final String Function(DateTime) formatDate;
-
-  const _DemandeCard({
-    required this.demande,
-    required this.isToggling,
-    required this.unread,
-    required this.onToggle,
-    required this.onVoirDetails,
-    required this.onDiscussion,
-    required this.formatDate,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final d = demande;
-    final bien = [d.chambreName, d.immeubleName]
-        .where((s) => s != null && s.isNotEmpty)
-        .join(' — ');
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(
-        color: d.contactEtabli
-            ? AppColors.primaryContainer.withValues(alpha: 0.25)
-            : AppColors.surfaceContainerLowest,
-        borderRadius: AppRadius.borderLg,
-        border: Border.all(color: AppColors.outlineVariant),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  d.locataireFullName ?? '—',
-                  style:
-                      AppTypography.titleLg.copyWith(fontWeight: FontWeight.w600),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              if (d.calculatedAge != null)
-                Text('${d.calculatedAge} ans',
-                    style: AppTypography.labelSm
-                        .copyWith(color: AppColors.onSurfaceVariant)),
-            ],
-          ),
-          if (bien.isNotEmpty) ...[
-            const SizedBox(height: 2),
-            Text(bien,
-                style: AppTypography.bodyMd
-                    .copyWith(color: AppColors.onSurfaceVariant),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis),
-          ],
-          const SizedBox(height: AppSpacing.sm),
-          if (d.locatairePhone != null)
-            _line(Icons.phone_outlined, d.locatairePhone!),
-          if (d.locataireEmail != null)
-            _line(Icons.mail_outline, d.locataireEmail!),
-          _line(Icons.event_outlined, formatDate(d.createdAt)),
-          const SizedBox(height: AppSpacing.sm),
-          const Divider(height: 1),
-          const SizedBox(height: AppSpacing.xs),
-          Row(
-            children: [
-              if (d.chambreId != null)
-                TextButton.icon(
-                  icon: const Icon(Icons.open_in_new, size: 16),
-                  label: const Text('Voir Annonce'),
-                  onPressed: () => onVoirDetails(d),
-                ),
-              const Spacer(),
-              Text('Contact établi',
-                  style: AppTypography.labelSm
-                      .copyWith(color: AppColors.onSurfaceVariant)),
-              isToggling
-                  ? const Padding(
-                      padding: EdgeInsets.all(AppSpacing.sm),
-                      child: SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      ),
-                    )
-                  : PermissionGate(
-                      permission: Perm.demandesManage,
-                      fallback:
-                          Switch(value: d.contactEtabli, onChanged: null),
-                      child: Switch(
-                        value: d.contactEtabli,
-                        onChanged: (v) => onToggle(d, v),
-                      ),
-                    ),
-            ],
-          ),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: DiscussionButton(
-              demande: d,
-              unread: unread,
-              onPressed: () => onDiscussion(d),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _line(IconData icon, String text) => Padding(
-        padding: const EdgeInsets.only(bottom: 4),
-        child: Row(
-          children: [
-            Icon(icon, size: 15, color: AppColors.onSurfaceVariant),
-            const SizedBox(width: AppSpacing.sm),
-            Expanded(
-              child: Text(text,
-                  style: AppTypography.bodyMd,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis),
-            ),
-          ],
-        ),
-      );
-}
-
+// ─────────────────────────────────────────────────────────────────────────────
 
 /// Carte de notification réutilisable (Interactions + Vue générale).
 class NotificationCard extends StatelessWidget {

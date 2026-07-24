@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:lacoloc_front/data/cache/realtime_refresh_mixin.dart';
 import 'package:lacoloc_front/data/datasources/auth_service.dart';
 import 'package:lacoloc_front/data/datasources/chambres.dart';
-import 'package:lacoloc_front/data/datasources/demandes_contact.dart';
 import 'package:lacoloc_front/data/datasources/messages.dart';
 import 'package:lacoloc_front/data/datasources/immeubles.dart';
 import 'package:lacoloc_front/data/models/chambre.dart';
@@ -120,16 +119,12 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage>
 
   Future<void> _refreshBadges() async {
     try {
-      final results = await Future.wait([
-        DemandesContactDatasource.listByOwner(),
-        MessagesDatasource.unreadCount(refresh: true),
-      ]);
+      // Nouveau modèle : chaque prise de contact arrive avec un premier message
+      // non lu → la pastille = **messages reçus non lus** (couvre les demandes
+      // nouvelles + les fils en cours), sans double comptage.
+      final msgNonLus = await MessagesDatasource.unreadCount(refresh: true);
       if (!mounted) return;
-      final demandes = results[0] as List;
-      final msgNonLus = results[1] as int;
-      final pendingDemandes =
-          demandes.where((d) => d.contactEtabli == false).length;
-      setState(() => _interactionsBadge = pendingDemandes + msgNonLus);
+      setState(() => _interactionsBadge = msgNonLus);
     } catch (_) {
       // best-effort : pastille non bloquante
     }
@@ -737,7 +732,7 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage>
         onTap: () => go(_Section.interactions),
         children: [
           NavChild(
-            label: 'Demandes de contact',
+            label: 'Messages',
             selected: _section == _Section.interactions,
             count: _interactionsBadge,
             onTap: () => go(_Section.interactions),

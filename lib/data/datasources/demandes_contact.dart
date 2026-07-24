@@ -1,5 +1,6 @@
 import 'package:lacoloc_front/data/cache/data_cache.dart';
 import 'package:lacoloc_front/data/cache/realtime_service.dart';
+import 'package:lacoloc_front/data/datasources/messages.dart';
 import 'package:lacoloc_front/data/models/demande_contact.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -40,6 +41,90 @@ class DemandesContactDatasource {
       // best-effort
     }
   }
+
+  /// Nouveau modèle « messagerie » : le locataire prend contact **et** envoie
+  /// son premier message dans le même geste (plus d'acceptation préalable côté
+  /// propriétaire). Crée la demande (statut `nouveau`), récupère le
+  /// propriétaire (owner de l'immeuble — `Immeubles` a un SELECT public) puis
+  /// envoie le message. Notifie le propriétaire (best-effort). Retourne l'id.
+  static Future<int> createWithMessage({
+    required String locataireId,
+    required int immeubleId,
+    int? chambreId,
+    required String message,
+  }) async {
+    final payload = <String, dynamic>{
+      'locataire_id': locataireId,
+      'immeuble_id': immeubleId,
+      'chambre_id': ?chambreId,
+    };
+    final inserted = await _db
+        .from(_table)
+        .insert(payload)
+        .select('id, Immeubles!immeuble_id(owner_id)')
+        .single();
+    final demandeId = inserted['id'] as int;
+    final ownerId =
+        (inserted['Immeubles'] as Map?)?['owner_id'] as String?;
+    _invalidate();
+
+    final texte = message.trim();
+    if (texte.isNotEmpty && ownerId != null) {
+      await MessagesDatasource.send(
+        demandeId: demandeId,
+        recipientId: ownerId,
+        body: texte,
+      );
+    }
+    try {
+      await _db.rpc(
+        'notify_nouvelle_demande',
+        params: {'p_demande_id': demandeId},
+      );
+    } catch (_) {/* best-effort */}
+    return demandeId;
+  }
+
+  /// Nom du propriétaire de l'annonce (pour le pop-up « Entrer en contact »,
+  /// avant qu'une demande n'existe → RPC `annonce_proprietaire_nom`, réservée
+  /// aux authentifiés). Renvoie null si indisponible.
+  static Future<String?> proprietaireNom(int immeubleId) async {
+    try {
+      final res = await _db.rpc(
+        'annonce_proprietaire_nom',
+        params: {'p_immeuble_id': immeubleId},
+      );
+      return res as String?;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // ── Statut (géré par le propriétaire ; RLS `proprietaire_update_demande`) ──
+
+  /// Fixe le statut de la demande.
+  static Future<void> setStatut(int id, StatutDemande statut) async {
+    await _db.from(_table).update({'statut': statut.code}).eq('id', id);
+    _invalidate();
+  }
+
+  /// Le propriétaire ignore la demande.
+  static Future<void> ignorer(int id) => setStatut(id, StatutDemande.ignore);
+
+  /// À l'ouverture du fil par le propriétaire : `nouveau` → `non_repondu`
+  /// (« vu, pas encore répondu »). N'écrase pas `repondu`/`ignore`.
+  static Future<void> markVu(int id) async {
+    await _db
+        .from(_table)
+        .update({'statut': StatutDemande.nonRepondu.code})
+        .eq('id', id)
+        .eq('statut', StatutDemande.nouveau.code);
+    _invalidate();
+  }
+
+  /// Quand le propriétaire répond → `repondu`.
+  static Future<void> markRepondu(int id) =>
+      setStatut(id, StatutDemande.repondu);
 
   /// Embeds partagés. `Immeubles.owner_id` + le nom du proprietaire donnent au
   /// locataire son interlocuteur (Immeubles a un SELECT public).
@@ -94,8 +179,9 @@ class DemandesContactDatasource {
     _invalidate();
   }
 
-  /// Verifica se já existe uma demanda pendente (contact_etabli = false)
-  /// do mesmo locataire para a mesma chambre.
+  /// Verifica se já existe uma conversa **ativa** (não ignorada) do mesmo
+  /// locataire para a mesma chambre — evita abrir uma nova demanda quando já
+  /// há um fil em curso.
   static Future<bool> hasDemandeEnAttente({
     required String locataireId,
     required int chambreId,
@@ -105,7 +191,7 @@ class DemandesContactDatasource {
         .select('id')
         .eq('locataire_id', locataireId)
         .eq('chambre_id', chambreId)
-        .eq('contact_etabli', false)
+        .neq('statut', StatutDemande.ignore.code)
         .limit(1);
     return (res as List).isNotEmpty;
   }

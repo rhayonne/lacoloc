@@ -1172,7 +1172,9 @@ class _DemandeLocataireCard extends StatelessWidget {
       d.chambreName,
       d.immeubleName,
     ].where((s) => s != null && s.isNotEmpty).join(' — ');
-    final acceptee = d.discussionOuverte;
+    // Côté locataire, seul « a répondu » est pertinent (le statut détaillé
+    // — non répondu / ignoré — reste côté propriétaire).
+    final aRepondu = d.statut == StatutDemande.repondu;
 
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
@@ -1194,7 +1196,7 @@ class _DemandeLocataireCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              _EtatDemandeChip(acceptee: acceptee),
+              _EtatDemandeChip(aRepondu: aRepondu),
             ],
           ),
           const SizedBox(height: AppSpacing.xs),
@@ -1221,12 +1223,12 @@ class _DemandeLocataireCard extends StatelessWidget {
 }
 
 class _EtatDemandeChip extends StatelessWidget {
-  final bool acceptee;
-  const _EtatDemandeChip({required this.acceptee});
+  final bool aRepondu;
+  const _EtatDemandeChip({required this.aRepondu});
 
   @override
   Widget build(BuildContext context) {
-    final couleur = acceptee ? AppColors.success : AppColors.onSurfaceVariant;
+    final couleur = aRepondu ? AppColors.success : AppColors.onSurfaceVariant;
     return Container(
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.sm,
@@ -1237,7 +1239,7 @@ class _EtatDemandeChip extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppRadius.full),
       ),
       child: Text(
-        acceptee ? 'Acceptée' : 'En attente',
+        aRepondu ? 'Répondu' : 'En attente',
         style: AppTypography.labelSm.copyWith(color: couleur),
       ),
     );
@@ -2087,7 +2089,7 @@ class _InteractionsSectionState extends State<_InteractionsSection>
   @override
   void onRealtimeChange() {
     final f = _load();
-    setState(() => _future = f);
+    setState(() { _future = f; });
   }
 
   @override

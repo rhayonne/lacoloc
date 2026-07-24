@@ -5,9 +5,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// Messagerie rattachée à une demande de contact (un fil par demande).
 ///
-/// Le fil ne s'ouvre qu'une fois la demande acceptée par le proprietaire
-/// (`Demandes_Contact.contact_etabli`) — c'est la **RLS** qui l'impose à
-/// l'insertion, l'UI ne fait que refléter la règle.
+/// **Plus d'acceptation préalable** : dès qu'une demande existe, les deux
+/// parties (locataire ↔ propriétaire) peuvent s'écrire. La RLS d'insertion
+/// vérifie seulement `can_access_demande` (être partie prenante).
 class MessagesDatasource {
   MessagesDatasource._();
 
@@ -37,8 +37,6 @@ class MessagesDatasource {
 
   /// Envoie un message. [recipientId] est l'autre partie de la demande
   /// (cf. `DemandeContactModel.interlocuteurId`).
-  ///
-  /// Lève une exception si la demande n'est pas acceptée (refus RLS).
   static Future<void> send({
     required int demandeId,
     required String recipientId,

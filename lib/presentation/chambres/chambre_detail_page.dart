@@ -11,6 +11,7 @@ import 'package:lacoloc_front/data/models/users_client.dart';
 import 'package:lacoloc_front/presentation/login_dialog.dart';
 import 'package:lacoloc_front/presentation/nav/app_sidebar.dart';
 import 'package:lacoloc_front/presentation/widgets/photo_carousel.dart';
+import 'package:lacoloc_front/presentation/widgets/contact_dialog.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_radius.dart';
 import 'package:lacoloc_front/theme/app_spacing.dart';
@@ -388,8 +389,8 @@ class _DetailContent extends StatelessWidget {
                   if (bundle.hasPendingDemande)
                     OutlinedButton.icon(
                       onPressed: null,
-                      icon: const Icon(Icons.hourglass_empty_outlined),
-                      label: const Text('Demande envoyée — en attente de réponse'),
+                      icon: const Icon(Icons.forum_outlined),
+                      label: const Text('Vous avez déjà contacté le propriétaire'),
                     )
                   else
                     FilledButton.icon(
@@ -397,6 +398,16 @@ class _DetailContent extends StatelessWidget {
                       icon: const Icon(Icons.contact_mail_outlined),
                       label: const Text('Entrer en contact'),
                     ),
+                ]
+                // Visiteur non connecté : le contact exige d'être connecté.
+                else if (!AuthService.isLoggedIn) ...[
+                  const SizedBox(height: AppSpacing.md),
+                  FilledButton.icon(
+                    onPressed: () =>
+                        Navigator.of(context).pushNamed('/login'),
+                    icon: const Icon(Icons.contact_mail_outlined),
+                    label: const Text('Entrer en contact'),
+                  ),
                 ],
                 const SizedBox(height: AppSpacing.xl),
               ],
@@ -408,43 +419,16 @@ class _DetailContent extends StatelessWidget {
   }
 
   void _showContactDialog(BuildContext context) {
-    final profile = bundle.currentProfile!;
     final chambre = bundle.chambre;
     final immeuble = bundle.immeuble;
-
-    showDialog<void>(
-      context: context,
-      builder: (ctx) => _ContactConfirmDialog(
-        profile: profile,
-        chambreName: chambre.roomName,
-        immeubleName: immeuble?.name ?? '—',
-        onConfirm: () async {
-          Navigator.of(ctx).pop();
-          try {
-            await DemandesContactDatasource.create(
-              locataireId: profile.id,
-              immeubleId: chambre.immeubleId,
-              chambreId: chambre.id,
-            );
-            onContactSent?.call();
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text(
-                    'Votre demande de contact a été envoyée au propriétaire.',
-                  ),
-                ),
-              );
-            }
-          } catch (e) {
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Erreur : $e')),
-              );
-            }
-          }
-        },
-      ),
+    showContactDialog(
+      context,
+      profile: bundle.currentProfile!,
+      immeubleId: chambre.immeubleId,
+      immeubleName: immeuble?.name ?? '—',
+      chambreId: chambre.id,
+      chambreName: chambre.roomName,
+      onSent: () => onContactSent?.call(),
     );
   }
 
@@ -611,173 +595,3 @@ class _OptionRow extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _ContactConfirmDialog extends StatefulWidget {
-  final UsersClient profile;
-  final String chambreName;
-  final String immeubleName;
-  final Future<void> Function() onConfirm;
-
-  const _ContactConfirmDialog({
-    required this.profile,
-    required this.chambreName,
-    required this.immeubleName,
-    required this.onConfirm,
-  });
-
-  @override
-  State<_ContactConfirmDialog> createState() => _ContactConfirmDialogState();
-}
-
-class _ContactConfirmDialogState extends State<_ContactConfirmDialog> {
-  bool _loading = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final p = widget.profile;
-    return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: AppRadius.borderLg),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 480),
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.lg),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(Icons.contact_mail_outlined,
-                      color: AppColors.primary, size: 22),
-                  const SizedBox(width: AppSpacing.sm),
-                  Expanded(
-                    child: Text(
-                      'Entrer en contact',
-                      style: AppTypography.titleLg,
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    tooltip: 'Fermer',
-                    onPressed:
-                        _loading ? null : () => Navigator.of(context).pop(),
-                  ),
-                ],
-              ),
-              const Divider(height: AppSpacing.lg),
-              Text(
-                'Confirmez-vous que vous souhaitez transmettre les informations '
-                'suivantes : nom complet, âge, numéro de téléphone et adresse '
-                'e-mail au propriétaire du bien immobilier afin qu\'il puisse '
-                'vous contacter ?',
-                style: AppTypography.bodyMd,
-              ),
-              const SizedBox(height: AppSpacing.lg),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(AppSpacing.md),
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceContainerLow,
-                  borderRadius: AppRadius.borderMd,
-                  border: Border.all(color: AppColors.outlineVariant),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _InfoRow(
-                      icon: Icons.person_outline,
-                      label: 'Nom complet',
-                      value: p.fullName ?? '—',
-                    ),
-                    _InfoRow(
-                      icon: Icons.cake_outlined,
-                      label: 'Âge',
-                      value: p.age != null ? '${p.age} ans' : '—',
-                    ),
-                    _InfoRow(
-                      icon: Icons.phone_outlined,
-                      label: 'Téléphone',
-                      value: p.phone ?? '—',
-                    ),
-                    _InfoRow(
-                      icon: Icons.email_outlined,
-                      label: 'E-mail',
-                      value: p.email,
-                    ),
-                    const Divider(height: AppSpacing.lg),
-                    _InfoRow(
-                      icon: Icons.bed_outlined,
-                      label: 'Chambre',
-                      value: widget.chambreName,
-                    ),
-                    _InfoRow(
-                      icon: Icons.apartment_outlined,
-                      label: 'Immeuble',
-                      value: widget.immeubleName,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: AppSpacing.lg),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton(
-                    onPressed:
-                        _loading ? null : () => Navigator.of(context).pop(),
-                    child: const Text('Annuler'),
-                  ),
-                  const SizedBox(width: AppSpacing.sm),
-                  FilledButton(
-                    onPressed: _loading
-                        ? null
-                        : () async {
-                            setState(() => _loading = true);
-                            await widget.onConfirm();
-                          },
-                    child: _loading
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('Confirmer'),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _InfoRow extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-  const _InfoRow({required this.icon, required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
-      child: Row(
-        children: [
-          Icon(icon, size: 16, color: AppColors.onSurfaceVariant),
-          const SizedBox(width: AppSpacing.sm),
-          Text(
-            '$label : ',
-            style: AppTypography.labelMd
-                .copyWith(color: AppColors.onSurfaceVariant),
-          ),
-          Expanded(
-            child: Text(value, style: AppTypography.bodyMd),
-          ),
-        ],
-      ),
-    );
-  }
-}

@@ -26,7 +26,20 @@ class ConversationView extends StatefulWidget {
   /// Fermer le fil (retour à la liste). Null = pas de bouton retour.
   final VoidCallback? onClose;
 
-  const ConversationView({super.key, required this.demande, this.onClose});
+  /// Appelé après l'envoi réussi d'un message (ex. le propriétaire passe la
+  /// demande au statut « répondu »).
+  final VoidCallback? onSent;
+
+  /// Actions supplémentaires dans l'en-tête, à droite (ex. « Ignorer »).
+  final List<Widget>? headerActions;
+
+  const ConversationView({
+    super.key,
+    required this.demande,
+    this.onClose,
+    this.onSent,
+    this.headerActions,
+  });
 
   @override
   State<ConversationView> createState() => _ConversationViewState();
@@ -114,6 +127,7 @@ class _ConversationViewState extends State<ConversationView>
       );
       _composerCtrl.clear();
       _reload();
+      widget.onSent?.call();
     } catch (e) {
       // Ne pas avaler l'erreur : l'envoi a échoué, il faut le dire.
       _snack('Impossible d\'envoyer le message : $e');
@@ -221,6 +235,7 @@ class _ConversationViewState extends State<ConversationView>
               ],
             ),
           ),
+          ...?widget.headerActions,
         ],
       ),
     );

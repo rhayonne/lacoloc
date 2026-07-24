@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:lacoloc_front/data/datasources/auth_service.dart';
 import 'package:lacoloc_front/data/datasources/chambres.dart';
 import 'package:lacoloc_front/data/datasources/inventaire.dart';
 import 'package:lacoloc_front/data/datasources/immeubles.dart';
 import 'package:lacoloc_front/data/models/chambre.dart';
 import 'package:lacoloc_front/data/models/chambre_disponibilite.dart';
 import 'package:lacoloc_front/data/models/immeubles.dart';
+import 'package:lacoloc_front/data/models/users_client.dart';
 import 'package:lacoloc_front/presentation/chambres/chambre_card.dart';
+import 'package:lacoloc_front/presentation/widgets/contact_dialog.dart';
 import 'package:lacoloc_front/presentation/widgets/photo_carousel.dart';
 import 'package:lacoloc_front/theme/app_colors.dart';
 import 'package:lacoloc_front/theme/app_radius.dart';
@@ -35,10 +38,37 @@ class ImmeublePublicDetailView extends StatefulWidget {
 class _ImmeublePublicDetailViewState extends State<ImmeublePublicDetailView> {
   late Future<_Bundle> _future;
 
+  /// Profil courant (pour le bouton « Entrer en contact » — visible au
+  /// locataire ; le visiteur non connecté est redirigé vers la connexion).
+  UsersClient? _profile;
+
   @override
   void initState() {
     super.initState();
     _future = _load();
+    _loadProfile();
+  }
+
+  Future<void> _loadProfile() async {
+    if (!AuthService.isLoggedIn) return;
+    try {
+      final p = await AuthService.loadCurrentProfile();
+      if (mounted) setState(() => _profile = p);
+    } catch (_) {/* best-effort */}
+  }
+
+  void _contact(ImmeublesModel imm) {
+    // Doit être connecté : sinon, direction la page de connexion.
+    if (_profile?.resolvedType != UserType.locataire) {
+      Navigator.of(context).pushNamed('/login');
+      return;
+    }
+    showContactDialog(
+      context,
+      profile: _profile!,
+      immeubleId: imm.id,
+      immeubleName: imm.name,
+    );
   }
 
   @override
@@ -168,6 +198,17 @@ class _ImmeublePublicDetailViewState extends State<ImmeublePublicDetailView> {
                     imm.description!.trim().isNotEmpty) ...[
                   const SizedBox(height: AppSpacing.md),
                   Text(imm.description!, style: AppTypography.bodyMd),
+                ],
+
+                // Entrer en contact — locataire connecté, ou visiteur (→ login).
+                if (_profile?.resolvedType == UserType.locataire ||
+                    !AuthService.isLoggedIn) ...[
+                  const SizedBox(height: AppSpacing.lg),
+                  FilledButton.icon(
+                    onPressed: () => _contact(imm),
+                    icon: const Icon(Icons.contact_mail_outlined),
+                    label: const Text('Entrer en contact'),
+                  ),
                 ],
 
                 const SizedBox(height: AppSpacing.xl),
