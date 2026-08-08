@@ -1,5 +1,5 @@
 import 'package:flutter/widgets.dart';
-import 'package:lacoloc_front/data/permissions/permissions_service.dart';
+import 'package:habitafrance/data/permissions/permissions_service.dart';
 
 /// Exibe [child] apenas se o usuário tiver a permissão [permission]
 /// (ou qualquer uma de [anyOf]). Caso contrário exibe [fallback]

@@ -1,18 +1,18 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:lacoloc_front/data/cache/realtime_refresh_mixin.dart';
-import 'package:lacoloc_front/data/datasources/auth_service.dart';
-import 'package:lacoloc_front/data/datasources/chambres.dart';
-import 'package:lacoloc_front/data/datasources/immeubles.dart';
-import 'package:lacoloc_front/data/models/chambre.dart';
-import 'package:lacoloc_front/data/models/immeubles.dart';
-import 'package:lacoloc_front/data/permissions/permissions_service.dart';
-import 'package:lacoloc_front/presentation/widgets/permission_gate.dart';
-import 'package:lacoloc_front/theme/app_colors.dart';
-import 'package:lacoloc_front/theme/app_radius.dart';
-import 'package:lacoloc_front/presentation/widgets/app_top_bar.dart';
-import 'package:lacoloc_front/theme/app_spacing.dart';
-import 'package:lacoloc_front/theme/app_typography.dart';
+import 'package:habitafrance/data/cache/realtime_refresh_mixin.dart';
+import 'package:habitafrance/data/datasources/auth_service.dart';
+import 'package:habitafrance/data/datasources/chambres.dart';
+import 'package:habitafrance/data/datasources/immeubles.dart';
+import 'package:habitafrance/data/models/chambre.dart';
+import 'package:habitafrance/data/models/immeubles.dart';
+import 'package:habitafrance/data/permissions/permissions_service.dart';
+import 'package:habitafrance/presentation/widgets/permission_gate.dart';
+import 'package:habitafrance/theme/app_colors.dart';
+import 'package:habitafrance/theme/app_radius.dart';
+import 'package:habitafrance/presentation/widgets/app_top_bar.dart';
+import 'package:habitafrance/theme/app_spacing.dart';
+import 'package:habitafrance/theme/app_typography.dart';
 
 class MesImmeublesPage extends StatefulWidget {
   final VoidCallback onAjouter;
@@ -143,14 +143,20 @@ class _Grid extends StatelessWidget {
         children: [
           LayoutBuilder(
             builder: (context, constraints) {
-              // Nombre de colonnes calculé pour une **largeur de carte bornée**
-              // (~420 px max) : sur grand écran on ajoute des colonnes au lieu
-              // d'étirer une carte sur toute la largeur (qui paraissait
-              // disproportionnée pour son contenu). `ceil` garantit que chaque
-              // carte reste ≤ ~420 px.
-              const targetCardWidth = 420.0;
-              final cols =
-                  (constraints.maxWidth / targetCardWidth).ceil().clamp(1, 4).toInt();
+              // Nombre de colonnes pour une **largeur de carte bornée** dans
+              // [minCard, maxCard] : sur grand écran on ajoute des colonnes au
+              // lieu d'étirer une carte (disproportionnée) ; mais on ne crée
+              // jamais une colonne qui rendrait les cartes trop étroites (le
+              // `ceil` seul passait à 2 colonnes dès 421 px → cartes ~200 px,
+              // cassant l'affichage sur grands téléphones).
+              const minCard = 320.0;
+              const maxCard = 460.0;
+              final w = constraints.maxWidth;
+              // Assez de colonnes pour ne pas dépasser maxCard…
+              final colsForMax = (w / maxCard).ceil();
+              // …mais pas plus que ce que minCard autorise (cartes ≥ 320 px).
+              final colsForMin = (w / minCard).floor();
+              final cols = colsForMax.clamp(1, colsForMin.clamp(1, 4)).toInt();
               // Largeur de colonne = largeur réelle disponible / nb de colonnes.
               final colWidth =
                   (constraints.maxWidth - (cols - 1) * AppSpacing.md) / cols;

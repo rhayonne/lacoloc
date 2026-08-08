@@ -1,4 +1,4 @@
-import 'package:lacoloc_front/data/models/immeuble_type.dart';
+import 'package:habitafrance/data/models/immeuble_type.dart';
 
 class ImmeublesModel {
   final int id;

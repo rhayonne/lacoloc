@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:lacoloc_front/theme/app_colors.dart';
-import 'package:lacoloc_front/theme/app_radius.dart';
+import 'package:habitafrance/theme/app_colors.dart';
+import 'package:habitafrance/theme/app_radius.dart';
 
 /// Petit sélecteur de quantité entière autonome (− N +), utilisable hors
 /// FormBuilder (contrairement à [NumberStepperField]). Sert aux lignes de

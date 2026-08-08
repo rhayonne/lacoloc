@@ -1,7 +1,7 @@
-import 'package:lacoloc_front/data/datasources/etat_de_lieux.dart';
-import 'package:lacoloc_front/data/models/permission.dart';
-import 'package:lacoloc_front/data/models/user_group.dart';
-import 'package:lacoloc_front/data/models/users_client.dart';
+import 'package:habitafrance/data/datasources/etat_de_lieux.dart';
+import 'package:habitafrance/data/models/permission.dart';
+import 'package:habitafrance/data/models/user_group.dart';
+import 'package:habitafrance/data/models/users_client.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class UserManagementDatasource {

@@ -1,17 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:form_builder_validators/form_builder_validators.dart';
-import 'package:lacoloc_front/data/datasources/entreprises.dart';
-import 'package:lacoloc_front/data/models/entreprise.dart';
-import 'package:lacoloc_front/data/models/users_client.dart';
-import 'package:lacoloc_front/theme/app_colors.dart';
-import 'package:lacoloc_front/theme/app_radius.dart';
-import 'package:lacoloc_front/presentation/widgets/app_top_bar.dart';
-import 'package:lacoloc_front/theme/app_spacing.dart';
-import 'package:lacoloc_front/theme/app_typography.dart';
-import 'package:lacoloc_front/theme/app_theme.dart';
-import 'package:lacoloc_front/utils/email_field.dart';
-import 'package:lacoloc_front/utils/phone_field.dart';
+import 'package:habitafrance/data/datasources/entreprises.dart';
+import 'package:habitafrance/data/models/entreprise.dart';
+import 'package:habitafrance/data/models/users_client.dart';
+import 'package:habitafrance/theme/app_colors.dart';
+import 'package:habitafrance/theme/app_radius.dart';
+import 'package:habitafrance/presentation/widgets/app_top_bar.dart';
+import 'package:habitafrance/theme/app_spacing.dart';
+import 'package:habitafrance/theme/app_typography.dart';
+import 'package:habitafrance/theme/app_theme.dart';
+import 'package:habitafrance/utils/email_field.dart';
+import 'package:habitafrance/utils/phone_field.dart';
 
 /// Gestão de contas empresa (Super Admin). Criar empresas, definir o **domínio**
 /// (só o super admin pode), e criar o **admin de groupe** de cada empresa.

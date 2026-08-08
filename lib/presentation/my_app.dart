@@ -2,23 +2,23 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:lacoloc_front/data/cache/realtime_service.dart';
-import 'package:lacoloc_front/data/datasources/auth_service.dart';
-import 'package:lacoloc_front/data/datasources/immeubles.dart';
-import 'package:lacoloc_front/data/datasources/session_scope.dart';
-import 'package:lacoloc_front/data/permissions/permissions_service.dart';
-import 'package:lacoloc_front/presentation/auth_gate.dart';
-import 'package:lacoloc_front/presentation/chambres/chambre_detail_page.dart';
-import 'package:lacoloc_front/presentation/home_page.dart';
-import 'package:lacoloc_front/presentation/users/locataires/completer_inscription_page.dart';
-import 'package:lacoloc_front/presentation/users/locataires/confirmation_locataire_page.dart';
-import 'package:lacoloc_front/presentation/users/locataires/creer_compte_locataire_page.dart';
-import 'package:lacoloc_front/presentation/users/proprietaires/creer_compte_proprietaire_page.dart';
-import 'package:lacoloc_front/presentation/users/proprietaires/proprietaire_profil.dart';
-import 'package:lacoloc_front/presentation/tour/guided_tours.dart';
-import 'package:lacoloc_front/theme/app_palette.dart';
-import 'package:lacoloc_front/theme/app_theme.dart';
-import 'package:lacoloc_front/theme/theme_controller.dart';
+import 'package:habitafrance/data/cache/realtime_service.dart';
+import 'package:habitafrance/data/datasources/auth_service.dart';
+import 'package:habitafrance/data/datasources/immeubles.dart';
+import 'package:habitafrance/data/datasources/session_scope.dart';
+import 'package:habitafrance/data/permissions/permissions_service.dart';
+import 'package:habitafrance/presentation/auth_gate.dart';
+import 'package:habitafrance/presentation/chambres/chambre_detail_page.dart';
+import 'package:habitafrance/presentation/home_page.dart';
+import 'package:habitafrance/presentation/users/locataires/completer_inscription_page.dart';
+import 'package:habitafrance/presentation/users/locataires/confirmation_locataire_page.dart';
+import 'package:habitafrance/presentation/users/locataires/creer_compte_locataire_page.dart';
+import 'package:habitafrance/presentation/users/proprietaires/creer_compte_proprietaire_page.dart';
+import 'package:habitafrance/presentation/users/proprietaires/proprietaire_profil.dart';
+import 'package:habitafrance/presentation/tour/guided_tours.dart';
+import 'package:habitafrance/theme/app_palette.dart';
+import 'package:habitafrance/theme/app_theme.dart';
+import 'package:habitafrance/theme/theme_controller.dart';
 import 'package:responsive_framework/responsive_framework.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -212,7 +212,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   Widget _buildApp() {
     return MaterialApp(
       navigatorKey: _navigatorKey,
-      title: 'Super Loc',
+      title: 'HabitaFrance',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
       localizationsDelegates: const [

@@ -1,13 +1,13 @@
-import 'package:lacoloc_front/data/datasources/chambres.dart';
-import 'package:lacoloc_front/data/datasources/edl_details.dart';
-import 'package:lacoloc_front/data/datasources/etat_de_lieux.dart';
-import 'package:lacoloc_front/data/datasources/observations_edl.dart';
-import 'package:lacoloc_front/data/datasources/pieces.dart';
-import 'package:lacoloc_front/data/models/chambre.dart';
-import 'package:lacoloc_front/data/models/etat_de_lieux.dart';
-import 'package:lacoloc_front/data/models/edl_details.dart';
-import 'package:lacoloc_front/data/models/observation_edl.dart';
-import 'package:lacoloc_front/data/models/piece.dart';
+import 'package:habitafrance/data/datasources/chambres.dart';
+import 'package:habitafrance/data/datasources/edl_details.dart';
+import 'package:habitafrance/data/datasources/etat_de_lieux.dart';
+import 'package:habitafrance/data/datasources/observations_edl.dart';
+import 'package:habitafrance/data/datasources/pieces.dart';
+import 'package:habitafrance/data/models/chambre.dart';
+import 'package:habitafrance/data/models/etat_de_lieux.dart';
+import 'package:habitafrance/data/models/edl_details.dart';
+import 'package:habitafrance/data/models/observation_edl.dart';
+import 'package:habitafrance/data/models/piece.dart';
 
 /// Mode d'impression d'un EDL de sortie.
 enum EdlPdfMode {

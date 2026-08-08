@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:lacoloc_front/data/models/immeubles.dart';
-import 'package:lacoloc_front/data/models/immeuble_type.dart';
+import 'package:habitafrance/data/models/immeubles.dart';
+import 'package:habitafrance/data/models/immeuble_type.dart';
 
 void main() {
   group('ImmeublesModel', () {

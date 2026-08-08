@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:lacoloc_front/presentation/widgets/app_date_picker.dart';
-import 'package:lacoloc_front/data/datasources/inventaire.dart';
-import 'package:lacoloc_front/data/models/immeuble_draft.dart';
-import 'package:lacoloc_front/data/models/inventaire.dart';
-import 'package:lacoloc_front/presentation/widgets/field_help_icon.dart';
-import 'package:lacoloc_front/presentation/widgets/photo_picker_field.dart';
-import 'package:lacoloc_front/presentation/widgets/quantity_stepper.dart';
-import 'package:lacoloc_front/theme/app_spacing.dart';
-import 'package:lacoloc_front/theme/app_typography.dart';
-import 'package:lacoloc_front/utils/currency.dart';
+import 'package:habitafrance/presentation/widgets/app_date_picker.dart';
+import 'package:habitafrance/data/datasources/inventaire.dart';
+import 'package:habitafrance/data/models/immeuble_draft.dart';
+import 'package:habitafrance/data/models/inventaire.dart';
+import 'package:habitafrance/presentation/widgets/field_help_icon.dart';
+import 'package:habitafrance/presentation/widgets/photo_picker_field.dart';
+import 'package:habitafrance/presentation/widgets/quantity_stepper.dart';
+import 'package:habitafrance/theme/app_spacing.dart';
+import 'package:habitafrance/theme/app_typography.dart';
+import 'package:habitafrance/utils/currency.dart';
 
 /// Pop-up « Ajouter un électroménager » : reprend les champs du formulaire
 /// d'article (nom via autocomplete Meubles_Reference, quantité, valeur,

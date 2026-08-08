@@ -1,8 +1,8 @@
-import 'package:lacoloc_front/data/datasources/inventaire.dart';
-import 'package:lacoloc_front/data/datasources/pieces.dart';
-import 'package:lacoloc_front/data/models/inventaire.dart';
-import 'package:lacoloc_front/data/models/piece.dart';
-import 'package:lacoloc_front/data/pieces_communes_seed.dart';
+import 'package:habitafrance/data/datasources/inventaire.dart';
+import 'package:habitafrance/data/datasources/pieces.dart';
+import 'package:habitafrance/data/models/inventaire.dart';
+import 'package:habitafrance/data/models/piece.dart';
+import 'package:habitafrance/data/pieces_communes_seed.dart';
 
 /// Génère les parties communes standard d'un immeuble (pièces + inventaire).
 class CommonsSeeder {

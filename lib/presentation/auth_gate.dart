@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
-import 'package:lacoloc_front/data/datasources/auth_service.dart';
-import 'package:lacoloc_front/utils/session_guard.dart';
+import 'package:habitafrance/data/datasources/auth_service.dart';
+import 'package:habitafrance/utils/session_guard.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:lacoloc_front/data/models/users_client.dart';
-import 'package:lacoloc_front/presentation/home_page.dart';
-import 'package:lacoloc_front/presentation/users/admin/super_admin_profil.dart';
-import 'package:lacoloc_front/presentation/users/locataires/completer_inscription_page.dart';
-import 'package:lacoloc_front/presentation/users/locataires/locataire_profil.dart';
-import 'package:lacoloc_front/presentation/users/proprietaires/proprietaire_profil.dart';
-import 'package:lacoloc_front/theme/app_colors.dart';
-import 'package:lacoloc_front/theme/app_spacing.dart';
-import 'package:lacoloc_front/theme/app_typography.dart';
+import 'package:habitafrance/data/models/users_client.dart';
+import 'package:habitafrance/presentation/home_page.dart';
+import 'package:habitafrance/presentation/users/admin/super_admin_profil.dart';
+import 'package:habitafrance/presentation/users/locataires/completer_inscription_page.dart';
+import 'package:habitafrance/presentation/users/locataires/locataire_profil.dart';
+import 'package:habitafrance/presentation/users/proprietaires/proprietaire_profil.dart';
+import 'package:habitafrance/theme/app_colors.dart';
+import 'package:habitafrance/theme/app_spacing.dart';
+import 'package:habitafrance/theme/app_typography.dart';
 
 /// Decide para onde mandar o usuário após o login.
 /// Contas inativas (active = false) veem a tela de espera e são desconectadas.

@@ -1,0 +1,86 @@
+#!/bin/bash
+# Real git pre-commit hook (tracked at scripts/git-hooks/pre-commit).
+#
+# .git/hooks/* is never versioned by git itself, so this file is the source
+# of truth — run `bash scripts/install-git-hooks.sh` once after cloning (or
+# whenever this file changes) to (re)install it as the active hook.
+#
+# Two gates, both non-interactive (no `read`, no tty assumed — this must work
+# whether you commit from a terminal, an IDE, or Claude Code's Bash tool):
+#   1. `flutter analyze` — fast, deterministic. Blocks on any ERROR.
+#   2. Headless Claude review of the staged diff — blocks only on
+#      correctness/security bugs it is confident about (not style nits).
+#
+# Bypass in an emergency: `git commit --no-verify`.
+
+set -euo pipefail
+cd "$(git rev-parse --show-toplevel)"
+
+STAGED_DART=$(git diff --cached --name-only --diff-filter=ACM -- '*.dart' || true)
+
+if [ -z "$STAGED_DART" ]; then
+  exit 0
+fi
+
+echo "🔍 pre-commit: flutter analyze..."
+if ! flutter analyze --no-fatal-infos 2>&1 | tee /tmp/pre-commit-analyze.log; then
+  echo ""
+  echo "❌ flutter analyze encontrou erros — commit bloqueado."
+  echo "   Corrija os erros acima, ou use 'git commit --no-verify' para pular (não recomendado)."
+  exit 1
+fi
+if grep -qE '^\s*error •' /tmp/pre-commit-analyze.log; then
+  echo ""
+  echo "❌ flutter analyze reportou 'error' — commit bloqueado."
+  exit 1
+fi
+echo "✅ flutter analyze OK"
+
+if ! command -v claude >/dev/null 2>&1; then
+  echo "⚠️  claude CLI não encontrado — pulando review de IA (só flutter analyze rodou)."
+  exit 0
+fi
+
+echo "🤖 pre-commit: review de segurança/correção (Claude, headless)..."
+
+DIFF=$(git diff --cached -- '*.dart')
+if [ -z "$DIFF" ]; then
+  exit 0
+fi
+
+PROMPT=$(cat <<'PROMPT_EOF'
+Você está revisando um `git diff --cached` (mudanças Dart prestes a serem commitadas) do projeto habitafrance. Leia CLAUDE.md se precisar de contexto sobre convenções do projeto.
+
+Procure APENAS por bugs de correção óbvios (null-safety, syntax error, lógica invertida, loop infinito) ou falhas de segurança óbvias (PII em logs, injection, credenciais em dur, RLS bypass). NÃO aponte estilo, nomenclatura, ou preferências subjetivas — isso não deve bloquear um commit.
+
+Termine sua resposta com uma destas duas linhas, exatamente:
+VERDICT: PASS
+ou
+VERDICT: BLOCK: <razão curta em uma linha>
+
+Se tiver qualquer dúvida ou não tiver certeza, prefira PASS (falso negativo é preferível a bloquear commits válidos).
+PROMPT_EOF
+)
+
+RESULT=$(timeout 90 claude -p "$PROMPT
+
+Diff:
+\`\`\`diff
+$DIFF
+\`\`\`" \
+  --permission-mode bypassPermissions \
+  --allowedTools "Read Grep Glob" \
+  --effort low \
+  --output-format json 2>/tmp/pre-commit-claude.err | python3 -c "import json,sys; print(json.load(sys.stdin).get('result',''))" 2>/dev/null || echo "VERDICT: PASS")
+
+echo "$RESULT" | tail -5
+
+if echo "$RESULT" | grep -q "VERDICT: BLOCK"; then
+  echo ""
+  echo "❌ Review de IA encontrou um problema — commit bloqueado."
+  echo "   Corrija, ou use 'git commit --no-verify' se tiver certeza que é um falso positivo."
+  exit 1
+fi
+
+echo "✅ Review de IA OK — commit liberado."
+exit 0

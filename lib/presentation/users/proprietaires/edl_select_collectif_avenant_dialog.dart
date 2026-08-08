@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:lacoloc_front/data/datasources/etat_de_lieux.dart';
-import 'package:lacoloc_front/theme/app_colors.dart';
-import 'package:lacoloc_front/theme/app_radius.dart';
-import 'package:lacoloc_front/theme/app_spacing.dart';
-import 'package:lacoloc_front/theme/app_typography.dart';
+import 'package:habitafrance/data/datasources/etat_de_lieux.dart';
+import 'package:habitafrance/theme/app_colors.dart';
+import 'package:habitafrance/theme/app_radius.dart';
+import 'package:habitafrance/theme/app_spacing.dart';
+import 'package:habitafrance/theme/app_typography.dart';
 
 /// Dialogue de sélection du contrat à amender (avenant).
 ///

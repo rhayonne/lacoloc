@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 ///
 /// ## Le concept
 ///
-/// Super Loc est un **outil d'enregistrement de l'état des lieux** : son monde,
+/// HabitaFrance est un **outil d'enregistrement de l'état des lieux** : son monde,
 /// ce sont les états des lieux, les plans de chambre (4 murs + sol + plafond),
 /// les tantièmes, les relevés de compteurs. Le langage visuel découle de là —
 /// **le relevé annoté** :

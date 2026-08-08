@@ -33,7 +33,7 @@ async function sendEmail(
   const port = parseInt(Deno.env.get('SMTP_PORT') ?? '587', 10);
   const user = Deno.env.get('SMTP_USER') ?? '';
   const pass = Deno.env.get('SMTP_PASS') ?? '';
-  const from = Deno.env.get('SMTP_FROM') ?? `Super Loc <${user}>`;
+  const from = Deno.env.get('SMTP_FROM') ?? `HabitaFrance <${user}>`;
   const secure = port === 465;
   if (!host || !user || !pass) {
     return { sent: false, smtpError: 'SMTP non configuré.' };
@@ -183,7 +183,7 @@ Deno.serve(async (req) => {
           ${v.notes ? `<tr><td style="padding: 6px 12px; color:#666;">Notes</td><td style="padding: 6px 12px;">${esc(v.notes)}</td></tr>` : ''}
         </table>
         <p style="color: #666; font-size: 13px; margin-top: 32px;">
-          Notification automatique — Super Loc.
+          Notification automatique — HabitaFrance.
         </p>
       </div>
     `;

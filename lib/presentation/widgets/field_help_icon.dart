@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:lacoloc_front/theme/app_colors.dart';
+import 'package:habitafrance/theme/app_colors.dart';
 
 /// Petite icône « ? » (point d'interrogation) affichant une bulle d'aide au
 /// survol / appui long. À placer dans `InputDecoration.suffixIcon` pour

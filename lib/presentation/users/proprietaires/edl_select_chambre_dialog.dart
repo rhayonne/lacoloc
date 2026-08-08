@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:lacoloc_front/data/models/chambre.dart';
-import 'package:lacoloc_front/presentation/widgets/app_list_search_field.dart';
-import 'package:lacoloc_front/theme/app_colors.dart';
-import 'package:lacoloc_front/theme/app_radius.dart';
-import 'package:lacoloc_front/theme/app_spacing.dart';
-import 'package:lacoloc_front/theme/app_typography.dart';
+import 'package:habitafrance/data/models/chambre.dart';
+import 'package:habitafrance/presentation/widgets/app_list_search_field.dart';
+import 'package:habitafrance/theme/app_colors.dart';
+import 'package:habitafrance/theme/app_radius.dart';
+import 'package:habitafrance/theme/app_spacing.dart';
+import 'package:habitafrance/theme/app_typography.dart';
 
 /// Dialog de sélection d'une chambre pour un EDL individuel (l'unité louée est
 /// la chambre). Affiche les chambres de l'immeuble avec m² / prix / statut.

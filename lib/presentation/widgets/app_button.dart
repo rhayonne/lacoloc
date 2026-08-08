@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:lacoloc_front/theme/app_button_sizes.dart';
-import 'package:lacoloc_front/theme/app_theme.dart';
+import 'package:habitafrance/theme/app_button_sizes.dart';
+import 'package:habitafrance/theme/app_theme.dart';
 
 /// Variantes **sémantiques** de bouton (la COULEUR/le rôle, pas la taille).
 ///

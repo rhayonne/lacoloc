@@ -1,7 +1,7 @@
 {
   "name": "manual-screenshots",
   "version": "1.0.0",
-  "description": "Génère les screenshots du manuel utilisateur Super Loc",
+  "description": "Génère les screenshots du manuel utilisateur HabitaFrance",
   "scripts": {
     "screenshots": "node take.js"
   },

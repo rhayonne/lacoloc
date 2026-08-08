@@ -2,9 +2,9 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:lacoloc_front/theme/app_palette.dart';
-import 'package:lacoloc_front/theme/palette_builder.dart';
-import 'package:lacoloc_front/utils/color_codec.dart';
+import 'package:habitafrance/theme/app_palette.dart';
+import 'package:habitafrance/theme/palette_builder.dart';
+import 'package:habitafrance/utils/color_codec.dart';
 
 /// Le contrat de `PaletteBuilder` : **quelles que soient** les 3 couleurs
 /// collées depuis huemint, la palette produite doit rester lisible. Ces tests

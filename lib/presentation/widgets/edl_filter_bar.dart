@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:lacoloc_front/data/models/etat_de_lieux.dart';
-import 'package:lacoloc_front/presentation/widgets/edl_date_range_picker.dart';
-import 'package:lacoloc_front/theme/app_colors.dart';
-import 'package:lacoloc_front/theme/app_radius.dart';
-import 'package:lacoloc_front/theme/app_spacing.dart';
-import 'package:lacoloc_front/theme/app_typography.dart';
+import 'package:habitafrance/data/models/etat_de_lieux.dart';
+import 'package:habitafrance/presentation/widgets/edl_date_range_picker.dart';
+import 'package:habitafrance/theme/app_colors.dart';
+import 'package:habitafrance/theme/app_radius.dart';
+import 'package:habitafrance/theme/app_spacing.dart';
+import 'package:habitafrance/theme/app_typography.dart';
 
 /// Catálogo de módulos de filtro disponíveis na [EdlFilterBar] (barra de
 /// filtros das tabelas d'états des lieux).

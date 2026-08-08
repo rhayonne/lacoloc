@@ -1,11 +1,11 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:lacoloc_front/data/datasources/auth_service.dart';
-import 'package:lacoloc_front/theme/app_colors.dart';
-import 'package:lacoloc_front/theme/app_radius.dart';
-import 'package:lacoloc_front/theme/app_spacing.dart';
-import 'package:lacoloc_front/theme/app_typography.dart';
+import 'package:habitafrance/data/datasources/auth_service.dart';
+import 'package:habitafrance/theme/app_colors.dart';
+import 'package:habitafrance/theme/app_radius.dart';
+import 'package:habitafrance/theme/app_spacing.dart';
+import 'package:habitafrance/theme/app_typography.dart';
 import 'package:sidebarx/sidebarx.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -580,7 +580,7 @@ class _AppLogoFull extends StatelessWidget {
         const SizedBox(width: AppSpacing.sm),
         Flexible(
           child: Text(
-            'Super Loc',
+            'HabitaFrance',
             style: AppTypography.titleLg.copyWith(color: AppColors.primary),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,

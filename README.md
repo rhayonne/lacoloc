@@ -1,6 +1,6 @@
-# lacoloc_front
+# HabitaFrance
 
-A new Flutter project.
+Plataforma Flutter para gestão e aluguel de quartos individuais e imóveis em imóveis compartilhados.
 
 ## Getting Started
 

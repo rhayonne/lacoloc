@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:lacoloc_front/data/models/etat_de_lieux.dart';
+import 'package:habitafrance/data/models/etat_de_lieux.dart';
 
 // Constrói um EtatDesLieuxModel mínimo válido.
 EtatDesLieuxModel _minimal({

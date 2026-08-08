@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:lacoloc_front/data/cache/realtime_refresh_mixin.dart';
-import 'package:lacoloc_front/data/datasources/auth_service.dart';
-import 'package:lacoloc_front/data/datasources/messages.dart';
-import 'package:lacoloc_front/data/models/demande_contact.dart';
-import 'package:lacoloc_front/data/models/message.dart';
-import 'package:lacoloc_front/theme/app_colors.dart';
-import 'package:lacoloc_front/theme/app_radius.dart';
-import 'package:lacoloc_front/theme/app_spacing.dart';
-import 'package:lacoloc_front/theme/app_typography.dart';
+import 'package:habitafrance/data/cache/realtime_refresh_mixin.dart';
+import 'package:habitafrance/data/datasources/auth_service.dart';
+import 'package:habitafrance/data/datasources/messages.dart';
+import 'package:habitafrance/data/models/demande_contact.dart';
+import 'package:habitafrance/data/models/message.dart';
+import 'package:habitafrance/theme/app_colors.dart';
+import 'package:habitafrance/theme/app_radius.dart';
+import 'package:habitafrance/theme/app_spacing.dart';
+import 'package:habitafrance/theme/app_typography.dart';
 
 /// Fil de discussion d'une demande de contact — **le même widget pour les deux
 /// parties** (locataire et proprietaire) : le rôle ne change que l'interlocuteur

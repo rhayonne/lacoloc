@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:lacoloc_front/data/datasources/signatures.dart';
-import 'package:lacoloc_front/data/models/etat_de_lieux.dart';
-import 'package:lacoloc_front/presentation/users/proprietaires/edl_pdf_preview_page.dart';
-import 'package:lacoloc_front/utils/signature_pad.dart';
+import 'package:habitafrance/data/datasources/signatures.dart';
+import 'package:habitafrance/data/models/etat_de_lieux.dart';
+import 'package:habitafrance/presentation/users/proprietaires/edl_pdf_preview_page.dart';
+import 'package:habitafrance/utils/signature_pad.dart';
 
 /// Flux de signature côté **locataire** (« Accepter et signer ») :
 /// 1. Vérifie que l'utilisateur a une signature ; sinon ouvre l'écran de

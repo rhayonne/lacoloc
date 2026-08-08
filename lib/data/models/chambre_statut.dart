@@ -1,4 +1,4 @@
-import 'package:lacoloc_front/data/models/etat_de_lieux.dart';
+import 'package:habitafrance/data/models/etat_de_lieux.dart';
 
 /// Phases du statut d'une chambre, dérivées de l'EDL d'**entrée** privatif et
 /// de l'occupation. Reflète l'avancement du processus de location plutôt qu'un

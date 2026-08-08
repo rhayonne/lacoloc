@@ -1,7 +1,7 @@
-import 'package:lacoloc_front/data/cache/data_cache.dart';
-import 'package:lacoloc_front/data/cache/realtime_service.dart';
-import 'package:lacoloc_front/data/datasources/messages.dart';
-import 'package:lacoloc_front/data/models/demande_contact.dart';
+import 'package:habitafrance/data/cache/data_cache.dart';
+import 'package:habitafrance/data/cache/realtime_service.dart';
+import 'package:habitafrance/data/datasources/messages.dart';
+import 'package:habitafrance/data/models/demande_contact.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class DemandesContactDatasource {
@@ -56,8 +56,8 @@ class DemandesContactDatasource {
     final payload = <String, dynamic>{
       'locataire_id': locataireId,
       'immeuble_id': immeubleId,
-      'chambre_id': ?chambreId,
     };
+    if (chambreId != null) payload['chambre_id'] = chambreId;
     final inserted = await _db
         .from(_table)
         .insert(payload)
@@ -180,19 +180,30 @@ class DemandesContactDatasource {
   }
 
   /// Verifica se já existe uma conversa **ativa** (não ignorada) do mesmo
-  /// locataire para a mesma chambre — evita abrir uma nova demanda quando já
-  /// há um fil em curso.
+  /// locataire — evita abrir uma nova demanda quando já há um fil em curso.
+  ///
+  /// [chambreId] preenchido → escopo à chambre (fiche chambre). Nulo → escopo
+  /// ao imóvel inteiro (annonce d'immeuble, sem chambre alvo) : nesse caso só
+  /// contam as demandas **sem** chambre para o mesmo imóvel, para não bloquear
+  /// um contato ao imóvel só porque já se falou de uma chambre específica.
   static Future<bool> hasDemandeEnAttente({
     required String locataireId,
-    required int chambreId,
+    int? chambreId,
+    int? immeubleId,
   }) async {
-    final res = await _db
+    var query = _db
         .from(_table)
         .select('id')
         .eq('locataire_id', locataireId)
-        .eq('chambre_id', chambreId)
-        .neq('statut', StatutDemande.ignore.code)
-        .limit(1);
+        .neq('statut', StatutDemande.ignore.code);
+    if (chambreId != null) {
+      query = query.eq('chambre_id', chambreId);
+    } else if (immeubleId != null) {
+      query = query.eq('immeuble_id', immeubleId).isFilter('chambre_id', null);
+    } else {
+      return false;
+    }
+    final res = await query.limit(1);
     return (res as List).isNotEmpty;
   }
 }

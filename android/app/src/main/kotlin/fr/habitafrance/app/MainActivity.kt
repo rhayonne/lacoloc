@@ -1,4 +1,4 @@
-package com.example.lacoloc_front
+package fr.habitafrance.app
 
 import io.flutter.embedding.android.FlutterActivity
 

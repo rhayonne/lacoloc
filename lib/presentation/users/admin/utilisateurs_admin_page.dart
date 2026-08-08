@@ -1,24 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:form_builder_validators/form_builder_validators.dart';
-import 'package:lacoloc_front/data/datasources/auth_service.dart';
-import 'package:lacoloc_front/data/datasources/user_management.dart';
-import 'package:lacoloc_front/data/models/permission.dart';
-import 'package:lacoloc_front/data/models/user_group.dart';
-import 'package:lacoloc_front/data/models/users_client.dart';
-import 'package:lacoloc_front/theme/app_colors.dart';
-import 'package:lacoloc_front/theme/app_radius.dart';
-import 'package:lacoloc_front/presentation/widgets/app_top_bar.dart';
-import 'package:lacoloc_front/theme/app_spacing.dart';
-import 'package:lacoloc_front/theme/app_typography.dart';
-import 'package:lacoloc_front/theme/app_theme.dart';
-import 'package:lacoloc_front/theme/app_button_sizes.dart';
-import 'package:lacoloc_front/theme/app_tab_bar.dart';
-import 'package:lacoloc_front/presentation/widgets/app_button.dart';
-import 'package:lacoloc_front/presentation/widgets/app_list_search_field.dart';
-import 'package:lacoloc_front/presentation/widgets/filter_button.dart';
-import 'package:lacoloc_front/utils/email_field.dart';
-import 'package:lacoloc_front/utils/phone_field.dart';
+import 'package:habitafrance/data/datasources/auth_service.dart';
+import 'package:habitafrance/data/datasources/user_management.dart';
+import 'package:habitafrance/data/models/permission.dart';
+import 'package:habitafrance/data/models/user_group.dart';
+import 'package:habitafrance/data/models/users_client.dart';
+import 'package:habitafrance/theme/app_colors.dart';
+import 'package:habitafrance/theme/app_radius.dart';
+import 'package:habitafrance/presentation/widgets/app_top_bar.dart';
+import 'package:habitafrance/theme/app_spacing.dart';
+import 'package:habitafrance/theme/app_typography.dart';
+import 'package:habitafrance/theme/app_theme.dart';
+import 'package:habitafrance/theme/app_button_sizes.dart';
+import 'package:habitafrance/theme/app_tab_bar.dart';
+import 'package:habitafrance/presentation/widgets/app_button.dart';
+import 'package:habitafrance/presentation/widgets/app_list_search_field.dart';
+import 'package:habitafrance/presentation/widgets/filter_button.dart';
+import 'package:habitafrance/utils/email_field.dart';
+import 'package:habitafrance/utils/phone_field.dart';
 
 // Nomes legíveis por categoria de permissão
 const _categoryLabels = {

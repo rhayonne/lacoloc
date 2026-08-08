@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:lacoloc_front/theme/app_colors.dart';
-import 'package:lacoloc_front/theme/app_spacing.dart';
-import 'package:lacoloc_front/theme/app_typography.dart';
+import 'package:habitafrance/theme/app_colors.dart';
+import 'package:habitafrance/theme/app_spacing.dart';
+import 'package:habitafrance/theme/app_typography.dart';
 
 /// Menu déroulant (accordéon) standard de l'application : une carte cliquable
 /// avec icône, titre en gras et sous-titre, qui révèle son contenu au clic.

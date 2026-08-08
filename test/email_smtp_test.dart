@@ -64,7 +64,7 @@ void main() {
       },
       body: jsonEncode({
         'test': true,
-        'fullName': 'Teste Super Loc',
+        'fullName': 'Teste HabitaFrance',
         'email': to,
       }),
     );

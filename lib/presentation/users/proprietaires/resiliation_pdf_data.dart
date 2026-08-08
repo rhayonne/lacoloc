@@ -1,6 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:lacoloc_front/data/datasources/etat_de_lieux.dart';
-import 'package:lacoloc_front/data/models/etat_de_lieux.dart';
+import 'package:habitafrance/data/datasources/etat_de_lieux.dart';
+import 'package:habitafrance/data/models/etat_de_lieux.dart';
 
 /// Une ligne de facture « En litige » imputée au locataire (hors vétusté).
 class LitigeFactureInfo {

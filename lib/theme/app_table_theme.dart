@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:lacoloc_front/theme/app_colors.dart';
-import 'package:lacoloc_front/theme/app_spacing.dart';
-import 'package:lacoloc_front/theme/app_typography.dart';
+import 'package:habitafrance/theme/app_colors.dart';
+import 'package:habitafrance/theme/app_spacing.dart';
+import 'package:habitafrance/theme/app_typography.dart';
 
 /// Thème centralisé des **tableaux de liste** de l'app (Inventaire, Lots,
 /// etc.) — couleurs, tailles et le style de survol (hover) des lignes.

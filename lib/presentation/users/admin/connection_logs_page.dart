@@ -2,14 +2,14 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:lacoloc_front/data/datasources/connection_logs.dart';
-import 'package:lacoloc_front/data/models/connection_log.dart';
-import 'package:lacoloc_front/presentation/widgets/edl_date_range_picker.dart';
-import 'package:lacoloc_front/theme/app_colors.dart';
-import 'package:lacoloc_front/theme/app_radius.dart';
-import 'package:lacoloc_front/presentation/widgets/app_top_bar.dart';
-import 'package:lacoloc_front/theme/app_spacing.dart';
-import 'package:lacoloc_front/theme/app_typography.dart';
+import 'package:habitafrance/data/datasources/connection_logs.dart';
+import 'package:habitafrance/data/models/connection_log.dart';
+import 'package:habitafrance/presentation/widgets/edl_date_range_picker.dart';
+import 'package:habitafrance/theme/app_colors.dart';
+import 'package:habitafrance/theme/app_radius.dart';
+import 'package:habitafrance/presentation/widgets/app_top_bar.dart';
+import 'package:habitafrance/theme/app_spacing.dart';
+import 'package:habitafrance/theme/app_typography.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 final _dateFmt = DateFormat('dd/MM/yyyy', 'fr');

@@ -1,6 +1,6 @@
-import 'package:lacoloc_front/data/cache/data_cache.dart';
-import 'package:lacoloc_front/data/cache/realtime_service.dart';
-import 'package:lacoloc_front/data/models/edl_details.dart';
+import 'package:habitafrance/data/cache/data_cache.dart';
+import 'package:habitafrance/data/cache/realtime_service.dart';
+import 'package:habitafrance/data/models/edl_details.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// CRUD das tabelas filhas do état des lieux completo (preneurs, relevés,

@@ -4,9 +4,9 @@ import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
-import 'package:lacoloc_front/data/datasources/storage_service.dart';
-import 'package:lacoloc_front/data/models/edl_details.dart';
-import 'package:lacoloc_front/data/models/observation_edl.dart';
+import 'package:habitafrance/data/datasources/storage_service.dart';
+import 'package:habitafrance/data/models/edl_details.dart';
+import 'package:habitafrance/data/models/observation_edl.dart';
 import 'edl_pdf_data.dart';
 import 'signature_proof.dart';
 

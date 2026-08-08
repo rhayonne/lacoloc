@@ -3,12 +3,12 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:form_builder_validators/form_builder_validators.dart';
-import 'package:lacoloc_front/data/datasources/auth_service.dart';
-import 'package:lacoloc_front/data/models/users_client.dart';
-import 'package:lacoloc_front/theme/app_colors.dart';
-import 'package:lacoloc_front/theme/app_radius.dart';
-import 'package:lacoloc_front/theme/app_spacing.dart';
-import 'package:lacoloc_front/theme/app_typography.dart';
+import 'package:habitafrance/data/datasources/auth_service.dart';
+import 'package:habitafrance/data/models/users_client.dart';
+import 'package:habitafrance/theme/app_colors.dart';
+import 'package:habitafrance/theme/app_radius.dart';
+import 'package:habitafrance/theme/app_spacing.dart';
+import 'package:habitafrance/theme/app_typography.dart';
 
 /// **Unique** point d'entrée de connexion de l'application : un pop-up centré
 /// avec fond flouté. Affiché aussi bien depuis l'accueil (clic « Se connecter »)
@@ -140,7 +140,7 @@ class _LoginCardState extends State<LoginCard> {
     if (!(_formKey.currentState?.saveAndValidate() ?? false)) return;
     final values = _formKey.currentState!.value;
     final email = _resolveEmail(values['email'] as String);
-    debugPrint('[login] « Se connecter » cliqué — email: $email');
+    debugPrint('[login] « Se connecter » cliqué');
 
     setState(() {
       _isLoading = true;
@@ -238,7 +238,7 @@ class _LoginCardState extends State<LoginCard> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          'Super Loc',
+          'HabitaFrance',
           textAlign: TextAlign.center,
           style: AppTypography.displayMd.copyWith(color: AppColors.primary),
         ),
@@ -278,7 +278,7 @@ class _LoginCardState extends State<LoginCard> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            'Super Loc',
+            'HabitaFrance',
             textAlign: TextAlign.center,
             style: AppTypography.displayMd.copyWith(color: AppColors.primary),
           ),

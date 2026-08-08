@@ -1,4 +1,4 @@
-import 'package:lacoloc_front/data/models/vetuste.dart';
+import 'package:habitafrance/data/models/vetuste.dart';
 
 /// Moteur de calcul de la vétusté (pur, sans dépendance UI ni réseau).
 ///

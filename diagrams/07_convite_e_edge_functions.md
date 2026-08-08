@@ -1,4 +1,4 @@
-# Convite de Locataire & Edge Functions — Super Loc
+# Convite de Locataire & Edge Functions — HabitaFrance
 
 ## Edge Functions (Deno, `supabase/functions/`)
 

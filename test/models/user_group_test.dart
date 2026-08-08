@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:lacoloc_front/data/models/user_group.dart';
+import 'package:habitafrance/data/models/user_group.dart';
 
 void main() {
   group('UserGroup', () {

@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:lacoloc_front/data/models/permission.dart';
+import 'package:habitafrance/data/models/permission.dart';
 
 void main() {
   group('PermissionRef', () {

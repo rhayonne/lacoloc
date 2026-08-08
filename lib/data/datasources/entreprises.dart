@@ -1,6 +1,6 @@
-import 'package:lacoloc_front/data/datasources/etat_de_lieux.dart';
-import 'package:lacoloc_front/data/models/entreprise.dart';
-import 'package:lacoloc_front/data/models/users_client.dart';
+import 'package:habitafrance/data/datasources/etat_de_lieux.dart';
+import 'package:habitafrance/data/models/entreprise.dart';
+import 'package:habitafrance/data/models/users_client.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// Gestão de contas empresa (multi-tenant). Uso **super admin** para criar/editar

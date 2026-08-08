@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:lacoloc_front/data/models/visite.dart';
+import 'package:habitafrance/data/models/visite.dart';
 
 void main() {
   group('VisiteModel', () {

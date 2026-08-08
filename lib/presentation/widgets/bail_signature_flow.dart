@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:lacoloc_front/data/datasources/etat_de_lieux.dart';
-import 'package:lacoloc_front/data/datasources/notifications.dart';
-import 'package:lacoloc_front/data/datasources/signatures.dart';
-import 'package:lacoloc_front/data/models/etat_de_lieux.dart';
-import 'package:lacoloc_front/presentation/users/proprietaires/bail_pdf_data.dart';
-import 'package:lacoloc_front/theme/app_theme.dart';
-import 'package:lacoloc_front/utils/signature_pad.dart';
+import 'package:habitafrance/data/datasources/etat_de_lieux.dart';
+import 'package:habitafrance/data/datasources/notifications.dart';
+import 'package:habitafrance/data/datasources/signatures.dart';
+import 'package:habitafrance/data/models/etat_de_lieux.dart';
+import 'package:habitafrance/presentation/users/proprietaires/bail_pdf_data.dart';
+import 'package:habitafrance/theme/app_theme.dart';
+import 'package:habitafrance/utils/signature_pad.dart';
 
 /// Résultat du flux « garant » sur un bail.
 typedef BailGarantResult = ({EtatDesLieuxModel edl, bool blocked});

@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:lacoloc_front/data/datasources/themes.dart';
-import 'package:lacoloc_front/data/models/theme_ref.dart';
-import 'package:lacoloc_front/presentation/widgets/color_input_field.dart';
-import 'package:lacoloc_front/presentation/widgets/theme_preview.dart';
-import 'package:lacoloc_front/theme/app_colors.dart';
-import 'package:lacoloc_front/theme/app_radius.dart';
-import 'package:lacoloc_front/theme/app_spacing.dart';
-import 'package:lacoloc_front/theme/app_theme.dart';
-import 'package:lacoloc_front/theme/app_typography.dart';
-import 'package:lacoloc_front/theme/palette_builder.dart';
+import 'package:habitafrance/data/datasources/themes.dart';
+import 'package:habitafrance/data/models/theme_ref.dart';
+import 'package:habitafrance/presentation/widgets/color_input_field.dart';
+import 'package:habitafrance/presentation/widgets/theme_preview.dart';
+import 'package:habitafrance/theme/app_colors.dart';
+import 'package:habitafrance/theme/app_radius.dart';
+import 'package:habitafrance/theme/app_spacing.dart';
+import 'package:habitafrance/theme/app_theme.dart';
+import 'package:habitafrance/theme/app_typography.dart';
+import 'package:habitafrance/theme/palette_builder.dart';
 
 /// Crée ou modifie un thème à partir de **3 couleurs**.
 /// Renvoie `true` si quelque chose a été enregistré.

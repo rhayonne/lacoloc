@@ -1,4 +1,4 @@
-import 'package:lacoloc_front/data/models/admin_message.dart';
+import 'package:habitafrance/data/models/admin_message.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// Diffusion de messages in-app par le super admin (apparaissent dans le

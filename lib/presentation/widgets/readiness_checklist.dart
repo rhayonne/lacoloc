@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:lacoloc_front/theme/app_colors.dart';
-import 'package:lacoloc_front/theme/app_radius.dart';
-import 'package:lacoloc_front/theme/app_spacing.dart';
-import 'package:lacoloc_front/theme/app_typography.dart';
+import 'package:habitafrance/theme/app_colors.dart';
+import 'package:habitafrance/theme/app_radius.dart';
+import 'package:habitafrance/theme/app_spacing.dart';
+import 'package:habitafrance/theme/app_typography.dart';
 
 /// Un élément de la checklist « prêt à louer » : un prérequis, son état (fait ou
 /// non) et, s'il n'est pas fait, une action pour le résoudre (lien/bouton).

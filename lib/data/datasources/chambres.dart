@@ -1,8 +1,8 @@
-import 'package:lacoloc_front/data/cache/data_cache.dart';
-import 'package:lacoloc_front/data/cache/realtime_service.dart';
-import 'package:lacoloc_front/data/datasources/inventaire.dart';
-import 'package:lacoloc_front/data/models/chambre.dart';
-import 'package:lacoloc_front/data/models/chambre_disponibilite.dart';
+import 'package:habitafrance/data/cache/data_cache.dart';
+import 'package:habitafrance/data/cache/realtime_service.dart';
+import 'package:habitafrance/data/datasources/inventaire.dart';
+import 'package:habitafrance/data/models/chambre.dart';
+import 'package:habitafrance/data/models/chambre_disponibilite.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class ChambresDatasource {

@@ -1,4 +1,4 @@
-import 'package:lacoloc_front/data/models/connection_log.dart';
+import 'package:habitafrance/data/models/connection_log.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class ConnectionLogsDatasource {

@@ -1,37 +1,37 @@
 import 'package:flutter/material.dart';
-import 'package:lacoloc_front/data/cache/realtime_refresh_mixin.dart';
-import 'package:lacoloc_front/data/datasources/auth_service.dart';
-import 'package:lacoloc_front/data/datasources/chambres.dart';
-import 'package:lacoloc_front/data/datasources/messages.dart';
-import 'package:lacoloc_front/data/datasources/immeubles.dart';
-import 'package:lacoloc_front/data/models/chambre.dart';
-import 'package:lacoloc_front/data/models/facture.dart';
-import 'package:lacoloc_front/data/models/immeubles.dart';
-import 'package:lacoloc_front/data/models/users_client.dart';
-import 'package:lacoloc_front/presentation/users/proprietaires/entreprise_config_page.dart';
-import 'package:lacoloc_front/presentation/finances/factures_list_page.dart';
-import 'package:lacoloc_front/presentation/finances/fournisseurs_page.dart';
-import 'package:lacoloc_front/presentation/finances/nouvelle_facture_page.dart';
-import 'package:lacoloc_front/presentation/nav/app_nav_sidebar.dart';
-import 'package:lacoloc_front/presentation/nav/app_sidebar.dart';
-import 'package:lacoloc_front/presentation/users/proprietaires/creer_chambre_page.dart';
-import 'package:lacoloc_front/presentation/users/proprietaires/agenda_page.dart';
-import 'package:lacoloc_front/presentation/users/proprietaires/documentation_page.dart';
-import 'package:lacoloc_front/presentation/users/proprietaires/etat_de_lieux_page.dart';
-import 'package:lacoloc_front/presentation/users/proprietaires/interactions_page.dart';
-import 'package:lacoloc_front/presentation/users/proprietaires/mon_profil_proprietaire_page.dart';
-import 'package:lacoloc_front/presentation/users/proprietaires/vue_generale_page.dart';
-import 'package:lacoloc_front/presentation/users/proprietaires/immeuble_detail_page.dart';
-import 'package:lacoloc_front/presentation/users/proprietaires/inventaire_page.dart';
-import 'package:lacoloc_front/presentation/users/proprietaires/lots_page.dart';
-import 'package:lacoloc_front/presentation/users/proprietaires/mes_chambres_page.dart';
-import 'package:lacoloc_front/presentation/users/proprietaires/mes_immeubles_page.dart';
-import 'package:lacoloc_front/presentation/users/proprietaires/nouveau_immeuble_page.dart';
-import 'package:lacoloc_front/presentation/tour/guided_tours.dart';
-import 'package:lacoloc_front/presentation/widgets/unsaved_changes_dialog.dart';
-import 'package:lacoloc_front/theme/app_colors.dart';
-import 'package:lacoloc_front/theme/app_theme.dart';
-import 'package:lacoloc_front/theme/app_typography.dart';
+import 'package:habitafrance/data/cache/realtime_refresh_mixin.dart';
+import 'package:habitafrance/data/datasources/auth_service.dart';
+import 'package:habitafrance/data/datasources/chambres.dart';
+import 'package:habitafrance/data/datasources/messages.dart';
+import 'package:habitafrance/data/datasources/immeubles.dart';
+import 'package:habitafrance/data/models/chambre.dart';
+import 'package:habitafrance/data/models/facture.dart';
+import 'package:habitafrance/data/models/immeubles.dart';
+import 'package:habitafrance/data/models/users_client.dart';
+import 'package:habitafrance/presentation/users/proprietaires/entreprise_config_page.dart';
+import 'package:habitafrance/presentation/finances/factures_list_page.dart';
+import 'package:habitafrance/presentation/finances/fournisseurs_page.dart';
+import 'package:habitafrance/presentation/finances/nouvelle_facture_page.dart';
+import 'package:habitafrance/presentation/nav/app_nav_sidebar.dart';
+import 'package:habitafrance/presentation/nav/app_sidebar.dart';
+import 'package:habitafrance/presentation/users/proprietaires/creer_chambre_page.dart';
+import 'package:habitafrance/presentation/users/proprietaires/agenda_page.dart';
+import 'package:habitafrance/presentation/users/proprietaires/documentation_page.dart';
+import 'package:habitafrance/presentation/users/proprietaires/etat_de_lieux_page.dart';
+import 'package:habitafrance/presentation/users/proprietaires/interactions_page.dart';
+import 'package:habitafrance/presentation/users/proprietaires/mon_profil_proprietaire_page.dart';
+import 'package:habitafrance/presentation/users/proprietaires/vue_generale_page.dart';
+import 'package:habitafrance/presentation/users/proprietaires/immeuble_detail_page.dart';
+import 'package:habitafrance/presentation/users/proprietaires/inventaire_page.dart';
+import 'package:habitafrance/presentation/users/proprietaires/lots_page.dart';
+import 'package:habitafrance/presentation/users/proprietaires/mes_chambres_page.dart';
+import 'package:habitafrance/presentation/users/proprietaires/mes_immeubles_page.dart';
+import 'package:habitafrance/presentation/users/proprietaires/nouveau_immeuble_page.dart';
+import 'package:habitafrance/presentation/tour/guided_tours.dart';
+import 'package:habitafrance/presentation/widgets/unsaved_changes_dialog.dart';
+import 'package:habitafrance/theme/app_colors.dart';
+import 'package:habitafrance/theme/app_theme.dart';
+import 'package:habitafrance/theme/app_typography.dart';
 
 enum _Section {
   vueGenerale,
@@ -822,7 +822,7 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage>
               _scaffoldKey.currentState?.openDrawer();
             },
           ),
-          title: const Text('Super Loc'),
+          title: const Text('HabitaFrance'),
         ),
         body: content,
       );

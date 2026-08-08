@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:lacoloc_front/data/models/edl_details.dart';
-import 'package:lacoloc_front/data/models/etat_de_lieux.dart';
-import 'package:lacoloc_front/data/models/observation_edl.dart';
-import 'package:lacoloc_front/presentation/users/proprietaires/edl_pdf_data.dart';
+import 'package:habitafrance/data/models/edl_details.dart';
+import 'package:habitafrance/data/models/etat_de_lieux.dart';
+import 'package:habitafrance/data/models/observation_edl.dart';
+import 'package:habitafrance/presentation/users/proprietaires/edl_pdf_data.dart';
 
 // EDL privatif minimal (bail individuel).
 EtatDesLieuxModel _edl() => EtatDesLieuxModel(

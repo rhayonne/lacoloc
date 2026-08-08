@@ -1,9 +1,9 @@
-# docs/ — Super Loc
+# docs/ — HabitaFrance
 
 ## `openapi.yaml`
 
 Especificação OpenAPI 3.0 da superfície de API Supabase consumida pelo app
-(`lacoloc_front`). Cobre **todos os objetos de dados** do código (tabelas + modelos Dart,
+(`habitafrance`). Cobre **todos os objetos de dados** do código (tabelas + modelos Dart,
 em `components/schemas`) e os endpoints de **PostgREST**, **RPC**, **Edge Functions**,
 **Auth** e **Storage**.
 

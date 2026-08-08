@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:lacoloc_front/theme/app_palette.dart';
-import 'package:lacoloc_front/theme/theme_controller.dart';
+import 'package:habitafrance/theme/app_palette.dart';
+import 'package:habitafrance/theme/theme_controller.dart';
 
 /// Tokens de couleur de l'app — **le seul point d'accès aux couleurs** depuis
 /// les écrans.

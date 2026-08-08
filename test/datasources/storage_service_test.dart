@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:lacoloc_front/data/datasources/storage_service.dart';
+import 'package:habitafrance/data/datasources/storage_service.dart';
 
 /// Teste des helpers purs de StorageService (sans accès réseau/Supabase) :
 /// distinction référence privée (`doc:`) vs URL publique, et extraction de

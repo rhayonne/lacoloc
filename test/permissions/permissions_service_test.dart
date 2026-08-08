@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:lacoloc_front/data/permissions/permissions_service.dart';
+import 'package:habitafrance/data/permissions/permissions_service.dart';
 
 void main() {
   // O PermissionsService é um singleton. Fazemos clear() antes de cada teste

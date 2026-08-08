@@ -1,5 +1,5 @@
-import 'package:lacoloc_front/data/datasources/auth_service.dart';
-import 'package:lacoloc_front/data/models/plage_ouverture.dart';
+import 'package:habitafrance/data/datasources/auth_service.dart';
+import 'package:habitafrance/data/models/plage_ouverture.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// Plages de disponibilité du propriétaire (par jour de semaine). Petite table

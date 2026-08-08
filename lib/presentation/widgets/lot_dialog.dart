@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:lacoloc_front/data/datasources/fournisseurs.dart';
-import 'package:lacoloc_front/data/datasources/immeuble_lots.dart';
-import 'package:lacoloc_front/data/models/fournisseur.dart';
-import 'package:lacoloc_front/data/models/immeuble_lot.dart';
-import 'package:lacoloc_front/presentation/widgets/field_help_icon.dart';
-import 'package:lacoloc_front/theme/app_spacing.dart';
-import 'package:lacoloc_front/theme/app_typography.dart';
+import 'package:habitafrance/data/datasources/fournisseurs.dart';
+import 'package:habitafrance/data/datasources/immeuble_lots.dart';
+import 'package:habitafrance/data/models/fournisseur.dart';
+import 'package:habitafrance/data/models/immeuble_lot.dart';
+import 'package:habitafrance/presentation/widgets/field_help_icon.dart';
+import 'package:habitafrance/theme/app_spacing.dart';
+import 'package:habitafrance/theme/app_typography.dart';
 
 /// Pop-up « Ajouter/modifier un lot de copropriété » : formulaire complet
 /// (désignation légale, tantièmes, copropriété + syndic). Persiste **directement**

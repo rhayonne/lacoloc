@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
-import 'package:lacoloc_front/data/datasources/auth_service.dart';
+import 'package:habitafrance/data/datasources/auth_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// Upload/lecture/suppression d'images dans le Storage Supabase.

@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
-import 'package:lacoloc_front/data/datasources/chambre_charges.dart';
-import 'package:lacoloc_front/data/datasources/chambres.dart';
-import 'package:lacoloc_front/data/datasources/inventaire.dart';
-import 'package:lacoloc_front/data/models/chambre.dart';
-import 'package:lacoloc_front/data/models/chambre_charge.dart';
-import 'package:lacoloc_front/data/models/chambre_disponibilite.dart';
-import 'package:lacoloc_front/data/models/filter_state.dart';
-import 'package:lacoloc_front/presentation/chambres/chambre_card.dart';
-import 'package:lacoloc_front/theme/app_spacing.dart';
-import 'package:lacoloc_front/theme/app_typography.dart';
+import 'package:habitafrance/data/datasources/chambre_charges.dart';
+import 'package:habitafrance/data/datasources/chambres.dart';
+import 'package:habitafrance/data/datasources/inventaire.dart';
+import 'package:habitafrance/data/models/chambre.dart';
+import 'package:habitafrance/data/models/chambre_charge.dart';
+import 'package:habitafrance/data/models/chambre_disponibilite.dart';
+import 'package:habitafrance/data/models/filter_state.dart';
+import 'package:habitafrance/presentation/chambres/chambre_card.dart';
+import 'package:habitafrance/theme/app_spacing.dart';
+import 'package:habitafrance/theme/app_typography.dart';
 
-export 'package:lacoloc_front/data/models/filter_state.dart' show BailTypeFilter;
+export 'package:habitafrance/data/models/filter_state.dart' show BailTypeFilter;
 
 /// Grid pública de quartos disponíveis com suporte a filtros avançados.
 class ChambresList extends StatefulWidget {
@@ -19,6 +19,10 @@ class ChambresList extends StatefulWidget {
   final ValueChanged<List<ChambreModel>>? onDataLoaded;
   /// Si fourni, intercepte le tap sur un card au lieu d'appeler pushNamed.
   final ValueChanged<int>? onTapChambre;
+  /// true = la grille s'insère dans un parent déjà scrollable (ex. section
+  /// combinée « Location + Colocations » de la home page) : pas de scroll
+  /// propre, hauteur = contenu.
+  final bool shrinkWrap;
 
   const ChambresList({
     super.key,
@@ -26,6 +30,7 @@ class ChambresList extends StatefulWidget {
     this.chambreFilter = ChambreFilter.empty,
     this.onDataLoaded,
     this.onTapChambre,
+    this.shrinkWrap = false,
   });
 
   @override
@@ -134,13 +139,19 @@ class _ChambresListState extends State<ChambresList> {
       future: _future,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+          return const SizedBox(
+            height: 240,
+            child: Center(child: CircularProgressIndicator()),
+          );
         }
         if (snapshot.hasError) {
-          return Center(
-            child: Padding(
-              padding: const EdgeInsets.all(AppSpacing.lg),
-              child: Text('Erreur : ${snapshot.error}', style: AppTypography.bodyMd),
+          return SizedBox(
+            height: 240,
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(AppSpacing.lg),
+                child: Text('Erreur : ${snapshot.error}', style: AppTypography.bodyMd),
+              ),
             ),
           );
         }
@@ -156,17 +167,23 @@ class _ChambresListState extends State<ChambresList> {
             .toList();
 
         if (filtered.isEmpty) {
-          return Center(
-            child: Text(
-              widget.filter.isNotEmpty || !widget.chambreFilter.isEmpty
-                  ? 'Aucune chambre ne correspond aux filtres.'
-                  : 'Aucune chambre disponible.',
-              style: AppTypography.bodyLg,
+          return SizedBox(
+            height: 240,
+            child: Center(
+              child: Text(
+                widget.filter.isNotEmpty || !widget.chambreFilter.isEmpty
+                    ? 'Aucune chambre ne correspond aux filtres.'
+                    : 'Aucune chambre disponible.',
+                style: AppTypography.bodyLg,
+              ),
             ),
           );
         }
 
         return GridView.builder(
+          shrinkWrap: widget.shrinkWrap,
+          physics:
+              widget.shrinkWrap ? const NeverScrollableScrollPhysics() : null,
           padding: const EdgeInsets.all(AppSpacing.md),
           gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
             maxCrossAxisExtent: 420,

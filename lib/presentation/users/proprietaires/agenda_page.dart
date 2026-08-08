@@ -1,22 +1,22 @@
 import 'package:flutter/material.dart';
-import 'package:lacoloc_front/presentation/widgets/app_date_picker.dart';
-import 'package:lacoloc_front/data/datasources/auth_service.dart';
-import 'package:lacoloc_front/data/datasources/immeubles.dart';
-import 'package:lacoloc_front/data/datasources/plages_ouverture.dart';
-import 'package:lacoloc_front/data/datasources/visites.dart';
-import 'package:lacoloc_front/data/models/immeubles.dart';
-import 'package:lacoloc_front/data/models/plage_ouverture.dart';
-import 'package:lacoloc_front/data/models/users_client.dart';
-import 'package:lacoloc_front/data/models/visite.dart';
-import 'package:lacoloc_front/data/permissions/permissions_service.dart';
-import 'package:lacoloc_front/presentation/widgets/locataire_search_field.dart';
-import 'package:lacoloc_front/presentation/widgets/permission_gate.dart';
-import 'package:lacoloc_front/theme/app_colors.dart';
-import 'package:lacoloc_front/theme/app_radius.dart';
-import 'package:lacoloc_front/theme/app_spacing.dart';
-import 'package:lacoloc_front/theme/app_button_sizes.dart';
-import 'package:lacoloc_front/theme/app_theme.dart';
-import 'package:lacoloc_front/theme/app_typography.dart';
+import 'package:habitafrance/presentation/widgets/app_date_picker.dart';
+import 'package:habitafrance/data/datasources/auth_service.dart';
+import 'package:habitafrance/data/datasources/immeubles.dart';
+import 'package:habitafrance/data/datasources/plages_ouverture.dart';
+import 'package:habitafrance/data/datasources/visites.dart';
+import 'package:habitafrance/data/models/immeubles.dart';
+import 'package:habitafrance/data/models/plage_ouverture.dart';
+import 'package:habitafrance/data/models/users_client.dart';
+import 'package:habitafrance/data/models/visite.dart';
+import 'package:habitafrance/data/permissions/permissions_service.dart';
+import 'package:habitafrance/presentation/widgets/locataire_search_field.dart';
+import 'package:habitafrance/presentation/widgets/permission_gate.dart';
+import 'package:habitafrance/theme/app_colors.dart';
+import 'package:habitafrance/theme/app_radius.dart';
+import 'package:habitafrance/theme/app_spacing.dart';
+import 'package:habitafrance/theme/app_button_sizes.dart';
+import 'package:habitafrance/theme/app_theme.dart';
+import 'package:habitafrance/theme/app_typography.dart';
 
 // ── Constantes d'affichage ───────────────────────────────────────────────────
 const int _startHour = 7;
@@ -1168,54 +1168,84 @@ class _ListeView extends StatelessWidget {
       itemBuilder: (context, i) {
         final v = sorted[i];
         final imm = immeubles.where((m) => m.id == v.immeubleId).firstOrNull;
-        final color = typeVisiteColor(v.typeVisite);
-        return Builder(builder: (ctx) {
-          Offset tapGlobal = Offset.zero;
-          return InkWell(
-            onTapDown: (d) => tapGlobal = d.globalPosition,
-            onTap: () => onOpen(v, tapGlobal),
-            borderRadius: AppRadius.borderMd,
-            child: Container(
-              padding: const EdgeInsets.all(AppSpacing.md),
-              decoration: BoxDecoration(
-                borderRadius: AppRadius.borderMd,
-                border: Border.all(color: AppColors.outlineVariant),
-                color: AppColors.surfaceContainerLowest,
-              ),
-              child: Row(
+        return _ListeRow(
+          visite: v,
+          immeuble: imm,
+          onOpen: onOpen,
+        );
+      },
+    );
+  }
+}
+
+/// Ligne de la vue Liste — widget dédié pour que la position de l'appui
+/// (`_tapGlobal`) soit un **champ de State** stable entre `onTapDown` et
+/// `onTap`. Avec une variable locale dans un `Builder`, un rebuild (ex. un
+/// événement Realtime) la remettait à zéro et le popover s'ouvrait en (0,0).
+class _ListeRow extends StatefulWidget {
+  final VisiteModel visite;
+  final ImmeublesModel? immeuble;
+  final void Function(VisiteModel, Offset) onOpen;
+
+  const _ListeRow({
+    required this.visite,
+    required this.immeuble,
+    required this.onOpen,
+  });
+
+  @override
+  State<_ListeRow> createState() => _ListeRowState();
+}
+
+class _ListeRowState extends State<_ListeRow> {
+  Offset _tapGlobal = Offset.zero;
+
+  @override
+  Widget build(BuildContext context) {
+    final v = widget.visite;
+    final imm = widget.immeuble;
+    final color = typeVisiteColor(v.typeVisite);
+    return InkWell(
+      onTapDown: (d) => _tapGlobal = d.globalPosition,
+      onTap: () => widget.onOpen(v, _tapGlobal),
+      borderRadius: AppRadius.borderMd,
+      child: Container(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        decoration: BoxDecoration(
+          borderRadius: AppRadius.borderMd,
+          border: Border.all(color: AppColors.outlineVariant),
+          color: AppColors.surfaceContainerLowest,
+        ),
+        child: Row(
+          children: [
+            Container(width: 4, height: 40, color: color),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(width: 4, height: 40, color: color),
-                  const SizedBox(width: AppSpacing.md),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(typeVisiteLabel(v.typeVisite),
-                            style: AppTypography.labelSm
-                                .copyWith(color: color)),
-                        Text(v.nomVisiteur.isEmpty ? '—' : v.nomVisiteur,
-                            style: AppTypography.titleLg),
-                        if (imm != null)
-                          Text(imm.name,
-                              style: AppTypography.labelMd.copyWith(
-                                  color: AppColors.onSurfaceVariant)),
-                      ],
-                    ),
-                  ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(_fmtDate(v.debut), style: AppTypography.labelMd),
-                      Text('${_fmtHeure(v.debut)} – ${_fmtHeure(v.fin)}',
-                          style: AppTypography.bodyMd),
-                    ],
-                  ),
+                  Text(typeVisiteLabel(v.typeVisite),
+                      style: AppTypography.labelSm.copyWith(color: color)),
+                  Text(v.nomVisiteur.isEmpty ? '—' : v.nomVisiteur,
+                      style: AppTypography.titleLg),
+                  if (imm != null)
+                    Text(imm.name,
+                        style: AppTypography.labelMd
+                            .copyWith(color: AppColors.onSurfaceVariant)),
                 ],
               ),
             ),
-          );
-        });
-      },
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(_fmtDate(v.debut), style: AppTypography.labelMd),
+                Text('${_fmtHeure(v.debut)} – ${_fmtHeure(v.fin)}',
+                    style: AppTypography.bodyMd),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

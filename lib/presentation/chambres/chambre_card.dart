@@ -1,15 +1,16 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:lacoloc_front/data/models/chambre.dart';
-import 'package:lacoloc_front/data/models/chambre_charge.dart';
-import 'package:lacoloc_front/data/models/chambre_disponibilite.dart';
-import 'package:lacoloc_front/theme/app_colors.dart';
-import 'package:lacoloc_front/presentation/widgets/app_button.dart';
-import 'package:lacoloc_front/theme/app_button_sizes.dart';
-import 'package:lacoloc_front/theme/app_radius.dart';
-import 'package:lacoloc_front/theme/app_spacing.dart';
-import 'package:lacoloc_front/theme/app_typography.dart';
+import 'package:habitafrance/data/models/chambre.dart';
+import 'package:habitafrance/data/models/chambre_charge.dart';
+import 'package:habitafrance/data/models/chambre_disponibilite.dart';
+import 'package:habitafrance/theme/app_colors.dart';
+import 'package:habitafrance/presentation/widgets/app_button.dart';
+import 'package:habitafrance/theme/app_button_sizes.dart';
+import 'package:habitafrance/presentation/widgets/listing_type_badge.dart';
+import 'package:habitafrance/theme/app_radius.dart';
+import 'package:habitafrance/theme/app_spacing.dart';
+import 'package:habitafrance/theme/app_typography.dart';
 
 /// Card visual de um quarto na grid pública.
 class ChambreCard extends StatefulWidget {
@@ -28,6 +29,10 @@ class ChambreCard extends StatefulWidget {
   /// libération connue ou « Actuellement louée » si elle est inconnue.
   final ChambreDisponibiliteModel? disponibilite;
 
+  /// true = superpose un badge « Colocation » sur la photo (grille mixte de
+  /// la home, où Location et Colocation apparaissent ensemble).
+  final bool showTypeBadge;
+
   const ChambreCard({
     super.key,
     required this.chambre,
@@ -35,6 +40,7 @@ class ChambreCard extends StatefulWidget {
     this.equipementLabels = const [],
     this.charges = const [],
     this.disponibilite,
+    this.showTypeBadge = false,
   });
 
   @override
@@ -108,11 +114,22 @@ class _ChambreCardState extends State<ChambreCard> {
                           errorWidget: (_, _, _) => _placeholder(),
                         )
                       : _placeholder(),
-                  if (disponibilite != null && !disponibilite.disponible)
+                  if (widget.showTypeBadge ||
+                      (disponibilite != null && !disponibilite.disponible))
                     Positioned(
                       top: AppSpacing.sm,
                       left: AppSpacing.sm,
-                      child: _DisponibiliteBadge(disponibilite: disponibilite),
+                      right: AppSpacing.sm,
+                      child: Wrap(
+                        spacing: AppSpacing.xs,
+                        runSpacing: AppSpacing.xs,
+                        children: [
+                          if (widget.showTypeBadge)
+                            const ListingTypeBadge(type: ListingType.colocation),
+                          if (disponibilite != null && !disponibilite.disponible)
+                            _DisponibiliteBadge(disponibilite: disponibilite),
+                        ],
+                      ),
                     ),
                 ],
               ),

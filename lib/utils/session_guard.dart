@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:lacoloc_front/data/datasources/auth_service.dart';
+import 'package:habitafrance/data/datasources/auth_service.dart';
 
 /// Envolve a árvore de widgets autenticados e desloga o usuário após
 /// [timeout] de inatividade (sem toque ou teclado).

@@ -35,7 +35,7 @@ async function sendEmail(
   const port = parseInt(Deno.env.get('SMTP_PORT') ?? '587', 10);
   const user = Deno.env.get('SMTP_USER') ?? '';
   const pass = Deno.env.get('SMTP_PASS') ?? '';
-  const from = Deno.env.get('SMTP_FROM') ?? `Super Loc <${user}>`;
+  const from = Deno.env.get('SMTP_FROM') ?? `HabitaFrance <${user}>`;
   const secure = port === 465;
   if (!host || !user || !pass) {
     return { sent: false, smtpError: 'SMTP non configuré.' };
@@ -178,10 +178,10 @@ Deno.serve(async (req) => {
             ${immeubleName ? `de <strong>${immSafe}</strong>` : ''}. Il ne
             reste plus qu'à le <strong>relire et le signer</strong>.
           </p>
-          <p>Connectez-vous à Super Loc, onglet <strong>« État des lieux »</strong>,
+          <p>Connectez-vous à HabitaFrance, onglet <strong>« État des lieux »</strong>,
              pour consulter le document et l'accepter.</p>
           <p style="color: #666; font-size: 13px; margin-top: 32px;">
-            Notification automatique — Super Loc.
+            Notification automatique — HabitaFrance.
           </p>
         </div>
       `;
@@ -214,11 +214,11 @@ Deno.serve(async (req) => {
           </p>
           ${comodo ? `<p><strong>Comodo :</strong> ${esc(comodo)}</p>` : ''}
           ${texte ? `<p><strong>Observation :</strong> ${esc(texte)}</p>` : ''}
-          <p>Connectez-vous à Super Loc et ouvrez l'état des lieux concerné,
+          <p>Connectez-vous à HabitaFrance et ouvrez l'état des lieux concerné,
              onglet <strong>« Avenants »</strong>, pour consulter l'ajout
              (photo éventuelle incluse).</p>
           <p style="color: #666; font-size: 13px; margin-top: 32px;">
-            Notification automatique — Super Loc.
+            Notification automatique — HabitaFrance.
           </p>
         </div>
       `;
@@ -232,9 +232,9 @@ Deno.serve(async (req) => {
             ${who} a <strong>accepté et signé</strong> l'état des lieux ${typeLabel}
             ${immeubleName ? `de <strong>${immeubleSafe}</strong>` : ''}.
           </p>
-          <p>Connectez-vous à Super Loc pour consulter le document signé.</p>
+          <p>Connectez-vous à HabitaFrance pour consulter le document signé.</p>
           <p style="color: #666; font-size: 13px; margin-top: 32px;">
-            Notification automatique — Super Loc.
+            Notification automatique — HabitaFrance.
           </p>
         </div>
       `;

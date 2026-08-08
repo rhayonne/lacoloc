@@ -1,7 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:lacoloc_front/theme/app_palette.dart';
+import 'package:habitafrance/theme/app_palette.dart';
 
 /// Construit une [AppPalette] complète à partir de **3 couleurs** — celles
 /// qu'on colle depuis huemint.com :

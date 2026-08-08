@@ -1,17 +1,17 @@
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:lacoloc_front/config/env_config.dart';
-import 'package:lacoloc_front/data/cache/data_cache.dart';
-import 'package:lacoloc_front/data/cache/realtime_service.dart';
-import 'package:lacoloc_front/data/datasources/chambres.dart';
-import 'package:lacoloc_front/data/datasources/edl_details.dart';
-import 'package:lacoloc_front/data/datasources/garants.dart';
-import 'package:lacoloc_front/data/datasources/notifications.dart';
-import 'package:lacoloc_front/data/datasources/recettes.dart';
-import 'package:lacoloc_front/data/datasources/signatures.dart';
-import 'package:lacoloc_front/data/datasources/session_scope.dart';
-import 'package:lacoloc_front/data/models/chambre.dart';
-import 'package:lacoloc_front/data/models/etat_de_lieux.dart';
-import 'package:lacoloc_front/data/models/users_client.dart';
+import 'package:habitafrance/config/env_config.dart';
+import 'package:habitafrance/data/cache/data_cache.dart';
+import 'package:habitafrance/data/cache/realtime_service.dart';
+import 'package:habitafrance/data/datasources/chambres.dart';
+import 'package:habitafrance/data/datasources/edl_details.dart';
+import 'package:habitafrance/data/datasources/garants.dart';
+import 'package:habitafrance/data/datasources/notifications.dart';
+import 'package:habitafrance/data/datasources/recettes.dart';
+import 'package:habitafrance/data/datasources/signatures.dart';
+import 'package:habitafrance/data/datasources/session_scope.dart';
+import 'package:habitafrance/data/models/chambre.dart';
+import 'package:habitafrance/data/models/etat_de_lieux.dart';
+import 'package:habitafrance/data/models/users_client.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// Résultat de l'acompte de caution en fin de bail ([EtatDesLieuxDatasource

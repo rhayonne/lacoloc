@@ -1,18 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:lacoloc_front/data/datasources/auth_service.dart';
-import 'package:lacoloc_front/data/datasources/etat_de_lieux.dart';
-import 'package:lacoloc_front/data/models/etat_de_lieux.dart';
-import 'package:lacoloc_front/presentation/users/proprietaires/bail_pdf_preview_page.dart';
-import 'package:lacoloc_front/presentation/widgets/app_list_search_field.dart';
-import 'package:lacoloc_front/presentation/widgets/app_top_bar.dart';
-import 'package:lacoloc_front/presentation/widgets/bail_signature_flow.dart';
-import 'package:lacoloc_front/presentation/widgets/signature_manager.dart';
-import 'package:lacoloc_front/theme/app_colors.dart';
-import 'package:lacoloc_front/theme/app_radius.dart';
-import 'package:lacoloc_front/theme/app_spacing.dart';
-import 'package:lacoloc_front/theme/app_typography.dart';
-import 'package:lacoloc_front/theme/app_tab_bar.dart';
+import 'package:habitafrance/data/datasources/auth_service.dart';
+import 'package:habitafrance/data/datasources/etat_de_lieux.dart';
+import 'package:habitafrance/data/models/etat_de_lieux.dart';
+import 'package:habitafrance/presentation/users/proprietaires/bail_pdf_preview_page.dart';
+import 'package:habitafrance/presentation/widgets/app_list_search_field.dart';
+import 'package:habitafrance/presentation/widgets/app_top_bar.dart';
+import 'package:habitafrance/presentation/widgets/bail_signature_flow.dart';
+import 'package:habitafrance/presentation/widgets/signature_manager.dart';
+import 'package:habitafrance/theme/app_colors.dart';
+import 'package:habitafrance/theme/app_radius.dart';
+import 'package:habitafrance/theme/app_spacing.dart';
+import 'package:habitafrance/theme/app_typography.dart';
+import 'package:habitafrance/theme/app_tab_bar.dart';
 
 class DocumentationPage extends StatefulWidget {
   /// Onglet initial (piloté par le sous-menu de la sidebar).

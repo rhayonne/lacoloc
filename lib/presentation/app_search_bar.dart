@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:lacoloc_front/data/datasources/auth_service.dart';
-import 'package:lacoloc_front/data/models/chambre.dart';
-import 'package:lacoloc_front/presentation/login_dialog.dart';
-import 'package:lacoloc_front/presentation/widgets/app_button.dart';
-import 'package:lacoloc_front/theme/app_button_sizes.dart';
-import 'package:lacoloc_front/theme/app_colors.dart';
-import 'package:lacoloc_front/theme/app_radius.dart';
-import 'package:lacoloc_front/theme/app_spacing.dart';
+import 'package:habitafrance/data/datasources/auth_service.dart';
+import 'package:habitafrance/data/models/chambre.dart';
+import 'package:habitafrance/presentation/login_dialog.dart';
+import 'package:habitafrance/presentation/widgets/app_button.dart';
+import 'package:habitafrance/theme/app_button_sizes.dart';
+import 'package:habitafrance/theme/app_colors.dart';
+import 'package:habitafrance/theme/app_radius.dart';
+import 'package:habitafrance/theme/app_spacing.dart';
 
 class AppSearchBar extends StatefulWidget implements PreferredSizeWidget {
   final List<ChambreModel> listCache;

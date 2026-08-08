@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:lacoloc_front/data/models/address_suggestion.dart';
+import 'package:habitafrance/data/models/address_suggestion.dart';
 
 class AddressSearchService {
   static Future<List<AddressSuggestion>> search(String query) async {

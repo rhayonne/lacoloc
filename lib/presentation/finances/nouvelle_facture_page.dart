@@ -3,17 +3,17 @@ import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:form_builder_extra_fields/form_builder_extra_fields.dart';
 import 'package:form_builder_validators/form_builder_validators.dart';
 import 'package:intl/intl.dart';
-import 'package:lacoloc_front/data/datasources/auth_service.dart';
-import 'package:lacoloc_front/data/datasources/chambres.dart';
-import 'package:lacoloc_front/data/datasources/factures.dart';
-import 'package:lacoloc_front/data/datasources/immeubles.dart';
-import 'package:lacoloc_front/data/models/chambre.dart';
-import 'package:lacoloc_front/data/models/facture.dart';
-import 'package:lacoloc_front/data/models/immeubles.dart';
-import 'package:lacoloc_front/theme/app_spacing.dart';
-import 'package:lacoloc_front/theme/app_typography.dart';
-import 'package:lacoloc_front/presentation/widgets/form_page_header.dart';
-import 'package:lacoloc_front/utils/responsive_form_wrapper.dart';
+import 'package:habitafrance/data/datasources/auth_service.dart';
+import 'package:habitafrance/data/datasources/chambres.dart';
+import 'package:habitafrance/data/datasources/factures.dart';
+import 'package:habitafrance/data/datasources/immeubles.dart';
+import 'package:habitafrance/data/models/chambre.dart';
+import 'package:habitafrance/data/models/facture.dart';
+import 'package:habitafrance/data/models/immeubles.dart';
+import 'package:habitafrance/theme/app_spacing.dart';
+import 'package:habitafrance/theme/app_typography.dart';
+import 'package:habitafrance/presentation/widgets/form_page_header.dart';
+import 'package:habitafrance/utils/responsive_form_wrapper.dart';
 
 class NouvelleFacturePage extends StatefulWidget {
   final FactureModel? facture;

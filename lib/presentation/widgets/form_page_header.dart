@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:lacoloc_front/presentation/widgets/app_top_bar.dart';
-import 'package:lacoloc_front/theme/app_colors.dart';
-import 'package:lacoloc_front/theme/app_spacing.dart';
-import 'package:lacoloc_front/theme/app_theme.dart';
+import 'package:habitafrance/presentation/widgets/app_top_bar.dart';
+import 'package:habitafrance/theme/app_colors.dart';
+import 'package:habitafrance/theme/app_spacing.dart';
+import 'package:habitafrance/theme/app_theme.dart';
 
 /// Barra de cabeçalho padronizada para páginas de formulário. Delega o **layout
 /// e o estilo** à barre standard [AppTopBar] (fond distinct + ombre, tokens dans

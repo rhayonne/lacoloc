@@ -61,7 +61,7 @@ async function sendActivationEmail(
   const port = parseInt(Deno.env.get('SMTP_PORT') ?? '587', 10);
   const user = Deno.env.get('SMTP_USER') ?? '';
   const pass = Deno.env.get('SMTP_PASS') ?? '';
-  const from = Deno.env.get('SMTP_FROM') ?? `Super Loc <${user}>`;
+  const from = Deno.env.get('SMTP_FROM') ?? `HabitaFrance <${user}>`;
   const secure = port === 465;
 
   if (!host || !user || !pass) {
@@ -77,8 +77,8 @@ async function sendActivationEmail(
 
   // Corps et sujet différents selon création vs renvoi de mot de passe.
   const subject = isResend
-    ? `Réinitialisation de votre accès — Super Loc`
-    : `Bienvenue sur Super Loc — Activez votre compte`;
+    ? `Réinitialisation de votre accès — HabitaFrance`
+    : `Bienvenue sur HabitaFrance — Activez votre compte`;
 
   const intro = isResend
     ? `
@@ -86,12 +86,12 @@ async function sendActivationEmail(
         <p>Bonjour <strong>${nameSafe}</strong>,</p>
         <p>
           Une réinitialisation de mot de passe a été demandée pour votre compte
-          <strong>Super Loc</strong> (<em>${emailSafe}</em>).
+          <strong>HabitaFrance</strong> (<em>${emailSafe}</em>).
         </p>
       `
     : `
-        <h2 style="color: #006685;">Bienvenue sur Super Loc, ${nameSafe} !</h2>
-        <p>Votre propriétaire vous a créé un compte sur <strong>Super Loc</strong>.</p>
+        <h2 style="color: #006685;">Bienvenue sur HabitaFrance, ${nameSafe} !</h2>
+        <p>Votre propriétaire vous a créé un compte sur <strong>HabitaFrance</strong>.</p>
         ${phone ? `<p><strong>Téléphone enregistré :</strong> ${phoneSafe}</p>` : ''}
       `;
 
@@ -279,12 +279,12 @@ Deno.serve(async (req) => {
       const tempPassword = 'MOT-DE-PASSE-TEST';
       const link = buildActivationLink(appUrl, to, 'TEST');
       const subject = isResend
-        ? 'Réinitialisation de votre accès — Super Loc'
-        : 'Bienvenue sur Super Loc — Activez votre compte';
+        ? 'Réinitialisation de votre accès — HabitaFrance'
+        : 'Bienvenue sur HabitaFrance — Activez votre compte';
 
       const { sent, smtpError } = await sendActivationEmail(
         to,
-        fullName ?? 'Test Super Loc',
+        fullName ?? 'Test HabitaFrance',
         tempPassword,
         link,
         phone,

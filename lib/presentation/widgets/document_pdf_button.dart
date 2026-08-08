@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:lacoloc_front/theme/app_theme.dart';
+import 'package:habitafrance/theme/app_theme.dart';
 
 /// Bouton standard « Document » (génération / impression PDF) de l'app.
 ///

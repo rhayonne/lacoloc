@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:lacoloc_front/data/models/chambre.dart';
-import 'package:lacoloc_front/theme/app_typography.dart';
+import 'package:habitafrance/data/models/chambre.dart';
+import 'package:habitafrance/theme/app_typography.dart';
 
 /// Busca local entre quartos já carregados em cache.
 /// Retorna a Chambre selecionada via `close`.

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:lacoloc_front/theme/app_palette.dart';
-import 'package:lacoloc_front/theme/palette_builder.dart';
-import 'package:lacoloc_front/utils/color_codec.dart';
+import 'package:habitafrance/theme/app_palette.dart';
+import 'package:habitafrance/theme/palette_builder.dart';
+import 'package:habitafrance/utils/color_codec.dart';
 
 /// Un thème tel qu'il est stocké en base (`Themes_Reference`).
 ///

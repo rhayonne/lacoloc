@@ -1,5 +1,5 @@
-import 'package:lacoloc_front/data/models/immeuble_type.dart';
-import 'package:lacoloc_front/data/models/reference.dart';
+import 'package:habitafrance/data/models/immeuble_type.dart';
+import 'package:habitafrance/data/models/reference.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// Tabelas de referência editáveis apenas pelo Super Admin.

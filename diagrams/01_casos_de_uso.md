@@ -1,4 +1,4 @@
-# Diagramas de Casos de Uso — Super Loc
+# Diagramas de Casos de Uso — HabitaFrance
 
 ## Visão Geral do Sistema
 

@@ -1,22 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
-import 'package:lacoloc_front/utils/media_embed.dart';
+import 'package:habitafrance/utils/media_embed.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:intl/intl.dart';
-import 'package:lacoloc_front/data/cache/realtime_refresh_mixin.dart';
-import 'package:lacoloc_front/data/datasources/demandes_contact.dart';
-import 'package:lacoloc_front/data/datasources/messages.dart';
-import 'package:lacoloc_front/presentation/widgets/app_button.dart';
-import 'package:lacoloc_front/presentation/widgets/conversation_view.dart';
-import 'package:lacoloc_front/data/models/demande_contact.dart';
-import 'package:lacoloc_front/data/models/notification_model.dart';
-import 'package:lacoloc_front/presentation/chambres/chambre_detail_page.dart';
-import 'package:lacoloc_front/theme/app_button_sizes.dart';
-import 'package:lacoloc_front/theme/app_colors.dart';
-import 'package:lacoloc_front/theme/app_radius.dart';
-import 'package:lacoloc_front/presentation/widgets/app_top_bar.dart';
-import 'package:lacoloc_front/theme/app_spacing.dart';
-import 'package:lacoloc_front/theme/app_typography.dart';
+import 'package:habitafrance/data/cache/realtime_refresh_mixin.dart';
+import 'package:habitafrance/data/datasources/demandes_contact.dart';
+import 'package:habitafrance/data/datasources/messages.dart';
+import 'package:habitafrance/data/permissions/permissions_service.dart';
+import 'package:habitafrance/presentation/widgets/app_button.dart';
+import 'package:habitafrance/presentation/widgets/conversation_view.dart';
+import 'package:habitafrance/presentation/widgets/permission_gate.dart';
+import 'package:habitafrance/data/models/demande_contact.dart';
+import 'package:habitafrance/data/models/notification_model.dart';
+import 'package:habitafrance/presentation/chambres/chambre_detail_page.dart';
+import 'package:habitafrance/theme/app_button_sizes.dart';
+import 'package:habitafrance/theme/app_colors.dart';
+import 'package:habitafrance/theme/app_radius.dart';
+import 'package:habitafrance/presentation/widgets/app_top_bar.dart';
+import 'package:habitafrance/theme/app_spacing.dart';
+import 'package:habitafrance/theme/app_typography.dart';
 
 /// Page « Messages » du propriétaire — les prises de contact des locataires,
 /// façon messagerie : **liste** à gauche + **fiche détail** à droite ; le
@@ -255,8 +257,20 @@ class _MessagesTabState extends State<_MessagesTab> with RealtimeRefreshMixin {
     if (_loading) return const Center(child: CircularProgressIndicator());
     if (_error != null) {
       return Center(
-        child: Text('Erreur : $_error',
-            style: AppTypography.bodyMd.copyWith(color: AppColors.error)),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Erreur : $_error',
+                textAlign: TextAlign.center,
+                style: AppTypography.bodyMd.copyWith(color: AppColors.error)),
+            const SizedBox(height: AppSpacing.md),
+            FilledButton.icon(
+              onPressed: _load,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Réessayer'),
+            ),
+          ],
+        ),
       );
     }
     if (_demandes.isEmpty) {
@@ -372,11 +386,16 @@ class _MessagesTabState extends State<_MessagesTab> with RealtimeRefreshMixin {
       onClose: _closeChat,
       onSent: () => _markRepondu(d),
       headerActions: [
+        // Gérer une demande (ignorer) est réservé à `demandes.manage` — les
+        // sous-comptes d'entreprise sans ce droit ne voient pas l'action.
         if (d.statut != StatutDemande.ignore)
-          IconButton(
-            icon: const Icon(Icons.block_outlined),
-            tooltip: 'Ignorer cette demande',
-            onPressed: () => _ignorer(d),
+          PermissionGate(
+            permission: Perm.demandesManage,
+            child: IconButton(
+              icon: const Icon(Icons.block_outlined),
+              tooltip: 'Ignorer cette demande',
+              onPressed: () => _ignorer(d),
+            ),
           ),
       ],
     );
@@ -704,6 +723,19 @@ class _MessageRow extends StatelessWidget {
                           .copyWith(color: AppColors.onSurfaceVariant)),
                   const SizedBox(height: 6),
                   _StatutBadge(d.statut),
+                  const SizedBox(height: 4),
+                  // Accès direct au fil (comme une messagerie : un clic = le
+                  // fil), en plus de la sélection qui ouvre la fiche détail.
+                  TextButton.icon(
+                    onPressed: onDiscuter,
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      minimumSize: const Size(0, 32),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    icon: const Icon(Icons.forum_outlined, size: 16),
+                    label: const Text('Discuter'),
+                  ),
                 ],
               ),
             ],

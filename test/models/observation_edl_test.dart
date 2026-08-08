@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:lacoloc_front/data/models/observation_edl.dart';
+import 'package:habitafrance/data/models/observation_edl.dart';
 
 void main() {
   group('ObservationEdl', () {

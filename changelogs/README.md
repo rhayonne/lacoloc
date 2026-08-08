@@ -1,4 +1,4 @@
-# Changelogs — Super Loc
+# Changelogs — HabitaFrance
 
 Notes de mise à jour générées automatiquement à chaque merge sur `main`.
 

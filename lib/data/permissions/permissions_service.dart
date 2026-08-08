@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
-import 'package:lacoloc_front/data/datasources/auth_service.dart';
-import 'package:lacoloc_front/data/datasources/user_management.dart';
+import 'package:habitafrance/data/datasources/auth_service.dart';
+import 'package:habitafrance/data/datasources/user_management.dart';
 
 /// Chaves de permissão (espelham `Permissions_Reference.key`).
 /// Use estas constantes em vez de strings cruas ao chamar

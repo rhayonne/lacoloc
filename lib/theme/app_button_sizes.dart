@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:lacoloc_front/theme/app_spacing.dart';
+import 'package:habitafrance/theme/app_spacing.dart';
 
 /// ⭐ FONTE ÚNICA DE VERDADE das **dimensões** de botão da aplicação.
 ///

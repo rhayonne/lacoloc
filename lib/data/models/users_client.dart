@@ -80,6 +80,20 @@ class UsersClient {
 
   UserType? get resolvedType => typeUserRef?.userType;
 
+  /// Idade calculada a partir de `date_of_birth` (regra do projeto : `age` só
+  /// é fallback legado). Null se nenhum dos dois estiver disponível.
+  int? get calculatedAge {
+    final dob = dateOfBirth;
+    if (dob == null) return age;
+    final now = DateTime.now();
+    var years = now.year - dob.year;
+    if (now.month < dob.month ||
+        (now.month == dob.month && now.day < dob.day)) {
+      years--;
+    }
+    return years;
+  }
+
   /// Libellé lisible du type d'utilisateur pour l'affichage (carte sidebar, etc.).
   /// « Propriétaire entreprise » = un propriétaire rattaché à une entreprise
   /// (sous l'admin d'entreprise) ; « Propriétaire » = indépendant.

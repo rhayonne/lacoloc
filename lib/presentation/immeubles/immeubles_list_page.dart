@@ -1,17 +1,16 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:lacoloc_front/data/datasources/chambres.dart';
-import 'package:lacoloc_front/data/datasources/inventaire.dart';
-import 'package:lacoloc_front/data/datasources/immeubles.dart';
-import 'package:lacoloc_front/data/models/chambre.dart';
-import 'package:lacoloc_front/data/models/immeubles.dart';
-import 'package:lacoloc_front/presentation/widgets/filter_panel.dart';
-import 'package:lacoloc_front/theme/app_colors.dart';
-import 'package:lacoloc_front/theme/app_radius.dart';
-import 'package:lacoloc_front/theme/app_spacing.dart';
-import 'package:lacoloc_front/theme/app_typography.dart';
+import 'package:habitafrance/data/datasources/chambres.dart';
+import 'package:habitafrance/data/datasources/inventaire.dart';
+import 'package:habitafrance/data/datasources/immeubles.dart';
+import 'package:habitafrance/data/models/chambre.dart';
+import 'package:habitafrance/data/models/immeubles.dart';
+import 'package:habitafrance/presentation/immeubles/immeuble_card.dart';
+import 'package:habitafrance/presentation/widgets/filter_panel.dart';
+import 'package:habitafrance/theme/app_spacing.dart';
+import 'package:habitafrance/theme/app_typography.dart';
 
 /// Page publique listant les immeubles actifs qui ont au moins une chambre active.
+/// Filtre géré ici (via [FilterPanel]) ; la grille elle-même est [ImmeublesGrid].
 class ImmeublesListPage extends StatefulWidget {
   /// Ouverture de la fiche détail (rendue dans le cadre principal). Si null,
   /// la carte n'est pas cliquable.
@@ -24,8 +23,65 @@ class ImmeublesListPage extends StatefulWidget {
 }
 
 class _ImmeublesListPageState extends State<ImmeublesListPage> {
-  late Future<List<ImmeublesModel>> _future;
   ChambreFilter _filter = ChambreFilter.empty;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        FilterPanel(
+          filter: _filter,
+          onChanged: (f) => setState(() => _filter = f),
+          modules: const {
+            FilterModule.localisation,
+            FilterModule.bail,
+            FilterModule.meuble,
+            FilterModule.typeImmeuble,
+            FilterModule.equipements,
+          },
+        ),
+        Expanded(
+          child: ImmeublesGrid(
+            filter: _filter,
+            onTapImmeuble: widget.onTapImmeuble,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Grille d'immeubles actifs (au moins une chambre active), filtrée par un
+/// [ChambreFilter] externe — réutilisable ailleurs qu'à l'intérieur
+/// d'[ImmeublesListPage] (ex. section « Location » de la home page, où le
+/// filtre est partagé avec la grille de chambres via un [FilterPanel] unique).
+class ImmeublesGrid extends StatefulWidget {
+  final ChambreFilter filter;
+
+  /// Ouverture de la fiche détail (rendue dans le cadre principal). Si null,
+  /// la carte n'est pas cliquable.
+  final void Function(int immeubleId)? onTapImmeuble;
+
+  /// true = la grille s'insère dans un parent déjà scrollable : pas de scroll
+  /// propre, hauteur = contenu.
+  final bool shrinkWrap;
+
+  const ImmeublesGrid({
+    super.key,
+    required this.filter,
+    this.onTapImmeuble,
+    this.shrinkWrap = false,
+  });
+
+  @override
+  State<ImmeublesGrid> createState() => _ImmeublesGridState();
+}
+
+class _ImmeublesGridState extends State<ImmeublesGrid> {
+  late Future<List<ImmeublesModel>> _future;
 
   /// immeubleId → union des équipements (« dans l'annonce ») de ses chambres
   /// actives (pour le filtre `équipements` côté immeubles).
@@ -67,7 +123,7 @@ class _ImmeublesListPageState extends State<ImmeublesListPage> {
   }
 
   bool _matchesFilter(ImmeublesModel imm) {
-    final f = _filter;
+    final f = widget.filter;
     if (f.city.isNotEmpty) {
       if (!(imm.city?.toLowerCase().contains(f.city.toLowerCase()) ?? false)) {
         return false;
@@ -106,223 +162,67 @@ class _ImmeublesListPageState extends State<ImmeublesListPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        FilterPanel(
-          filter: _filter,
-          onChanged: (f) => setState(() => _filter = f),
-          modules: const {
-            FilterModule.localisation,
-            FilterModule.bail,
-            FilterModule.meuble,
-            FilterModule.typeImmeuble,
-            FilterModule.equipements,
-          },
-        ),
-        Expanded(
-          child: FutureBuilder<List<ImmeublesModel>>(
-            future: _future,
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              if (snapshot.hasError) {
-                return Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(AppSpacing.lg),
-                    child: Text('Erreur : ${snapshot.error}',
-                        style: AppTypography.bodyMd),
-                  ),
-                );
-              }
-
-              final all = snapshot.data ?? [];
-              final filtered =
-                  _filter.isEmpty ? all : all.where(_matchesFilter).toList();
-
-              if (filtered.isEmpty) {
-                return Center(
-                  child: Text(
-                    _filter.isEmpty
-                        ? 'Aucun immeuble disponible.'
-                        : 'Aucun immeuble ne correspond aux filtres.',
-                    style: AppTypography.bodyLg,
-                  ),
-                );
-              }
-
-              return GridView.builder(
-                padding: const EdgeInsets.all(AppSpacing.md),
-                gridDelegate:
-                    const SliverGridDelegateWithMaxCrossAxisExtent(
-                  maxCrossAxisExtent: 420,
-                  crossAxisSpacing: AppSpacing.md,
-                  mainAxisSpacing: AppSpacing.md,
-                  mainAxisExtent: 420,
-                ),
-                itemCount: filtered.length,
-                itemBuilder: (context, index) {
-                  final imm = filtered[index];
-                  return _ImmeubleCard(
-                    immeuble: imm,
-                    onTap: () => widget.onTapImmeuble?.call(imm.id),
-                  );
-                },
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _ImmeubleCard extends StatelessWidget {
-  final ImmeublesModel immeuble;
-  final VoidCallback onTap;
-  const _ImmeubleCard({required this.immeuble, required this.onTap});
-
-  String? get _coverUrl {
-    final imm = immeuble;
-    if (imm.mainPhoto != null) return imm.mainPhoto;
-    if (imm.commonPhotos.isNotEmpty) return imm.commonPhotos.first;
-    return null;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final cover = _coverUrl;
-
-    // Même mise en page que la carte de chambre (Accueil) : photo 16/9,
-    // contenu extensible, bouton « Voir détails » pleine largeur.
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            AspectRatio(
-              aspectRatio: 16 / 9,
-              child: cover != null
-                  ? CachedNetworkImage(
-                      imageUrl: cover,
-                      fit: BoxFit.cover,
-                      placeholder: (_, _) =>
-                          Container(color: AppColors.surfaceContainerLow),
-                      errorWidget: (_, _, _) => _placeholder(),
-                    )
-                  : _placeholder(),
-            ),
-            Expanded(
+    return FutureBuilder<List<ImmeublesModel>>(
+      future: _future,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const SizedBox(
+            height: 240,
+            child: Center(child: CircularProgressIndicator()),
+          );
+        }
+        if (snapshot.hasError) {
+          return SizedBox(
+            height: 240,
+            child: Center(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.md, AppSpacing.sm, AppSpacing.md, AppSpacing.xs),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      immeuble.name,
-                      style: AppTypography.titleLg,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    if (immeuble.city != null || immeuble.address != null) ...[
-                      const SizedBox(height: AppSpacing.xs),
-                      Text(
-                        _locationLine(),
-                        style: AppTypography.bodyMd
-                            .copyWith(color: AppColors.onSurfaceVariant),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                    const SizedBox(height: AppSpacing.sm),
-                    Flexible(
-                      child: ClipRect(
-                        child: Align(
-                          alignment: Alignment.bottomLeft,
-                          child: Wrap(
-                            spacing: AppSpacing.xs,
-                            runSpacing: AppSpacing.xs,
-                            children: [
-                              if (immeuble.type != null)
-                                _Pill(label: immeuble.type!.typeName),
-                              if (immeuble.department != null)
-                                _Pill(label: immeuble.department!),
-                              if (immeuble.totalM2 != null)
-                                _Pill(
-                                    label:
-                                        '${immeuble.totalM2!.toStringAsFixed(0)} m²'),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+                padding: const EdgeInsets.all(AppSpacing.lg),
+                child: Text('Erreur : ${snapshot.error}',
+                    style: AppTypography.bodyMd),
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.all(AppSpacing.md),
-              child: SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: onTap,
-                  label: const Text('Voir détails'),
-                  icon: const Icon(Icons.remove_red_eye, size: 18),
-                ),
+          );
+        }
+
+        final all = snapshot.data ?? [];
+        final filtered =
+            widget.filter.isEmpty ? all : all.where(_matchesFilter).toList();
+
+        if (filtered.isEmpty) {
+          return SizedBox(
+            height: 240,
+            child: Center(
+              child: Text(
+                widget.filter.isEmpty
+                    ? 'Aucun immeuble disponible.'
+                    : 'Aucun immeuble ne correspond aux filtres.',
+                style: AppTypography.bodyLg,
               ),
             ),
-          ],
-        ),
-      ),
-    );
-  }
+          );
+        }
 
-  String _locationLine() {
-    final parts = <String>[
-      if (immeuble.city != null) immeuble.city!,
-      if (immeuble.region != null) immeuble.region!,
-    ];
-    return parts.isNotEmpty
-        ? parts.join(', ')
-        : (immeuble.address ?? '');
-  }
-
-  Widget _placeholder() => Container(
-        color: AppColors.surfaceContainerLow,
-        child: Center(
-          child: Icon(Icons.apartment_outlined,
-              size: 48, color: AppColors.outline),
-        ),
-      );
-}
-
-class _Pill extends StatelessWidget {
-  final String label;
-  const _Pill({required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.sm,
-        vertical: AppSpacing.xs,
-      ),
-      decoration: BoxDecoration(
-        color: AppColors.primaryFixed,
-        borderRadius: AppRadius.borderFull,
-      ),
-      child: Text(
-        label,
-        style: AppTypography.labelSm.copyWith(
-          color: AppColors.onPrimaryFixedVariant,
-        ),
-      ),
+        return GridView.builder(
+          shrinkWrap: widget.shrinkWrap,
+          physics:
+              widget.shrinkWrap ? const NeverScrollableScrollPhysics() : null,
+          padding: const EdgeInsets.all(AppSpacing.md),
+          gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+            maxCrossAxisExtent: 420,
+            crossAxisSpacing: AppSpacing.md,
+            mainAxisSpacing: AppSpacing.md,
+            mainAxisExtent: 420,
+          ),
+          itemCount: filtered.length,
+          itemBuilder: (context, index) {
+            final imm = filtered[index];
+            return ImmeubleCard(
+              immeuble: imm,
+              onTap: () => widget.onTapImmeuble?.call(imm.id),
+            );
+          },
+        );
+      },
     );
   }
 }

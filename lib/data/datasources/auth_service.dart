@@ -2,10 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:lacoloc_front/data/models/theme_ref.dart';
-import 'package:lacoloc_front/data/models/users_client.dart';
-import 'package:lacoloc_front/theme/theme_controller.dart';
-import 'package:lacoloc_front/utils/auth_error.dart';
+import 'package:habitafrance/data/models/theme_ref.dart';
+import 'package:habitafrance/data/models/users_client.dart';
+import 'package:habitafrance/theme/theme_controller.dart';
+import 'package:habitafrance/utils/auth_error.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// Resultado tratado de uma tentativa de login.
@@ -59,7 +59,7 @@ class AuthService {
     required String email,
     required String password,
   }) {
-    debugPrint('[login] tentative de connexion — email: $email');
+    debugPrint('[login] tentative de connexion');
     final completer = Completer<SignInResult>();
 
     void finish(SignInResult result) {
@@ -82,11 +82,10 @@ class AuthService {
         _client.auth
             .signInWithPassword(email: email, password: password)
             .then((res) {
-              // ⚠️ Ne JAMAIS loguer la session complète : elle contient
-              // l'access_token et le refresh_token (vol de session possible
-              // via un simple copier-coller de console).
-              debugPrint('[login] SUCCÈS — user: ${res.user?.id} '
-                  '(${res.user?.email})');
+              // ⚠️ Ne JAMAIS loguer la session complète ni l'email : la session
+              // contient l'access_token/refresh_token (vol de session via un
+              // simple copier-coller de console) et l'email est une PII.
+              debugPrint('[login] SUCCÈS — user: ${res.user?.id}');
               finish(SignInResult.success(res));
             })
             .catchError((Object e) {

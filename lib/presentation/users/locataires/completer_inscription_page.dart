@@ -1,17 +1,17 @@
 import 'package:flutter/material.dart';
-import 'package:lacoloc_front/presentation/widgets/app_date_picker.dart';
+import 'package:habitafrance/presentation/widgets/app_date_picker.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:form_builder_validators/form_builder_validators.dart';
 import 'package:intl/intl.dart';
-import 'package:lacoloc_front/data/datasources/auth_service.dart';
-import 'package:lacoloc_front/data/models/users_client.dart';
-import 'package:lacoloc_front/utils/phone_field.dart';
-import 'package:lacoloc_front/theme/app_colors.dart';
-import 'package:lacoloc_front/theme/app_radius.dart';
-import 'package:lacoloc_front/theme/app_spacing.dart';
-import 'package:lacoloc_front/theme/app_typography.dart';
+import 'package:habitafrance/data/datasources/auth_service.dart';
+import 'package:habitafrance/data/models/users_client.dart';
+import 'package:habitafrance/utils/phone_field.dart';
+import 'package:habitafrance/theme/app_colors.dart';
+import 'package:habitafrance/theme/app_radius.dart';
+import 'package:habitafrance/theme/app_spacing.dart';
+import 'package:habitafrance/theme/app_typography.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:lacoloc_front/utils/auth_error.dart';
+import 'package:habitafrance/utils/auth_error.dart';
 
 final _dateFmt = DateFormat('dd/MM/yyyy');
 

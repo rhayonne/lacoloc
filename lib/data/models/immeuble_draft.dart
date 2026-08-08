@@ -1,5 +1,5 @@
-import 'package:lacoloc_front/data/models/immeuble_lot.dart';
-import 'package:lacoloc_front/data/models/inventaire.dart';
+import 'package:habitafrance/data/models/immeuble_lot.dart';
+import 'package:habitafrance/data/models/inventaire.dart';
 
 /// Modèles « brouillon » (draft) tenus en mémoire pendant la création d'un
 /// immeuble — l'équivalent d'un état Formik pour les *collections* que

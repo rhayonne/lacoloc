@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:lacoloc_front/presentation/nav/app_sidebar.dart';
-import 'package:lacoloc_front/theme/app_colors.dart';
-import 'package:lacoloc_front/theme/app_radius.dart';
-import 'package:lacoloc_front/theme/app_typography.dart';
+import 'package:habitafrance/presentation/nav/app_sidebar.dart';
+import 'package:habitafrance/theme/app_colors.dart';
+import 'package:habitafrance/theme/app_radius.dart';
+import 'package:habitafrance/theme/app_typography.dart';
 
 /// Entrée de navigation : soit une **feuille** (onTap), soit un **groupe**
 /// (children non vides). Un groupe, une fois sélectionné, ouvre son contenu par

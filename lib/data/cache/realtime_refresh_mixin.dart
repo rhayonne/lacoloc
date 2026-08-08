@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
-import 'package:lacoloc_front/data/cache/realtime_service.dart';
+import 'package:habitafrance/data/cache/realtime_service.dart';
 
 /// Mixin pour qu'une page se rafraîchisse quand le Realtime signale un
 /// changement (le cache a déjà été invalidé par [RealtimeService]).

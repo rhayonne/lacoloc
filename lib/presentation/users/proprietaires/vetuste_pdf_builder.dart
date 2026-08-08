@@ -4,8 +4,8 @@ import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
-import 'package:lacoloc_front/data/models/vetuste.dart';
-import 'package:lacoloc_front/utils/currency.dart';
+import 'package:habitafrance/data/models/vetuste.dart';
+import 'package:habitafrance/utils/currency.dart';
 
 /// Génère le PDF « Décompte de réparations locatives » d'un décompte de vétusté.
 Future<Uint8List> buildVetustePdf(

@@ -1,20 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:intl/intl.dart';
-import 'package:lacoloc_front/data/datasources/auth_service.dart';
-import 'package:lacoloc_front/data/datasources/communication.dart';
-import 'package:lacoloc_front/data/datasources/user_management.dart';
-import 'package:lacoloc_front/data/models/admin_message.dart';
-import 'package:lacoloc_front/data/models/user_group.dart';
-import 'package:lacoloc_front/data/models/users_client.dart';
-import 'package:lacoloc_front/theme/app_colors.dart';
-import 'package:lacoloc_front/theme/app_radius.dart';
-import 'package:lacoloc_front/presentation/widgets/app_top_bar.dart';
-import 'package:lacoloc_front/theme/app_spacing.dart';
-import 'package:lacoloc_front/theme/app_theme.dart';
-import 'package:lacoloc_front/theme/app_typography.dart';
-import 'package:lacoloc_front/theme/app_tab_bar.dart';
-import 'package:lacoloc_front/utils/media_embed.dart';
+import 'package:habitafrance/data/datasources/auth_service.dart';
+import 'package:habitafrance/data/datasources/communication.dart';
+import 'package:habitafrance/data/datasources/user_management.dart';
+import 'package:habitafrance/data/models/admin_message.dart';
+import 'package:habitafrance/data/models/user_group.dart';
+import 'package:habitafrance/data/models/users_client.dart';
+import 'package:habitafrance/theme/app_colors.dart';
+import 'package:habitafrance/theme/app_radius.dart';
+import 'package:habitafrance/presentation/widgets/app_top_bar.dart';
+import 'package:habitafrance/theme/app_spacing.dart';
+import 'package:habitafrance/theme/app_theme.dart';
+import 'package:habitafrance/theme/app_typography.dart';
+import 'package:habitafrance/theme/app_tab_bar.dart';
+import 'package:habitafrance/utils/media_embed.dart';
 
 /// Cible de diffusion d'un message du super admin.
 enum _Audience { tous, type, groupe, specifiques }

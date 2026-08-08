@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:lacoloc_front/data/datasources/auth_service.dart';
-import 'package:lacoloc_front/data/models/users_client.dart';
-import 'package:lacoloc_front/presentation/widgets/theme_picker.dart';
-import 'package:lacoloc_front/utils/phone_field.dart';
+import 'package:habitafrance/data/datasources/auth_service.dart';
+import 'package:habitafrance/data/models/users_client.dart';
+import 'package:habitafrance/presentation/widgets/theme_picker.dart';
+import 'package:habitafrance/utils/phone_field.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
-import 'package:lacoloc_front/theme/app_colors.dart';
-import 'package:lacoloc_front/theme/app_radius.dart';
-import 'package:lacoloc_front/theme/app_spacing.dart';
-import 'package:lacoloc_front/theme/app_typography.dart';
+import 'package:habitafrance/theme/app_colors.dart';
+import 'package:habitafrance/theme/app_radius.dart';
+import 'package:habitafrance/theme/app_spacing.dart';
+import 'package:habitafrance/theme/app_typography.dart';
 
 class MonProfilProprietairePage extends StatefulWidget {
   const MonProfilProprietairePage({super.key});

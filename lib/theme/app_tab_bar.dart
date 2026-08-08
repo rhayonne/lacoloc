@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:lacoloc_front/theme/app_colors.dart';
+import 'package:habitafrance/theme/app_colors.dart';
 
 /// Barre d'onglets **standard** du système, au look « groupe de boutons »
 /// (segmented control) : les onglets sont posés sur une **piste** (fond clair +

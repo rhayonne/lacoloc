@@ -3,20 +3,20 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
-import 'package:lacoloc_front/data/datasources/inventaire.dart';
-import 'package:lacoloc_front/presentation/widgets/app_button.dart';
-import 'package:lacoloc_front/presentation/widgets/app_date_picker.dart';
-import 'package:lacoloc_front/presentation/widgets/filter_button.dart';
-import 'package:lacoloc_front/data/datasources/reference.dart';
-import 'package:lacoloc_front/data/models/filter_state.dart';
-import 'package:lacoloc_front/data/models/immeuble_type.dart';
-import 'package:lacoloc_front/theme/app_button_sizes.dart';
-import 'package:lacoloc_front/theme/app_colors.dart';
-import 'package:lacoloc_front/theme/app_radius.dart';
-import 'package:lacoloc_front/theme/app_spacing.dart';
-import 'package:lacoloc_front/theme/app_typography.dart';
+import 'package:habitafrance/data/datasources/inventaire.dart';
+import 'package:habitafrance/presentation/widgets/app_button.dart';
+import 'package:habitafrance/presentation/widgets/app_date_picker.dart';
+import 'package:habitafrance/presentation/widgets/filter_button.dart';
+import 'package:habitafrance/data/datasources/reference.dart';
+import 'package:habitafrance/data/models/filter_state.dart';
+import 'package:habitafrance/data/models/immeuble_type.dart';
+import 'package:habitafrance/theme/app_button_sizes.dart';
+import 'package:habitafrance/theme/app_colors.dart';
+import 'package:habitafrance/theme/app_radius.dart';
+import 'package:habitafrance/theme/app_spacing.dart';
+import 'package:habitafrance/theme/app_typography.dart';
 
-export 'package:lacoloc_front/data/models/filter_state.dart'
+export 'package:habitafrance/data/models/filter_state.dart'
     show ChambreFilter, BailTypeFilter;
 
 /// Catálogo de módulos de filtro disponíveis no [FilterPanel].
@@ -83,9 +83,14 @@ class FilterPanel extends StatefulWidget {
   /// Conjunto de módulos a exibir. Renderizados na ordem de [FilterModule].
   final Set<FilterModule> modules;
 
-  /// Widget opcional exibido à direita, na mesma linha do botão « Filtres »
-  /// (ex.: um botão de ação contextual em telas estreitas).
+  /// Widget opcional exibido na mesma linha do botão « Filtres ».
   final Widget? trailing;
+
+  /// true = [trailing] fica colado ao botão « Filtres » (só um pequeno
+  /// espaçamento entre os dois, sem `Spacer`) — para grupos de ações que
+  /// pertencem visualmente à mesma barra de filtros (ex. toggles de
+  /// categoria). false (padrão) = [trailing] fica alinhado à direita.
+  final bool trailingAtStart;
 
   const FilterPanel({
     super.key,
@@ -96,6 +101,7 @@ class FilterPanel extends StatefulWidget {
       FilterModule.bail,
     },
     this.trailing,
+    this.trailingAtStart = false,
   });
 
   @override
@@ -273,7 +279,11 @@ class _FilterPanelState extends State<FilterPanel> {
                   ),
                 ),
               ),
-            if (widget.trailing != null) ...[
+            if (widget.trailing != null && widget.trailingAtStart) ...[
+              const SizedBox(width: AppSpacing.sm),
+              widget.trailing!,
+            ],
+            if (widget.trailing != null && !widget.trailingAtStart) ...[
               const Spacer(),
               widget.trailing!,
             ],

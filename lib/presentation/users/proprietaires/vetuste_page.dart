@@ -1,26 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:lacoloc_front/data/datasources/auth_service.dart';
-import 'package:lacoloc_front/data/datasources/chambres.dart';
-import 'package:lacoloc_front/data/datasources/etat_de_lieux.dart';
-import 'package:lacoloc_front/data/datasources/immeubles.dart';
-import 'package:lacoloc_front/data/datasources/notifications.dart';
-import 'package:lacoloc_front/data/datasources/recettes.dart';
-import 'package:lacoloc_front/data/datasources/vetuste.dart';
-import 'package:lacoloc_front/data/models/chambre.dart';
-import 'package:lacoloc_front/data/models/edl_details.dart';
-import 'package:lacoloc_front/data/models/immeubles.dart';
-import 'package:lacoloc_front/data/models/vetuste.dart';
-import 'package:lacoloc_front/presentation/users/proprietaires/vetuste_pdf_builder.dart';
-import 'package:lacoloc_front/presentation/widgets/document_pdf_button.dart';
-import 'package:lacoloc_front/presentation/widgets/form_page_header.dart';
-import 'package:lacoloc_front/utils/vetuste_calc.dart';
-import 'package:lacoloc_front/theme/app_accordion.dart';
-import 'package:lacoloc_front/theme/app_colors.dart';
-import 'package:lacoloc_front/theme/app_spacing.dart';
-import 'package:lacoloc_front/theme/app_theme.dart';
-import 'package:lacoloc_front/theme/app_typography.dart';
-import 'package:lacoloc_front/utils/currency.dart';
+import 'package:habitafrance/data/datasources/auth_service.dart';
+import 'package:habitafrance/data/datasources/chambres.dart';
+import 'package:habitafrance/data/datasources/etat_de_lieux.dart';
+import 'package:habitafrance/data/datasources/immeubles.dart';
+import 'package:habitafrance/data/datasources/notifications.dart';
+import 'package:habitafrance/data/datasources/recettes.dart';
+import 'package:habitafrance/data/datasources/vetuste.dart';
+import 'package:habitafrance/data/models/chambre.dart';
+import 'package:habitafrance/data/models/edl_details.dart';
+import 'package:habitafrance/data/models/immeubles.dart';
+import 'package:habitafrance/data/models/vetuste.dart';
+import 'package:habitafrance/presentation/users/proprietaires/vetuste_pdf_builder.dart';
+import 'package:habitafrance/presentation/widgets/document_pdf_button.dart';
+import 'package:habitafrance/presentation/widgets/form_page_header.dart';
+import 'package:habitafrance/utils/vetuste_calc.dart';
+import 'package:habitafrance/theme/app_accordion.dart';
+import 'package:habitafrance/theme/app_colors.dart';
+import 'package:habitafrance/theme/app_spacing.dart';
+import 'package:habitafrance/theme/app_theme.dart';
+import 'package:habitafrance/theme/app_typography.dart';
+import 'package:habitafrance/utils/currency.dart';
 
 /// Après la finalisation d'un EDL de **sortie**, compare entrée→sortie ; s'il y
 /// a des dégradations, propose de créer le décompte de vétusté (groupé par EDL).

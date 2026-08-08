@@ -1,12 +1,12 @@
-import 'package:lacoloc_front/data/cache/data_cache.dart';
-import 'package:lacoloc_front/data/cache/realtime_service.dart';
-import 'package:lacoloc_front/data/datasources/edl_details.dart';
-import 'package:lacoloc_front/data/datasources/inventaire.dart';
-import 'package:lacoloc_front/data/datasources/meuble_categories.dart';
-import 'package:lacoloc_front/data/models/etat_de_lieux.dart';
-import 'package:lacoloc_front/data/models/inventaire.dart';
-import 'package:lacoloc_front/data/models/vetuste.dart';
-import 'package:lacoloc_front/utils/vetuste_calc.dart';
+import 'package:habitafrance/data/cache/data_cache.dart';
+import 'package:habitafrance/data/cache/realtime_service.dart';
+import 'package:habitafrance/data/datasources/edl_details.dart';
+import 'package:habitafrance/data/datasources/inventaire.dart';
+import 'package:habitafrance/data/datasources/meuble_categories.dart';
+import 'package:habitafrance/data/models/etat_de_lieux.dart';
+import 'package:habitafrance/data/models/inventaire.dart';
+import 'package:habitafrance/data/models/vetuste.dart';
+import 'package:habitafrance/utils/vetuste_calc.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// Accès aux données de vétusté : barème (par proprietaire) et décomptes de

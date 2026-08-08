@@ -1,24 +1,24 @@
 import 'package:flutter/material.dart';
-import 'package:lacoloc_front/data/datasources/auth_service.dart';
-import 'package:lacoloc_front/data/datasources/chambres.dart';
-import 'package:lacoloc_front/data/datasources/etat_de_lieux.dart';
-import 'package:lacoloc_front/data/cache/realtime_refresh_mixin.dart';
-import 'package:lacoloc_front/data/datasources/immeubles.dart';
-import 'package:lacoloc_front/data/datasources/notifications.dart';
-import 'package:lacoloc_front/data/datasources/signatures.dart';
-import 'package:lacoloc_front/data/models/chambre.dart';
-import 'package:lacoloc_front/data/models/etat_de_lieux.dart';
-import 'package:lacoloc_front/data/models/immeubles.dart';
-import 'package:lacoloc_front/data/models/notification_model.dart';
-import 'package:lacoloc_front/data/models/users_client.dart';
-import 'package:lacoloc_front/presentation/users/proprietaires/interactions_page.dart';
-import 'package:lacoloc_front/presentation/widgets/bail_requirements_dialog.dart';
-import 'package:lacoloc_front/presentation/widgets/readiness_checklist.dart';
-import 'package:lacoloc_front/theme/app_colors.dart';
-import 'package:lacoloc_front/theme/app_radius.dart';
-import 'package:lacoloc_front/theme/app_spacing.dart';
-import 'package:lacoloc_front/theme/app_typography.dart';
-import 'package:lacoloc_front/utils/signature_pad.dart';
+import 'package:habitafrance/data/datasources/auth_service.dart';
+import 'package:habitafrance/data/datasources/chambres.dart';
+import 'package:habitafrance/data/datasources/etat_de_lieux.dart';
+import 'package:habitafrance/data/cache/realtime_refresh_mixin.dart';
+import 'package:habitafrance/data/datasources/immeubles.dart';
+import 'package:habitafrance/data/datasources/notifications.dart';
+import 'package:habitafrance/data/datasources/signatures.dart';
+import 'package:habitafrance/data/models/chambre.dart';
+import 'package:habitafrance/data/models/etat_de_lieux.dart';
+import 'package:habitafrance/data/models/immeubles.dart';
+import 'package:habitafrance/data/models/notification_model.dart';
+import 'package:habitafrance/data/models/users_client.dart';
+import 'package:habitafrance/presentation/users/proprietaires/interactions_page.dart';
+import 'package:habitafrance/presentation/widgets/bail_requirements_dialog.dart';
+import 'package:habitafrance/presentation/widgets/readiness_checklist.dart';
+import 'package:habitafrance/theme/app_colors.dart';
+import 'package:habitafrance/theme/app_radius.dart';
+import 'package:habitafrance/theme/app_spacing.dart';
+import 'package:habitafrance/theme/app_typography.dart';
+import 'package:habitafrance/utils/signature_pad.dart';
 
 class VueGeneralePage extends StatefulWidget {
   /// Liens de la checklist « Conditions pour louer » vers les sections.

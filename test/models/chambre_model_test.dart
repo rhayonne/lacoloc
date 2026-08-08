@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:lacoloc_front/data/models/chambre.dart';
+import 'package:habitafrance/data/models/chambre.dart';
 
 void main() {
   group('ChambreModel', () {

@@ -2,10 +2,10 @@ import 'dart:typed_data';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
-import 'package:lacoloc_front/data/datasources/storage_service.dart';
-import 'package:lacoloc_front/data/models/edl_readiness.dart';
-import 'package:lacoloc_front/data/models/etat_de_lieux.dart';
-import 'package:lacoloc_front/data/models/vetuste.dart';
+import 'package:habitafrance/data/datasources/storage_service.dart';
+import 'package:habitafrance/data/models/edl_readiness.dart';
+import 'package:habitafrance/data/models/etat_de_lieux.dart';
+import 'package:habitafrance/data/models/vetuste.dart';
 import 'bail_pdf_data.dart';
 import 'signature_proof.dart';
 

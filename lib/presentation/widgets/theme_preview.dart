@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:lacoloc_front/theme/app_palette.dart';
-import 'package:lacoloc_front/theme/app_radius.dart';
-import 'package:lacoloc_front/theme/app_spacing.dart';
-import 'package:lacoloc_front/theme/app_typography.dart';
-import 'package:lacoloc_front/utils/color_codec.dart';
+import 'package:habitafrance/theme/app_palette.dart';
+import 'package:habitafrance/theme/app_radius.dart';
+import 'package:habitafrance/theme/app_spacing.dart';
+import 'package:habitafrance/theme/app_typography.dart';
+import 'package:habitafrance/utils/color_codec.dart';
 
 /// Aperçus d'une palette. **Tout ici se peint avec la palette passée en
 /// paramètre**, jamais avec `AppColors` : on montre un thème qui n'est pas
@@ -158,7 +158,7 @@ class ThemeSitePreview extends StatelessWidget {
               ),
               const SizedBox(width: 5),
               Text(
-                'Super Loc',
+                'HabitaFrance',
                 style: AppTypography.labelSm.copyWith(
                   color: palette.primary,
                   fontWeight: FontWeight.w700,

@@ -1,4 +1,4 @@
-# Componentes de UI — Super Loc
+# Componentes de UI — HabitaFrance
 
 ## Hierarquia de Widgets Principais
 

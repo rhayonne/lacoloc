@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:lacoloc_front/theme/app_radius.dart';
-import 'package:lacoloc_front/theme/app_spacing.dart';
+import 'package:habitafrance/theme/app_radius.dart';
+import 'package:habitafrance/theme/app_spacing.dart';
 
 /// Barre de recherche standard pour filtrer des listes.
 ///

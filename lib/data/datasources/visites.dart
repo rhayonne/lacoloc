@@ -1,8 +1,8 @@
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:lacoloc_front/config/env_config.dart';
-import 'package:lacoloc_front/data/cache/data_cache.dart';
-import 'package:lacoloc_front/data/cache/realtime_service.dart';
-import 'package:lacoloc_front/data/models/visite.dart';
+import 'package:habitafrance/config/env_config.dart';
+import 'package:habitafrance/data/cache/data_cache.dart';
+import 'package:habitafrance/data/cache/realtime_service.dart';
+import 'package:habitafrance/data/models/visite.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class VisitesDatasource {

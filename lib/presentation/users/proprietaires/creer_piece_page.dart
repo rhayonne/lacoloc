@@ -5,14 +5,14 @@ import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:form_builder_extra_fields/form_builder_extra_fields.dart';
 import 'package:form_builder_validators/form_builder_validators.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:lacoloc_front/data/datasources/pieces.dart';
-import 'package:lacoloc_front/data/datasources/storage_service.dart';
-import 'package:lacoloc_front/data/models/piece.dart';
-import 'package:lacoloc_front/presentation/widgets/form_page_header.dart';
-import 'package:lacoloc_front/theme/app_colors.dart';
-import 'package:lacoloc_front/theme/app_radius.dart';
-import 'package:lacoloc_front/theme/app_spacing.dart';
-import 'package:lacoloc_front/theme/app_typography.dart';
+import 'package:habitafrance/data/datasources/pieces.dart';
+import 'package:habitafrance/data/datasources/storage_service.dart';
+import 'package:habitafrance/data/models/piece.dart';
+import 'package:habitafrance/presentation/widgets/form_page_header.dart';
+import 'package:habitafrance/theme/app_colors.dart';
+import 'package:habitafrance/theme/app_radius.dart';
+import 'package:habitafrance/theme/app_spacing.dart';
+import 'package:habitafrance/theme/app_typography.dart';
 
 const _nomsSuggeres = [
   'Cuisine',

@@ -4,8 +4,8 @@ import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
-import 'package:lacoloc_front/presentation/users/proprietaires/resiliation_pdf_data.dart';
-import 'package:lacoloc_front/utils/currency.dart';
+import 'package:habitafrance/presentation/users/proprietaires/resiliation_pdf_data.dart';
+import 'package:habitafrance/utils/currency.dart';
 
 /// Génère le PDF court « Acte de résiliation et sortie de bail » : récapitule
 /// le congé/préavis, l'état des lieux de sortie et l'acompte final de la

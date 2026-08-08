@@ -1,4 +1,4 @@
-# Modelo de Dados (ERD) — Super Loc
+# Modelo de Dados (ERD) — HabitaFrance
 
 > Atualizado para refletir o esquema completo: referência, patrimônio, finanças,
 > état des lieux, inventário, visitas e permissões.

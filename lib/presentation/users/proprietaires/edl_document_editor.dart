@@ -1,16 +1,16 @@
 import 'package:flutter/gestures.dart' show PointerDeviceKind;
-import 'package:lacoloc_front/presentation/widgets/app_date_picker.dart';
+import 'package:habitafrance/presentation/widgets/app_date_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:lacoloc_front/data/datasources/edl_details.dart';
-import 'package:lacoloc_front/data/datasources/observations_edl.dart';
-import 'package:lacoloc_front/data/models/edl_details.dart';
-import 'package:lacoloc_front/data/models/observation_edl.dart';
-import 'package:lacoloc_front/theme/app_colors.dart';
-import 'package:lacoloc_front/theme/app_radius.dart';
-import 'package:lacoloc_front/theme/app_spacing.dart';
-import 'package:lacoloc_front/theme/app_theme.dart';
-import 'package:lacoloc_front/theme/app_typography.dart';
+import 'package:habitafrance/data/datasources/edl_details.dart';
+import 'package:habitafrance/data/datasources/observations_edl.dart';
+import 'package:habitafrance/data/models/edl_details.dart';
+import 'package:habitafrance/data/models/observation_edl.dart';
+import 'package:habitafrance/theme/app_colors.dart';
+import 'package:habitafrance/theme/app_radius.dart';
+import 'package:habitafrance/theme/app_spacing.dart';
+import 'package:habitafrance/theme/app_theme.dart';
+import 'package:habitafrance/theme/app_typography.dart';
 
 // ╔══════════════════════════════════════════════════════════════════════════╗
 // ║ Sections réutilisables du document EDL, intégrées comme étapes (steps)    ║

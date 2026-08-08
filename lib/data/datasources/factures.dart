@@ -1,7 +1,7 @@
-import 'package:lacoloc_front/data/cache/data_cache.dart';
-import 'package:lacoloc_front/data/cache/realtime_service.dart';
-import 'package:lacoloc_front/data/datasources/session_scope.dart';
-import 'package:lacoloc_front/data/models/facture.dart';
+import 'package:habitafrance/data/cache/data_cache.dart';
+import 'package:habitafrance/data/cache/realtime_service.dart';
+import 'package:habitafrance/data/datasources/session_scope.dart';
+import 'package:habitafrance/data/models/facture.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class FacturesDatasource {

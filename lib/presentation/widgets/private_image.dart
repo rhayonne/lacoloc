@@ -1,7 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:lacoloc_front/data/datasources/storage_service.dart';
-import 'package:lacoloc_front/theme/app_colors.dart';
+import 'package:habitafrance/data/datasources/storage_service.dart';
+import 'package:habitafrance/theme/app_colors.dart';
 
 /// Affiche une image à partir d'une **référence** stockée en base, qu'elle
 /// soit une URL publique (bucket `photos` / héritée) ou une référence privée

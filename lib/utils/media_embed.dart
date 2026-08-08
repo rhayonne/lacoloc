@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:lacoloc_front/theme/app_radius.dart';
+import 'package:habitafrance/theme/app_radius.dart';
 
 import 'youtube_embed_stub.dart'
     if (dart.library.js_interop) 'youtube_embed_web.dart';

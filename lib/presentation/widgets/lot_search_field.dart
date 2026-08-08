@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:lacoloc_front/data/models/immeuble_lot.dart';
-import 'package:lacoloc_front/theme/app_colors.dart';
-import 'package:lacoloc_front/theme/app_radius.dart';
-import 'package:lacoloc_front/theme/app_spacing.dart';
-import 'package:lacoloc_front/theme/app_typography.dart';
+import 'package:habitafrance/data/models/immeuble_lot.dart';
+import 'package:habitafrance/theme/app_colors.dart';
+import 'package:habitafrance/theme/app_radius.dart';
+import 'package:habitafrance/theme/app_spacing.dart';
+import 'package:habitafrance/theme/app_typography.dart';
 
 /// Champ de recherche de lot de copropriété, réutilisable — même famille que
 /// [LocataireSearchField] : liste de résultats **en ligne** (pas d'overlay).

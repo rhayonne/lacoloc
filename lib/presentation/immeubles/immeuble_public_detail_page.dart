@@ -1,19 +1,20 @@
 import 'package:flutter/material.dart';
-import 'package:lacoloc_front/data/datasources/auth_service.dart';
-import 'package:lacoloc_front/data/datasources/chambres.dart';
-import 'package:lacoloc_front/data/datasources/inventaire.dart';
-import 'package:lacoloc_front/data/datasources/immeubles.dart';
-import 'package:lacoloc_front/data/models/chambre.dart';
-import 'package:lacoloc_front/data/models/chambre_disponibilite.dart';
-import 'package:lacoloc_front/data/models/immeubles.dart';
-import 'package:lacoloc_front/data/models/users_client.dart';
-import 'package:lacoloc_front/presentation/chambres/chambre_card.dart';
-import 'package:lacoloc_front/presentation/widgets/contact_dialog.dart';
-import 'package:lacoloc_front/presentation/widgets/photo_carousel.dart';
-import 'package:lacoloc_front/theme/app_colors.dart';
-import 'package:lacoloc_front/theme/app_radius.dart';
-import 'package:lacoloc_front/theme/app_spacing.dart';
-import 'package:lacoloc_front/theme/app_typography.dart';
+import 'package:habitafrance/data/datasources/auth_service.dart';
+import 'package:habitafrance/data/datasources/chambres.dart';
+import 'package:habitafrance/data/datasources/demandes_contact.dart';
+import 'package:habitafrance/data/datasources/inventaire.dart';
+import 'package:habitafrance/data/datasources/immeubles.dart';
+import 'package:habitafrance/data/models/chambre.dart';
+import 'package:habitafrance/data/models/chambre_disponibilite.dart';
+import 'package:habitafrance/data/models/immeubles.dart';
+import 'package:habitafrance/data/models/users_client.dart';
+import 'package:habitafrance/presentation/chambres/chambre_card.dart';
+import 'package:habitafrance/presentation/widgets/contact_dialog.dart';
+import 'package:habitafrance/presentation/widgets/photo_carousel.dart';
+import 'package:habitafrance/theme/app_colors.dart';
+import 'package:habitafrance/theme/app_radius.dart';
+import 'package:habitafrance/theme/app_spacing.dart';
+import 'package:habitafrance/theme/app_typography.dart';
 
 /// Fiche publique d'un immeuble : informations + chambres disponibles.
 /// **Vue intégrable** (pas de Scaffold) : s'affiche dans le cadre principal, à
@@ -42,6 +43,11 @@ class _ImmeublePublicDetailViewState extends State<ImmeublePublicDetailView> {
   /// locataire ; le visiteur non connecté est redirigé vers la connexion).
   UsersClient? _profile;
 
+  /// Le locataire a-t-il déjà une demande active (non ignorée) **au niveau de
+  /// l'immeuble** ? → on désactive le bouton pour éviter les doublons (mêmes
+  /// garde-fous que la fiche chambre).
+  bool _hasPendingDemande = false;
+
   @override
   void initState() {
     super.initState();
@@ -53,7 +59,21 @@ class _ImmeublePublicDetailViewState extends State<ImmeublePublicDetailView> {
     if (!AuthService.isLoggedIn) return;
     try {
       final p = await AuthService.loadCurrentProfile();
-      if (mounted) setState(() => _profile = p);
+      if (!mounted) return;
+      setState(() => _profile = p);
+      await _refreshPending();
+    } catch (_) {/* best-effort */}
+  }
+
+  Future<void> _refreshPending() async {
+    final p = _profile;
+    if (p == null || p.resolvedType != UserType.locataire) return;
+    try {
+      final pending = await DemandesContactDatasource.hasDemandeEnAttente(
+        locataireId: p.id,
+        immeubleId: widget.immeubleId,
+      );
+      if (mounted) setState(() => _hasPendingDemande = pending);
     } catch (_) {/* best-effort */}
   }
 
@@ -68,6 +88,9 @@ class _ImmeublePublicDetailViewState extends State<ImmeublePublicDetailView> {
       profile: _profile!,
       immeubleId: imm.id,
       immeubleName: imm.name,
+      onSent: () {
+        if (mounted) setState(() => _hasPendingDemande = true);
+      },
     );
   }
 
@@ -204,11 +227,19 @@ class _ImmeublePublicDetailViewState extends State<ImmeublePublicDetailView> {
                 if (_profile?.resolvedType == UserType.locataire ||
                     !AuthService.isLoggedIn) ...[
                   const SizedBox(height: AppSpacing.lg),
-                  FilledButton.icon(
-                    onPressed: () => _contact(imm),
-                    icon: const Icon(Icons.contact_mail_outlined),
-                    label: const Text('Entrer en contact'),
-                  ),
+                  if (_hasPendingDemande)
+                    OutlinedButton.icon(
+                      onPressed: null,
+                      icon: const Icon(Icons.forum_outlined),
+                      label:
+                          const Text('Vous avez déjà contacté le propriétaire'),
+                    )
+                  else
+                    FilledButton.icon(
+                      onPressed: () => _contact(imm),
+                      icon: const Icon(Icons.contact_mail_outlined),
+                      label: const Text('Entrer en contact'),
+                    ),
                 ],
 
                 const SizedBox(height: AppSpacing.xl),

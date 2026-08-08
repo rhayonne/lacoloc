@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
-import 'package:lacoloc_front/data/datasources/themes.dart';
-import 'package:lacoloc_front/data/models/theme_ref.dart';
-import 'package:lacoloc_front/theme/app_palette.dart';
+import 'package:habitafrance/data/datasources/themes.dart';
+import 'package:habitafrance/data/models/theme_ref.dart';
+import 'package:habitafrance/theme/app_palette.dart';
 
 /// Thème **courant** de l'application.
 ///

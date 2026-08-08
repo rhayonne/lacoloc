@@ -264,7 +264,7 @@ graph TD
 ```mermaid
 sequenceDiagram
     actor L as Locataire
-    participant APP as Super Loc
+    participant APP as HabitaFrance
     actor P as Propriétaire
     participant DB as Supabase
 

@@ -1,12 +1,12 @@
 openapi: 3.0.3
 
 info:
-  title: Super Loc — API (Supabase)
+  title: HabitaFrance — API (Supabase)
   version: "1.7.0"
   description: |
-    Especificação detalhada da superfície de API consumida pelo app Flutter `lacoloc_front`.
+    Especificação detalhada da superfície de API consumida pelo app Flutter `habitafrance`.
 
-    A "API" do Super Loc é composta por **quatro famílias** de endpoints Supabase:
+    A "API" do HabitaFrance é composta por **quatro famílias** de endpoints Supabase:
 
     1. **PostgREST** — REST automático sobre as tabelas PostgreSQL (`/rest/v1/{table}`).
        Cada tabela aceita `GET` (com filtros/embeds), `POST` (insert), `PATCH` (update)

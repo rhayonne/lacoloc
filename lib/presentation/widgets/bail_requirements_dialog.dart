@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:lacoloc_front/data/datasources/etat_de_lieux.dart';
-import 'package:lacoloc_front/data/datasources/garants.dart';
-import 'package:lacoloc_front/data/models/etat_de_lieux.dart';
-import 'package:lacoloc_front/presentation/users/locataires/garants_page.dart';
-import 'package:lacoloc_front/presentation/widgets/edl_signature_flow.dart';
-import 'package:lacoloc_front/theme/app_colors.dart';
-import 'package:lacoloc_front/theme/app_radius.dart';
-import 'package:lacoloc_front/theme/app_spacing.dart';
-import 'package:lacoloc_front/theme/app_typography.dart';
+import 'package:habitafrance/data/datasources/etat_de_lieux.dart';
+import 'package:habitafrance/data/datasources/garants.dart';
+import 'package:habitafrance/data/models/etat_de_lieux.dart';
+import 'package:habitafrance/presentation/users/locataires/garants_page.dart';
+import 'package:habitafrance/presentation/widgets/edl_signature_flow.dart';
+import 'package:habitafrance/theme/app_colors.dart';
+import 'package:habitafrance/theme/app_radius.dart';
+import 'package:habitafrance/theme/app_spacing.dart';
+import 'package:habitafrance/theme/app_typography.dart';
 
 /// Pop-up des **documents requis pour générer le bail** d'un EDL.
 /// - Côté **propriétaire** : affiche les coordonnées du locataire + le code de

@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:form_builder_validators/form_builder_validators.dart';
-import 'package:lacoloc_front/data/datasources/inventaire.dart';
-import 'package:lacoloc_front/data/datasources/meuble_categories.dart';
-import 'package:lacoloc_front/data/models/inventaire.dart';
-import 'package:lacoloc_front/presentation/widgets/app_list_search_field.dart';
-import 'package:lacoloc_front/presentation/widgets/app_top_bar.dart';
-import 'package:lacoloc_front/presentation/widgets/unsaved_changes_dialog.dart';
-import 'package:lacoloc_front/theme/app_colors.dart';
-import 'package:lacoloc_front/theme/app_spacing.dart';
-import 'package:lacoloc_front/theme/app_theme.dart';
-import 'package:lacoloc_front/theme/app_typography.dart';
+import 'package:habitafrance/data/datasources/inventaire.dart';
+import 'package:habitafrance/data/datasources/meuble_categories.dart';
+import 'package:habitafrance/data/models/inventaire.dart';
+import 'package:habitafrance/presentation/widgets/app_list_search_field.dart';
+import 'package:habitafrance/presentation/widgets/app_top_bar.dart';
+import 'package:habitafrance/presentation/widgets/unsaved_changes_dialog.dart';
+import 'package:habitafrance/theme/app_colors.dart';
+import 'package:habitafrance/theme/app_spacing.dart';
+import 'package:habitafrance/theme/app_theme.dart';
+import 'package:habitafrance/theme/app_typography.dart';
 
 class MeubleTypesPage extends StatefulWidget {
   /// Appelé quand l'état du formulaire (ouvert/fermé) change.

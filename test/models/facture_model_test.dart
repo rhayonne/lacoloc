@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:lacoloc_front/data/models/facture.dart';
+import 'package:habitafrance/data/models/facture.dart';
 
 void main() {
   group('FactureModel', () {

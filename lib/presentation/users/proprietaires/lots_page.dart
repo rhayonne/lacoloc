@@ -1,18 +1,18 @@
 import 'package:flutter/material.dart';
-import 'package:lacoloc_front/data/datasources/auth_service.dart';
-import 'package:lacoloc_front/data/datasources/immeuble_lots.dart';
-import 'package:lacoloc_front/data/models/immeuble_lot.dart';
-import 'package:lacoloc_front/presentation/widgets/app_list_search_field.dart';
-import 'package:lacoloc_front/presentation/widgets/app_top_bar.dart';
-import 'package:lacoloc_front/presentation/widgets/lot_dialog.dart';
-import 'package:lacoloc_front/theme/app_breakpoints.dart';
-import 'package:lacoloc_front/theme/app_colors.dart';
-import 'package:lacoloc_front/theme/app_radius.dart';
-import 'package:lacoloc_front/theme/app_spacing.dart';
-import 'package:lacoloc_front/theme/app_table_theme.dart';
-import 'package:lacoloc_front/theme/app_theme.dart';
-import 'package:lacoloc_front/theme/app_typography.dart';
-import 'package:lacoloc_front/theme/card_delete_button.dart';
+import 'package:habitafrance/data/datasources/auth_service.dart';
+import 'package:habitafrance/data/datasources/immeuble_lots.dart';
+import 'package:habitafrance/data/models/immeuble_lot.dart';
+import 'package:habitafrance/presentation/widgets/app_list_search_field.dart';
+import 'package:habitafrance/presentation/widgets/app_top_bar.dart';
+import 'package:habitafrance/presentation/widgets/lot_dialog.dart';
+import 'package:habitafrance/theme/app_breakpoints.dart';
+import 'package:habitafrance/theme/app_colors.dart';
+import 'package:habitafrance/theme/app_radius.dart';
+import 'package:habitafrance/theme/app_spacing.dart';
+import 'package:habitafrance/theme/app_table_theme.dart';
+import 'package:habitafrance/theme/app_theme.dart';
+import 'package:habitafrance/theme/app_typography.dart';
+import 'package:habitafrance/theme/card_delete_button.dart';
 
 /// Catalogue des lots de copropriété du propriétaire (indépendant des
 /// immeubles — un lot peut exister avant d'être rattaché). Même layout

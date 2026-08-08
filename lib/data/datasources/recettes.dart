@@ -1,7 +1,7 @@
-import 'package:lacoloc_front/data/cache/data_cache.dart';
-import 'package:lacoloc_front/data/cache/realtime_service.dart';
-import 'package:lacoloc_front/data/datasources/notifications.dart';
-import 'package:lacoloc_front/data/models/recette.dart';
+import 'package:habitafrance/data/cache/data_cache.dart';
+import 'package:habitafrance/data/cache/realtime_service.dart';
+import 'package:habitafrance/data/datasources/notifications.dart';
+import 'package:habitafrance/data/models/recette.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// Diagnostic de [RecettesDatasource.generateFromBail] /

@@ -1,5 +1,5 @@
 import 'package:flutter/foundation.dart';
-import 'package:lacoloc_front/data/cache/data_cache.dart';
+import 'package:habitafrance/data/cache/data_cache.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// Écoute les changements Postgres (Supabase Realtime) sur les tables suivies

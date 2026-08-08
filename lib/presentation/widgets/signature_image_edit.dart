@@ -1,14 +1,15 @@
 import 'dart:typed_data';
 
 import 'package:crop_your_image/crop_your_image.dart';
+import 'package:flutter/foundation.dart' show compute;
 import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
-import 'package:lacoloc_front/presentation/widgets/app_button.dart';
-import 'package:lacoloc_front/theme/app_button_sizes.dart';
-import 'package:lacoloc_front/theme/app_colors.dart';
-import 'package:lacoloc_front/theme/app_radius.dart';
-import 'package:lacoloc_front/theme/app_spacing.dart';
-import 'package:lacoloc_front/theme/app_typography.dart';
+import 'package:habitafrance/presentation/widgets/app_button.dart';
+import 'package:habitafrance/theme/app_button_sizes.dart';
+import 'package:habitafrance/theme/app_colors.dart';
+import 'package:habitafrance/theme/app_radius.dart';
+import 'package:habitafrance/theme/app_spacing.dart';
+import 'package:habitafrance/theme/app_typography.dart';
 
 /// Outils **partagés** d'édition d'une signature (bytes PNG) : feuille
 /// d'actions « Modifier » (pivoter / rogner / remplacer), rotation et rognage.
@@ -65,7 +66,16 @@ Future<SignatureEditAction?> showSignatureEditSheet(
 }
 
 /// Rotation des bytes PNG (angle en degrés, +90 = horaire).
-Future<Uint8List> rotateSignatureBytes(Uint8List png, int angle) async {
+Future<Uint8List> rotateSignatureBytes(Uint8List png, int angle) {
+  // Décodage/rotation/réencodage PNG hors du thread UI (isolate) pour ne pas
+  // bloquer un frame — négligeable ici mais gratuit avec `compute`.
+  return compute(_rotatePngInIsolate, (png, angle));
+}
+
+/// Exécuté dans un isolate (`compute`) : doit être une fonction de premier
+/// niveau prenant un seul argument.
+Uint8List _rotatePngInIsolate((Uint8List, int) args) {
+  final (png, angle) = args;
   final decoded = img.decodeImage(png);
   if (decoded == null) return png;
   final rotated = img.copyRotate(decoded, angle: angle);

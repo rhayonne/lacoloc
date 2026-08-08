@@ -1,4 +1,4 @@
-import 'package:lacoloc_front/data/models/charge_reference.dart';
+import 'package:habitafrance/data/models/charge_reference.dart';
 
 /// Charge associée à un immeuble (bail location).
 class ImmeubleChargeModel {

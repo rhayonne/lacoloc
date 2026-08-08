@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:lacoloc_front/data/datasources/demandes_contact.dart';
-import 'package:lacoloc_front/data/models/users_client.dart';
-import 'package:lacoloc_front/presentation/widgets/app_button.dart';
-import 'package:lacoloc_front/theme/app_button_sizes.dart';
-import 'package:lacoloc_front/theme/app_colors.dart';
-import 'package:lacoloc_front/theme/app_radius.dart';
-import 'package:lacoloc_front/theme/app_spacing.dart';
-import 'package:lacoloc_front/theme/app_typography.dart';
+import 'package:habitafrance/data/datasources/demandes_contact.dart';
+import 'package:habitafrance/data/models/users_client.dart';
+import 'package:habitafrance/presentation/widgets/app_button.dart';
+import 'package:habitafrance/theme/app_button_sizes.dart';
+import 'package:habitafrance/theme/app_colors.dart';
+import 'package:habitafrance/theme/app_radius.dart';
+import 'package:habitafrance/theme/app_spacing.dart';
+import 'package:habitafrance/theme/app_typography.dart';
 
 /// Pop-up **« Entrer en contact »** (locataire → propriétaire), partagé par la
 /// fiche chambre **et** la fiche immeuble. En-tête avec le nom du propriétaire,
@@ -174,7 +174,9 @@ class _ContactDialogState extends State<_ContactDialog> {
                       _InfoRow(
                           icon: Icons.cake_outlined,
                           label: 'Âge',
-                          value: p.age != null ? '${p.age} ans' : '—'),
+                          value: p.calculatedAge != null
+                              ? '${p.calculatedAge} ans'
+                              : '—'),
                       _InfoRow(
                           icon: Icons.phone_outlined,
                           label: 'Téléphone',
@@ -207,6 +209,10 @@ class _ContactDialogState extends State<_ContactDialog> {
                   minLines: 3,
                   maxLines: 6,
                   textInputAction: TextInputAction.newline,
+                  // Un message vide créerait une demande fantôme (sans aucun
+                  // message) : on garde le bouton actif seulement s'il y a du
+                  // texte → rebuild à chaque frappe.
+                  onChanged: (_) => setState(() {}),
                   decoration: InputDecoration(
                     hintText:
                         'Bonjour, je suis intéressé(e) par cette annonce…',
@@ -230,7 +236,7 @@ class _ContactDialogState extends State<_ContactDialog> {
                       icon: Icons.send_outlined,
                       label: 'Envoyer',
                       isBusy: _loading,
-                      onPressed: _loading
+                      onPressed: (_loading || _msgCtrl.text.trim().isEmpty)
                           ? null
                           : () async {
                               setState(() => _loading = true);
