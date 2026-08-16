@@ -143,7 +143,7 @@ class _EdlPdfPreviewPageState extends State<EdlPdfPreviewPage> {
                 padding: const EdgeInsets.all(AppSpacing.xl),
                 child: Text(
                   'Erreur : ${snap.error}',
-                  style: const TextStyle(color: Colors.red),
+                  style: TextStyle(color: AppColors.error),
                 ),
               ),
             );
@@ -313,17 +313,21 @@ class _WarningBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      color: const Color(0xFFFEF3C7),
+      // Pastille « information » du thème : fond pâle en clair, fond ambré
+      // foncé en sombre — avec son texte garanti lisible dans les deux.
+      color: AppColors.secondaryFixed,
       padding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.lg, vertical: AppSpacing.sm),
-      child: const Row(
+      child: Row(
         children: [
-          Icon(Icons.warning_amber_rounded, color: Color(0xFFF59E0B)),
-          SizedBox(width: AppSpacing.sm),
+          Icon(Icons.warning_amber_rounded,
+              color: AppColors.onSecondaryFixedVariant),
+          const SizedBox(width: AppSpacing.sm),
           Expanded(
             child: Text(
               "Cet EDL n'est pas encore finalisé. Le PDF contiendra le filigrane « APERÇU · NON FINALISÉ ».",
-              style: TextStyle(fontSize: 13, color: Color(0xFF92400E)),
+              style: TextStyle(
+                  fontSize: 13, color: AppColors.onSecondaryFixed),
             ),
           ),
         ],
@@ -382,9 +386,9 @@ class EdlDataSummaryCard extends StatelessWidget {
               width: 120,
               child: Text(
                 label,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 12,
-                  color: Colors.grey,
+                  color: AppColors.onSurfaceVariant,
                   fontWeight: FontWeight.w500,
                 ),
               ),

@@ -33,9 +33,13 @@ const _joursNoms = [
 ];
 const _joursAbbr = ['lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.', 'dim.'];
 
-// Couleurs de fond des créneaux.
-const _cPause = Color(0xFFFFF3C4); // jaune (pause / indisponible)
-const _cHors = Color(0xFFF0F0F3); // hachuré (hors plage)
+// Couleurs de fond des créneaux — issues du thème, pas figées : un jaune et
+// un gris clairs en dur restaient éclatants en thème sombre, avec par-dessus
+// un texte devenu clair lui aussi (donc illisible).
+//  • pause  → la famille « information/état » (ambre) ;
+//  • hors   → une simple surface neutre, plus haute que la case disponible.
+Color get _cPause => AppColors.secondaryFixed;
+Color get _cHors => AppColors.surfaceContainerHigh;
 
 enum AgendaView { liste, journee, semaine, mois }
 
@@ -948,7 +952,7 @@ class _PeriodPickerContentState extends State<_PeriodPickerContent> {
           ),
           child: Text('$d',
               style: AppTypography.bodyMd.copyWith(
-                  color: selected ? Colors.white : AppColors.onSurface,
+                  color: selected ? AppColors.onPrimary : AppColors.onSurface,
                   fontWeight:
                       selected ? FontWeight.bold : FontWeight.normal)),
         ),
@@ -1748,11 +1752,11 @@ class _RdvFormState extends State<_RdvForm> {
                 style: AppTheme.saveButtonStyle,
                 onPressed: _saving ? null : _save,
                 child: _saving
-                    ? const SizedBox(
+                    ? SizedBox(
                         width: 16,
                         height: 16,
                         child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white))
+                            strokeWidth: 2, color: AppColors.onTertiaryFixed))
                     : Text(_isEdit ? 'Enregistrer' : 'Créer'),
               ),
             ],
@@ -2000,11 +2004,11 @@ class _PlagesDialogState extends State<_PlagesDialog> {
           style: AppTheme.saveButtonStyle,
           onPressed: _saving ? null : _save,
           child: _saving
-              ? const SizedBox(
+              ? SizedBox(
                   width: 16,
                   height: 16,
                   child: CircularProgressIndicator(
-                      strokeWidth: 2, color: Colors.white))
+                      strokeWidth: 2, color: AppColors.onTertiaryFixed))
               : const Text('Enregistrer'),
         ),
       ],

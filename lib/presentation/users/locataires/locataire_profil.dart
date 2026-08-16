@@ -706,7 +706,7 @@ class _DashboardSection extends StatelessWidget {
                                   label: const Text('Rechercher une location'),
                                   style: FilledButton.styleFrom(
                                     backgroundColor: AppColors.primary,
-                                    foregroundColor: Colors.white,
+                                    foregroundColor: AppColors.onPrimary,
                                   ),
                                 ),
                               ),
@@ -1508,10 +1508,10 @@ class _ProfilSectionState extends State<_ProfilSection> {
                                         width: 2,
                                       ),
                                     ),
-                                    child: const Icon(
+                                    child: Icon(
                                       Icons.edit,
                                       size: 14,
-                                      color: Colors.white,
+                                      color: AppColors.onPrimary,
                                     ),
                                   ),
                               ],
@@ -3217,12 +3217,12 @@ class _PendingEdlCardState extends State<_PendingEdlCard> {
             child: FilledButton(
               onPressed: _accepting ? null : _accept,
               child: _accepting
-                  ? const SizedBox(
+                  ? SizedBox(
                       width: 16,
                       height: 16,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        color: Colors.white,
+                        color: AppColors.onPrimary,
                       ),
                     )
                   : const Text('Accepter et signer'),
@@ -3565,12 +3565,12 @@ class _EdlDetailPageState extends State<_EdlDetailPage> {
                                 child: FilledButton(
                                   onPressed: _accepting ? null : _accept,
                                   child: _accepting
-                                      ? const SizedBox(
+                                      ? SizedBox(
                                           width: 18,
                                           height: 18,
                                           child: CircularProgressIndicator(
                                             strokeWidth: 2,
-                                            color: Colors.white,
+                                            color: AppColors.onPrimary,
                                           ),
                                         )
                                       : const Text('Accepter et signer'),

@@ -35,7 +35,9 @@ const _categoryLabels = {
   'administration': 'Administration',
 };
 
-const _green = Color(0xFF2E7D32);
+/// Vert « actif / envoyé ». Passe par le token du thème : un vert foncé en
+/// dur devenait illisible sur fond sombre.
+Color get _green => AppColors.success;
 
 /// Pacote de dados carregados de uma só vez para a página.
 class _AdminData {
@@ -1553,7 +1555,7 @@ class _PasswordDialogState extends State<_PasswordDialog> {
                     const SizedBox(height: AppSpacing.xs),
                     Row(
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.check_circle_outline,
                           size: 15,
                           color: _green,

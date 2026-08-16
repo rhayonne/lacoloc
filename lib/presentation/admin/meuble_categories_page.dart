@@ -415,11 +415,11 @@ class _CategoryFormState extends State<_CategoryForm> {
                       onPressed: _isSubmitting ? null : trySubmit,
                       style: AppTheme.saveButtonStyle,
                       icon: _isSubmitting
-                          ? const SizedBox(
+                          ? SizedBox(
                               width: 16,
                               height: 16,
                               child: CircularProgressIndicator(
-                                  strokeWidth: 2, color: Colors.white),
+                                  strokeWidth: 2, color: AppColors.onTertiaryFixed),
                             )
                           : const Icon(Icons.save_outlined),
                       label:

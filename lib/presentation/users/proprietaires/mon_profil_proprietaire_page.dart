@@ -231,10 +231,10 @@ class _ProfilFormState extends State<_ProfilForm> {
                                         width: 2,
                                       ),
                                     ),
-                                    child: const Icon(
+                                    child: Icon(
                                       Icons.edit,
                                       size: 14,
-                                      color: Colors.white,
+                                      color: AppColors.onPrimary,
                                     ),
                                   ),
                               ],

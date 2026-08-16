@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:habitafrance/presentation/nav/app_sidebar.dart';
+import 'package:habitafrance/presentation/widgets/theme_mode_toggle.dart';
 import 'package:habitafrance/theme/app_colors.dart';
 import 'package:habitafrance/theme/app_radius.dart';
 import 'package:habitafrance/theme/app_typography.dart';
@@ -161,6 +162,10 @@ class AppNavSidebar extends StatelessWidget {
               ),
               const Divider(height: 1),
               if (footerBuilder != null) footerBuilder!(context, extended),
+              // Bascule clair/sombre : rendue ICI (et dans `AppSidebar`) pour
+              // qu'elle existe dans toutes les coquilles — y compris l'accueil
+              // public — sans que chaque page ait à y penser.
+              ThemeModeToggle(extended: extended),
               if (showToggleButton) ...[
                 const Divider(height: 1, indent: 12, endIndent: 12),
                 const SizedBox(height: 4),
@@ -440,7 +445,8 @@ class _NavRow extends StatelessWidget {
       iconW = Badge(
         label: Text(count > 99 ? '99+' : '$count'),
         backgroundColor: AppColors.error,
-        textColor: Colors.white,
+        // Jamais du blanc en dur : en thème sombre le rouge est CLAIR.
+        textColor: AppColors.onError,
         child: iconW,
       );
     }
@@ -510,7 +516,7 @@ class _MiniBadge extends StatelessWidget {
       ),
       child: Text(
         count > 99 ? '99+' : '$count',
-        style: AppTypography.labelSm.copyWith(color: Colors.white),
+        style: AppTypography.labelSm.copyWith(color: AppColors.onError),
       ),
     );
   }

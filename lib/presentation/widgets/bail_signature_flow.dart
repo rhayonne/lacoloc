@@ -4,6 +4,7 @@ import 'package:habitafrance/data/datasources/notifications.dart';
 import 'package:habitafrance/data/datasources/signatures.dart';
 import 'package:habitafrance/data/models/etat_de_lieux.dart';
 import 'package:habitafrance/presentation/users/proprietaires/bail_pdf_data.dart';
+import 'package:habitafrance/theme/app_colors.dart';
 import 'package:habitafrance/theme/app_theme.dart';
 import 'package:habitafrance/utils/signature_pad.dart';
 
@@ -183,8 +184,13 @@ Future<EtatDesLieuxModel?> ensureBailSignature(
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Impossible d\'enregistrer la signature : $e'),
-          backgroundColor: Colors.red,
+          content: Text(
+            'Impossible d\'enregistrer la signature : $e',
+            // Le thème peint le texte des snackbars pour un fond neutre ;
+            // ici le fond est la couleur d'erreur, donc son propre « on ».
+            style: TextStyle(color: AppColors.onError),
+          ),
+          backgroundColor: AppColors.error,
         ),
       );
     }

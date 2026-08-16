@@ -1053,12 +1053,12 @@ class _GarantFormWithBackState extends State<_GarantFormWithBack> {
                             onPressed: _isSubmitting ? null : _submit,
                             style: AppTheme.saveButtonStyle,
                             icon: _isSubmitting
-                                ? const SizedBox(
+                                ? SizedBox(
                                     width: 16,
                                     height: 16,
                                     child: CircularProgressIndicator(
                                         strokeWidth: 2,
-                                        color: Colors.white))
+                                        color: AppColors.onTertiaryFixed))
                                 : const Icon(Icons.save_outlined, size: 18),
                             label: Text(_isEditing
                                 ? 'Enregistrer'

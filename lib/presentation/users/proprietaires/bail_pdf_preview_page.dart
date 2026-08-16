@@ -124,7 +124,7 @@ class _BailPdfPreviewPageState extends State<BailPdfPreviewPage> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                    Icon(Icons.error_outline, size: 48, color: AppColors.error),
                     const SizedBox(height: AppSpacing.md),
                     Text('Impossible de générer le bail :',
                         style: AppTypography.titleLg),
