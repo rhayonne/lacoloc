@@ -34,12 +34,63 @@ class NavChild {
   final int count;
   final VoidCallback onTap;
 
+  /// Icône du sous-menu, **visible quand la barre est repliée** : c'est le seul
+  /// moyen de savoir où l'on se trouve une fois les libellés masqués. Sans
+  /// elle, un groupe replié affichait uniquement son icône de groupe et
+  /// l'utilisateur perdait le niveau où il était.
+  final IconData? icon;
+
   const NavChild({
     required this.label,
     required this.onTap,
     this.selected = false,
     this.count = 0,
+    this.icon,
   });
+
+  /// Icône à afficher, avec un repli déduit du libellé quand l'appelant n'en
+  /// fournit pas — il vaut mieux une icône approximative que rien du tout.
+  IconData get effectiveIcon => icon ?? _iconeDepuisLibelle(label);
+}
+
+/// Association libellé → icône pour les sous-menus qui n'en déclarent pas.
+/// Volontairement courte : elle couvre les intitulés réellement utilisés dans
+/// l'app, et retombe sur une icône neutre au lieu d'inventer.
+IconData _iconeDepuisLibelle(String label) {
+  final l = label.toLowerCase();
+  if (l.contains('thème')) return Icons.palette_outlined;
+  if (l.contains('email') || l.contains('e-mail')) return Icons.mail_outlined;
+  if (l.contains('groupe')) return Icons.groups_outlined;
+  if (l.contains('utilisateur')) return Icons.people_outlined;
+  if (l.contains('message') || l.contains('discussion')) {
+    return Icons.chat_bubble_outline;
+  }
+  if (l.contains('historique')) return Icons.history;
+  if (l.contains('connexion')) return Icons.login_outlined;
+  if (l.contains('service')) return Icons.build_outlined;
+  if (l.contains('meuble')) return Icons.chair_outlined;
+  if (l.contains('catégorie')) return Icons.category_outlined;
+  if (l.contains('charge')) return Icons.receipt_long_outlined;
+  if (l.contains('propriété') || l.contains('immeuble')) {
+    return Icons.apartment_outlined;
+  }
+  if (l.contains('chambre')) return Icons.bed_outlined;
+  if (l.contains('inventaire')) return Icons.inventory_2_outlined;
+  if (l.contains('lot')) return Icons.grid_view_outlined;
+  if (l.contains('entrée')) return Icons.login_outlined;
+  if (l.contains('sortie')) return Icons.logout_outlined;
+  if (l.contains('vétusté')) return Icons.trending_down;
+  if (l.contains('générale') || l.contains('vision')) {
+    return Icons.dashboard_outlined;
+  }
+  if (l.contains('recette')) return Icons.payments_outlined;
+  if (l.contains('facture') || l.contains('dépense')) {
+    return Icons.receipt_outlined;
+  }
+  if (l.contains('bail') || l.contains('baux')) return Icons.description_outlined;
+  if (l.contains('signature')) return Icons.draw_outlined;
+  if (l.contains('garant')) return Icons.shield_outlined;
+  return Icons.subdirectory_arrow_right;
 }
 
 const double _childRowH = 40;
@@ -171,6 +222,42 @@ class _NavEntryTile extends StatelessWidget {
             ],
           ),
         ),
+      );
+    }
+
+    // Groupe sélectionné mais barre repliée : on montre l'icône du groupe ET
+    // celle du sous-menu courant. Sans ce second niveau, replier la barre
+    // effaçait l'information « où suis-je », alors que c'est justement l'état
+    // dans lequel on a le moins de repères.
+    if (!extended && entry.isGroup && entry.selected) {
+      final courant = entry.children.where((c) => c.selected).firstOrNull;
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _NavRow(
+            icon: entry.icon,
+            label: entry.label,
+            selected: false,
+            highlight: true,
+            count: entry.count,
+            extended: false,
+            onTap: () {
+              onExpandSidebar();
+              entry.onTap();
+            },
+          ),
+          if (courant != null)
+            _NavRow(
+              icon: courant.effectiveIcon,
+              label: '${entry.label} · ${courant.label}',
+              selected: true,
+              highlight: true,
+              count: courant.count,
+              extended: false,
+              dense: true,
+              onTap: courant.onTap,
+            ),
+        ],
       );
     }
 
@@ -324,6 +411,11 @@ class _NavRow extends StatelessWidget {
   // fournit déjà) → alignement propre du fond.
   final bool noOuterMargin;
 
+  /// Ligne de second niveau (sous-menu affiché barre repliée) : icône plus
+  /// petite et hauteur réduite, pour se lire comme un enfant et non comme un
+  /// menu de plus.
+  final bool dense;
+
   const _NavRow({
     required this.icon,
     required this.label,
@@ -334,6 +426,7 @@ class _NavRow extends StatelessWidget {
     required this.onTap,
     this.trailing,
     this.noOuterMargin = false,
+    this.dense = false,
   });
 
   @override
@@ -342,7 +435,7 @@ class _NavRow extends StatelessWidget {
         ? AppColors.primary
         : AppColors.onSurfaceVariant;
 
-    Widget iconW = Icon(icon, size: 20, color: color);
+    Widget iconW = Icon(icon, size: dense ? 16 : 20, color: color);
     if (count > 0) {
       iconW = Badge(
         label: Text(count > 99 ? '99+' : '$count'),
@@ -363,7 +456,8 @@ class _NavRow extends StatelessWidget {
           borderRadius: AppRadius.borderMd,
           hoverColor: AppColors.navHover,
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+            padding: EdgeInsets.symmetric(
+                horizontal: 8, vertical: dense ? 6 : 10),
             decoration: BoxDecoration(
               borderRadius: AppRadius.borderMd,
               color: selected ? AppColors.navItemSelected : null,
