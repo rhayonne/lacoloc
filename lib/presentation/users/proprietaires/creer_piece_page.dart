@@ -8,11 +8,13 @@ import 'package:image_picker/image_picker.dart';
 import 'package:habitafrance/data/datasources/pieces.dart';
 import 'package:habitafrance/data/datasources/storage_service.dart';
 import 'package:habitafrance/data/models/piece.dart';
+import 'package:habitafrance/presentation/widgets/app_button.dart';
 import 'package:habitafrance/presentation/widgets/form_page_header.dart';
 import 'package:habitafrance/theme/app_colors.dart';
 import 'package:habitafrance/theme/app_radius.dart';
 import 'package:habitafrance/theme/app_spacing.dart';
 import 'package:habitafrance/theme/app_typography.dart';
+import 'package:habitafrance/utils/responsive_form_wrapper.dart';
 
 const _nomsSuggeres = [
   'Cuisine',
@@ -123,82 +125,84 @@ class _CreerPiecePageState extends State<CreerPiecePage> {
             ),
             Expanded(
               child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(AppSpacing.lg),
-            child: Container(
-              constraints: const BoxConstraints(maxWidth: 560),
-              child: FormBuilder(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // ── Nom ──────────────────────────────────────────────
-                    _label('NOM DE LA PIÈCE'),
-                    FormBuilderTypeAhead<String>(
-                      name: 'nom',
-                      initialValue: widget.existing?.nom,
-                      decoration: const InputDecoration(
-                        hintText: 'ex : Cuisine, Salon, Salle de bain…',
-                      ),
-                      validator: FormBuilderValidators.required(
-                        errorText: 'Champ obligatoire',
-                      ),
-                      itemBuilder: (context, suggestion) => ListTile(
-                        dense: true,
-                        title: Text(suggestion),
-                      ),
-                      suggestionsCallback: (pattern) {
-                        if (pattern.isEmpty) return _nomsSuggeres;
-                        final q = pattern.toLowerCase();
-                        return _nomsSuggeres
-                            .where((n) => n.toLowerCase().contains(q))
-                            .toList();
-                      },
-                    ),
-                    const SizedBox(height: AppSpacing.md),
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(AppSpacing.lg),
+                  child: ResponsiveFormWrapper(
+                    maxWidth: 560,
+                    child: FormBuilder(
+                      key: _formKey,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // ── Nom ──────────────────────────────────────────────
+                          _label('NOM DE LA PIÈCE'),
+                          FormBuilderTypeAhead<String>(
+                            name: 'nom',
+                            initialValue: widget.existing?.nom,
+                            decoration: const InputDecoration(
+                              hintText: 'ex : Cuisine, Salon, Salle de bain…',
+                            ),
+                            validator: FormBuilderValidators.required(
+                              errorText: 'Champ obligatoire',
+                            ),
+                            itemBuilder: (context, suggestion) =>
+                                ListTile(dense: true, title: Text(suggestion)),
+                            suggestionsCallback: (pattern) {
+                              if (pattern.isEmpty) return _nomsSuggeres;
+                              final q = pattern.toLowerCase();
+                              return _nomsSuggeres
+                                  .where((n) => n.toLowerCase().contains(q))
+                                  .toList();
+                            },
+                          ),
+                          const SizedBox(height: AppSpacing.md),
 
-                    // ── Metragem ─────────────────────────────────────────
-                    _label('SUPERFICIE (m²)'),
-                    FormBuilderTextField(
-                      name: 'm2',
-                      initialValue: widget.existing?.m2?.toStringAsFixed(0),
-                      decoration: const InputDecoration(hintText: 'ex : 18'),
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
+                          // ── Metragem ─────────────────────────────────────────
+                          _label('SUPERFICIE (m²)'),
+                          FormBuilderTextField(
+                            name: 'm2',
+                            initialValue: widget.existing?.m2?.toStringAsFixed(
+                              0,
+                            ),
+                            decoration: const InputDecoration(
+                              hintText: 'ex : 18',
+                            ),
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
+                          ),
+                          const SizedBox(height: AppSpacing.md),
+
+                          // ── Description ──────────────────────────────────────
+                          _label('DESCRIPTION'),
+                          FormBuilderTextField(
+                            name: 'description',
+                            initialValue: widget.existing?.description,
+                            decoration: const InputDecoration(
+                              hintText:
+                                  'Décrivez cette pièce (équipements, état, etc.)',
+                              alignLabelWithHint: true,
+                            ),
+                            minLines: 3,
+                            maxLines: 6,
+                          ),
+                          const SizedBox(height: AppSpacing.lg),
+
+                          // ── Photos ───────────────────────────────────────────
+                          _label('PHOTOS'),
+                          _PiecePhotoPickerField(
+                            immeubleId: widget.immeubleId,
+                            photos: _photos,
+                            onChanged: (photos) =>
+                                setState(() => _photos = photos),
+                          ),
+                          const SizedBox(height: AppSpacing.xl),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: AppSpacing.md),
-
-                    // ── Description ──────────────────────────────────────
-                    _label('DESCRIPTION'),
-                    FormBuilderTextField(
-                      name: 'description',
-                      initialValue: widget.existing?.description,
-                      decoration: const InputDecoration(
-                        hintText:
-                            'Décrivez cette pièce (équipements, état, etc.)',
-                        alignLabelWithHint: true,
-                      ),
-                      minLines: 3,
-                      maxLines: 6,
-                    ),
-                    const SizedBox(height: AppSpacing.lg),
-
-                    // ── Photos ───────────────────────────────────────────
-                    _label('PHOTOS'),
-                    _PiecePhotoPickerField(
-                      immeubleId: widget.immeubleId,
-                      photos: _photos,
-                      onChanged: (photos) =>
-                          setState(() => _photos = photos),
-                    ),
-                    const SizedBox(height: AppSpacing.xl),
-                  ],
+                  ),
                 ),
               ),
-            ),
-          ),
-            ),
             ),
           ],
         ),
@@ -350,11 +354,7 @@ class _PiecePhotoPickerFieldState extends State<_PiecePhotoPickerField> {
         // Dica de estrela (sempre visível, antes do botão)
         Row(
           children: [
-            Icon(
-              Icons.star_rounded,
-              size: 16,
-              color: AppColors.secondary,
-            ),
+            Icon(Icons.star_rounded, size: 16, color: AppColors.secondary),
             const SizedBox(width: 6),
             Expanded(
               child: Text(
@@ -369,18 +369,11 @@ class _PiecePhotoPickerFieldState extends State<_PiecePhotoPickerField> {
         const SizedBox(height: AppSpacing.sm),
 
         // Botão adicionar
-        OutlinedButton.icon(
+        AppButton.primary(
+          icon: Icons.add_photo_alternate_outlined,
+          label: _uploading ? 'Téléversement…' : 'Ajouter des photos',
+          isBusy: _uploading,
           onPressed: _uploading ? null : _onAddTap,
-          icon: _uploading
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.add_photo_alternate_outlined),
-          label: Text(
-            _uploading ? 'Téléversement…' : 'Ajouter des photos',
-          ),
         ),
 
         if (_errorMsg != null) ...[
@@ -446,10 +439,8 @@ class _PieceThumbnail extends StatelessWidget {
               imageUrl: photo.url,
               fit: BoxFit.cover,
               placeholder: (_, _) => const SizedBox.shrink(),
-              errorWidget: (_, _, _) => Icon(
-                Icons.broken_image_outlined,
-                color: AppColors.outline,
-              ),
+              errorWidget: (_, _, _) =>
+                  Icon(Icons.broken_image_outlined, color: AppColors.outline),
             ),
           ),
         ),
@@ -484,9 +475,7 @@ class _PieceThumbnail extends StatelessWidget {
                 isMarked ? Icons.star_rounded : Icons.star_border_rounded,
                 size: 22,
                 color: isMarked ? AppColors.secondary : Colors.white,
-                shadows: const [
-                  Shadow(color: Colors.black54, blurRadius: 6),
-                ],
+                shadows: const [Shadow(color: Colors.black54, blurRadius: 6)],
               ),
             ),
           ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:habitafrance/theme/app_button_sizes.dart';
 import 'package:habitafrance/theme/app_spacing.dart';
 import 'package:habitafrance/theme/app_theme.dart';
 import 'package:habitafrance/theme/app_typography.dart';
@@ -7,8 +8,20 @@ import 'package:habitafrance/theme/app_typography.dart';
 ///
 /// Rendu unifié via [AppTheme.barDecoration] : fond distinct du fond de page +
 /// ombre portée en bas (voir les tokens dans `AppColors` / `AppTheme`).
-/// **Utiliser CE widget partout où l'on a une barre de titre** (liste, section,
-/// formulaire…). Le modèle de référence est la barre « Fournisseurs ».
+///
+/// ## Règle du projet (non négociable)
+///
+/// **Toute** barre de titre passe par CE widget — liste, section, messagerie,
+/// fiche… Il n'existe pas de « petite barre » écrite à la main pour un écran
+/// particulier. Ce qui change d'un écran à l'autre, ce sont **les actions**
+/// ([trailing]) : le gabarit, lui, est le même partout.
+///
+/// C'est pour cela que la barre impose une **hauteur minimale** égale à celle
+/// d'un bouton standard ([AppButtonSizes.standard]) : sans elle, un écran sans
+/// action (« Messages ») rendait une barre visiblement plus basse qu'un écran
+/// avec boutons (« Mes Propriétés »), et le passage de l'un à l'autre faisait
+/// sauter la mise en page. La barre garde donc le même gabarit qu'elle porte
+/// des boutons ou non.
 ///
 /// [FormPageHeader] délègue à ce widget (mêmes styles) et ajoute les actions
 /// standard des écrans d'édition ([FormHeaderActions]).
@@ -128,15 +141,24 @@ class AppTopBar extends StatelessWidget {
               ],
             );
           }
-          return Row(
-            children: [
-              if (effectiveLeading != null) ...[
-                effectiveLeading,
-                const SizedBox(width: AppSpacing.md),
+          // Hauteur minimale = celle d'un bouton standard, même sans action :
+          // sinon une barre sans boutons (« Messages ») est plus basse qu'une
+          // barre avec boutons (« Mes Propriétés ») et la mise en page saute
+          // d'un écran à l'autre.
+          return ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: AppButtonSizes.standard.height,
+            ),
+            child: Row(
+              children: [
+                if (effectiveLeading != null) ...[
+                  effectiveLeading,
+                  const SizedBox(width: AppSpacing.md),
+                ],
+                Expanded(child: titleBlock),
+                ?trailing,
               ],
-              Expanded(child: titleBlock),
-              ?trailing,
-            ],
+            ),
           );
         },
       ),

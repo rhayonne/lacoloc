@@ -45,22 +45,12 @@ class DemandeContactModel {
   final bool contactEtabli;
   final StatutDemande statut;
 
-  // Dados do locataire (join)
-  final String? locataireFullName;
-  final String? locataireEmail;
-  final String? locatairePhone;
-  final int? locataireAge;
-  final DateTime? locataireDateOfBirth;
-
   // Dados da chambre/immeuble (join)
   final String? chambreName;
   final String? immeubleName;
 
   /// `Immeubles.owner_id` — l'autre partie du fil de discussion vue du locataire.
   final String? proprietaireId;
-
-  /// `Users_Client` du proprietaire (join sur Immeubles → owner).
-  final String? proprietaireFullName;
 
   const DemandeContactModel({
     required this.id,
@@ -70,15 +60,9 @@ class DemandeContactModel {
     this.immeubleId,
     required this.contactEtabli,
     this.statut = StatutDemande.nouveau,
-    this.locataireFullName,
-    this.locataireEmail,
-    this.locatairePhone,
-    this.locataireAge,
-    this.locataireDateOfBirth,
     this.chambreName,
     this.immeubleName,
     this.proprietaireId,
-    this.proprietaireFullName,
   });
 
   /// L'interlocuteur de [userId] dans ce fil : si je suis le locataire, c'est le
@@ -90,37 +74,26 @@ class DemandeContactModel {
     return null;
   }
 
-  /// Nom affichable de l'interlocuteur de [userId].
-  String interlocuteurNom(String? userId) {
-    if (userId != null && userId == locataireId) {
-      return proprietaireFullName ?? 'Le propriétaire';
-    }
-    return locataireFullName ?? 'Le locataire';
-  }
+  /// Le bien concerné, tel qu'affiché partout : « Chambre 1 — APT test coloc ».
+  String get bienLabel => [chambreName, immeubleName]
+      .where((s) => s != null && s.isNotEmpty)
+      .join(' — ');
 
   /// Le fil de discussion est-il ouvert ? **Toujours** désormais : la
   /// messagerie ne requiert plus d'acceptation préalable (une demande = un fil
   /// ouvert entre les deux parties). Conservé pour compat UI.
   bool get discussionOuverte => true;
 
-  /// Idade calculada a partir da data de nascimento; fallback para o campo age.
-  int? get calculatedAge {
-    final dob = locataireDateOfBirth;
-    if (dob == null) return locataireAge;
-    final now = DateTime.now();
-    int age = now.year - dob.year;
-    if (now.month < dob.month ||
-        (now.month == dob.month && now.day < dob.day)) {
-      age--;
-    }
-    return age;
-  }
-
+  /// ⚠️ **Aucune donnée personnelle de la contrepartie ici.** Nom, âge,
+  /// téléphone et e-mail de l'autre partie ne sont plus embarqués dans la
+  /// requête : ils viennent de la RPC `demande_counterpart_profiles`, qui
+  /// applique les préférences de visibilité **côté serveur**
+  /// (`DemandesContactDatasource.counterpartProfiles`). Un champ masqué n'est
+  /// donc jamais transmis — et une simple demande de contact ne donne plus
+  /// accès à la fiche complète de personne.
   factory DemandeContactModel.fromJson(Map<String, dynamic> json) {
-    final locataire = json['Users_Client'] as Map<String, dynamic>?;
     final chambre = json['Chambres'] as Map<String, dynamic>?;
     final immeuble = json['Immeubles'] as Map<String, dynamic>?;
-    final proprio = immeuble?['owner'] as Map<String, dynamic>?;
 
     return DemandeContactModel(
       id: json['id'] as int,
@@ -130,37 +103,23 @@ class DemandeContactModel {
       immeubleId: json['immeuble_id'] as int?,
       contactEtabli: (json['contact_etabli'] as bool?) ?? false,
       statut: StatutDemande.fromCode(json['statut'] as String?),
-      locataireFullName: locataire?['full_name'] as String?,
-      locataireEmail: locataire?['email'] as String?,
-      locatairePhone: locataire?['phone'] as String?,
-      locataireAge: locataire?['age'] as int?,
-      locataireDateOfBirth: locataire?['date_of_birth'] != null
-          ? DateTime.parse(locataire!['date_of_birth'] as String)
-          : null,
       chambreName: chambre?['room_name'] as String?,
       immeubleName: immeuble?['name'] as String?,
       proprietaireId: immeuble?['owner_id'] as String?,
-      proprietaireFullName: proprio?['full_name'] as String?,
     );
   }
 
   DemandeContactModel copyWith({bool? contactEtabli, StatutDemande? statut}) =>
       DemandeContactModel(
-    id: id,
-    createdAt: createdAt,
-    locataireId: locataireId,
-    chambreId: chambreId,
-    immeubleId: immeubleId,
-    contactEtabli: contactEtabli ?? this.contactEtabli,
-    statut: statut ?? this.statut,
-    locataireFullName: locataireFullName,
-    locataireEmail: locataireEmail,
-    locatairePhone: locatairePhone,
-    locataireAge: locataireAge,
-    locataireDateOfBirth: locataireDateOfBirth,
-    chambreName: chambreName,
-    immeubleName: immeubleName,
-    proprietaireId: proprietaireId,
-    proprietaireFullName: proprietaireFullName,
-  );
+        id: id,
+        createdAt: createdAt,
+        locataireId: locataireId,
+        chambreId: chambreId,
+        immeubleId: immeubleId,
+        contactEtabli: contactEtabli ?? this.contactEtabli,
+        statut: statut ?? this.statut,
+        chambreName: chambreName,
+        immeubleName: immeubleName,
+        proprietaireId: proprietaireId,
+      );
 }

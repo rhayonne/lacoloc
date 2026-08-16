@@ -1,7 +1,12 @@
 /// Un message d'un fil de discussion rattaché à une demande de contact.
 ///
-/// Le fil s'ouvre quand le proprietaire accepte la demande
-/// (`Demandes_Contact.contact_etabli = true`) — avant, la RLS refuse l'insertion.
+/// Le fil est ouvert dès qu'une demande existe (plus d'acceptation préalable) ;
+/// la RLS de `Messages` autorise `auth.uid() IN (sender_id, recipient_id)`.
+///
+/// **Pas de nom d'expéditeur ici** : l'identité de l'autre partie passe par la
+/// RPC `demande_counterpart_profiles`, qui applique ses préférences de
+/// visibilité. Le fil affiche déjà l'interlocuteur dans son en-tête, et une
+/// bulle se reconnaît à son côté ([isMine]).
 class MessageModel {
   final int id;
   final int demandeId;
@@ -11,9 +16,6 @@ class MessageModel {
   final DateTime createdAt;
   final DateTime? readAt;
 
-  /// Nom de l'expéditeur (embed `Users_Client!sender_id(full_name)`).
-  final String? senderName;
-
   const MessageModel({
     required this.id,
     required this.demandeId,
@@ -22,7 +24,6 @@ class MessageModel {
     required this.body,
     required this.createdAt,
     this.readAt,
-    this.senderName,
   });
 
   bool get isRead => readAt != null;
@@ -31,7 +32,6 @@ class MessageModel {
   bool isMine(String? userId) => userId != null && senderId == userId;
 
   factory MessageModel.fromJson(Map<String, dynamic> json) {
-    final sender = json['sender'] as Map<String, dynamic>?;
     return MessageModel(
       id: json['id'] as int,
       demandeId: json['demande_id'] as int,
@@ -42,7 +42,6 @@ class MessageModel {
       readAt: json['read_at'] != null
           ? DateTime.parse(json['read_at'] as String)
           : null,
-      senderName: sender?['full_name'] as String?,
     );
   }
 }

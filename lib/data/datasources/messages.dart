@@ -13,7 +13,10 @@ class MessagesDatasource {
 
   static final _db = Supabase.instance.client;
   static const _table = 'Messages';
-  static const _select = '*, sender:Users_Client!sender_id(full_name)';
+  // Pas d'embed `Users_Client` : depuis la suppression de la politique de
+  // lecture croisée, il ne renverrait rien pour l'autre partie — et l'identité
+  // de l'interlocuteur vient de `demande_counterpart_profiles`.
+  static const _select = '*';
 
   static final _cache = DataCache.instance;
   static void _invalidate() => _cache.invalidatePrefix(CacheKeys.messages);

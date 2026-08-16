@@ -254,6 +254,19 @@ class _FilterPanelState extends State<FilterPanel> {
     final active = widget.filter.activeCount;
     final isOpen = _portalCtrl.isShowing;
 
+    final filterBtn = CompositedTransformTarget(
+      link: _link,
+      child: OverlayPortal(
+        controller: _portalCtrl,
+        overlayChildBuilder: _buildOverlay,
+        child: FilterButton(
+          isOpen: isOpen,
+          activeCount: active,
+          onTap: _toggle,
+        ),
+      ),
+    );
+
     // ── Bouton « Filtres » (déclencheur) ────────────────────────────────────
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -265,30 +278,30 @@ class _FilterPanelState extends State<FilterPanel> {
             AppSpacing.lg,
             AppSpacing.sm,
           ),
-          child: Row(
-            children: [
-              CompositedTransformTarget(
-                link: _link,
-                child: OverlayPortal(
-                  controller: _portalCtrl,
-                  overlayChildBuilder: _buildOverlay,
-                  child: FilterButton(
-                    isOpen: isOpen,
-                    activeCount: active,
-                    onTap: _toggle,
+          child: widget.trailing != null && widget.trailingAtStart
+              // Bouton « Filtres » + trailing collé (ex. toggles Location/
+              // Colocation de l'accueil) : leur largeur cumulée dépasse un
+              // écran mobile (375-414px) — défilement horizontal plutôt
+              // qu'un débordement (RenderFlex overflow).
+              ? SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      filterBtn,
+                      const SizedBox(width: AppSpacing.sm),
+                      widget.trailing!,
+                    ],
                   ),
+                )
+              : Row(
+                  children: [
+                    filterBtn,
+                    if (widget.trailing != null) ...[
+                      const Spacer(),
+                      widget.trailing!,
+                    ],
+                  ],
                 ),
-              ),
-            if (widget.trailing != null && widget.trailingAtStart) ...[
-              const SizedBox(width: AppSpacing.sm),
-              widget.trailing!,
-            ],
-            if (widget.trailing != null && !widget.trailingAtStart) ...[
-              const Spacer(),
-              widget.trailing!,
-            ],
-          ],
-          ),
         ),
         const Divider(height: 1),
       ],

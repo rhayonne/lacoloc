@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:habitafrance/data/datasources/themes.dart';
 import 'package:habitafrance/data/models/theme_ref.dart';
+import 'package:habitafrance/presentation/widgets/app_button.dart';
 import 'package:habitafrance/presentation/widgets/color_input_field.dart';
 import 'package:habitafrance/presentation/widgets/theme_preview.dart';
 import 'package:habitafrance/theme/app_colors.dart';
 import 'package:habitafrance/theme/app_radius.dart';
 import 'package:habitafrance/theme/app_spacing.dart';
-import 'package:habitafrance/theme/app_theme.dart';
 import 'package:habitafrance/theme/app_typography.dart';
 import 'package:habitafrance/theme/palette_builder.dart';
 
@@ -90,7 +90,9 @@ class _ThemeFormState extends State<_ThemeForm> {
     }
     final code = _isEditing ? widget.existing!.code : _slug(label);
     if (code.isEmpty) {
-      _snack('Ce nom ne permet pas de créer un identifiant. Utilisez des lettres.');
+      _snack(
+        'Ce nom ne permet pas de créer un identifiant. Utilisez des lettres.',
+      );
       return;
     }
     setState(() => _saving = true);
@@ -115,8 +117,8 @@ class _ThemeFormState extends State<_ThemeForm> {
       }
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
-      final msg = e.toString().contains('duplicate') ||
-              e.toString().contains('unique')
+      final msg =
+          e.toString().contains('duplicate') || e.toString().contains('unique')
           ? 'Un thème porte déjà ce nom. Choisissez-en un autre.'
           : 'Erreur : $e';
       _snack(msg);
@@ -271,23 +273,15 @@ class _ThemeFormState extends State<_ThemeForm> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                OutlinedButton(
+                AppButton.cancel(
+                  label: 'Annuler',
                   onPressed: _saving ? null : () => Navigator.pop(context),
-                  style: AppTheme.cancelButtonStyle,
-                  child: const Text('Annuler'),
                 ),
                 const SizedBox(width: AppSpacing.sm),
-                FilledButton.icon(
+                AppButton.save(
+                  label: _isEditing ? 'Enregistrer' : 'Créer le thème',
+                  isBusy: _saving,
                   onPressed: _saving ? null : _save,
-                  style: AppTheme.saveButtonStyle,
-                  icon: _saving
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.check, size: 18),
-                  label: Text(_isEditing ? 'Enregistrer' : 'Créer le thème'),
                 ),
               ],
             ),

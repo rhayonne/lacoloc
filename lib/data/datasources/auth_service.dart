@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:habitafrance/data/models/profile_visibility.dart';
 import 'package:habitafrance/data/models/theme_ref.dart';
 import 'package:habitafrance/data/models/users_client.dart';
 import 'package:habitafrance/theme/theme_controller.dart';
@@ -156,11 +157,18 @@ class AuthService {
     }
   }
 
-  /// Notifica o admin (FORM_NEW_PROPRIETAIRE) sobre novo cadastro de proprietaire.
+  /// Notifica o admin sobre novo cadastro de proprietaire.
   /// Falha silenciosamente — não bloqueia o fluxo principal.
+  ///
+  /// Só `email` e `note` vão para o servidor: o **nome e o telefone são
+  /// relidos de `Users_Client`** pela edge function (service role). Enviá-los
+  /// daqui não teria efeito e daria a falsa impressão de que o conteúdo do
+  /// e-mail vem do cliente — foi essa confiança que permitia injetar HTML na
+  /// caixa do administrador. Os parâmetros continuam aceites (opcionais) para
+  /// não quebrar chamadores antigos, mas são **ignorados**.
   static Future<void> notifyProprietaireRegistration({
-    required String fullName,
     required String email,
+    String? fullName,
     String? phone,
     String? note,
   }) async {
@@ -168,9 +176,7 @@ class AuthService {
       await _client.functions.invoke(
         'notify-proprietaire',
         body: {
-          'fullName': fullName,
           'email': email,
-          if (phone != null && phone.isNotEmpty) 'phone': phone,
           if (note != null && note.isNotEmpty) 'note': note,
         },
       );
@@ -197,6 +203,25 @@ class AuthService {
     }
     if (updates.isEmpty) return;
     await _client.from(_profileTable).update(updates).eq('id', user.id);
+  }
+
+  /// Enregistre les champs que l'utilisateur accepte de montrer à l'autre
+  /// partie (`Users_Client.profile_visibility`).
+  ///
+  /// Lève si l'écriture échoue : un choix de confidentialité perdu en silence
+  /// ferait croire à l'utilisateur qu'un champ est masqué alors qu'il ne l'est
+  /// pas. **Rétro-compat** : sur une base sans la migration
+  /// `20260815174659_users_client_profile_visibility`, l'appel échoue
+  /// explicitement (colonne inconnue) — l'écran le signale.
+  static Future<void> updateProfileVisibility(
+    ProfileVisibility visibility,
+  ) async {
+    final user = currentUser;
+    if (user == null) return;
+    await _client
+        .from(_profileTable)
+        .update({'profile_visibility': visibility.toJson()})
+        .eq('id', user.id);
   }
 
   /// Carrega o perfil atual incluindo o join com User_Types_Reference.

@@ -1,16 +1,24 @@
+import 'package:habitafrance/data/models/profile_visibility.dart';
+
 /// Tipos possíveis de cliente da plataforma.
 /// O [raw] corresponde ao campo `code` em `User_Types_Reference`.
 enum UserType {
   locataire,
   proprietaire,
   adminGroupe,
-  superAdmin;
+  superAdmin,
+
+  /// Équipe HabitaFrance : administre et fait du support, sans pouvoir
+  /// supprimer un compte ni créer un autre administrateur (règles tenues par
+  /// des triggers en base, pas seulement par l'interface).
+  adminSysteme;
 
   String get raw => switch (this) {
         UserType.locataire => 'locataire',
         UserType.proprietaire => 'proprietaire',
         UserType.adminGroupe => 'admin_groupe',
         UserType.superAdmin => 'super_admin',
+        UserType.adminSysteme => 'admin_systeme',
       };
 
   static UserType? tryParse(String? raw) {
@@ -20,6 +28,7 @@ enum UserType {
       'proprietaire' => UserType.proprietaire,
       'admin_groupe' => UserType.adminGroupe,
       'super_admin' => UserType.superAdmin,
+      'admin_systeme' => UserType.adminSysteme,
       _ => null,
     };
   }
@@ -63,6 +72,10 @@ class UsersClient {
   final int? groupId;
   final int? entrepriseId;
 
+  /// Champs que l'utilisateur accepte de montrer à l'autre partie
+  /// (`Users_Client.profile_visibility`). Défaut = tout visible.
+  final ProfileVisibility profileVisibility;
+
   UsersClient({
     required this.id,
     required this.createdAt,
@@ -76,6 +89,7 @@ class UsersClient {
     this.active = true,
     this.groupId,
     this.entrepriseId,
+    this.profileVisibility = ProfileVisibility.defaults,
   });
 
   UserType? get resolvedType => typeUserRef?.userType;
@@ -103,11 +117,18 @@ class UsersClient {
           entrepriseId != null ? 'Propriétaire entreprise' : 'Propriétaire',
         UserType.adminGroupe => 'Admin entreprise',
         UserType.superAdmin => 'Super Admin',
+        UserType.adminSysteme => 'Admin Système',
         null => typeUserRef?.label ?? 'Utilisateur',
       };
 
   factory UsersClient.fromJson(Map<String, dynamic> json) {
     final rawRef = json['User_Types_Reference'];
+    final typeRef = rawRef is Map
+        ? UserTypeRef.fromMap(Map<String, dynamic>.from(rawRef))
+        : null;
+    // Sans embed du type, on ne peut pas savoir : on prend le défaut le plus
+    // protecteur plutôt que le plus bavard.
+    final estLocataire = typeRef?.userType == UserType.locataire;
     return UsersClient(
       id: json['id'].toString(),
       createdAt: json['created_at'] != null
@@ -121,9 +142,7 @@ class UsersClient {
           ? DateTime.parse(json['date_of_birth'] as String)
           : null,
       typeUserId: json['type_user_id'] as int?,
-      typeUserRef: rawRef is Map
-          ? UserTypeRef.fromMap(Map<String, dynamic>.from(rawRef))
-          : null,
+      typeUserRef: typeRef,
       active: (json['active'] as bool?) ?? true,
       groupId: json['group_id'] != null
           ? (json['group_id'] as num).toInt()
@@ -131,6 +150,12 @@ class UsersClient {
       entrepriseId: json['entreprise_id'] != null
           ? (json['entreprise_id'] as num).toInt()
           : null,
+      // Colonne optionnelle : absente (schéma pas encore migré) → défaut du
+      // rôle. Un bailleur ne diffuse rien tant qu'il ne l'a pas choisi.
+      profileVisibility: ProfileVisibility.fromRaw(
+        json['profile_visibility'],
+        fallback: ProfileVisibility.defaultsFor(isLocataire: estLocataire),
+      ),
     );
   }
 

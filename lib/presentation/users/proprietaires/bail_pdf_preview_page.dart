@@ -3,9 +3,9 @@ import 'package:printing/printing.dart';
 import 'package:habitafrance/data/datasources/etat_de_lieux.dart';
 import 'package:habitafrance/data/datasources/signatures.dart';
 import 'package:habitafrance/data/models/etat_de_lieux.dart';
+import 'package:habitafrance/presentation/widgets/app_button.dart';
 import 'package:habitafrance/theme/app_colors.dart';
 import 'package:habitafrance/theme/app_spacing.dart';
-import 'package:habitafrance/theme/app_theme.dart';
 import 'package:habitafrance/theme/app_typography.dart';
 import 'package:habitafrance/utils/signature_pad.dart';
 import 'bail_pdf_builder.dart';
@@ -244,26 +244,21 @@ class _ActionBar extends StatelessWidget {
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
           if (onSign != null)
-            FilledButton.icon(
-              style: AppTheme.saveButtonStyle,
+            AppButton.save(
+              label: 'Confirmer ma signature',
+              icon: Icons.draw_outlined,
+              isBusy: signing,
               onPressed: signing ? null : onSign,
-              icon: signing
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Icon(Icons.draw_outlined, size: 18),
-              label: const Text('Confirmer ma signature'),
             ),
-          OutlinedButton.icon(
+          AppButton.document(
+            icon: Icons.print_outlined,
+            label: 'Imprimer',
             onPressed: enabled ? onPrint : null,
-            icon: const Icon(Icons.print_outlined, size: 18),
-            label: const Text('Imprimer'),
           ),
-          OutlinedButton.icon(
+          AppButton.document(
+            icon: Icons.download_outlined,
+            label: 'Télécharger',
             onPressed: enabled ? onDownload : null,
-            icon: const Icon(Icons.download_outlined, size: 18),
-            label: const Text('Télécharger'),
           ),
         ],
       ),

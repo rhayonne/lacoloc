@@ -12,13 +12,13 @@ import 'package:habitafrance/data/models/edl_details.dart';
 import 'package:habitafrance/data/models/immeubles.dart';
 import 'package:habitafrance/data/models/vetuste.dart';
 import 'package:habitafrance/presentation/users/proprietaires/vetuste_pdf_builder.dart';
+import 'package:habitafrance/presentation/widgets/app_button.dart';
 import 'package:habitafrance/presentation/widgets/document_pdf_button.dart';
 import 'package:habitafrance/presentation/widgets/form_page_header.dart';
 import 'package:habitafrance/utils/vetuste_calc.dart';
 import 'package:habitafrance/theme/app_accordion.dart';
 import 'package:habitafrance/theme/app_colors.dart';
 import 'package:habitafrance/theme/app_spacing.dart';
-import 'package:habitafrance/theme/app_theme.dart';
 import 'package:habitafrance/theme/app_typography.dart';
 import 'package:habitafrance/utils/currency.dart';
 
@@ -67,9 +67,9 @@ Future<void> proposerVetusteSiDegradation(
         TextButton(
             onPressed: () => Navigator.pop(ctx, false),
             child: const Text('Plus tard')),
-        FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Créer le décompte')),
+        AppButton.primary(
+            label: 'Créer le décompte',
+            onPressed: () => Navigator.pop(ctx, true)),
       ],
     ),
   );
@@ -188,10 +188,10 @@ class _VetustePageState extends State<VetustePage> {
               children: [
                 Text('Erreur de chargement : ${snap.error}'),
                 const SizedBox(height: AppSpacing.md),
-                FilledButton.icon(
+                AppButton.primary(
+                  icon: Icons.refresh,
+                  label: 'Réessayer',
                   onPressed: _reload,
-                  icon: const Icon(Icons.refresh, size: 18),
-                  label: const Text('Réessayer'),
                 ),
               ],
             ),
@@ -219,10 +219,10 @@ class _VetustePageState extends State<VetustePage> {
                   child: Text('Décomptes de réparations',
                       style: AppTypography.titleLg),
                 ),
-                OutlinedButton.icon(
+                AppButton.primary(
+                  icon: Icons.add,
+                  label: 'Ajouter une vétusté',
                   onPressed: _ajouterManuel,
-                  icon: const Icon(Icons.add),
-                  label: const Text('Ajouter une vétusté'),
                 ),
               ],
             ),
@@ -586,9 +586,9 @@ class _DecompteEditorState extends State<_DecompteEditor> {
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
               child: const Text('Annuler')),
-          FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Générer')),
+          AppButton.primary(
+              label: 'Générer',
+              onPressed: () => Navigator.pop(ctx, true)),
         ],
       ),
     );
@@ -651,14 +651,14 @@ class _DecompteEditorState extends State<_DecompteEditor> {
                       header: widget.decompte,
                       lignes: _toModels(),
                     ),
+                    fullscreenDialog: true,
                   ),
                 ),
               ),
-              FilledButton.icon(
+              AppButton.save(
+                icon: Icons.request_quote_outlined,
+                label: 'Générer l\'à recevoir',
                 onPressed: _saving ? null : _genererARecevoir,
-                style: AppTheme.saveButtonStyle,
-                icon: const Icon(Icons.request_quote_outlined),
-                label: const Text('Générer l\'à recevoir'),
               ),
             ],
           ),
@@ -682,10 +682,10 @@ class _DecompteEditorState extends State<_DecompteEditor> {
               const SizedBox(height: AppSpacing.sm),
               Align(
                 alignment: Alignment.centerLeft,
-                child: OutlinedButton.icon(
+                child: AppButton.primary(
+                  icon: Icons.add,
+                  label: 'Ajouter une ligne',
                   onPressed: _addLigne,
-                  icon: const Icon(Icons.add),
-                  label: const Text('Ajouter une ligne'),
                 ),
               ),
               const Divider(height: AppSpacing.xl * 2),
@@ -863,13 +863,12 @@ class _ChoixImmeubleChambreDialogState
         TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('Annuler')),
-        FilledButton(
-          style: AppTheme.saveButtonStyle,
+        AppButton.save(
+          label: 'Créer',
           onPressed: _immeuble == null
               ? null
               : () => Navigator.pop(context,
                   (immeubleId: _immeuble!.id, chambreId: _chambre?.id)),
-          child: const Text('Créer'),
         ),
       ],
     );

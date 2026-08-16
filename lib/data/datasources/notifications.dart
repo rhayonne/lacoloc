@@ -29,6 +29,36 @@ class NotificationsDatasource {
     }, refresh: refresh);
   }
 
+  /// Notifications **dont je suis le destinataire**, explicitement filtrées sur
+  /// `recipient_id`.
+  ///
+  /// ⚠️ À utiliser pour le **super admin** : la policy `notifications_select`
+  /// contient `OR is_super_admin()`, donc un `select` nu lui renvoie les
+  /// notifications de **tout le monde**. [listByOwner] convient aux autres
+  /// profils (la RLS les borne déjà, et les lignes héritées n'ont pas toujours
+  /// de `recipient_id`), mais afficherait ici la boîte de tous les
+  /// utilisateurs.
+  static Future<List<NotificationModel>> listForRecipient({
+    int limit = 50,
+    bool refresh = false,
+  }) {
+    final uid = _db.auth.currentUser?.id;
+    if (uid == null) return Future.value(const []);
+    return _cache.get(
+      '${CacheKeys.notifications}recipient:$uid:$limit',
+      () async {
+        final rows = await _db
+            .from(_table)
+            .select()
+            .eq('recipient_id', uid)
+            .order('created_at', ascending: false)
+            .limit(limit);
+        return rows.map(NotificationModel.fromMap).toList();
+      },
+      refresh: refresh,
+    );
+  }
+
   static Future<int> unreadCount() async {
     final rows = await _db.from(_table).select('id').eq('is_read', false);
     return (rows as List).length;
@@ -77,12 +107,15 @@ class NotificationsDatasource {
     String? body,
   }) async {
     try {
-      await _db.rpc('notify_edl_proprietaire', params: {
-        'p_edl_id': edlId,
-        'p_type': type,
-        'p_title': title,
-        'p_body': body,
-      });
+      await _db.rpc(
+        'notify_edl_proprietaire',
+        params: {
+          'p_edl_id': edlId,
+          'p_type': type,
+          'p_title': title,
+          'p_body': body,
+        },
+      );
     } catch (_) {
       // best-effort
     }
@@ -99,12 +132,15 @@ class NotificationsDatasource {
     String? body,
   }) async {
     try {
-      await _db.rpc('notify_edl_locataire', params: {
-        'p_edl_id': edlId,
-        'p_type': type,
-        'p_title': title,
-        'p_body': body,
-      });
+      await _db.rpc(
+        'notify_edl_locataire',
+        params: {
+          'p_edl_id': edlId,
+          'p_type': type,
+          'p_title': title,
+          'p_body': body,
+        },
+      );
     } catch (_) {
       // best-effort
     }

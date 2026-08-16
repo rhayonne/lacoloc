@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:habitafrance/data/datasources/etat_de_lieux.dart';
 import 'package:habitafrance/presentation/users/admin/connection_logs_page.dart';
+import 'package:habitafrance/presentation/widgets/app_button.dart';
 import 'package:habitafrance/presentation/widgets/app_top_bar.dart';
+import 'package:habitafrance/theme/app_button_sizes.dart';
 import 'package:habitafrance/theme/app_colors.dart';
 import 'package:habitafrance/theme/app_radius.dart';
 import 'package:habitafrance/theme/app_spacing.dart';
@@ -22,8 +24,11 @@ import 'package:url_launcher/url_launcher.dart';
 class MaintenancePage extends StatelessWidget {
   final int initialTab;
   final bool showTabBar;
-  const MaintenancePage(
-      {super.key, this.initialTab = 0, this.showTabBar = true});
+  const MaintenancePage({
+    super.key,
+    this.initialTab = 0,
+    this.showTabBar = true,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -49,10 +54,7 @@ class MaintenancePage extends StatelessWidget {
             child: TabBarView(
               // Pas de balayage du contenu : navigation par sous-menus.
               physics: NeverScrollableScrollPhysics(),
-              children: [
-                ConnectionLogsPage(),
-                _ServicesTab(),
-              ],
+              children: [ConnectionLogsPage(), _ServicesTab()],
             ),
           ),
         ],
@@ -90,9 +92,7 @@ class _ServicesTab extends StatelessWidget {
         Expanded(
           child: ListView(
             padding: const EdgeInsets.all(AppSpacing.xl),
-            children: const [
-              _EmailTestService(),
-            ],
+            children: const [_EmailTestService()],
           ),
         ),
       ],
@@ -141,14 +141,18 @@ class _EmailTestServiceState extends State<_EmailTestService> {
     setState(() {
       _sending = true;
       _clientError = null;
-      _result = {};   // sentinelle "en cours" → la boîte reste visible
+      _result = {}; // sentinelle "en cours" → la boîte reste visible
     });
     try {
       final r = await EtatDesLieuxDatasource.sendServiceTestEmail(
         to: to,
         emailType: _emailType,
       );
-      if (mounted) setState(() { _result = r; });
+      if (mounted) {
+        setState(() {
+          _result = r;
+        });
+      }
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -173,99 +177,100 @@ class _EmailTestServiceState extends State<_EmailTestService> {
         ),
         subtitle: Text(
           'Envoie un e-mail de test à un destinataire (aucun compte créé).',
-          style: AppTypography.labelSm
-              .copyWith(color: AppColors.onSurfaceVariant),
+          style: AppTypography.labelSm.copyWith(
+            color: AppColors.onSurfaceVariant,
+          ),
         ),
         childrenPadding: const EdgeInsets.fromLTRB(
-          AppSpacing.lg, AppSpacing.sm, AppSpacing.lg, AppSpacing.lg,
+          AppSpacing.lg,
+          AppSpacing.sm,
+          AppSpacing.lg,
+          AppSpacing.lg,
         ),
         children: [
           // ── Formulaire : inline sur large écran, colonne sur petit ──────────
-          LayoutBuilder(builder: (context, constraints) {
-            final wide = constraints.maxWidth >= 520;
-            final emailField = TextField(
-              controller: _emailCtrl,
-              keyboardType: TextInputType.emailAddress,
-              style: AppTypography.bodyMd,
-              decoration: InputDecoration(
-                labelText: 'E-mail destinataire',
-                labelStyle: AppTypography.labelSm,
-                prefixIcon: const Icon(Icons.alternate_email, size: 18),
-                isDense: true,
-                contentPadding: const EdgeInsets.symmetric(
-                    vertical: 10, horizontal: 12),
-                border: OutlineInputBorder(
-                    borderRadius: AppRadius.borderSm),
-                errorText: _clientError,
-              ),
-            );
-            final typeField = DropdownButtonFormField<String>(
-              initialValue: _emailType,
-              style: AppTypography.bodyMd,
-              isExpanded: true,
-              decoration: InputDecoration(
-                labelText: 'Type',
-                labelStyle: AppTypography.labelSm,
-                isDense: true,
-                contentPadding: const EdgeInsets.symmetric(
-                    vertical: 10, horizontal: 12),
-                border: OutlineInputBorder(
-                    borderRadius: AppRadius.borderSm),
-              ),
-              items: _types
-                  .map((t) => DropdownMenuItem(
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final wide = constraints.maxWidth >= 520;
+              final emailField = TextField(
+                controller: _emailCtrl,
+                keyboardType: TextInputType.emailAddress,
+                style: AppTypography.bodyMd,
+                decoration: InputDecoration(
+                  labelText: 'E-mail destinataire',
+                  labelStyle: AppTypography.labelSm,
+                  prefixIcon: const Icon(Icons.alternate_email, size: 18),
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(
+                    vertical: 10,
+                    horizontal: 12,
+                  ),
+                  border: OutlineInputBorder(borderRadius: AppRadius.borderSm),
+                  errorText: _clientError,
+                ),
+              );
+              final typeField = DropdownButtonFormField<String>(
+                initialValue: _emailType,
+                style: AppTypography.bodyMd,
+                isExpanded: true,
+                decoration: InputDecoration(
+                  labelText: 'Type',
+                  labelStyle: AppTypography.labelSm,
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(
+                    vertical: 10,
+                    horizontal: 12,
+                  ),
+                  border: OutlineInputBorder(borderRadius: AppRadius.borderSm),
+                ),
+                items: _types
+                    .map(
+                      (t) => DropdownMenuItem(
                         value: t.$1,
-                        child: Text(t.$2,
-                            style: AppTypography.bodyMd,
-                            overflow: TextOverflow.ellipsis),
-                      ))
-                  .toList(),
-              onChanged: _sending
-                  ? null
-                  : (v) => setState(() => _emailType = v ?? 'invite'),
-            );
-            final sendBtn = FilledButton.icon(
-              onPressed: _sending ? null : _send,
-              style: FilledButton.styleFrom(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.md, vertical: 10),
-                textStyle: AppTypography.labelMd,
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-              icon: _sending
-                  ? const SizedBox(
-                      width: 14,
-                      height: 14,
-                      child: CircularProgressIndicator(strokeWidth: 2),
+                        child: Text(
+                          t.$2,
+                          style: AppTypography.bodyMd,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
                     )
-                  : const Icon(Icons.send_outlined, size: 16),
-              label: Text(_sending ? 'Envoi…' : 'Envoyer'),
-            );
+                    .toList(),
+                onChanged: _sending
+                    ? null
+                    : (v) => setState(() => _emailType = v ?? 'invite'),
+              );
+              final sendBtn = AppButton.primary(
+                size: AppButtonSize.compact,
+                icon: Icons.send_outlined,
+                label: _sending ? 'Envoi…' : 'Envoyer',
+                isBusy: _sending,
+                onPressed: _sending ? null : _send,
+              );
 
-            if (wide) {
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
+              if (wide) {
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Flexible(flex: 2, child: emailField),
+                    const SizedBox(width: AppSpacing.sm),
+                    Flexible(flex: 1, child: typeField),
+                    const SizedBox(width: AppSpacing.sm),
+                    sendBtn,
+                  ],
+                );
+              }
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Flexible(flex: 2, child: emailField),
-                  const SizedBox(width: AppSpacing.sm),
-                  Flexible(flex: 1, child: typeField),
-                  const SizedBox(width: AppSpacing.sm),
-                  sendBtn,
+                  emailField,
+                  const SizedBox(height: AppSpacing.sm),
+                  typeField,
+                  const SizedBox(height: AppSpacing.sm),
+                  Align(alignment: Alignment.centerLeft, child: sendBtn),
                 ],
               );
-            }
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                emailField,
-                const SizedBox(height: AppSpacing.sm),
-                typeField,
-                const SizedBox(height: AppSpacing.sm),
-                Align(alignment: Alignment.centerLeft, child: sendBtn),
-              ],
-            );
-          }),
+            },
+          ),
 
           const SizedBox(height: AppSpacing.md),
 
@@ -333,7 +338,8 @@ class _JsonResultBox extends StatelessWidget {
           // Bandeau de statut
           Container(
             padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.md, vertical: 8,
+              horizontal: AppSpacing.md,
+              vertical: 8,
             ),
             color: bannerColor.withValues(alpha: _idle ? 0.07 : 0.12),
             child: Row(
@@ -370,8 +376,11 @@ class _JsonResultBox extends StatelessWidget {
                     },
                     child: Tooltip(
                       message: 'Copier',
-                      child: Icon(Icons.copy_outlined,
-                          size: 14, color: bannerColor),
+                      child: Icon(
+                        Icons.copy_outlined,
+                        size: 14,
+                        color: bannerColor,
+                      ),
                     ),
                   ),
               ],

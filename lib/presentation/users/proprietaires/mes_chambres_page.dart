@@ -8,7 +8,9 @@ import 'package:habitafrance/data/datasources/immeubles.dart';
 import 'package:habitafrance/data/models/chambre.dart';
 import 'package:habitafrance/data/models/immeubles.dart';
 import 'package:habitafrance/data/permissions/permissions_service.dart';
+import 'package:habitafrance/presentation/widgets/app_button.dart';
 import 'package:habitafrance/presentation/widgets/permission_gate.dart';
+import 'package:habitafrance/theme/app_button_sizes.dart';
 import 'package:habitafrance/theme/app_colors.dart';
 import 'package:habitafrance/theme/app_radius.dart';
 import 'package:habitafrance/presentation/widgets/app_top_bar.dart';
@@ -85,10 +87,10 @@ class _MesChambresPageState extends State<MesChambresPage>
               title: 'Mes Chambres',
               trailing: PermissionGate(
                 permission: Perm.chambresCreate,
-                child: FilledButton.icon(
+                child: AppButton.primary(
+                  icon: Icons.add,
+                  label: 'Ajouter',
                   onPressed: widget.onCreerChambre,
-                  icon: const Icon(Icons.add, size: 18),
-                  label: const Text('Ajouter'),
                 ),
               ),
             ),
@@ -403,17 +405,11 @@ class _ChambreCardState extends State<_ChambreCard> {
                 const SizedBox(height: AppSpacing.xs),
                 PermissionGate(
                   permission: Perm.chambresEdit,
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: widget.onModifier,
-                      icon: const Icon(Icons.edit_outlined, size: 14),
-                      label: const Text('Modifier'),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 4),
-                        textStyle: AppTypography.labelSm,
-                      ),
-                    ),
+                  child: AppButton.edit(
+                    size: AppButtonSize.small,
+                    label: 'Modifier',
+                    fullWidth: true,
+                    onPressed: widget.onModifier,
                   ),
                 ),
               ],

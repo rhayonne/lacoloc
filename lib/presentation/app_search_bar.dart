@@ -27,8 +27,14 @@ class AppSearchBar extends StatefulWidget implements PreferredSizeWidget {
   @override
   State<AppSearchBar> createState() => _AppSearchBarState();
 
+  // Même hauteur que la boîte du logo dans `_SidebarHeader`
+  // (`app_sidebar.dart`, `SizedBox(height: 64)`) — sinon la ligne du bas de
+  // cette barre (ombre de l'AppBar) ne s'aligne pas avec le divider sous le
+  // logo de la sidebar.
+  static const double barHeight = 64;
+
   @override
-  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
+  Size get preferredSize => const Size.fromHeight(barHeight);
 }
 
 class _AppSearchBarState extends State<AppSearchBar> {
@@ -57,75 +63,90 @@ class _AppSearchBarState extends State<AppSearchBar> {
   Widget build(BuildContext context) {
     final isLogged = AuthService.isLoggedIn;
 
-    // Em tablet/desktop (≥ 600px) a barra fica ~40% mais larga.
-    final isWide = MediaQuery.sizeOf(context).width >= 600;
-    final expandedWidth = isWide ? 560.0 : 400.0;
-    final collapsedWidth = isWide ? 320.0 : 220.0;
-
     // O tamanho é dirigido pelo foco do campo (clique dentro → grande,
     // clique fora → padrão).
     final isExpanded = _focusNode.hasFocus;
 
     return AppBar(
       leading: widget.leading,
+      toolbarHeight: AppSearchBar.barHeight,
       elevation: 3,
       scrolledUnderElevation: 0,
       surfaceTintColor: AppColors.surfaceContainer,
       shadowColor: Colors.blue,
-      title: AnimatedContainer(
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeOut,
-        width: isExpanded ? expandedWidth : collapsedWidth,
-        height: 42,
-        decoration: BoxDecoration(
-          color: AppColors.surfaceContainerLowest,
-          borderRadius: AppRadius.borderFull,
-          border: Border.all(color: AppColors.outlineVariant),
-          boxShadow: [
-            if (isExpanded)
-              BoxShadow(
-                color: AppColors.shadowTint.withValues(alpha: 0.12),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-          ],
-        ),
-        child: TextField(
-          controller: _searchController,
-          focusNode: _focusNode,
-          onTap: widget.onTap,
-          onChanged: (value) {
-            setState(() => _searchQuery = value);
-            widget.onSearch(value);
-          },
-          decoration: InputDecoration(
-            hintText: 'Rechercher...',
-            border: InputBorder.none,
-            enabledBorder: InputBorder.none,
-            focusedBorder: InputBorder.none,
-            filled: false,
-            contentPadding: const EdgeInsets.symmetric(
-              vertical: 8,
-              horizontal: 16,
+      // LayoutBuilder mede a largura REAL disponível para o titre (não a
+      // largura da janela via MediaQuery) — a sidebar pode consumir parte
+      // da tela em desktop, então usar MediaQuery aqui subestimaria/
+      // superestimaria o espaço disponível.
+      title: LayoutBuilder(
+        builder: (context, constraints) {
+          final isWide = constraints.maxWidth >= 600;
+          final expandedWidth = isWide ? 560.0 : 400.0;
+          final collapsedWidth = isWide ? 320.0 : 220.0;
+          final maxAvailable = constraints.maxWidth.isFinite
+              ? constraints.maxWidth
+              : double.infinity;
+          final targetWidth = isExpanded ? expandedWidth : collapsedWidth;
+          final width = maxAvailable.isFinite
+              ? targetWidth.clamp(0.0, maxAvailable)
+              : targetWidth;
+
+          return AnimatedContainer(
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeOut,
+            width: width,
+            height: 42,
+            decoration: BoxDecoration(
+              color: AppColors.surfaceContainerLowest,
+              borderRadius: AppRadius.borderFull,
+              border: Border.all(color: AppColors.outlineVariant),
+              boxShadow: [
+                if (isExpanded)
+                  BoxShadow(
+                    color: AppColors.shadowTint.withValues(alpha: 0.12),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+              ],
             ),
-            prefixIcon: _searchQuery.isEmpty
-                ? const Icon(Icons.search, size: 20)
-                : null,
-            suffixIcon: _searchQuery.isNotEmpty
-                ? IconButton(
-                    icon: const Icon(Icons.close, size: 18),
-                    tooltip: 'Effacer la recherche',
-                    onPressed: () {
-                      setState(() {
-                        _searchController.clear();
-                        _searchQuery = '';
-                      });
-                      widget.onSearch('');
-                    },
-                  )
-                : null,
-          ),
-        ),
+            child: TextField(
+              controller: _searchController,
+              focusNode: _focusNode,
+              onTap: widget.onTap,
+              onChanged: (value) {
+                setState(() => _searchQuery = value);
+                widget.onSearch(value);
+              },
+              decoration: InputDecoration(
+                hintText: 'Rechercher...',
+                border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                filled: false,
+                contentPadding: const EdgeInsets.symmetric(
+                  vertical: 8,
+                  horizontal: 16,
+                ),
+                prefixIcon: _searchQuery.isEmpty
+                    ? const Icon(Icons.search, size: 20)
+                    : null,
+                suffixIcon: _searchQuery.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.close, size: 18),
+                        tooltip: 'Effacer la recherche',
+                        onPressed: () {
+                          setState(() {
+                            _searchController.clear();
+                            _searchQuery = '';
+                          });
+                          widget.onSearch('');
+                        },
+                      )
+                    : null,
+              ),
+            ),
+          );
+        },
       ),
       actions: [
         // Bouton compact (44pt, iOS HIG) : en taille standard (48) + padding, il

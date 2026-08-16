@@ -1091,6 +1091,60 @@ paths:
       responses: { '204': { description: Removido } }
 
   # ───────────────────────────── RPC ──────────────────────────────
+  /rest/v1/rpc/demande_counterpart_profiles:
+    post:
+      tags: [Messagerie]
+      summary: Fiche de la contrepartie d'une demande (filtrée côté serveur)
+      description: |
+        `SECURITY DEFINER`. Ne répond qu'aux **deux parties** de la demande.
+        Renvoie toujours `full_name` ; `age`/`phone`/`email` seulement si la
+        personne concernée les affiche (`Users_Client.profile_visibility`, défauts
+        asymétriques : locataire = tout visible car consenti au moment du contact,
+        bailleur = rien). **Un champ masqué n'est pas transmis.**
+        `EXECUTE` révoqué de `anon`/`PUBLIC`.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                p_demande_ids: { type: array, items: { type: integer } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    demande_id: { type: integer }
+                    user_id: { type: string, format: uuid }
+                    full_name: { type: string, nullable: true }
+                    age: { type: integer, nullable: true }
+                    phone: { type: string, nullable: true }
+                    email: { type: string, nullable: true }
+  /rest/v1/rpc/email_exists:
+    post:
+      tags: [Users]
+      summary: Cette adresse est-elle déjà rattachée à un compte ?
+      description: |
+        `SECURITY DEFINER`, réservé à `proprietaire`/`admin_groupe`/`super_admin`
+        (403 sinon). Ne renvoie qu'un booléen — jamais une donnée.
+      responses:
+        '200': { description: booléen }
+  /rest/v1/rpc/phone_exists:
+    post:
+      tags: [Users]
+      summary: Ce numéro est-il déjà pris par un locataire actif ?
+      description: |
+        Idem `email_exists`. Comparaison **normalisée** (espaces/tirets ignorés).
+        Ne considère « pris » qu'un **locataire actif** — même règle que le
+        trigger `trg_users_client_phone_unique_locataire`. Le numéro d'un
+        bailleur ou d'un compte désactivé renvoie donc `false`.
+      responses:
+        '200': { description: booléen }
   /rest/v1/rpc/search_locataires:
     post:
       tags: [RPC]
@@ -1532,7 +1586,7 @@ components:
         created_at: { type: string, format: date-time }
         email: { type: string, format: email }
         full_name: { type: string, nullable: true }
-        phone: { type: string, nullable: true, description: "formato internacional, ex +33612345678" }
+        phone: { type: string, nullable: true, description: "Format international, ex +33612345678. **Unique entre locataires actifs uniquement** (trigger `trg_users_client_phone_unique_locataire`, comparaison normalisée `regexp_replace(phone, '[^0-9+]', '', 'g')`). Les bailleurs en sont exclus : une agence partage le standard entre ses propriétaires (`Entreprises` n'a pas de colonne téléphone). Un compte désactivé libère son numéro. Collision → 23505 avec message FR, traduit par authErrorMessage." }
         age: { type: integer, nullable: true, description: "fallback legado" }
         date_of_birth: { type: string, format: date, nullable: true }
         type_user_id: { type: integer, nullable: true }
@@ -1543,6 +1597,18 @@ components:
         group_id: { type: integer, nullable: true, description: "Groupe de permissions (trigger set_default_user_group)" }
         entreprise_id: { type: integer, nullable: true }
         theme_preference: { type: string, nullable: true, description: "FK → Themes_Reference.code. null = thème principal. `ON DELETE SET NULL` : supprimer un thème renvoie ses utilisateurs au principal. Appliqué au login si le thème est encore actif." }
+        profile_visibility:
+          type: object
+          description: |
+            Champs que l'utilisateur accepte de montrer à l'autre partie (fiche
+            `UserProfileCard`). Clés `age` / `phone` / `email`, booléennes ;
+            **clé absente = visible**. Défaut `{}` = tout visible.
+            ⚠️ Préférence d'**affichage**, pas une barrière de confidentialité :
+            la RLS `shares_demande_with` autorise déjà la lecture croisée.
+          properties:
+            age: { type: boolean }
+            phone: { type: boolean }
+            email: { type: boolean }
         avenant_window_days: { type: integer, description: "Préférence globale **legado** : sert seulement de repli à la finalisation (getAvenantWindowDays). La fenêtre est désormais choisie PAR EDL (etat_de_lieux.avenant_window_days) ; il n'y a plus d'écran pour régler celle-ci." }
         User_Types_Reference: { $ref: '#/components/schemas/UserTypeRef' }
     UsersClientUpdate:
@@ -1558,6 +1624,7 @@ components:
         age: { type: integer }
         date_of_birth: { type: string, format: date }
         theme_preference: { type: string, nullable: true, description: "Choix de thème (ThemePickerSection, Mon Profil)" }
+        profile_visibility: { type: object, description: "AuthService.updateProfileVisibility (Mon Profil → « Ma fiche de profil »). Contrainte `users_client_profile_visibility_shape` : seules les clés age/phone/email, booléennes." }
         type_user_id: { type: integer, description: "updateUserType (Super Admin) — voir le trigger ci-dessus" }
         active: { type: boolean, description: "toggleActive (Super Admin)" }
     PermissionRef:
@@ -2254,16 +2321,20 @@ components:
         chambre_id: { type: integer, nullable: true }
         immeuble_id: { type: integer, nullable: true }
         contact_etabli: { type: boolean, default: false }
-        Users_Client:
+        statut: { type: string, enum: [nouveau, non_repondu, repondu, ignore], description: "État géré par le propriétaire — remplace l'ancienne acceptation `contact_etabli`." }
+        Chambres: { type: object, properties: { room_name: { type: string } } }
+        Immeubles:
+          description: |
+            ⚠️ **Aucun embed `Users_Client`.** Depuis 2026-08-15, la politique
+            `users_client_select_demande_counterpart` est supprimée : une demande de
+            contact ne donne plus accès à la ligne de l'autre partie. L'identité de la
+            contrepartie passe par la RPC `demande_counterpart_profiles`, qui filtre les
+            champs selon `profile_visibility` **côté serveur**.
           type: object
           properties:
-            full_name: { type: string }
-            email: { type: string }
-            phone: { type: string }
-            age: { type: integer }
-            date_of_birth: { type: string, format: date }
-        Chambres: { type: object, properties: { room_name: { type: string } } }
-        Immeubles: { type: object, properties: { name: { type: string } } }
+            name: { type: string }
+            owner_id: { type: string, format: uuid }
+
     DemandeContactWrite:
       type: object
       required: [locataire_id, immeuble_id, contact_etabli]

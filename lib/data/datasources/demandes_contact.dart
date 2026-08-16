@@ -2,6 +2,7 @@ import 'package:habitafrance/data/cache/data_cache.dart';
 import 'package:habitafrance/data/cache/realtime_service.dart';
 import 'package:habitafrance/data/datasources/messages.dart';
 import 'package:habitafrance/data/models/demande_contact.dart';
+import 'package:habitafrance/data/models/profile_card_data.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class DemandesContactDatasource {
@@ -126,13 +127,55 @@ class DemandesContactDatasource {
   static Future<void> markRepondu(int id) =>
       setStatut(id, StatutDemande.repondu);
 
-  /// Embeds partagés. `Immeubles.owner_id` + le nom du proprietaire donnent au
-  /// locataire son interlocuteur (Immeubles a un SELECT public).
+  /// Embeds partagés — **aucune donnée personnelle de personne**.
+  ///
+  /// Les embeds `Users_Client` ont été retirés : depuis la migration
+  /// `demande_counterpart_profiles`, la politique RLS qui ouvrait la ligne
+  /// entière de la contrepartie n'existe plus. L'identité de l'autre partie
+  /// passe par [counterpartProfiles], qui applique les préférences de
+  /// visibilité **côté serveur**. Conséquence directe : créer une demande sur
+  /// une annonce ne donne plus accès aux coordonnées de son propriétaire.
   static const _select =
       '*, '
-      'Users_Client!locataire_id(full_name, email, phone, age, date_of_birth), '
       'Chambres!chambre_id(room_name), '
-      'Immeubles!immeuble_id(name, owner_id, owner:Users_Client!owner_id(full_name))';
+      'Immeubles!immeuble_id(name, owner_id)';
+
+  /// Fiche de la contrepartie pour chacune des [demandeIds], via la RPC
+  /// `demande_counterpart_profiles` (`SECURITY DEFINER`).
+  ///
+  /// Le serveur ne renvoie que les champs que la personne concernée accepte de
+  /// montrer : un champ masqué n'arrive **pas** dans la réponse, il n'est donc
+  /// pas seulement caché à l'écran. Le nom, lui, est toujours renvoyé — sans
+  /// lui on ne saurait pas à qui on écrit.
+  ///
+  /// Retourne une map `demandeId → fiche`. Une demande absente de la map =
+  /// contrepartie indéterminée (l'appelant n'est pas partie à cette demande).
+  static Future<Map<int, ProfileCardData>> counterpartProfiles(
+    List<int> demandeIds, {
+    bool refresh = false,
+  }) {
+    if (demandeIds.isEmpty) {
+      return Future.value(const <int, ProfileCardData>{});
+    }
+    final key = '${CacheKeys.demandes}profiles:'
+        '${(demandeIds.toList()..sort()).join(",")}';
+    return _cache.get(key, () async {
+      final rows = await _db.rpc(
+        'demande_counterpart_profiles',
+        params: {'p_demande_ids': demandeIds},
+      ) as List;
+      return {
+        for (final r in rows)
+          (r as Map)['demande_id'] as int: ProfileCardData.preFiltered(
+            userId: r['user_id'] as String?,
+            fullName: r['full_name'] as String?,
+            age: (r['age'] as num?)?.toInt(),
+            phone: r['phone'] as String?,
+            email: r['email'] as String?,
+          ),
+      };
+    }, refresh: refresh);
+  }
 
   /// Lista todas as demandas para os imóveis do proprietaire autenticado.
   static Future<List<DemandeContactModel>> listByOwner({
@@ -170,6 +213,16 @@ class DemandesContactDatasource {
     }, refresh: refresh);
   }
 
+  /// Une demande par son id (RLS : seules les deux parties la voient).
+  /// Sert à ouvrir un fil désigné depuis un autre écran (fiche d'annonce,
+  /// notification) sans avoir chargé toute la liste.
+  static Future<DemandeContactModel?> byId(int id) async {
+    final row =
+        await _db.from(_table).select(_select).eq('id', id).maybeSingle();
+    if (row == null) return null;
+    return DemandeContactModel.fromJson(Map<String, dynamic>.from(row));
+  }
+
   /// Atualiza o campo contact_etabli de uma demanda.
   ///
   /// C'est **l'acceptation** : à `true`, le fil de discussion s'ouvre pour les
@@ -179,14 +232,19 @@ class DemandesContactDatasource {
     _invalidate();
   }
 
-  /// Verifica se já existe uma conversa **ativa** (não ignorada) do mesmo
-  /// locataire — evita abrir uma nova demanda quando já há um fil em curso.
+  /// Id du fil **déjà ouvert** (non ignoré) entre ce locataire et cette
+  /// annonce — `null` s'il n'y en a pas encore.
+  ///
+  /// Sert au bouton de la fiche d'annonce : avoir déjà écrit ne doit **pas**
+  /// bloquer le locataire (l'ancien libellé « Vous avez déjà contacté le
+  /// propriétaire » désactivait le bouton, cul-de-sac). Un fil existant → on
+  /// rouvre la discussion avec tout son historique ; sinon → nouveau contact.
   ///
   /// [chambreId] preenchido → escopo à chambre (fiche chambre). Nulo → escopo
   /// ao imóvel inteiro (annonce d'immeuble, sem chambre alvo) : nesse caso só
-  /// contam as demandas **sem** chambre para o mesmo imóvel, para não bloquear
-  /// um contato ao imóvel só porque já se falou de uma chambre específica.
-  static Future<bool> hasDemandeEnAttente({
+  /// contam as demandas **sem** chambre para o mesmo imóvel, para não confundir
+  /// um contato ao imóvel com uma conversa sobre uma chambre específica.
+  static Future<int?> existingDemandeId({
     required String locataireId,
     int? chambreId,
     int? immeubleId,
@@ -201,9 +259,10 @@ class DemandesContactDatasource {
     } else if (immeubleId != null) {
       query = query.eq('immeuble_id', immeubleId).isFilter('chambre_id', null);
     } else {
-      return false;
+      return null;
     }
-    final res = await query.limit(1);
-    return (res as List).isNotEmpty;
+    final res = await query.order('created_at', ascending: false).limit(1);
+    final rows = res as List;
+    return rows.isEmpty ? null : (rows.first as Map)['id'] as int;
   }
 }

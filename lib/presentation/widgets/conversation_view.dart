@@ -5,6 +5,8 @@ import 'package:habitafrance/data/datasources/auth_service.dart';
 import 'package:habitafrance/data/datasources/messages.dart';
 import 'package:habitafrance/data/models/demande_contact.dart';
 import 'package:habitafrance/data/models/message.dart';
+import 'package:habitafrance/data/models/profile_card_data.dart';
+import 'package:habitafrance/presentation/widgets/user_profile_card.dart';
 import 'package:habitafrance/theme/app_colors.dart';
 import 'package:habitafrance/theme/app_radius.dart';
 import 'package:habitafrance/theme/app_spacing.dart';
@@ -23,6 +25,12 @@ import 'package:habitafrance/theme/app_typography.dart';
 class ConversationView extends StatefulWidget {
   final DemandeContactModel demande;
 
+  /// Fiche de l'interlocuteur, telle que filtrée par le serveur (RPC
+  /// `demande_counterpart_profiles`). Le fil ne déduit plus l'identité de
+  /// l'autre partie d'un embed : une demande de contact ne donne pas accès à sa
+  /// ligne. Null = pas encore chargée → l'en-tête reste neutre.
+  final ProfileCardData? interlocuteur;
+
   /// Fermer le fil (retour à la liste). Null = pas de bouton retour.
   final VoidCallback? onClose;
 
@@ -36,6 +44,7 @@ class ConversationView extends StatefulWidget {
   const ConversationView({
     super.key,
     required this.demande,
+    this.interlocuteur,
     this.onClose,
     this.onSent,
     this.headerActions,
@@ -181,14 +190,23 @@ class _ConversationViewState extends State<ConversationView>
     );
   }
 
+  /// Barre d'en-tête du fil : **avec qui** on parle et **à propos de quoi**.
+  /// Sans elle, une conversation ouverte est un mur de bulles hors contexte —
+  /// on affiche donc toujours l'interlocuteur, le bien (chambre · immeuble) et
+  /// la date de la prise de contact.
   Widget _header(DemandeContactModel d) {
+    final profil = widget.interlocuteur;
     final lieu = [
       if (d.chambreName != null) d.chambreName,
       if (d.immeubleName != null) d.immeubleName,
     ].whereType<String>().join(' · ');
+    final depuis = DateFormat('dd/MM/yyyy').format(d.createdAt);
 
     return Container(
-      padding: const EdgeInsets.all(AppSpacing.md),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
+      ),
       decoration: BoxDecoration(
         color: AppColors.surfaceContainerLow,
         border: Border(bottom: BorderSide(color: AppColors.outline)),
@@ -197,20 +215,14 @@ class _ConversationViewState extends State<ConversationView>
         children: [
           if (widget.onClose != null)
             Padding(
-              padding: const EdgeInsets.only(right: AppSpacing.sm),
+              padding: const EdgeInsets.only(right: AppSpacing.xs),
               child: IconButton(
                 icon: const Icon(Icons.arrow_back),
-                tooltip: 'Retour',
+                tooltip: 'Retour à la liste',
                 onPressed: widget.onClose,
               ),
             ),
-          CircleAvatar(
-            backgroundColor: AppColors.primaryFixed,
-            child: Text(
-              _initiales(d.interlocuteurNom(_uid)),
-              style: AppTypography.labelMd.copyWith(color: AppColors.primary),
-            ),
-          ),
+          ProfileAvatar(nom: profil?.fullName, size: 40),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
             child: Column(
@@ -218,7 +230,7 @@ class _ConversationViewState extends State<ConversationView>
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  d.interlocuteurNom(_uid),
+                  profil?.fullName ?? 'Votre interlocuteur',
                   style: AppTypography.titleLg,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -226,12 +238,19 @@ class _ConversationViewState extends State<ConversationView>
                 if (lieu.isNotEmpty)
                   Text(
                     lieu,
-                    style: AppTypography.labelSm.copyWith(
-                      color: AppColors.onSurfaceVariant,
-                    ),
+                    style: AppTypography.labelSm
+                        .copyWith(color: AppColors.primary),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
+                Text(
+                  'En contact depuis le $depuis',
+                  style: AppTypography.labelSm.copyWith(
+                    color: AppColors.onSurfaceVariant,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ],
             ),
           ),
@@ -343,12 +362,6 @@ class _ConversationViewState extends State<ConversationView>
     );
   }
 
-  static String _initiales(String nom) {
-    final parts = nom.trim().split(RegExp(r'\s+'));
-    if (parts.isEmpty || parts.first.isEmpty) return '?';
-    if (parts.length == 1) return parts.first[0].toUpperCase();
-    return (parts.first[0] + parts.last[0]).toUpperCase();
-  }
 }
 
 /// Une bulle de message. Les miennes à droite (couleur d'action), celles de

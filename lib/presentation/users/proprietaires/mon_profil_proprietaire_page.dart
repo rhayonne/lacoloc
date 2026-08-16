@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:habitafrance/data/datasources/auth_service.dart';
+import 'package:habitafrance/utils/auth_error.dart';
 import 'package:habitafrance/data/models/users_client.dart';
+import 'package:habitafrance/presentation/widgets/app_top_bar.dart';
+import 'package:habitafrance/presentation/widgets/payment_methods_section.dart';
+import 'package:habitafrance/presentation/widgets/profile_section_card.dart';
+import 'package:habitafrance/presentation/widgets/profile_visibility_section.dart';
 import 'package:habitafrance/presentation/widgets/theme_picker.dart';
 import 'package:habitafrance/utils/phone_field.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
@@ -120,14 +125,17 @@ class _ProfilFormState extends State<_ProfilForm> {
         // Recreate key so the field reinitialises with the newly saved value.
         _phoneFormKey = GlobalKey<FormBuilderState>();
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Profil mis à jour')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Profil mis à jour')));
     } catch (e) {
       if (!mounted) return;
       setState(() => _isSaving = false);
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Erreur : $e')));
+      // Un doublon de téléphone remonte en 23505 : le traduire plutôt que
+      // d'afficher « duplicate key value violates unique constraint… ».
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(authErrorMessage(e))));
     }
   }
 
@@ -143,25 +151,12 @@ class _ProfilFormState extends State<_ProfilForm> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // ── Barre de titre ──────────────────────────────────────────────────
-        Container(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.lg,
-            AppSpacing.sm,
-            AppSpacing.sm,
-            AppSpacing.sm,
-          ),
-          decoration: BoxDecoration(
-            color: AppColors.surfaceContainerLowest,
-            border: Border(
-              bottom: BorderSide(color: AppColors.outlineVariant),
-            ),
-          ),
-          child: Row(
+        // ── Barre de titre : le widget standard du système ───────────────────
+        AppTopBar(
+          title: 'Mon Profil',
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Expanded(
-                child: Text('Mon Profil', style: AppTypography.titleLg),
-              ),
               IconButton(
                 icon: Icon(_isEditing ? Icons.close : Icons.edit_outlined),
                 tooltip: _isEditing ? 'Annuler' : 'Modifier',
@@ -179,8 +174,9 @@ class _ProfilFormState extends State<_ProfilForm> {
                         Icons.save_outlined,
                         color: _isEditing
                             ? AppColors.primary
-                            : AppColors.onSurfaceVariant
-                                .withValues(alpha: 0.35),
+                            : AppColors.onSurfaceVariant.withValues(
+                                alpha: 0.35,
+                              ),
                       ),
                 tooltip: 'Sauvegarder',
                 onPressed: _isEditing && !_isSaving ? _save : null,
@@ -189,7 +185,7 @@ class _ProfilFormState extends State<_ProfilForm> {
           ),
         ),
 
-        // ── Corps ────────────────────────────────────────────────────────────
+        // ── Corps : une carte par sujet ─────────────────────────────────────
         Expanded(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(AppSpacing.lg),
@@ -197,129 +193,140 @@ class _ProfilFormState extends State<_ProfilForm> {
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 560),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Avatar
-                    Center(
-                      child: Stack(
-                        alignment: Alignment.bottomRight,
-                        children: [
-                          CircleAvatar(
-                            radius: 44,
-                            backgroundColor: AppColors.primaryFixed,
-                            child: Text(
-                              initial,
-                              style: AppTypography.headlineMd.copyWith(
-                                color: AppColors.onPrimaryFixedVariant,
-                              ),
-                            ),
-                          ),
-                          if (_isEditing)
-                            Container(
-                              width: 28,
-                              height: 28,
-                              decoration: BoxDecoration(
-                                color: AppColors.primary,
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: AppColors.surfaceContainerLowest,
-                                  width: 2,
-                                ),
-                              ),
-                              child: const Icon(
-                                Icons.edit,
-                                size: 14,
-                                color: Colors.white,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.xl),
-
-                    // Nom complet
-                    _fieldLabel('NOM COMPLET'),
-                    TextField(
-                      controller: _nameCtrl,
-                      enabled: _isEditing,
-                      textCapitalization: TextCapitalization.words,
-                      decoration:
-                          const InputDecoration(hintText: 'Jean Dupont'),
-                    ),
-                    const SizedBox(height: AppSpacing.lg),
-
-                    // E-mail
-                    _fieldLabel('E-MAIL'),
-                    _staticField(email),
-                    const SizedBox(height: AppSpacing.lg),
-
-                    // Téléphone
-                    _fieldLabel('TÉLÉPHONE'),
-                    if (_isEditing)
-                      FormBuilder(
-                        key: _phoneFormKey,
-                        child: PhoneField(
-                          name: 'phone',
-                          initialValue: _displayPhone,
-                        ),
-                      )
-                    else
-                      _staticField(
-                        _displayPhone.isEmpty ? '—' : _displayPhone,
-                      ),
-                    const SizedBox(height: AppSpacing.lg),
-
-                    // Type de compte
-                    _fieldLabel('TYPE DE COMPTE'),
-                    _staticField('Propriétaire'),
-
-                    // Membre depuis
-                    if (createdAt != null) ...[
-                      const SizedBox(height: AppSpacing.lg),
-                      _fieldLabel('MEMBRE DEPUIS'),
-                      _staticField(_dateFmt.format(createdAt)),
-                    ],
-
-                    const SizedBox(height: AppSpacing.xl),
-                    const Divider(),
-                    const SizedBox(height: AppSpacing.lg),
-
-                    // ── Apparence (choix du thème) ─────────────────────────
-                    const ThemePickerSection(),
-
-                    const SizedBox(height: AppSpacing.xl),
-                    const Divider(),
-                    const SizedBox(height: AppSpacing.lg),
-
-                    Container(
-                      padding: const EdgeInsets.all(AppSpacing.md),
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceContainerLow,
-                        borderRadius: AppRadius.borderMd,
-                        border: Border.all(color: AppColors.outlineVariant),
-                      ),
-                      child: Row(
+                    // ── Mes informations ──────────────────────────────────
+                    ProfileSectionCard(
+                      child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(
-                            Icons.info_outline,
-                            size: 18,
-                            color: AppColors.onSurfaceVariant,
+                          Text(
+                            'Mes informations',
+                            style: AppTypography.titleLg,
                           ),
-                          const SizedBox(width: AppSpacing.sm),
-                          Expanded(
-                            child: Text(
-                              "Pour modifier votre adresse e-mail ou votre "
-                              "mot de passe, contactez l'administrateur de "
-                              "la plateforme.",
-                              style: AppTypography.bodyMd.copyWith(
-                                color: AppColors.onSurfaceVariant,
+                          const SizedBox(height: AppSpacing.lg),
+                          Center(
+                            child: Stack(
+                              alignment: Alignment.bottomRight,
+                              children: [
+                                CircleAvatar(
+                                  radius: 44,
+                                  backgroundColor: AppColors.primaryFixed,
+                                  child: Text(
+                                    initial,
+                                    style: AppTypography.headlineMd.copyWith(
+                                      color: AppColors.onPrimaryFixedVariant,
+                                    ),
+                                  ),
+                                ),
+                                if (_isEditing)
+                                  Container(
+                                    width: 28,
+                                    height: 28,
+                                    decoration: BoxDecoration(
+                                      color: AppColors.primary,
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: AppColors.surfaceContainerLowest,
+                                        width: 2,
+                                      ),
+                                    ),
+                                    child: const Icon(
+                                      Icons.edit,
+                                      size: 14,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: AppSpacing.xl),
+                          _fieldLabel('NOM COMPLET'),
+                          TextField(
+                            controller: _nameCtrl,
+                            enabled: _isEditing,
+                            textCapitalization: TextCapitalization.words,
+                            decoration: const InputDecoration(
+                              hintText: 'Jean Dupont',
+                            ),
+                          ),
+                          const SizedBox(height: AppSpacing.lg),
+                          _fieldLabel('E-MAIL'),
+                          _staticField(email),
+                          const SizedBox(height: AppSpacing.lg),
+                          _fieldLabel('TÉLÉPHONE'),
+                          if (_isEditing)
+                            FormBuilder(
+                              key: _phoneFormKey,
+                              child: PhoneField(
+                                name: 'phone',
+                                initialValue: _displayPhone,
                               ),
+                            )
+                          else
+                            _staticField(
+                              _displayPhone.isEmpty ? '—' : _displayPhone,
+                            ),
+                          const SizedBox(height: AppSpacing.lg),
+                          _fieldLabel('TYPE DE COMPTE'),
+                          _staticField('Propriétaire'),
+                          if (createdAt != null) ...[
+                            const SizedBox(height: AppSpacing.lg),
+                            _fieldLabel('MEMBRE DEPUIS'),
+                            _staticField(_dateFmt.format(createdAt)),
+                          ],
+                          const SizedBox(height: AppSpacing.lg),
+                          Container(
+                            padding: const EdgeInsets.all(AppSpacing.md),
+                            decoration: BoxDecoration(
+                              color: AppColors.surfaceContainerLow,
+                              borderRadius: AppRadius.borderMd,
+                              border: Border.all(
+                                color: AppColors.outlineVariant,
+                              ),
+                            ),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Icon(
+                                  Icons.info_outline,
+                                  size: 18,
+                                  color: AppColors.onSurfaceVariant,
+                                ),
+                                const SizedBox(width: AppSpacing.sm),
+                                Expanded(
+                                  child: Text(
+                                    "Pour modifier votre adresse e-mail ou "
+                                    "votre mot de passe, contactez "
+                                    "l'administrateur de la plateforme.",
+                                    style: AppTypography.bodyMd.copyWith(
+                                      color: AppColors.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ],
                       ),
                     ),
+                    const SizedBox(height: AppSpacing.lg),
+
+                    // ── Ma fiche de profil (ce que voient les locataires) ──
+                    ProfileSectionCard(
+                      child: ProfileVisibilitySection(
+                        profile: profile,
+                        audience: 'aux locataires qui vous contactent',
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
+
+                    // ── Mes moyens de paiement (comment je reçois) ────────
+                    const ProfileSectionCard(child: PaymentMethodsSection()),
+                    const SizedBox(height: AppSpacing.lg),
+
+                    // ── Apparence ─────────────────────────────────────────
+                    const ProfileSectionCard(child: ThemePickerSection()),
                     const SizedBox(height: AppSpacing.xl),
                   ],
                 ),
@@ -332,27 +339,27 @@ class _ProfilFormState extends State<_ProfilForm> {
   }
 
   Widget _fieldLabel(String text) => Padding(
-        padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-        child: Text(
-          text,
-          style: AppTypography.labelSm.copyWith(
-            color: AppColors.onSurfaceVariant,
-            letterSpacing: 1.2,
-          ),
-        ),
-      );
+    padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+    child: Text(
+      text,
+      style: AppTypography.labelSm.copyWith(
+        color: AppColors.onSurfaceVariant,
+        letterSpacing: 1.2,
+      ),
+    ),
+  );
 
   Widget _staticField(String value) => Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.md,
-          vertical: 14,
-        ),
-        decoration: BoxDecoration(
-          color: AppColors.surfaceContainerLow,
-          borderRadius: AppRadius.borderSm,
-          border: Border.all(color: AppColors.outlineVariant),
-        ),
-        child: Text(value, style: AppTypography.bodyMd),
-      );
+    width: double.infinity,
+    padding: const EdgeInsets.symmetric(
+      horizontal: AppSpacing.md,
+      vertical: 14,
+    ),
+    decoration: BoxDecoration(
+      color: AppColors.surfaceContainerLow,
+      borderRadius: AppRadius.borderSm,
+      border: Border.all(color: AppColors.outlineVariant),
+    ),
+    child: Text(value, style: AppTypography.bodyMd),
+  );
 }

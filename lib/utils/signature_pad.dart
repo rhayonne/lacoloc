@@ -188,12 +188,35 @@ Future<Uint8List> _renderToPng({
 /// [saveAsDefault] : l'utilisateur a demandé à sauvegarder comme signature par défaut.
 typedef SignatureResult = ({String url, bool saveAsDefault});
 
+/// Largeur en-dessous de laquelle le pop-up de signature s'ouvre en
+/// **bottom sheet plein écran** plutôt qu'en `Dialog` centré : sur un écran
+/// étroit (iPhone SE/mini ~375px), un `Dialog` (max 540px, insets ~24-40px)
+/// ne laisse qu'une bande minuscule pour tracer une signature au doigt.
+/// Note : ce choix se fait **avant** la construction du widget (on doit
+/// choisir entre `showDialog`/`showModalBottomSheet`), donc on s'appuie sur
+/// `MediaQuery` — le pop-up est un overlay plein écran, pas un contenu
+/// contraint par la sidebar (cf. règle « LayoutBuilder, pas MediaQuery » qui
+/// vise le contenu de page, non les overlays top-level).
+const double _kNarrowSignatureBreakpoint = 600;
+
 /// Ouvre le dialog de saisie de signature et retourne l'URL une fois uploadée.
 /// Retourne null si l'utilisateur annule.
 Future<SignatureResult?> showSignatureDialog(
   BuildContext context, {
   String? existingUrl,
 }) {
+  final isNarrow =
+      MediaQuery.sizeOf(context).width < _kNarrowSignatureBreakpoint;
+  if (isNarrow) {
+    return showModalBottomSheet<SignatureResult>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) =>
+          _SignatureDialog(existingUrl: existingUrl, asSheet: true),
+    );
+  }
   return showDialog<SignatureResult>(
     context: context,
     barrierDismissible: false,
@@ -203,7 +226,12 @@ Future<SignatureResult?> showSignatureDialog(
 
 class _SignatureDialog extends StatefulWidget {
   final String? existingUrl;
-  const _SignatureDialog({this.existingUrl});
+
+  /// Rendu en bottom sheet plein écran (mobile étroit) au lieu du `Dialog`
+  /// centré (desktop/tablette).
+  final bool asSheet;
+
+  const _SignatureDialog({this.existingUrl, this.asSheet = false});
 
   @override
   State<_SignatureDialog> createState() => _SignatureDialogState();
@@ -328,87 +356,137 @@ class _SignatureDialogState extends State<_SignatureDialog> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.asSheet) return _buildSheet(context);
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: AppRadius.borderLg),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 540),
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.lg),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text('Signer', style: AppTypography.titleLg),
-              const SizedBox(height: AppSpacing.md),
-              // Sélecteur de type en haut (ne défile pas → gestuel fiable).
-              Center(
-                child: SegmentedButton<SignatureKind>(
-                  segments: const [
-                    ButtonSegment(
-                      value: SignatureKind.draw,
-                      icon: Icon(Icons.draw_outlined),
-                      label: Text('Gestuelle'),
+          child: _content(context, drawAreaHeight: 200),
+        ),
+      ),
+    );
+  }
+
+  /// Bottom sheet plein écran (mobile étroit) : la zone de dessin profite de
+  /// toute la largeur ET d'une bonne part de la hauteur disponible (la
+  /// largeur est le problème sur mobile, pas la hauteur).
+  Widget _buildSheet(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    final viewInsets = MediaQuery.viewInsetsOf(context);
+    final drawAreaHeight = (size.height * 0.45).clamp(260.0, 420.0);
+    return Padding(
+      padding: EdgeInsets.only(bottom: viewInsets.bottom),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: size.height * 0.9),
+        child: Container(
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius:
+                const BorderRadius.vertical(top: Radius.circular(AppRadius.lg)),
+          ),
+          padding: const EdgeInsets.fromLTRB(
+              AppSpacing.lg, AppSpacing.sm, AppSpacing.lg, AppSpacing.lg),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: AppSpacing.md),
+                    decoration: BoxDecoration(
+                      color: AppColors.outlineVariant,
+                      borderRadius: AppRadius.borderFull,
                     ),
-                    ButtonSegment(
-                      value: SignatureKind.image,
-                      icon: Icon(Icons.image_outlined),
-                      label: Text('Image'),
-                    ),
-                  ],
-                  selected: {_kind},
-                  onSelectionChanged: _busy
-                      ? null
-                      : (s) => setState(() {
-                            _kind = s.first;
-                            _error = null;
-                          }),
-                ),
-              ),
-              const SizedBox(height: AppSpacing.md),
-              SizedBox(
-                height: 200,
-                child:
-                    _kind == SignatureKind.draw ? _drawArea() : _imageArea(),
-              ),
-              // « Modifier l'image » sous l'aperçu (mode image, image choisie).
-              if (_kind == SignatureKind.image && _importedBytes != null) ...[
-                const SizedBox(height: AppSpacing.sm),
-                AppButton.edit(
-                  size: AppButtonSize.compact,
-                  fullWidth: true,
-                  icon: Icons.tune,
-                  label: "Modifier l'image",
-                  onPressed: _busy ? null : _editImage,
-                ),
-              ],
-              if (_error != null) ...[
-                const SizedBox(height: AppSpacing.sm),
-                Text(_error!,
-                    style: AppTypography.labelSm
-                        .copyWith(color: AppColors.error)),
-              ],
-              const SizedBox(height: AppSpacing.lg),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  AppButton.cancel(
-                    size: AppButtonSize.compact,
-                    label: 'Annuler',
-                    onPressed: _busy ? null : () => Navigator.pop(context),
                   ),
-                  const SizedBox(width: AppSpacing.sm),
-                  AppButton.save(
-                    size: AppButtonSize.compact,
-                    label: 'Enregistrer',
-                    isBusy: _busy,
-                    onPressed: _busy ? null : _confirm,
-                  ),
-                ],
-              ),
-            ],
+                ),
+                _content(context, drawAreaHeight: drawAreaHeight),
+              ],
+            ),
           ),
         ),
       ),
+    );
+  }
+
+  /// Contenu du formulaire (titre, sélecteur, zone de dessin/image, actions),
+  /// partagé entre le `Dialog` (desktop) et la bottom sheet (mobile). Seule
+  /// la hauteur de la zone de dessin/image change entre les deux.
+  Widget _content(BuildContext context, {required double drawAreaHeight}) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text('Signer', style: AppTypography.titleLg),
+        const SizedBox(height: AppSpacing.md),
+        // Sélecteur de type en haut (ne défile pas → gestuel fiable).
+        Center(
+          child: SegmentedButton<SignatureKind>(
+            segments: const [
+              ButtonSegment(
+                value: SignatureKind.draw,
+                icon: Icon(Icons.draw_outlined),
+                label: Text('Gestuelle'),
+              ),
+              ButtonSegment(
+                value: SignatureKind.image,
+                icon: Icon(Icons.image_outlined),
+                label: Text('Image'),
+              ),
+            ],
+            selected: {_kind},
+            onSelectionChanged: _busy
+                ? null
+                : (s) => setState(() {
+                      _kind = s.first;
+                      _error = null;
+                    }),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        SizedBox(
+          height: drawAreaHeight,
+          child: _kind == SignatureKind.draw ? _drawArea() : _imageArea(),
+        ),
+        // « Modifier l'image » sous l'aperçu (mode image, image choisie).
+        if (_kind == SignatureKind.image && _importedBytes != null) ...[
+          const SizedBox(height: AppSpacing.sm),
+          AppButton.edit(
+            size: AppButtonSize.compact,
+            fullWidth: true,
+            icon: Icons.tune,
+            label: "Modifier l'image",
+            onPressed: _busy ? null : _editImage,
+          ),
+        ],
+        if (_error != null) ...[
+          const SizedBox(height: AppSpacing.sm),
+          Text(_error!,
+              style: AppTypography.labelSm.copyWith(color: AppColors.error)),
+        ],
+        const SizedBox(height: AppSpacing.lg),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            AppButton.cancel(
+              size: AppButtonSize.compact,
+              label: 'Annuler',
+              onPressed: _busy ? null : () => Navigator.pop(context),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            AppButton.save(
+              size: AppButtonSize.compact,
+              label: 'Enregistrer',
+              isBusy: _busy,
+              onPressed: _busy ? null : _confirm,
+            ),
+          ],
+        ),
+      ],
     );
   }
 

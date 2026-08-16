@@ -4,12 +4,12 @@ import 'package:form_builder_validators/form_builder_validators.dart';
 import 'package:habitafrance/data/datasources/entreprises.dart';
 import 'package:habitafrance/data/models/entreprise.dart';
 import 'package:habitafrance/data/models/users_client.dart';
+import 'package:habitafrance/presentation/widgets/app_button.dart';
 import 'package:habitafrance/theme/app_colors.dart';
 import 'package:habitafrance/theme/app_radius.dart';
 import 'package:habitafrance/presentation/widgets/app_top_bar.dart';
 import 'package:habitafrance/theme/app_spacing.dart';
 import 'package:habitafrance/theme/app_typography.dart';
-import 'package:habitafrance/theme/app_theme.dart';
 import 'package:habitafrance/utils/email_field.dart';
 import 'package:habitafrance/utils/phone_field.dart';
 
@@ -53,10 +53,10 @@ class _ComptesEntreprisesPageState extends State<ComptesEntreprisesPage> {
       children: [
         AppTopBar(
           title: 'Comptes Entreprises',
-          trailing: FilledButton.icon(
+          trailing: AppButton.primary(
+            icon: Icons.domain_add_outlined,
+            label: 'Créer une entreprise',
             onPressed: _createEntreprise,
-            icon: const Icon(Icons.domain_add_outlined, size: 18),
-            label: const Text('Créer une entreprise'),
           ),
         ),
         Expanded(
@@ -74,9 +74,12 @@ class _ComptesEntreprisesPageState extends State<ComptesEntreprisesPage> {
                 final list = snap.data ?? [];
                 if (list.isEmpty) {
                   return Center(
-                    child: Text('Aucune entreprise.',
-                        style: AppTypography.bodyMd
-                            .copyWith(color: AppColors.onSurfaceVariant)),
+                    child: Text(
+                      'Aucune entreprise.',
+                      style: AppTypography.bodyMd.copyWith(
+                        color: AppColors.onSurfaceVariant,
+                      ),
+                    ),
                   );
                 }
                 return ListView.separated(
@@ -130,8 +133,9 @@ class _EntrepriseCardState extends State<_EntrepriseCard> {
       if (mounted) setState(() => _members = m);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Erreur : $e')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -161,8 +165,9 @@ class _EntrepriseCardState extends State<_EntrepriseCard> {
       widget.onChanged();
     } catch (err) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Erreur : $err')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Erreur : $err')));
       }
     }
   }
@@ -173,24 +178,32 @@ class _EntrepriseCardState extends State<_EntrepriseCard> {
       await _loadMembers();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Erreur : $e')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
       }
     }
   }
 
   Future<void> _resetMemberPassword(UsersClient m) async {
     try {
-      await EntreprisesDatasource.resetPassword(userId: m.id, email: m.email, fullName: m.fullName);
+      await EntreprisesDatasource.resetPassword(
+        userId: m.id,
+        email: m.email,
+        fullName: m.fullName,
+      );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('E-mail de réinitialisation envoyé à ${m.email}.')),
+          SnackBar(
+            content: Text('E-mail de réinitialisation envoyé à ${m.email}.'),
+          ),
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Erreur : $e')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
       }
     }
   }
@@ -207,18 +220,22 @@ class _EntrepriseCardState extends State<_EntrepriseCard> {
       child: Column(
         children: [
           ListTile(
-            leading: Icon(Icons.business_outlined,
-                color: AppColors.primary),
-            title: Text(e.name,
-                style:
-                    AppTypography.bodyMd.copyWith(fontWeight: FontWeight.w600)),
+            leading: Icon(Icons.business_outlined, color: AppColors.primary),
+            title: Text(
+              e.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTypography.bodyMd.copyWith(fontWeight: FontWeight.w600),
+            ),
             subtitle: Row(
               children: [
-                Icon(Icons.alternate_email,
-                    size: 14,
-                    color: e.domain != null
-                        ? AppColors.onSurfaceVariant
-                        : AppColors.error),
+                Icon(
+                  Icons.alternate_email,
+                  size: 14,
+                  color: e.domain != null
+                      ? AppColors.onSurfaceVariant
+                      : AppColors.error,
+                ),
                 const SizedBox(width: 4),
                 Text(
                   e.domain ?? 'Domaine non défini',
@@ -230,9 +247,12 @@ class _EntrepriseCardState extends State<_EntrepriseCard> {
                 ),
                 if (!e.active) ...[
                   const SizedBox(width: AppSpacing.sm),
-                  Text('Inactive',
-                      style:
-                          AppTypography.labelSm.copyWith(color: AppColors.error)),
+                  Text(
+                    'Inactive',
+                    style: AppTypography.labelSm.copyWith(
+                      color: AppColors.error,
+                    ),
+                  ),
                 ],
               ],
             ),
@@ -264,8 +284,9 @@ class _EntrepriseCardState extends State<_EntrepriseCard> {
             Container(
               width: double.infinity,
               decoration: BoxDecoration(
-                border:
-                    Border(top: BorderSide(color: AppColors.outlineVariant)),
+                border: Border(
+                  top: BorderSide(color: AppColors.outlineVariant),
+                ),
               ),
               padding: const EdgeInsets.all(AppSpacing.md),
               child: Column(
@@ -273,15 +294,18 @@ class _EntrepriseCardState extends State<_EntrepriseCard> {
                 children: [
                   Row(
                     children: [
-                      Text('Membres',
-                          style: AppTypography.labelMd
-                              .copyWith(fontWeight: FontWeight.w700)),
-                      const Spacer(),
-                      FilledButton.icon(
+                      Expanded(
+                        child: Text(
+                          'Membres',
+                          style: AppTypography.labelMd.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      AppButton.primary(
+                        icon: Icons.admin_panel_settings_outlined,
+                        label: 'Créer un admin de groupe',
                         onPressed: _createAdminGroupe,
-                        icon: const Icon(Icons.admin_panel_settings_outlined,
-                            size: 18),
-                        label: const Text('Créer un admin de groupe'),
                       ),
                     ],
                   ),
@@ -294,9 +318,12 @@ class _EntrepriseCardState extends State<_EntrepriseCard> {
                   else if ((_members ?? []).isEmpty)
                     Padding(
                       padding: const EdgeInsets.all(AppSpacing.sm),
-                      child: Text('Aucun membre.',
-                          style: AppTypography.labelSm
-                              .copyWith(color: AppColors.onSurfaceVariant)),
+                      child: Text(
+                        'Aucun membre.',
+                        style: AppTypography.labelSm.copyWith(
+                          color: AppColors.onSurfaceVariant,
+                        ),
+                      ),
                     )
                   else
                     for (final m in _members!) _memberTile(m),
@@ -334,8 +361,10 @@ class _EntrepriseCardState extends State<_EntrepriseCard> {
               color: AppColors.primaryFixed.withValues(alpha: 0.5),
               borderRadius: AppRadius.borderFull,
             ),
-            child: Text(m.typeUserRef?.label ?? '—',
-                style: AppTypography.labelSm.copyWith(color: AppColors.primary)),
+            child: Text(
+              m.typeUserRef?.label ?? '—',
+              style: AppTypography.labelSm.copyWith(color: AppColors.primary),
+            ),
           ),
           const SizedBox(width: AppSpacing.xs),
           IconButton(
@@ -381,14 +410,18 @@ class _EntrepriseDialogState extends State<_EntrepriseDialog> {
       if (widget.existing == null) {
         await EntreprisesDatasource.create(name: name, domain: domain);
       } else {
-        await EntreprisesDatasource.update(widget.existing!.id,
-            name: name, domain: domain);
+        await EntreprisesDatasource.update(
+          widget.existing!.id,
+          name: name,
+          domain: domain,
+        );
       }
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Erreur : $e')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -399,15 +432,14 @@ class _EntrepriseDialogState extends State<_EntrepriseDialog> {
   Widget build(BuildContext context) {
     final e = widget.existing;
     return AlertDialog(
-      title: Text(e == null ? 'Créer une entreprise' : 'Modifier l\'entreprise'),
+      title: Text(
+        e == null ? 'Créer une entreprise' : 'Modifier l\'entreprise',
+      ),
       content: SizedBox(
         width: 420,
         child: FormBuilder(
           key: _formKey,
-          initialValue: {
-            'name': e?.name ?? '',
-            'domain': e?.domain ?? '',
-          },
+          initialValue: {'name': e?.name ?? '', 'domain': e?.domain ?? ''},
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -434,19 +466,14 @@ class _EntrepriseDialogState extends State<_EntrepriseDialog> {
         ),
       ),
       actions: [
-        OutlinedButton(
+        AppButton.cancel(
+          label: 'Annuler',
           onPressed: _loading ? null : () => Navigator.pop(context),
-          child: const Text('Annuler'),
         ),
-        FilledButton(
-          style: AppTheme.saveButtonStyle,
+        AppButton.save(
+          label: e == null ? 'Créer' : 'Enregistrer',
+          isBusy: _loading,
           onPressed: _loading ? null : _submit,
-          child: _loading
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2))
-              : Text(e == null ? 'Créer' : 'Enregistrer'),
         ),
       ],
     );
@@ -481,8 +508,9 @@ class _AdminGroupeDialogState extends State<_AdminGroupeDialog> {
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Erreur : $e')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -502,8 +530,9 @@ class _AdminGroupeDialogState extends State<_AdminGroupeDialog> {
             children: [
               Text(
                 'Entreprise : ${widget.entreprise.name}',
-                style: AppTypography.labelSm
-                    .copyWith(color: AppColors.onSurfaceVariant),
+                style: AppTypography.labelSm.copyWith(
+                  color: AppColors.onSurfaceVariant,
+                ),
               ),
               const SizedBox(height: AppSpacing.sm),
               FormBuilderTextField(
@@ -523,19 +552,14 @@ class _AdminGroupeDialogState extends State<_AdminGroupeDialog> {
         ),
       ),
       actions: [
-        OutlinedButton(
+        AppButton.cancel(
+          label: 'Annuler',
           onPressed: _loading ? null : () => Navigator.pop(context),
-          child: const Text('Annuler'),
         ),
-        FilledButton(
-          style: AppTheme.saveButtonStyle,
+        AppButton.save(
+          label: 'Créer',
+          isBusy: _loading,
           onPressed: _loading ? null : _submit,
-          child: _loading
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2))
-              : const Text('Créer'),
         ),
       ],
     );

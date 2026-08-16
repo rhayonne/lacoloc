@@ -486,10 +486,28 @@ class _SignatureSlotState extends State<_SignatureSlot> {
 // ─────────────────────────────────────────────────────────────────────────────
 // Écran de signature gestuelle (dessin — tactile ou souris)
 
+/// Largeur en-dessous de laquelle l'écran de signature gestuelle s'ouvre en
+/// **bottom sheet plein écran** plutôt qu'en `Dialog` centré (même règle que
+/// `showSignatureDialog` dans `utils/signature_pad.dart` — voir le
+/// commentaire là-bas pour le choix de `MediaQuery` sur cet overlay
+/// top-level).
+const double _kNarrowSignatureBreakpoint = 600;
+
 /// Ouvre l'écran de **signature gestuelle**. Le pad fonctionne au doigt
 /// (tactile) comme à la souris. Retourne les bytes PNG dessinés, ou null si
 /// l'utilisateur annule.
 Future<Uint8List?> showDrawSignatureDialog(BuildContext context) {
+  final isNarrow =
+      MediaQuery.sizeOf(context).width < _kNarrowSignatureBreakpoint;
+  if (isNarrow) {
+    return showModalBottomSheet<Uint8List>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => const _DrawSignatureDialog(asSheet: true),
+    );
+  }
   return showDialog<Uint8List>(
     context: context,
     barrierDismissible: false,
@@ -498,7 +516,11 @@ Future<Uint8List?> showDrawSignatureDialog(BuildContext context) {
 }
 
 class _DrawSignatureDialog extends StatefulWidget {
-  const _DrawSignatureDialog();
+  /// Rendu en bottom sheet plein écran (mobile étroit) au lieu du `Dialog`
+  /// centré (desktop/tablette).
+  final bool asSheet;
+
+  const _DrawSignatureDialog({this.asSheet = false});
 
   @override
   State<_DrawSignatureDialog> createState() => _DrawSignatureDialogState();
@@ -524,53 +546,102 @@ class _DrawSignatureDialogState extends State<_DrawSignatureDialog> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.asSheet) return _buildSheet(context);
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: AppRadius.borderLg),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 540),
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.lg),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text('Signature gestuelle', style: AppTypography.titleLg),
-              const SizedBox(height: AppSpacing.xs),
-              Text(
-                'Dessinez votre signature ci-dessous (au doigt ou à la souris).',
-                style: AppTypography.bodyMd
-                    .copyWith(color: AppColors.onSurfaceVariant),
-              ),
-              const SizedBox(height: AppSpacing.md),
-              SizedBox(height: 200, child: SignaturePad(key: _padKey)),
-              const SizedBox(height: AppSpacing.sm),
-              Row(
-                children: [
-                  TextButton.icon(
-                    onPressed:
-                        _busy ? null : () => _padKey.currentState?.clear(),
-                    icon: const Icon(Icons.refresh, size: 16),
-                    label: const Text('Effacer'),
+          child: _content(context, padHeight: 200),
+        ),
+      ),
+    );
+  }
+
+  /// Bottom sheet plein écran (mobile étroit) : gagne toute la largeur pour
+  /// le tracé et une bonne part de la hauteur disponible.
+  Widget _buildSheet(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    final viewInsets = MediaQuery.viewInsetsOf(context);
+    final padHeight = (size.height * 0.45).clamp(260.0, 420.0);
+    return Padding(
+      padding: EdgeInsets.only(bottom: viewInsets.bottom),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: size.height * 0.9),
+        child: Container(
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius:
+                const BorderRadius.vertical(top: Radius.circular(AppRadius.lg)),
+          ),
+          padding: const EdgeInsets.fromLTRB(
+              AppSpacing.lg, AppSpacing.sm, AppSpacing.lg, AppSpacing.lg),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: AppSpacing.md),
+                    decoration: BoxDecoration(
+                      color: AppColors.outlineVariant,
+                      borderRadius: AppRadius.borderFull,
+                    ),
                   ),
-                  const Spacer(),
-                  AppButton.cancel(
-                    size: AppButtonSize.compact,
-                    label: 'Annuler',
-                    onPressed: _busy ? null : () => Navigator.pop(context),
-                  ),
-                  const SizedBox(width: AppSpacing.sm),
-                  AppButton.save(
-                    size: AppButtonSize.compact,
-                    label: 'Enregistrer',
-                    isBusy: _busy,
-                    onPressed: _busy ? null : _save,
-                  ),
-                ],
-              ),
-            ],
+                ),
+                _content(context, padHeight: padHeight),
+              ],
+            ),
           ),
         ),
       ),
+    );
+  }
+
+  /// Contenu partagé entre le `Dialog` (desktop) et la bottom sheet
+  /// (mobile) ; seule la hauteur du pad de dessin change.
+  Widget _content(BuildContext context, {required double padHeight}) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text('Signature gestuelle', style: AppTypography.titleLg),
+        const SizedBox(height: AppSpacing.xs),
+        Text(
+          'Dessinez votre signature ci-dessous (au doigt ou à la souris).',
+          style:
+              AppTypography.bodyMd.copyWith(color: AppColors.onSurfaceVariant),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        SizedBox(height: padHeight, child: SignaturePad(key: _padKey)),
+        const SizedBox(height: AppSpacing.sm),
+        Row(
+          children: [
+            TextButton.icon(
+              onPressed: _busy ? null : () => _padKey.currentState?.clear(),
+              icon: const Icon(Icons.refresh, size: 16),
+              label: const Text('Effacer'),
+            ),
+            const Spacer(),
+            AppButton.cancel(
+              size: AppButtonSize.compact,
+              label: 'Annuler',
+              onPressed: _busy ? null : () => Navigator.pop(context),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            AppButton.save(
+              size: AppButtonSize.compact,
+              label: 'Enregistrer',
+              isBusy: _busy,
+              onPressed: _busy ? null : _save,
+            ),
+          ],
+        ),
+      ],
     );
   }
 }

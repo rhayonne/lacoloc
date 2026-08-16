@@ -9,6 +9,7 @@ import 'package:habitafrance/data/models/chambre_disponibilite.dart';
 import 'package:habitafrance/data/models/immeubles.dart';
 import 'package:habitafrance/data/models/users_client.dart';
 import 'package:habitafrance/presentation/chambres/chambre_card.dart';
+import 'package:habitafrance/presentation/messagerie/discussion_page.dart';
 import 'package:habitafrance/presentation/widgets/contact_dialog.dart';
 import 'package:habitafrance/presentation/widgets/photo_carousel.dart';
 import 'package:habitafrance/theme/app_colors.dart';
@@ -25,10 +26,15 @@ class ImmeublePublicDetailView extends StatefulWidget {
   /// Retour à la liste (rendu dans le même cadre). Si null → Navigator.pop().
   final VoidCallback? onBack;
 
+  /// Ouvre le fil de discussion existant (reçoit l'id de la demande). Si null,
+  /// le fil s'ouvre dans une page dédiée.
+  final ValueChanged<int>? onOuvrirDiscussion;
+
   const ImmeublePublicDetailView({
     super.key,
     required this.immeubleId,
     this.onBack,
+    this.onOuvrirDiscussion,
   });
 
   @override
@@ -43,10 +49,10 @@ class _ImmeublePublicDetailViewState extends State<ImmeublePublicDetailView> {
   /// locataire ; le visiteur non connecté est redirigé vers la connexion).
   UsersClient? _profile;
 
-  /// Le locataire a-t-il déjà une demande active (non ignorée) **au niveau de
-  /// l'immeuble** ? → on désactive le bouton pour éviter les doublons (mêmes
-  /// garde-fous que la fiche chambre).
-  bool _hasPendingDemande = false;
+  /// Fil déjà ouvert avec le propriétaire **au niveau de l'immeuble** (null =
+  /// aucun) : le bouton mène alors à la discussion existante au lieu d'être
+  /// désactivé — mêmes règles que la fiche chambre.
+  int? _demandeId;
 
   @override
   void initState() {
@@ -69,12 +75,27 @@ class _ImmeublePublicDetailViewState extends State<ImmeublePublicDetailView> {
     final p = _profile;
     if (p == null || p.resolvedType != UserType.locataire) return;
     try {
-      final pending = await DemandesContactDatasource.hasDemandeEnAttente(
+      final id = await DemandesContactDatasource.existingDemandeId(
         locataireId: p.id,
         immeubleId: widget.immeubleId,
       );
-      if (mounted) setState(() => _hasPendingDemande = pending);
+      if (mounted) setState(() => _demandeId = id);
     } catch (_) {/* best-effort */}
+  }
+
+  /// Ouvre le fil existant : dans le cadre si l'hôte sait le faire, sinon en
+  /// page dédiée (accueil public).
+  void _ouvrirDiscussion(int demandeId) {
+    final handler = widget.onOuvrirDiscussion;
+    if (handler != null) {
+      handler(demandeId);
+      return;
+    }
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => DiscussionPage(demandeId: demandeId),
+      ),
+    );
   }
 
   void _contact(ImmeublesModel imm) {
@@ -88,9 +109,7 @@ class _ImmeublePublicDetailViewState extends State<ImmeublePublicDetailView> {
       profile: _profile!,
       immeubleId: imm.id,
       immeubleName: imm.name,
-      onSent: () {
-        if (mounted) setState(() => _hasPendingDemande = true);
-      },
+      onSent: _refreshPending,
     );
   }
 
@@ -227,12 +246,11 @@ class _ImmeublePublicDetailViewState extends State<ImmeublePublicDetailView> {
                 if (_profile?.resolvedType == UserType.locataire ||
                     !AuthService.isLoggedIn) ...[
                   const SizedBox(height: AppSpacing.lg),
-                  if (_hasPendingDemande)
-                    OutlinedButton.icon(
-                      onPressed: null,
-                      icon: const Icon(Icons.forum_outlined),
-                      label:
-                          const Text('Vous avez déjà contacté le propriétaire'),
+                  if (_demandeId != null)
+                    FilledButton.icon(
+                      onPressed: () => _ouvrirDiscussion(_demandeId!),
+                      icon: const Icon(Icons.chat_bubble_outline),
+                      label: const Text('Discuter avec le propriétaire'),
                     )
                   else
                     FilledButton.icon(

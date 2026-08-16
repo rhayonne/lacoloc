@@ -9,12 +9,13 @@ import 'package:habitafrance/data/datasources/immeubles.dart';
 import 'package:habitafrance/data/models/chambre.dart';
 import 'package:habitafrance/data/models/etat_de_lieux.dart';
 import 'package:habitafrance/data/models/immeubles.dart';
+import 'package:habitafrance/presentation/widgets/app_button.dart';
 import 'package:habitafrance/presentation/widgets/number_stepper_field.dart';
 import 'package:habitafrance/presentation/widgets/form_page_header.dart';
 import 'package:habitafrance/presentation/widgets/photo_picker_field.dart';
 import 'package:habitafrance/theme/app_colors.dart';
-import 'package:habitafrance/theme/app_theme.dart';
 import 'package:habitafrance/utils/currency.dart';
+import 'package:habitafrance/utils/responsive_form_wrapper.dart';
 import 'package:habitafrance/theme/app_spacing.dart';
 import 'package:habitafrance/theme/app_typography.dart';
 
@@ -73,13 +74,16 @@ class _CreerChambrePageState extends State<CreerChambrePage> {
       // EDL d'entrée privatif lié → permet d'afficher le code du bail/EDL.
       EtatDesLieuxDatasource.findPrivatif(chambreId: ch.id, typeEdl: 'entree')
           .then((edl) {
-        if (mounted) setState(() => _linkedEdl = edl);
-      }).catchError((_) {});
+            if (mounted) setState(() => _linkedEdl = edl);
+          })
+          .catchError((_) {});
       _roomPhotos = List.from(ch.roomPhotos);
       _mainPhoto = ch.mainPhoto;
       _bundleFuture.then((bundle) {
         if (!mounted) return;
-        final match = bundle.immeubles.where((i) => i.id == ch.immeubleId).firstOrNull;
+        final match = bundle.immeubles
+            .where((i) => i.id == ch.immeubleId)
+            .firstOrNull;
         if (match != null) {
           setState(() => _selectedImmeuble = match);
           WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -129,11 +133,22 @@ class _CreerChambrePageState extends State<CreerChambrePage> {
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('Modifications non sauvegardées'),
-        content: const Text('Vous avez des modifications non sauvegardées. Que souhaitez-vous faire ?'),
+        content: const Text(
+          'Vous avez des modifications non sauvegardées. Que souhaitez-vous faire ?',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, 'cancel'), child: const Text('Continuer')),
-          OutlinedButton(onPressed: () => Navigator.pop(context, 'discard'), child: const Text('Quitter sans sauvegarder')),
-          FilledButton(style: AppTheme.saveButtonStyle, onPressed: () => Navigator.pop(context, 'save'), child: const Text('Sauvegarder et quitter')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, 'cancel'),
+            child: const Text('Continuer'),
+          ),
+          AppButton.cancel(
+            label: 'Quitter sans sauvegarder',
+            onPressed: () => Navigator.pop(context, 'discard'),
+          ),
+          AppButton.save(
+            label: 'Sauvegarder et quitter',
+            onPressed: () => Navigator.pop(context, 'save'),
+          ),
         ],
       ),
     );
@@ -159,14 +174,13 @@ class _CreerChambrePageState extends State<CreerChambrePage> {
           'système (avec son inventaire). Cette action est irréversible.',
         ),
         actions: [
-          OutlinedButton(
+          AppButton.cancel(
+            label: 'Annuler',
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Annuler'),
           ),
-          FilledButton(
+          AppButton.delete(
+            label: 'Supprimer',
             onPressed: () => Navigator.pop(context, true),
-            style: AppTheme.deleteButtonStyle,
-            child: const Text('Supprimer'),
           ),
         ],
       ),
@@ -179,9 +193,9 @@ class _CreerChambrePageState extends State<CreerChambrePage> {
     } catch (e) {
       if (mounted) {
         setState(() => _isSubmitting = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Suppression impossible : $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Suppression impossible : $e')));
       }
     }
   }
@@ -192,8 +206,9 @@ class _CreerChambrePageState extends State<CreerChambrePage> {
 
     final immeuble = values['immeuble'] as ImmeublesModel?;
     if (immeuble == null && !_isEditing) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Sélectionnez un immeuble")));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Sélectionnez un immeuble")));
       return;
     }
 
@@ -205,8 +220,12 @@ class _CreerChambrePageState extends State<CreerChambrePage> {
         id: ch?.id ?? 0,
         immeubleId: immeuble?.id ?? ch!.immeubleId,
         roomName: values['room_name'] as String,
-        m2: double.tryParse(((values['m2'] as String?) ?? '').replaceAll(',', '.')),
-        prixLoyer: double.tryParse(((values['prix_loyer'] as String?) ?? '').replaceAll(',', '.')),
+        m2: double.tryParse(
+          ((values['m2'] as String?) ?? '').replaceAll(',', '.'),
+        ),
+        prixLoyer: double.tryParse(
+          ((values['prix_loyer'] as String?) ?? '').replaceAll(',', '.'),
+        ),
         description: descVal?.isEmpty == true ? null : descVal,
         roomPhotos: _roomPhotos,
         // Les équipements vivent désormais dans l'inventaire (lié à la chambre).
@@ -219,8 +238,15 @@ class _CreerChambrePageState extends State<CreerChambrePage> {
             ? true
             : ((values['est_loue'] as bool?) ?? false),
         mainPhoto: _mainPhoto,
-        depotGarantieMois: double.tryParse(((values['depot_garantie_mois'] as String?) ?? '').replaceAll(',', '.')),
-        dureeBailMois: int.tryParse((values['duree_bail_mois'] as String?) ?? ''),
+        depotGarantieMois: double.tryParse(
+          ((values['depot_garantie_mois'] as String?) ?? '').replaceAll(
+            ',',
+            '.',
+          ),
+        ),
+        dureeBailMois: int.tryParse(
+          (values['duree_bail_mois'] as String?) ?? '',
+        ),
       );
 
       if (_isEditing) {
@@ -230,9 +256,15 @@ class _CreerChambrePageState extends State<CreerChambrePage> {
       }
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(_isEditing ? 'Chambre modifiée avec succès' : 'Chambre créée avec succès'),
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            _isEditing
+                ? 'Chambre modifiée avec succès'
+                : 'Chambre créée avec succès',
+          ),
+        ),
+      );
 
       if (_isEditing || fromBack) {
         widget.onSaved?.call();
@@ -247,16 +279,18 @@ class _CreerChambrePageState extends State<CreerChambrePage> {
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur : $e')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
   }
 
   Widget _sectionLabel(String text) => Padding(
-        padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-        child: Text(text, style: AppTypography.labelMd),
-      );
+    padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+    child: Text(text, style: AppTypography.labelMd),
+  );
 
   /// Statut « Chambre louée » :
   /// - liée à un bail/EDL **finalisé** → case cochée, **verrouillée**, avec le
@@ -265,7 +299,8 @@ class _CreerChambrePageState extends State<CreerChambrePage> {
   ///   occupée **par le propriétaire** (note explicite).
   Widget _buildStatutLouee() {
     final edl = _linkedEdl;
-    final linkedFinalise = edl != null && edl.situation == SituationEdl.finalise;
+    final linkedFinalise =
+        edl != null && edl.situation == SituationEdl.finalise;
 
     if (linkedFinalise) {
       final code = edl.code ?? 'EDL #${edl.id}';
@@ -284,13 +319,16 @@ class _CreerChambrePageState extends State<CreerChambrePage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Chambre louée — liée à un bail',
-                      style: TextStyle(fontWeight: FontWeight.w600)),
+                  const Text(
+                    'Chambre louée — liée à un bail',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
                   const SizedBox(height: 2),
                   SelectableText(
                     'Code : $code',
-                    style: AppTypography.labelSm
-                        .copyWith(color: AppColors.onSurfaceVariant),
+                    style: AppTypography.labelSm.copyWith(
+                      color: AppColors.onSurfaceVariant,
+                    ),
                   ),
                 ],
               ),
@@ -305,8 +343,9 @@ class _CreerChambrePageState extends State<CreerChambrePage> {
       initialValue: widget.chambre?.estLoue ?? false,
       title: const Text('Chambre louée'),
       subtitle: const Text(
-          'Aucun bail lié. Si vous la cochez, la chambre sera marquée occupée '
-          'par le propriétaire (sans bail).'),
+        'Aucun bail lié. Si vous la cochez, la chambre sera marquée occupée '
+        'par le propriétaire (sans bail).',
+      ),
       activeColor: AppColors.primary,
       contentPadding: EdgeInsets.zero,
       controlAffinity: ListTileControlAffinity.leading,
@@ -326,16 +365,16 @@ class _CreerChambrePageState extends State<CreerChambrePage> {
       padding: const EdgeInsets.only(top: AppSpacing.xs),
       child: Row(
         children: [
-          Icon(Icons.info_outline,
-              size: 14, color: AppColors.onSurfaceVariant),
+          Icon(Icons.info_outline, size: 14, color: AppColors.onSurfaceVariant),
           const SizedBox(width: AppSpacing.xs),
           Expanded(
             child: Text(
               'Dépôt demandé au locataire : ${montant.toStringAsFixed(2)} € '
               '(${mois.toStringAsFixed(mois % 1 == 0 ? 0 : 1)} × ${loyer.toStringAsFixed(2)} €). '
               'Une échéance sera créée à la génération du bail.',
-              style: AppTypography.labelSm
-                  .copyWith(color: AppColors.onSurfaceVariant),
+              style: AppTypography.labelSm.copyWith(
+                color: AppColors.onSurfaceVariant,
+              ),
             ),
           ),
         ],
@@ -360,8 +399,9 @@ class _CreerChambrePageState extends State<CreerChambrePage> {
             child: Text(
               'Sélectionnez d\'abord un immeuble pour activer le formulaire. '
               'Les informations contractuelles sont héritées de l\'immeuble.',
-              style: AppTypography.bodyMd
-                  .copyWith(color: AppColors.onSurfaceVariant),
+              style: AppTypography.bodyMd.copyWith(
+                color: AppColors.onSurfaceVariant,
+              ),
             ),
           ),
         ],
@@ -380,14 +420,15 @@ class _CreerChambrePageState extends State<CreerChambrePage> {
             onSave: _submit,
             onClose: _handleBack,
             isSaving: _isSubmitting,
-            saveLabel: _isEditing ? 'Enregistrer les modifications' : 'Créer la chambre',
+            saveLabel: _isEditing
+                ? 'Enregistrer les modifications'
+                : 'Créer la chambre',
             extraActions: _isEditing
                 ? [
-                    FilledButton.icon(
+                    AppButton.delete(
+                      icon: Icons.delete_outline,
+                      label: 'Supprimer',
                       onPressed: _isSubmitting ? null : _deleteChambre,
-                      style: AppTheme.deleteButtonStyle,
-                      icon: const Icon(Icons.delete_outline, size: 18),
-                      label: const Text('Supprimer'),
                     ),
                   ]
                 : const [],
@@ -419,174 +460,261 @@ class _CreerChambrePageState extends State<CreerChambrePage> {
               }
 
               return SingleChildScrollView(
-                child: Align(
-                  alignment: Alignment.topCenter,
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 860),
-                    child: Padding(
-                      padding: const EdgeInsets.all(AppSpacing.lg),
-                      child: FormBuilder(
-                        key: _formKey,
-                        child: LayoutBuilder(
-                          builder: (ctx, constraints) {
-                            final wide = constraints.maxWidth >= 560;
-                            return Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-
-                                // ══ 1 — Immeuble (toujours actif) ════════════
-                                _sectionLabel("Identification"),
-                                if (_isEditing)
-                                  FormBuilderTextField(
-                                    name: 'immeuble_display',
-                                    initialValue: widget.chambre?.immeubleName ?? _selectedImmeuble?.name ?? '',
-                                    enabled: false,
-                                    decoration: const InputDecoration(labelText: 'Immeuble'),
-                                  )
-                                else
-                                  FormBuilderDropdown<ImmeublesModel>(
-                                    key: ValueKey(_selectedImmeuble?.id),
-                                    name: 'immeuble',
-                                    initialValue: _selectedImmeuble,
-                                    decoration: const InputDecoration(labelText: 'Immeuble'),
-                                    items: bundle.immeubles.map((i) => DropdownMenuItem(value: i, child: Text(i.name))).toList(),
-                                    validator: FormBuilderValidators.required(),
-                                    onChanged: (v) {
-                                      setState(() => _selectedImmeuble = v);
-                                    },
+                child: ResponsiveFormWrapper(
+                  child: Padding(
+                    padding: const EdgeInsets.all(AppSpacing.lg),
+                    child: FormBuilder(
+                      key: _formKey,
+                      child: LayoutBuilder(
+                        builder: (ctx, constraints) {
+                          final wide = constraints.maxWidth >= 560;
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              // ══ 1 — Immeuble (toujours actif) ════════════
+                              _sectionLabel("Identification"),
+                              if (_isEditing)
+                                FormBuilderTextField(
+                                  name: 'immeuble_display',
+                                  initialValue:
+                                      widget.chambre?.immeubleName ??
+                                      _selectedImmeuble?.name ??
+                                      '',
+                                  enabled: false,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Immeuble',
                                   ),
-
-                                if (_selectedImmeuble?.bailLabel != null) ...[
-                                  const SizedBox(height: AppSpacing.xs),
-                                  _BailBadge(label: _selectedImmeuble!.bailLabel!),
-                                ],
-
-                                if (_locked) ...[
-                                  const SizedBox(height: AppSpacing.md),
-                                  _selectImmeubleBanner(),
-                                ],
-                                const SizedBox(height: AppSpacing.md),
-
-                                // ══ Reste du formulaire — bloqué tant qu'aucun
-                                //    immeuble n'est sélectionné. ══════════════
-                                AbsorbPointer(
-                                  absorbing: _locked,
-                                  child: Opacity(
-                                    opacity: _locked ? 0.45 : 1,
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                                      children: [
-                                        wide
-                                            ? Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                                Expanded(flex: 2, child: FormBuilderTextField(
-                                                  name: 'room_name',
-                                                  initialValue: widget.chambre?.roomName,
-                                                  enabled: !_locked,
-                                                  decoration: const InputDecoration(labelText: 'Nom de la chambre'),
-                                                  validator: FormBuilderValidators.required(),
-                                                )),
-                                                const SizedBox(width: AppSpacing.md),
-                                                Expanded(child: FormBuilderTextField(
-                                                  name: 'm2',
-                                                  initialValue: widget.chambre?.m2?.toStringAsFixed(2),
-                                                  enabled: !_locked,
-                                                  decoration: const InputDecoration(labelText: 'Surface (m²)'),
-                                                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                                )),
-                                              ])
-                                            : Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                                                FormBuilderTextField(
-                                                  name: 'room_name',
-                                                  initialValue: widget.chambre?.roomName,
-                                                  enabled: !_locked,
-                                                  decoration: const InputDecoration(labelText: 'Nom de la chambre'),
-                                                  validator: FormBuilderValidators.required(),
-                                                ),
-                                                const SizedBox(height: AppSpacing.md),
-                                                FormBuilderTextField(
-                                                  name: 'm2',
-                                                  initialValue: widget.chambre?.m2?.toStringAsFixed(2),
-                                                  enabled: !_locked,
-                                                  decoration: const InputDecoration(labelText: 'Surface (m²)'),
-                                                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                                ),
-                                              ]),
-                                        const SizedBox(height: AppSpacing.md),
-
-                                        FormBuilderTextField(
-                                          name: 'prix_loyer',
-                                          initialValue: widget.chambre?.prixLoyer?.toStringAsFixed(2),
-                                          enabled: !_locked,
-                                          decoration: InputDecoration(
-                                            labelText: 'Prix du loyer (€/mois)',
-                                            prefixIcon: const Icon(Icons.euro),
-                                            helperText: _pricePreview,
-                                          ),
-                                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                          inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*[,.]?\d{0,2}'))],
-                                          onChanged: (v) {
-                                            final cents = _parseCents(v);
-                                            setState(() {
-                                              _pricePreview = cents != null && cents > 0 ? formatFrenchCurrency(cents) : null;
-                                              _loyer = double.tryParse((v ?? '').replaceAll(',', '.'));
-                                            });
-                                          },
-                                        ),
-                                        const SizedBox(height: AppSpacing.md),
-
-                                        FormBuilderTextField(
-                                          name: 'description',
-                                          initialValue: widget.chambre?.description,
-                                          enabled: !_locked,
-                                          decoration: const InputDecoration(labelText: 'Description', alignLabelWithHint: true),
-                                          maxLines: 4,
-                                        ),
-                                        const SizedBox(height: AppSpacing.lg),
-                                        const Divider(),
-                                        const SizedBox(height: AppSpacing.md),
-
-                                        // ══ 2 — Photos ═══════════════════════
-                                        _sectionLabel("Photos de la chambre"),
-                                        PhotoPickerField(
-                                          folder: 'chambres',
-                                          initialPhotos: _roomPhotos,
-                                          initialMainPhoto: _mainPhoto,
-                                          onChanged: (urls) => setState(() => _roomPhotos = urls),
-                                          onMainPhotoChanged: (url) => setState(() => _mainPhoto = url),
-                                        ),
-                                        const SizedBox(height: AppSpacing.lg),
-                                        const Divider(),
-                                        const SizedBox(height: AppSpacing.md),
-
-                                        // ══ 3 — Informations contractuelles ══
-                                        //    Héritées de l'immeuble (modifiables).
-                                        _sectionLabel("Informations contractuelles"),
-                                        _buildContractuelles(wide),
-                                        const SizedBox(height: AppSpacing.lg),
-                                        const Divider(),
-                                        const SizedBox(height: AppSpacing.md),
-
-                                        // ══ 4 — Statut ═══════════════════════
-                                        _sectionLabel("Statut"),
-                                        _buildStatutLouee(),
-                                        FormBuilderCheckbox(
-                                          name: 'desactiver',
-                                          initialValue: !(widget.chambre?.isActive ?? true),
-                                          title: const Text('Désactiver chambre'),
-                                          subtitle: const Text('Cette chambre ne sera plus visible sur le site.'),
-                                          activeColor: AppColors.error,
-                                          contentPadding: EdgeInsets.zero,
-                                          controlAffinity: ListTileControlAffinity.leading,
-                                        ),
-                                        const SizedBox(height: AppSpacing.xl),
-                                      ],
-                                    ),
+                                )
+                              else
+                                FormBuilderDropdown<ImmeublesModel>(
+                                  key: ValueKey(_selectedImmeuble?.id),
+                                  name: 'immeuble',
+                                  initialValue: _selectedImmeuble,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Immeuble',
                                   ),
+                                  items: bundle.immeubles
+                                      .map(
+                                        (i) => DropdownMenuItem(
+                                          value: i,
+                                          child: Text(i.name),
+                                        ),
+                                      )
+                                      .toList(),
+                                  validator: FormBuilderValidators.required(),
+                                  onChanged: (v) {
+                                    setState(() => _selectedImmeuble = v);
+                                  },
+                                ),
+
+                              if (_selectedImmeuble?.bailLabel != null) ...[
+                                const SizedBox(height: AppSpacing.xs),
+                                _BailBadge(
+                                  label: _selectedImmeuble!.bailLabel!,
                                 ),
                               ],
-                            );
-                          },
-                        ),
+
+                              if (_locked) ...[
+                                const SizedBox(height: AppSpacing.md),
+                                _selectImmeubleBanner(),
+                              ],
+                              const SizedBox(height: AppSpacing.md),
+
+                              // ══ Reste du formulaire — bloqué tant qu'aucun
+                              //    immeuble n'est sélectionné. ══════════════
+                              AbsorbPointer(
+                                absorbing: _locked,
+                                child: Opacity(
+                                  opacity: _locked ? 0.45 : 1,
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      wide
+                                          ? Row(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Expanded(
+                                                  flex: 2,
+                                                  child: FormBuilderTextField(
+                                                    name: 'room_name',
+                                                    initialValue: widget
+                                                        .chambre
+                                                        ?.roomName,
+                                                    enabled: !_locked,
+                                                    decoration:
+                                                        const InputDecoration(
+                                                          labelText:
+                                                              'Nom de la chambre',
+                                                        ),
+                                                    validator:
+                                                        FormBuilderValidators.required(),
+                                                  ),
+                                                ),
+                                                const SizedBox(
+                                                  width: AppSpacing.md,
+                                                ),
+                                                Expanded(
+                                                  child: FormBuilderTextField(
+                                                    name: 'm2',
+                                                    initialValue: widget
+                                                        .chambre
+                                                        ?.m2
+                                                        ?.toStringAsFixed(2),
+                                                    enabled: !_locked,
+                                                    decoration:
+                                                        const InputDecoration(
+                                                          labelText:
+                                                              'Surface (m²)',
+                                                        ),
+                                                    keyboardType:
+                                                        const TextInputType.numberWithOptions(
+                                                          decimal: true,
+                                                        ),
+                                                  ),
+                                                ),
+                                              ],
+                                            )
+                                          : Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.stretch,
+                                              children: [
+                                                FormBuilderTextField(
+                                                  name: 'room_name',
+                                                  initialValue:
+                                                      widget.chambre?.roomName,
+                                                  enabled: !_locked,
+                                                  decoration:
+                                                      const InputDecoration(
+                                                        labelText:
+                                                            'Nom de la chambre',
+                                                      ),
+                                                  validator:
+                                                      FormBuilderValidators.required(),
+                                                ),
+                                                const SizedBox(
+                                                  height: AppSpacing.md,
+                                                ),
+                                                FormBuilderTextField(
+                                                  name: 'm2',
+                                                  initialValue: widget
+                                                      .chambre
+                                                      ?.m2
+                                                      ?.toStringAsFixed(2),
+                                                  enabled: !_locked,
+                                                  decoration:
+                                                      const InputDecoration(
+                                                        labelText:
+                                                            'Surface (m²)',
+                                                      ),
+                                                  keyboardType:
+                                                      const TextInputType.numberWithOptions(
+                                                        decimal: true,
+                                                      ),
+                                                ),
+                                              ],
+                                            ),
+                                      const SizedBox(height: AppSpacing.md),
+
+                                      FormBuilderTextField(
+                                        name: 'prix_loyer',
+                                        initialValue: widget.chambre?.prixLoyer
+                                            ?.toStringAsFixed(2),
+                                        enabled: !_locked,
+                                        decoration: InputDecoration(
+                                          labelText: 'Prix du loyer (€/mois)',
+                                          prefixIcon: const Icon(Icons.euro),
+                                          helperText: _pricePreview,
+                                        ),
+                                        keyboardType:
+                                            const TextInputType.numberWithOptions(
+                                              decimal: true,
+                                            ),
+                                        inputFormatters: [
+                                          FilteringTextInputFormatter.allow(
+                                            RegExp(r'^\d*[,.]?\d{0,2}'),
+                                          ),
+                                        ],
+                                        onChanged: (v) {
+                                          final cents = _parseCents(v);
+                                          setState(() {
+                                            _pricePreview =
+                                                cents != null && cents > 0
+                                                ? formatFrenchCurrency(cents)
+                                                : null;
+                                            _loyer = double.tryParse(
+                                              (v ?? '').replaceAll(',', '.'),
+                                            );
+                                          });
+                                        },
+                                      ),
+                                      const SizedBox(height: AppSpacing.md),
+
+                                      FormBuilderTextField(
+                                        name: 'description',
+                                        initialValue:
+                                            widget.chambre?.description,
+                                        enabled: !_locked,
+                                        decoration: const InputDecoration(
+                                          labelText: 'Description',
+                                          alignLabelWithHint: true,
+                                        ),
+                                        maxLines: 4,
+                                      ),
+                                      const SizedBox(height: AppSpacing.lg),
+                                      const Divider(),
+                                      const SizedBox(height: AppSpacing.md),
+
+                                      // ══ 2 — Photos ═══════════════════════
+                                      _sectionLabel("Photos de la chambre"),
+                                      PhotoPickerField(
+                                        folder: 'chambres',
+                                        initialPhotos: _roomPhotos,
+                                        initialMainPhoto: _mainPhoto,
+                                        onChanged: (urls) =>
+                                            setState(() => _roomPhotos = urls),
+                                        onMainPhotoChanged: (url) =>
+                                            setState(() => _mainPhoto = url),
+                                      ),
+                                      const SizedBox(height: AppSpacing.lg),
+                                      const Divider(),
+                                      const SizedBox(height: AppSpacing.md),
+
+                                      // ══ 3 — Informations contractuelles ══
+                                      //    Héritées de l'immeuble (modifiables).
+                                      _sectionLabel(
+                                        "Informations contractuelles",
+                                      ),
+                                      _buildContractuelles(wide),
+                                      const SizedBox(height: AppSpacing.lg),
+                                      const Divider(),
+                                      const SizedBox(height: AppSpacing.md),
+
+                                      // ══ 4 — Statut ═══════════════════════
+                                      _sectionLabel("Statut"),
+                                      _buildStatutLouee(),
+                                      FormBuilderCheckbox(
+                                        name: 'desactiver',
+                                        initialValue:
+                                            !(widget.chambre?.isActive ?? true),
+                                        title: const Text('Désactiver chambre'),
+                                        subtitle: const Text(
+                                          'Cette chambre ne sera plus visible sur le site.',
+                                        ),
+                                        activeColor: AppColors.error,
+                                        contentPadding: EdgeInsets.zero,
+                                        controlAffinity:
+                                            ListTileControlAffinity.leading,
+                                      ),
+                                      const SizedBox(height: AppSpacing.xl),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          );
+                        },
                       ),
                     ),
                   ),
@@ -606,9 +734,11 @@ class _CreerChambrePageState extends State<CreerChambrePage> {
     final imm = _selectedImmeuble;
     final meuble = imm?.locationMeuble == true;
     // Valeur initiale : celle de la chambre (édition) sinon héritée de l'immeuble.
-    final depotInit = widget.chambre?.depotGarantieMois?.toString() ??
+    final depotInit =
+        widget.chambre?.depotGarantieMois?.toString() ??
         imm?.depotGarantieMois?.toString();
-    final dureeInit = widget.chambre?.dureeBailMois?.toString() ??
+    final dureeInit =
+        widget.chambre?.dureeBailMois?.toString() ??
         imm?.dureeBailMois?.toString() ??
         (meuble ? '12' : '36');
     // Clé liée à l'immeuble → le champ se ré-initialise avec la valeur héritée
@@ -633,7 +763,8 @@ class _CreerChambrePageState extends State<CreerChambrePage> {
       name: 'duree_bail_mois',
       initialValue: dureeInit,
       labelText: 'Durée du bail (mois)',
-      helperText: 'Min. légal : 12 (meublé) · 36 (non meublé) · hérité de l\'immeuble',
+      helperText:
+          'Min. légal : 12 (meublé) · 36 (non meublé) · hérité de l\'immeuble',
       prefixIcon: Icons.calendar_month_outlined,
       min: 1,
     );
@@ -679,7 +810,10 @@ class _BailBadge extends StatelessWidget {
       children: [
         Icon(Icons.description_outlined, size: 14, color: AppColors.primary),
         const SizedBox(width: AppSpacing.xs),
-        Text(label, style: AppTypography.labelSm.copyWith(color: AppColors.primary)),
+        Text(
+          label,
+          style: AppTypography.labelSm.copyWith(color: AppColors.primary),
+        ),
       ],
     );
   }

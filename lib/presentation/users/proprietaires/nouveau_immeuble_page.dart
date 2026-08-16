@@ -20,6 +20,7 @@ import 'package:habitafrance/data/models/immeuble_type.dart';
 import 'package:habitafrance/data/models/immeubles.dart';
 import 'package:habitafrance/data/models/inventaire.dart';
 import 'package:habitafrance/presentation/widgets/address_autocomplete_field.dart';
+import 'package:habitafrance/presentation/widgets/app_button.dart';
 import 'package:habitafrance/presentation/widgets/charges_selector.dart';
 import 'package:habitafrance/presentation/widgets/electromenager_dialog.dart';
 import 'package:habitafrance/presentation/widgets/lot_dialog.dart';
@@ -37,6 +38,7 @@ import 'package:habitafrance/theme/app_breakpoints.dart';
 import 'package:habitafrance/theme/app_colors.dart';
 import 'package:habitafrance/theme/app_spacing.dart';
 import 'package:habitafrance/theme/app_typography.dart';
+import 'package:habitafrance/utils/responsive_form_wrapper.dart';
 
 class NouveauImmeublePage extends StatefulWidget {
   final ImmeublesModel? immeuble;
@@ -148,11 +150,7 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        icon: Icon(
-          Icons.school_outlined,
-          color: AppColors.primary,
-          size: 34,
-        ),
+        icon: Icon(Icons.school_outlined, color: AppColors.primary, size: 34),
         title: const Text('Tour guidé'),
         content: const Text(
           "Voulez-vous être guidé pas à pas pour créer votre premier immeuble ?\n\n"
@@ -164,9 +162,9 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
             onPressed: () => Navigator.pop(ctx, false),
             child: const Text('Non merci'),
           ),
-          FilledButton(
+          AppButton.primary(
+            label: 'Oui, me guider',
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Oui, me guider'),
           ),
         ],
       ),
@@ -242,9 +240,9 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
             onPressed: () => Navigator.pop(ctx, 'delete'),
             child: const Text('Supprimer l\'essai'),
           ),
-          FilledButton(
+          AppButton.primary(
+            label: 'Conserver',
             onPressed: () => Navigator.pop(ctx, 'keep'),
-            child: const Text('Conserver'),
           ),
         ],
       ),
@@ -654,11 +652,7 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
   Widget _editNote(String texte) => Row(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      Icon(
-        Icons.info_outline,
-        size: 16,
-        color: AppColors.onSurfaceVariant,
-      ),
+      Icon(Icons.info_outline, size: 16, color: AppColors.onSurfaceVariant),
       const SizedBox(width: AppSpacing.xs),
       Expanded(
         child: Text(
@@ -720,10 +714,10 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
           alignment: Alignment.centerLeft,
           child: KeyedSubtree(
             key: _kCommunes,
-            child: OutlinedButton.icon(
+            child: AppButton.primary(
+              icon: Icons.meeting_room_outlined,
+              label: 'Ajouter les pièces communes et inventaire',
               onPressed: _genererCommunesDraft,
-              icon: const Icon(Icons.meeting_room_outlined),
-              label: const Text('Ajouter les pièces communes et inventaire'),
             ),
           ),
         ),
@@ -808,10 +802,10 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
         ],
         Align(
           alignment: Alignment.centerLeft,
-          child: OutlinedButton.icon(
+          child: AppButton.primary(
+            icon: Icons.add,
+            label: 'Ajouter un électroménager',
             onPressed: _ajouterElectromenager,
-            icon: const Icon(Icons.add),
-            label: const Text('Ajouter un électroménager'),
           ),
         ),
       ],
@@ -1147,118 +1141,157 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
         ),
         Expanded(
           child: SingleChildScrollView(
-            child: Align(
-              alignment: Alignment.topCenter,
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 860),
-                child: Padding(
-                  padding: const EdgeInsets.all(AppSpacing.lg),
-                  child: FormBuilder(
-                    key: _formKey,
-                    child: LayoutBuilder(
-                      builder: (context, constraints) {
-                        final wide = constraints.maxWidth >= 560;
-                        return FutureBuilder<_Bundle>(
-                          future: _bundleFuture,
-                          builder: (ctx, snap) {
-                            final bundle = snap.data;
-                            return Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                // Accès au tour guidé (aide pas à pas).
-                                if (!_isEditing)
-                                  Align(
-                                    alignment: Alignment.centerLeft,
-                                    child: OutlinedButton.icon(
-                                      onPressed: _askStartTour,
-                                      icon: const Icon(
-                                        Icons.school_outlined,
-                                        size: 18,
-                                      ),
-                                      label: const Text('Faire tour guidé'),
+            child: ResponsiveFormWrapper(
+              maxWidth: 860,
+              child: Padding(
+                padding: const EdgeInsets.all(AppSpacing.lg),
+                child: FormBuilder(
+                  key: _formKey,
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final wide = constraints.maxWidth >= 560;
+                      return FutureBuilder<_Bundle>(
+                        future: _bundleFuture,
+                        builder: (ctx, snap) {
+                          final bundle = snap.data;
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              // Accès au tour guidé (aide pas à pas).
+                              if (!_isEditing)
+                                Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: OutlinedButton.icon(
+                                    onPressed: _askStartTour,
+                                    icon: const Icon(
+                                      Icons.school_outlined,
+                                      size: 18,
                                     ),
-                                  ),
-                                if (!_isEditing)
-                                  const SizedBox(height: AppSpacing.md),
-
-                                // ══ 1 — Identification ══════════════════════
-                                _sectionLabel("Identification"),
-                                KeyedSubtree(
-                                  key: _kType,
-                                  child: _twoColumns(
-                                    wide: wide,
-                                    flexLeft: 1,
-                                    flexRight: 2,
-                                    FutureBuilder<List<ImmeubleTypeModel>>(
-                                      future: _typesFuture,
-                                      builder: (context, snapshot) {
-                                        final items = snapshot.data ?? [];
-                                        return FormBuilderDropdown<
-                                          ImmeubleTypeModel
-                                        >(
-                                          key: ValueKey(_selectedType?.id),
-                                          name: 'type',
-                                          initialValue: _selectedType,
-                                          decoration: const InputDecoration(
-                                            labelText: "Type d'immeuble",
-                                          ),
-                                          items: items
-                                              .map(
-                                                (t) => DropdownMenuItem(
-                                                  value: t,
-                                                  child: Text(t.typeName),
-                                                ),
-                                              )
-                                              .toList(),
-                                          onChanged: (v) =>
-                                              setState(() => _selectedType = v),
-                                        );
-                                      },
-                                    ),
-                                    FormBuilderTextField(
-                                      name: 'name',
-                                      initialValue: widget.immeuble?.name,
-                                      decoration: const InputDecoration(
-                                        labelText: 'Nom',
-                                      ),
-                                      validator:
-                                          FormBuilderValidators.required(),
-                                    ),
+                                    label: const Text('Faire tour guidé'),
                                   ),
                                 ),
-                                const SizedBox(height: AppSpacing.lg),
-                                const Divider(),
+                              if (!_isEditing)
                                 const SizedBox(height: AppSpacing.md),
 
-                                // ══ 2 — Localisation ════════════════════════
-                                _sectionLabel("Localisation"),
-                                KeyedSubtree(
-                                  key: _kAddress,
-                                  child: AddressAutocompleteField(
-                                    initialValue: _address,
-                                    onChanged: (v) => _address = v,
-                                    onSuggestionSelected: _onAddressSuggested,
+                              // ══ 1 — Identification ══════════════════════
+                              _sectionLabel("Identification"),
+                              KeyedSubtree(
+                                key: _kType,
+                                child: _twoColumns(
+                                  wide: wide,
+                                  flexLeft: 1,
+                                  flexRight: 2,
+                                  FutureBuilder<List<ImmeubleTypeModel>>(
+                                    future: _typesFuture,
+                                    builder: (context, snapshot) {
+                                      final items = snapshot.data ?? [];
+                                      return FormBuilderDropdown<
+                                        ImmeubleTypeModel
+                                      >(
+                                        key: ValueKey(_selectedType?.id),
+                                        name: 'type',
+                                        initialValue: _selectedType,
+                                        decoration: const InputDecoration(
+                                          labelText: "Type d'immeuble",
+                                        ),
+                                        items: items
+                                            .map(
+                                              (t) => DropdownMenuItem(
+                                                value: t,
+                                                child: Text(t.typeName),
+                                              ),
+                                            )
+                                            .toList(),
+                                        onChanged: (v) =>
+                                            setState(() => _selectedType = v),
+                                      );
+                                    },
+                                  ),
+                                  FormBuilderTextField(
+                                    name: 'name',
+                                    initialValue: widget.immeuble?.name,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Nom',
+                                    ),
+                                    validator: FormBuilderValidators.required(),
                                   ),
                                 ),
-                                const SizedBox(height: AppSpacing.md),
-                                wide
-                                    ? _threeColumns(
-                                        wide: true,
-                                        FormBuilderTextField(
-                                          name: 'city',
-                                          initialValue: widget.immeuble?.city,
-                                          decoration: const InputDecoration(
-                                            labelText: 'Ville',
-                                          ),
+                              ),
+                              const SizedBox(height: AppSpacing.lg),
+                              const Divider(),
+                              const SizedBox(height: AppSpacing.md),
+
+                              // ══ 2 — Localisation ════════════════════════
+                              _sectionLabel("Localisation"),
+                              KeyedSubtree(
+                                key: _kAddress,
+                                child: AddressAutocompleteField(
+                                  initialValue: _address,
+                                  onChanged: (v) => _address = v,
+                                  onSuggestionSelected: _onAddressSuggested,
+                                ),
+                              ),
+                              const SizedBox(height: AppSpacing.md),
+                              wide
+                                  ? _threeColumns(
+                                      wide: true,
+                                      FormBuilderTextField(
+                                        name: 'city',
+                                        initialValue: widget.immeuble?.city,
+                                        decoration: const InputDecoration(
+                                          labelText: 'Ville',
                                         ),
-                                        FormBuilderTextField(
-                                          name: 'department',
-                                          initialValue:
-                                              widget.immeuble?.department,
-                                          decoration: const InputDecoration(
-                                            labelText: 'Département',
-                                          ),
+                                      ),
+                                      FormBuilderTextField(
+                                        name: 'department',
+                                        initialValue:
+                                            widget.immeuble?.department,
+                                        decoration: const InputDecoration(
+                                          labelText: 'Département',
                                         ),
+                                      ),
+                                      FormBuilderTextField(
+                                        name: 'region',
+                                        initialValue: widget.immeuble?.region,
+                                        decoration: const InputDecoration(
+                                          labelText: 'Région',
+                                        ),
+                                      ),
+                                    )
+                                  : Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.stretch,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            Expanded(
+                                              child: FormBuilderTextField(
+                                                name: 'city',
+                                                initialValue:
+                                                    widget.immeuble?.city,
+                                                decoration:
+                                                    const InputDecoration(
+                                                      labelText: 'Ville',
+                                                    ),
+                                              ),
+                                            ),
+                                            const SizedBox(
+                                              width: AppSpacing.md,
+                                            ),
+                                            Expanded(
+                                              child: FormBuilderTextField(
+                                                name: 'department',
+                                                initialValue:
+                                                    widget.immeuble?.department,
+                                                decoration:
+                                                    const InputDecoration(
+                                                      labelText: 'Département',
+                                                    ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: AppSpacing.md),
                                         FormBuilderTextField(
                                           name: 'region',
                                           initialValue: widget.immeuble?.region,
@@ -1266,72 +1299,165 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
                                             labelText: 'Région',
                                           ),
                                         ),
-                                      )
-                                    : Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.stretch,
-                                        children: [
-                                          Row(
-                                            children: [
-                                              Expanded(
-                                                child: FormBuilderTextField(
-                                                  name: 'city',
-                                                  initialValue:
-                                                      widget.immeuble?.city,
-                                                  decoration:
-                                                      const InputDecoration(
-                                                        labelText: 'Ville',
-                                                      ),
-                                                ),
-                                              ),
-                                              const SizedBox(
-                                                width: AppSpacing.md,
-                                              ),
-                                              Expanded(
-                                                child: FormBuilderTextField(
-                                                  name: 'department',
-                                                  initialValue: widget
-                                                      .immeuble
-                                                      ?.department,
-                                                  decoration:
-                                                      const InputDecoration(
-                                                        labelText:
-                                                            'Département',
-                                                      ),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                          const SizedBox(height: AppSpacing.md),
-                                          FormBuilderTextField(
-                                            name: 'region',
-                                            initialValue:
-                                                widget.immeuble?.region,
-                                            decoration: const InputDecoration(
-                                              labelText: 'Région',
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                const SizedBox(height: AppSpacing.lg),
-                                const Divider(),
-                                const SizedBox(height: AppSpacing.md),
+                                      ],
+                                    ),
+                              const SizedBox(height: AppSpacing.lg),
+                              const Divider(),
+                              const SizedBox(height: AppSpacing.md),
 
-                                // ══ 3 — Caractéristiques ════════════════════
-                                _sectionLabel("Caractéristiques"),
+                              // ══ 3 — Caractéristiques ════════════════════
+                              _sectionLabel("Caractéristiques"),
+                              wide
+                                  ? Row(
+                                      children: [
+                                        Expanded(
+                                          child: FormBuilderTextField(
+                                            name: 'total_m2',
+                                            initialValue: widget
+                                                .immeuble
+                                                ?.totalM2
+                                                ?.toStringAsFixed(2),
+                                            decoration: const InputDecoration(
+                                              labelText: 'Surface totale (m²)',
+                                            ),
+                                            keyboardType:
+                                                const TextInputType.numberWithOptions(
+                                                  decimal: true,
+                                                ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: AppSpacing.md),
+                                        const Expanded(child: SizedBox()),
+                                      ],
+                                    )
+                                  : FormBuilderTextField(
+                                      name: 'total_m2',
+                                      initialValue: widget.immeuble?.totalM2
+                                          ?.toStringAsFixed(2),
+                                      decoration: const InputDecoration(
+                                        labelText: 'Surface totale (m²)',
+                                      ),
+                                      keyboardType:
+                                          const TextInputType.numberWithOptions(
+                                            decimal: true,
+                                          ),
+                                    ),
+                              const SizedBox(height: AppSpacing.md),
+                              FormBuilderTextField(
+                                name: 'description',
+                                initialValue: widget.immeuble?.description,
+                                decoration: const InputDecoration(
+                                  labelText: 'Description',
+                                  alignLabelWithHint: true,
+                                ),
+                                maxLines: 4,
+                              ),
+                              const SizedBox(height: AppSpacing.lg),
+                              const Divider(),
+                              const SizedBox(height: AppSpacing.md),
+
+                              // ══ 4 — Photos ══════════════════════════════
+                              _sectionLabel("Photos des espaces communs"),
+                              KeyedSubtree(
+                                key: _kPhotos,
+                                child: PhotoPickerField(
+                                  folder: 'immeubles',
+                                  initialPhotos: _photos,
+                                  initialMainPhoto: _mainPhoto,
+                                  onChanged: (urls) =>
+                                      setState(() => _photos = urls),
+                                  onMainPhotoChanged: (url) =>
+                                      setState(() => _mainPhoto = url),
+                                ),
+                              ),
+                              const SizedBox(height: AppSpacing.lg),
+                              const Divider(),
+                              const SizedBox(height: AppSpacing.md),
+
+                              // ══ 5 — Type de bail ════════════════════════
+                              _sectionLabel("Type de bail"),
+                              KeyedSubtree(
+                                key: _kBail,
+                                child: _twoColumns(
+                                  wide: wide,
+                                  ConstrainedBox(
+                                    constraints: const BoxConstraints(
+                                      maxWidth: 360,
+                                    ),
+                                    child: FormBuilderCheckbox(
+                                      name: 'bail_location',
+                                      initialValue:
+                                          widget.immeuble?.bailLocation ??
+                                          false,
+                                      title: const Text('Location'),
+                                      subtitle: const Text(
+                                        'Un seul contrat pour toutes les chambres de l\'immeuble.',
+                                      ),
+                                      contentPadding: EdgeInsets.zero,
+                                      controlAffinity:
+                                          ListTileControlAffinity.leading,
+                                      onChanged: (v) {
+                                        setState(
+                                          () => _isBailLocation = v ?? false,
+                                        );
+                                        if (v == true) {
+                                          _formKey
+                                              .currentState
+                                              ?.fields['bail_individuel']
+                                              ?.didChange(false);
+                                        }
+                                      },
+                                    ),
+                                  ),
+                                  ConstrainedBox(
+                                    constraints: const BoxConstraints(
+                                      maxWidth: 360,
+                                    ),
+                                    child: FormBuilderCheckbox(
+                                      name: 'bail_individuel',
+                                      initialValue:
+                                          widget.immeuble?.bailIndividuel ??
+                                          false,
+                                      title: const Text(
+                                        'Bail individuel (Colocation)',
+                                      ),
+                                      subtitle: const Text(
+                                        'Contrat séparé pour chaque chambre.',
+                                      ),
+                                      contentPadding: EdgeInsets.zero,
+                                      controlAffinity:
+                                          ListTileControlAffinity.leading,
+                                      onChanged: (v) {
+                                        if (v == true) {
+                                          setState(
+                                            () => _isBailLocation = false,
+                                          );
+                                          _formKey
+                                              .currentState
+                                              ?.fields['bail_location']
+                                              ?.didChange(false);
+                                        }
+                                      },
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              if (_isBailLocation) ...[
+                                const SizedBox(height: AppSpacing.md),
                                 wide
                                     ? Row(
                                         children: [
                                           Expanded(
                                             child: FormBuilderTextField(
-                                              name: 'total_m2',
+                                              name: 'prix_loyer',
                                               initialValue: widget
                                                   .immeuble
-                                                  ?.totalM2
+                                                  ?.prixLoyer
                                                   ?.toStringAsFixed(2),
                                               decoration: const InputDecoration(
                                                 labelText:
-                                                    'Surface totale (m²)',
+                                                    'Valeur du loyer (€/mois)',
+                                                prefixText: '€ ',
                                               ),
                                               keyboardType:
                                                   const TextInputType.numberWithOptions(
@@ -1344,282 +1470,136 @@ class _NouveauImmeublePageState extends State<NouveauImmeublePage> {
                                         ],
                                       )
                                     : FormBuilderTextField(
-                                        name: 'total_m2',
-                                        initialValue: widget.immeuble?.totalM2
+                                        name: 'prix_loyer',
+                                        initialValue: widget.immeuble?.prixLoyer
                                             ?.toStringAsFixed(2),
                                         decoration: const InputDecoration(
-                                          labelText: 'Surface totale (m²)',
+                                          labelText: 'Valeur du loyer (€/mois)',
+                                          prefixText: '€ ',
                                         ),
                                         keyboardType:
                                             const TextInputType.numberWithOptions(
                                               decimal: true,
                                             ),
                                       ),
-                                const SizedBox(height: AppSpacing.md),
-                                FormBuilderTextField(
-                                  name: 'description',
-                                  initialValue: widget.immeuble?.description,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Description',
-                                    alignLabelWithHint: true,
-                                  ),
-                                  maxLines: 4,
-                                ),
-                                const SizedBox(height: AppSpacing.lg),
-                                const Divider(),
-                                const SizedBox(height: AppSpacing.md),
-
-                                // ══ 4 — Photos ══════════════════════════════
-                                _sectionLabel("Photos des espaces communs"),
-                                KeyedSubtree(
-                                  key: _kPhotos,
-                                  child: PhotoPickerField(
-                                    folder: 'immeubles',
-                                    initialPhotos: _photos,
-                                    initialMainPhoto: _mainPhoto,
-                                    onChanged: (urls) =>
-                                        setState(() => _photos = urls),
-                                    onMainPhotoChanged: (url) =>
-                                        setState(() => _mainPhoto = url),
-                                  ),
-                                ),
-                                const SizedBox(height: AppSpacing.lg),
-                                const Divider(),
-                                const SizedBox(height: AppSpacing.md),
-
-                                // ══ 5 — Type de bail ════════════════════════
-                                _sectionLabel("Type de bail"),
-                                KeyedSubtree(
-                                  key: _kBail,
-                                  child: _twoColumns(
-                                    wide: wide,
-                                    ConstrainedBox(
-                                      constraints: const BoxConstraints(
-                                        maxWidth: 360,
-                                      ),
-                                      child: FormBuilderCheckbox(
-                                        name: 'bail_location',
-                                        initialValue:
-                                            widget.immeuble?.bailLocation ??
-                                            false,
-                                        title: const Text('Location'),
-                                        subtitle: const Text(
-                                          'Un seul contrat pour toutes les chambres de l\'immeuble.',
-                                        ),
-                                        contentPadding: EdgeInsets.zero,
-                                        controlAffinity:
-                                            ListTileControlAffinity.leading,
-                                        onChanged: (v) {
-                                          setState(
-                                            () => _isBailLocation = v ?? false,
-                                          );
-                                          if (v == true) {
-                                            _formKey
-                                                .currentState
-                                                ?.fields['bail_individuel']
-                                                ?.didChange(false);
-                                          }
-                                        },
-                                      ),
-                                    ),
-                                    ConstrainedBox(
-                                      constraints: const BoxConstraints(
-                                        maxWidth: 360,
-                                      ),
-                                      child: FormBuilderCheckbox(
-                                        name: 'bail_individuel',
-                                        initialValue:
-                                            widget.immeuble?.bailIndividuel ??
-                                            false,
-                                        title: const Text(
-                                          'Bail individuel (Colocation)',
-                                        ),
-                                        subtitle: const Text(
-                                          'Contrat séparé pour chaque chambre.',
-                                        ),
-                                        contentPadding: EdgeInsets.zero,
-                                        controlAffinity:
-                                            ListTileControlAffinity.leading,
-                                        onChanged: (v) {
-                                          if (v == true) {
-                                            setState(
-                                              () => _isBailLocation = false,
-                                            );
-                                            _formKey
-                                                .currentState
-                                                ?.fields['bail_location']
-                                                ?.didChange(false);
-                                          }
-                                        },
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                if (_isBailLocation) ...[
-                                  const SizedBox(height: AppSpacing.md),
-                                  wide
-                                      ? Row(
-                                          children: [
-                                            Expanded(
-                                              child: FormBuilderTextField(
-                                                name: 'prix_loyer',
-                                                initialValue: widget
-                                                    .immeuble
-                                                    ?.prixLoyer
-                                                    ?.toStringAsFixed(2),
-                                                decoration: const InputDecoration(
-                                                  labelText:
-                                                      'Valeur du loyer (€/mois)',
-                                                  prefixText: '€ ',
-                                                ),
-                                                keyboardType:
-                                                    const TextInputType.numberWithOptions(
-                                                      decimal: true,
-                                                    ),
-                                              ),
-                                            ),
-                                            const SizedBox(
-                                              width: AppSpacing.md,
-                                            ),
-                                            const Expanded(child: SizedBox()),
-                                          ],
-                                        )
-                                      : FormBuilderTextField(
-                                          name: 'prix_loyer',
-                                          initialValue: widget
-                                              .immeuble
-                                              ?.prixLoyer
-                                              ?.toStringAsFixed(2),
-                                          decoration: const InputDecoration(
-                                            labelText:
-                                                'Valeur du loyer (€/mois)',
-                                            prefixText: '€ ',
-                                          ),
-                                          keyboardType:
-                                              const TextInputType.numberWithOptions(
-                                                decimal: true,
-                                              ),
-                                        ),
-                                ],
-                                const SizedBox(height: AppSpacing.lg),
-                                const Divider(),
-                                const SizedBox(height: AppSpacing.md),
-
-                                // ══ 6 — Informations contractuelles ═════════
-                                _sectionLabel("Informations contractuelles"),
-                                _twoColumns(
-                                  wide: wide,
-                                  FormBuilderDropdown<bool>(
-                                    name: 'location_meuble',
-                                    initialValue: _meuble,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Location meublée ?',
-                                      prefixIcon: Icon(Icons.chair_outlined),
-                                    ),
-                                    items: const [
-                                      DropdownMenuItem(
-                                        value: true,
-                                        child: Text('Oui'),
-                                      ),
-                                      DropdownMenuItem(
-                                        value: false,
-                                        child: Text('Non'),
-                                      ),
-                                    ],
-                                    onChanged: (v) =>
-                                        setState(() => _meuble = v),
-                                  ),
-                                  const SizedBox.shrink(),
-                                ),
-                                const SizedBox(height: AppSpacing.md),
-                                _twoColumns(
-                                  wide: wide,
-                                  _depotField(),
-                                  NumberStepperField(
-                                    name: 'duree_bail_mois',
-                                    initialValue:
-                                        widget.immeuble?.dureeBailMois
-                                            ?.toString() ??
-                                        (_meuble == true ? '12' : '36'),
-                                    labelText: 'Durée du bail (mois)',
-                                    helperText:
-                                        'Minimum légal : 12 mois (meublé) · 36 mois (non meublé)',
-                                    prefixIcon: Icons.calendar_month_outlined,
-                                    min: 1,
-                                  ),
-                                ),
-                                const SizedBox(height: AppSpacing.md),
-                                _twoColumns(
-                                  wide: wide,
-                                  _dpeField(),
-                                  FormBuilderTextField(
-                                    name: 'irl_reference',
-                                    initialValue: widget.immeuble?.irlReference,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Référence IRL',
-                                      helperText: 'Ex. : T2 2025 — 145,56',
-                                      prefixIcon: Icon(
-                                        Icons.trending_up_outlined,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: AppSpacing.lg),
-                                const Divider(),
-                                const SizedBox(height: AppSpacing.md),
-
-                                // ══ 7 — Parties communes ════════════════════
-                                _sectionLabel("Parties communes"),
-                                _partiesCommunesBody(),
-                                const SizedBox(height: AppSpacing.lg),
-                                const Divider(),
-                                const SizedBox(height: AppSpacing.md),
-
-                                // ══ 7b — Électroménager ═════════════════════
-                                _sectionLabel("Électroménager"),
-                                _electromenagerBody(),
-                                const SizedBox(height: AppSpacing.lg),
-                                const Divider(),
-                                const SizedBox(height: AppSpacing.md),
-
-                                // ══ 8 — Charges locatives ═══════════════════
-                                _chargesAccordion(bundle),
-                                const SizedBox(height: AppSpacing.lg),
-                                const Divider(),
-                                const SizedBox(height: AppSpacing.md),
-
-                                // ══ 8b — Lots de copropriété ═════════════════
-                                _lotsAccordion(),
-                                const SizedBox(height: AppSpacing.lg),
-                                const Divider(),
-                                const SizedBox(height: AppSpacing.sm),
-
-                                // ══ 9 — Statut ══════════════════════════════
-                                ConstrainedBox(
-                                  constraints: const BoxConstraints(
-                                    maxWidth: 480,
-                                  ),
-                                  child: FormBuilderCheckbox(
-                                    name: 'desactiver',
-                                    initialValue:
-                                        !(widget.immeuble?.isActive ?? true),
-                                    title: const Text('Désactiver immeuble'),
-                                    subtitle: const Text(
-                                      'Le Immeuble et toutes les chambres seront masquées du site public.',
-                                    ),
-                                    activeColor: AppColors.error,
-                                    contentPadding: EdgeInsets.zero,
-                                    controlAffinity:
-                                        ListTileControlAffinity.leading,
-                                  ),
-                                ),
-                                const SizedBox(height: AppSpacing.xl),
                               ],
-                            );
-                          },
-                        );
-                      },
-                    ),
+                              const SizedBox(height: AppSpacing.lg),
+                              const Divider(),
+                              const SizedBox(height: AppSpacing.md),
+
+                              // ══ 6 — Informations contractuelles ═════════
+                              _sectionLabel("Informations contractuelles"),
+                              _twoColumns(
+                                wide: wide,
+                                FormBuilderDropdown<bool>(
+                                  name: 'location_meuble',
+                                  initialValue: _meuble,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Location meublée ?',
+                                    prefixIcon: Icon(Icons.chair_outlined),
+                                  ),
+                                  items: const [
+                                    DropdownMenuItem(
+                                      value: true,
+                                      child: Text('Oui'),
+                                    ),
+                                    DropdownMenuItem(
+                                      value: false,
+                                      child: Text('Non'),
+                                    ),
+                                  ],
+                                  onChanged: (v) => setState(() => _meuble = v),
+                                ),
+                                const SizedBox.shrink(),
+                              ),
+                              const SizedBox(height: AppSpacing.md),
+                              _twoColumns(
+                                wide: wide,
+                                _depotField(),
+                                NumberStepperField(
+                                  name: 'duree_bail_mois',
+                                  initialValue:
+                                      widget.immeuble?.dureeBailMois
+                                          ?.toString() ??
+                                      (_meuble == true ? '12' : '36'),
+                                  labelText: 'Durée du bail (mois)',
+                                  helperText:
+                                      'Minimum légal : 12 mois (meublé) · 36 mois (non meublé)',
+                                  prefixIcon: Icons.calendar_month_outlined,
+                                  min: 1,
+                                ),
+                              ),
+                              const SizedBox(height: AppSpacing.md),
+                              _twoColumns(
+                                wide: wide,
+                                _dpeField(),
+                                FormBuilderTextField(
+                                  name: 'irl_reference',
+                                  initialValue: widget.immeuble?.irlReference,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Référence IRL',
+                                    helperText: 'Ex. : T2 2025 — 145,56',
+                                    prefixIcon: Icon(
+                                      Icons.trending_up_outlined,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: AppSpacing.lg),
+                              const Divider(),
+                              const SizedBox(height: AppSpacing.md),
+
+                              // ══ 7 — Parties communes ════════════════════
+                              _sectionLabel("Parties communes"),
+                              _partiesCommunesBody(),
+                              const SizedBox(height: AppSpacing.lg),
+                              const Divider(),
+                              const SizedBox(height: AppSpacing.md),
+
+                              // ══ 7b — Électroménager ═════════════════════
+                              _sectionLabel("Électroménager"),
+                              _electromenagerBody(),
+                              const SizedBox(height: AppSpacing.lg),
+                              const Divider(),
+                              const SizedBox(height: AppSpacing.md),
+
+                              // ══ 8 — Charges locatives ═══════════════════
+                              _chargesAccordion(bundle),
+                              const SizedBox(height: AppSpacing.lg),
+                              const Divider(),
+                              const SizedBox(height: AppSpacing.md),
+
+                              // ══ 8b — Lots de copropriété ═════════════════
+                              _lotsAccordion(),
+                              const SizedBox(height: AppSpacing.lg),
+                              const Divider(),
+                              const SizedBox(height: AppSpacing.sm),
+
+                              // ══ 9 — Statut ══════════════════════════════
+                              ConstrainedBox(
+                                constraints: const BoxConstraints(
+                                  maxWidth: 480,
+                                ),
+                                child: FormBuilderCheckbox(
+                                  name: 'desactiver',
+                                  initialValue:
+                                      !(widget.immeuble?.isActive ?? true),
+                                  title: const Text('Désactiver immeuble'),
+                                  subtitle: const Text(
+                                    'Le Immeuble et toutes les chambres seront masquées du site public.',
+                                  ),
+                                  activeColor: AppColors.error,
+                                  contentPadding: EdgeInsets.zero,
+                                  controlAffinity:
+                                      ListTileControlAffinity.leading,
+                                ),
+                              ),
+                              const SizedBox(height: AppSpacing.xl),
+                            ],
+                          );
+                        },
+                      );
+                    },
                   ),
                 ),
               ),

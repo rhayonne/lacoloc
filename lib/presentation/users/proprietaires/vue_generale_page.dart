@@ -11,7 +11,8 @@ import 'package:habitafrance/data/models/etat_de_lieux.dart';
 import 'package:habitafrance/data/models/immeubles.dart';
 import 'package:habitafrance/data/models/notification_model.dart';
 import 'package:habitafrance/data/models/users_client.dart';
-import 'package:habitafrance/presentation/users/proprietaires/interactions_page.dart';
+import 'package:habitafrance/presentation/widgets/app_top_bar.dart';
+import 'package:habitafrance/presentation/widgets/notification_card.dart';
 import 'package:habitafrance/presentation/widgets/bail_requirements_dialog.dart';
 import 'package:habitafrance/presentation/widgets/readiness_checklist.dart';
 import 'package:habitafrance/theme/app_colors.dart';
@@ -54,24 +55,36 @@ class _VueGeneralePageState extends State<VueGeneralePage>
   @override
   void onRealtimeChange() {
     final f = _load();
-    setState(() { _future = f; });
+    setState(() {
+      _future = f;
+    });
   }
 
+  /// Charge le tableau de bord.
+  ///
+  /// `refresh: true` partout **volontairement** : c'est la page d'atterrissage,
+  /// on l'ouvre pour savoir où on en est. Servir un cache de 5 minutes y
+  /// afficherait un résumé périmé — d'où l'ancien bouton « Actualiser », qui
+  /// faisait faire à l'utilisateur le travail de l'app. Le bouton a disparu ;
+  /// c'est l'ouverture de la page qui recharge.
   Future<_VueData> _load() async {
     final ownerId = AuthService.currentUser?.id;
     if (ownerId == null) return _VueData.empty();
 
-    final immeubles = await ImmeublesDatasource.listByOwner(ownerId);
+    final immeubles = await ImmeublesDatasource.listByOwner(
+      ownerId,
+      refresh: true,
+    );
     final ids = immeubles.map((i) => i.id).toList();
     final chambres = ids.isEmpty
         ? <ChambreModel>[]
-        : await ChambresDatasource.listByImmeubles(ids);
+        : await ChambresDatasource.listByImmeubles(ids, refresh: true);
 
     // Notifications non lues — inclut désormais les nouvelles demandes de
     // contact (notify_nouvelle_demande), qui n'ont plus de bloc dédié.
     List<NotificationModel> notifs = [];
     try {
-      final all = await NotificationsDatasource.listByOwner();
+      final all = await NotificationsDatasource.listByOwner(refresh: true);
       notifs = all.where((n) => !n.isRead).toList();
     } catch (_) {}
 
@@ -79,12 +92,17 @@ class _VueGeneralePageState extends State<VueGeneralePage>
     // acceptés par le locataire, mais que le bailleur n'a pas encore signés.
     List<EtatDesLieuxModel> bauxASigner = [];
     try {
-      final edls = await EtatDesLieuxDatasource.listByProprietaire(ownerId);
+      final edls = await EtatDesLieuxDatasource.listByProprietaire(
+        ownerId,
+        refresh: true,
+      );
       bauxASigner = edls
-          .where((e) =>
-              e.isBailEligible &&
-              e.locataireAccepte &&
-              !e.bailSignedBy('proprietaire'))
+          .where(
+            (e) =>
+                e.isBailEligible &&
+                e.locataireAccepte &&
+                !e.bailSignedBy('proprietaire'),
+          )
           .toList();
     } catch (_) {}
 
@@ -109,12 +127,14 @@ class _VueGeneralePageState extends State<VueGeneralePage>
     try {
       await SignaturesDatasource.saveUrl(res.url);
       final f = _load();
-      setState(() { _future = f; });
+      setState(() {
+        _future = f;
+      });
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur : $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
       }
     }
   }
@@ -123,7 +143,9 @@ class _VueGeneralePageState extends State<VueGeneralePage>
     if (n.isRead) return;
     await NotificationsDatasource.markRead(n.id);
     final f = _load();
-    setState(() { _future = f; });
+    setState(() {
+      _future = f;
+    });
   }
 
   /// Tap sur une notification : marque comme lue + ouvre le pop-up des
@@ -145,7 +167,9 @@ class _VueGeneralePageState extends State<VueGeneralePage>
       );
       if (mounted) {
         final f = _load();
-        setState(() { _future = f; });
+        setState(() {
+          _future = f;
+        });
       }
     }
   }
@@ -153,13 +177,16 @@ class _VueGeneralePageState extends State<VueGeneralePage>
   Future<void> _markAllNotifsRead() async {
     await NotificationsDatasource.markAllRead();
     final f = _load();
-    setState(() { _future = f; });
+    setState(() {
+      _future = f;
+    });
   }
 
   /// Conditions « prêt à louer » du propriétaire.
   List<ChecklistItem> _checklistItems(_VueData data) {
     final p = data.profile;
-    final profilComplet = (p?.fullName?.trim().isNotEmpty ?? false) &&
+    final profilComplet =
+        (p?.fullName?.trim().isNotEmpty ?? false) &&
         (p?.phone?.trim().isNotEmpty ?? false);
     return [
       ChecklistItem(
@@ -195,42 +222,17 @@ class _VueGeneralePageState extends State<VueGeneralePage>
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Vue générale', style: AppTypography.headlineMd),
-                    const SizedBox(height: AppSpacing.xs),
-                    Text(
-                      'Résumé de votre patrimoine immobilier.',
-                      style: AppTypography.bodyMd.copyWith(
-                        color: AppColors.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              IconButton.outlined(
-                icon: const Icon(Icons.refresh),
-                tooltip: 'Actualiser',
-                onPressed: () {
-                  final f = _load();
-                  setState(() {
-                    _future = f;
-                  });
-                },
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.xl),
-          Expanded(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Barre standard du système — même gabarit que « Mes Propriétés ».
+        const AppTopBar(
+          title: 'Vue générale',
+          subtitle: 'Résumé de votre patrimoine immobilier.',
+        ),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.lg),
             child: FutureBuilder<_VueData>(
               future: _future,
               builder: (context, snapshot) {
@@ -241,8 +243,9 @@ class _VueGeneralePageState extends State<VueGeneralePage>
                   return Center(
                     child: Text(
                       'Erreur : ${snapshot.error}',
-                      style: AppTypography.bodyMd
-                          .copyWith(color: AppColors.error),
+                      style: AppTypography.bodyMd.copyWith(
+                        color: AppColors.error,
+                      ),
                     ),
                   );
                 }
@@ -279,8 +282,8 @@ class _VueGeneralePageState extends State<VueGeneralePage>
               },
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
@@ -366,10 +369,7 @@ class _StatCard extends StatelessWidget {
         children: [
           Icon(icon, color: color, size: 28),
           const SizedBox(height: AppSpacing.sm),
-          Text(
-            value,
-            style: AppTypography.headlineMd.copyWith(color: color),
-          ),
+          Text(value, style: AppTypography.headlineMd.copyWith(color: color)),
           Text(
             label,
             style: AppTypography.labelMd.copyWith(
@@ -406,8 +406,11 @@ class _NotificationsSection extends StatelessWidget {
       children: [
         Row(
           children: [
-            Icon(Icons.notifications_active_outlined,
-                size: 20, color: AppColors.primary),
+            Icon(
+              Icons.notifications_active_outlined,
+              size: 20,
+              color: AppColors.primary,
+            ),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: Text('Notifications', style: AppTypography.titleLg),
@@ -477,8 +480,11 @@ class _BauxASignerSection extends StatelessWidget {
                   padding: const EdgeInsets.all(AppSpacing.md),
                   child: Row(
                     children: [
-                      Icon(Icons.description_outlined,
-                          size: 20, color: scheme.onSurface),
+                      Icon(
+                        Icons.description_outlined,
+                        size: 20,
+                        color: scheme.onSurface,
+                      ),
                       const SizedBox(width: AppSpacing.sm),
                       Expanded(
                         child: Column(
@@ -486,15 +492,17 @@ class _BauxASignerSection extends StatelessWidget {
                           children: [
                             Text(
                               e.locataireNom ?? 'Locataire',
-                              style: AppTypography.bodyLg
-                                  .copyWith(fontWeight: FontWeight.w700),
+                              style: AppTypography.bodyLg.copyWith(
+                                fontWeight: FontWeight.w700,
+                              ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
                             Text(
                               '${e.immeubleNom ?? 'Bien'} — en attente de votre signature',
                               style: AppTypography.labelSm.copyWith(
-                                  color: AppColors.onSurfaceVariant),
+                                color: AppColors.onSurfaceVariant,
+                              ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),

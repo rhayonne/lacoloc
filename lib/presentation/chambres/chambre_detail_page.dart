@@ -10,8 +10,11 @@ import 'package:habitafrance/data/models/immeubles.dart';
 import 'package:habitafrance/data/models/users_client.dart';
 import 'package:habitafrance/presentation/login_dialog.dart';
 import 'package:habitafrance/presentation/nav/app_sidebar.dart';
+import 'package:habitafrance/presentation/widgets/app_button.dart';
 import 'package:habitafrance/presentation/widgets/photo_carousel.dart';
+import 'package:habitafrance/presentation/messagerie/discussion_page.dart';
 import 'package:habitafrance/presentation/widgets/contact_dialog.dart';
+import 'package:habitafrance/theme/app_button_sizes.dart';
 import 'package:habitafrance/theme/app_colors.dart';
 import 'package:habitafrance/theme/app_radius.dart';
 import 'package:habitafrance/theme/app_spacing.dart';
@@ -30,11 +33,16 @@ class ChambreDetailView extends StatefulWidget {
   /// (in-frame) au lieu d'ouvrir un pop-up. Reçoit l'id de l'immeuble.
   final ValueChanged<int>? onVoirImmeuble;
 
+  /// Ouvre le fil de discussion déjà existant avec le propriétaire (reçoit
+  /// l'id de la demande). Si null, le fil s'ouvre dans une route dédiée.
+  final ValueChanged<int>? onOuvrirDiscussion;
+
   const ChambreDetailView({
     super.key,
     required this.chambreId,
     this.onBack,
     this.onVoirImmeuble,
+    this.onOuvrirDiscussion,
   });
 
   @override
@@ -77,9 +85,9 @@ class _ChambreDetailViewState extends State<ChambreDetailView> {
     ]);
     final profile = results[2] as UsersClient?;
     final equipMap = results[1] as Map<int, List<String>>;
-    bool hasPendingDemande = false;
+    int? demandeId;
     if (profile?.resolvedType == UserType.locataire) {
-      hasPendingDemande = await DemandesContactDatasource.hasDemandeEnAttente(
+      demandeId = await DemandesContactDatasource.existingDemandeId(
         locataireId: profile!.id,
         chambreId: widget.chambreId,
       );
@@ -89,7 +97,7 @@ class _ChambreDetailViewState extends State<ChambreDetailView> {
       immeuble: results[0] as ImmeublesModel?,
       equipements: equipMap[chambre.id] ?? const [],
       currentProfile: profile,
-      hasPendingDemande: hasPendingDemande,
+      demandeId: demandeId,
     );
   }
 
@@ -114,6 +122,7 @@ class _ChambreDetailViewState extends State<ChambreDetailView> {
           bundle: snapshot.data!,
           onBack: widget.onBack,
           onContactSent: _reload,
+          onOuvrirDiscussion: widget.onOuvrirDiscussion,
         );
       },
     );
@@ -249,13 +258,15 @@ class _DetailBundle {
   final ImmeublesModel? immeuble;
   final List<String> equipements;
   final UsersClient? currentProfile;
-  final bool hasPendingDemande;
+
+  /// Fil déjà ouvert avec le propriétaire pour cette chambre (null = aucun).
+  final int? demandeId;
   _DetailBundle({
     required this.chambre,
     required this.immeuble,
     required this.equipements,
     this.currentProfile,
-    this.hasPendingDemande = false,
+    this.demandeId,
   });
 }
 
@@ -266,11 +277,13 @@ class _DetailContent extends StatelessWidget {
   final VoidCallback? onBack;
   final VoidCallback? onContactSent;
   final ValueChanged<int>? onVoirImmeuble;
+  final ValueChanged<int>? onOuvrirDiscussion;
   const _DetailContent({
     required this.bundle,
     this.onBack,
     this.onContactSent,
     this.onVoirImmeuble,
+    this.onOuvrirDiscussion,
   });
 
   List<String> _orderedPhotos(ChambreModel c) {
@@ -299,10 +312,11 @@ class _DetailContent extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                OutlinedButton.icon(
+                AppButton.cancel(
+                  size: AppButtonSize.compact,
                   onPressed: onBack ?? () => Navigator.of(context).pop(),
-                  icon: const Icon(Icons.arrow_back, size: 18),
-                  label: const Text('Retour'),
+                  icon: Icons.arrow_back,
+                  label: 'Retour',
                 ),
                 const SizedBox(height: AppSpacing.sm),
 
@@ -373,40 +387,44 @@ class _DetailContent extends StatelessWidget {
 
                 if (bundle.immeuble != null) ...[
                   const SizedBox(height: AppSpacing.xl),
-                  OutlinedButton.icon(
+                  AppButton.edit(
                     // En contexte intégré (accueil), navigue vers la fiche de
                     // l'immeuble (Retour ramène à la chambre) ; sinon pop-up.
                     onPressed: () => onVoirImmeuble != null
                         ? onVoirImmeuble!(bundle.immeuble!.id)
                         : _showImmeuble(context, bundle.immeuble!),
-                    icon: const Icon(Icons.location_city),
-                    label: const Text("Voir l'immeuble"),
+                    icon: Icons.location_city,
+                    label: "Voir l'immeuble",
                   ),
                 ],
                 if (bundle.currentProfile?.resolvedType ==
                     UserType.locataire) ...[
                   const SizedBox(height: AppSpacing.md),
-                  if (bundle.hasPendingDemande)
-                    OutlinedButton.icon(
-                      onPressed: null,
-                      icon: const Icon(Icons.forum_outlined),
-                      label: const Text('Vous avez déjà contacté le propriétaire'),
+                  // Avoir déjà écrit ne bloque plus rien : le bouton mène
+                  // alors au fil existant (historique complet), au lieu d'être
+                  // désactivé.
+                  if (bundle.demandeId != null)
+                    AppButton.primary(
+                      onPressed: () =>
+                          _ouvrirDiscussion(context, bundle.demandeId!),
+                      icon: Icons.chat_bubble_outline,
+                      label: 'Discuter avec le propriétaire',
                     )
                   else
-                    FilledButton.icon(
+                    AppButton.primary(
                       onPressed: () => _showContactDialog(context),
-                      icon: const Icon(Icons.contact_mail_outlined),
-                      label: const Text('Entrer en contact'),
+                      icon: Icons.contact_mail_outlined,
+                      label: 'Entrer en contact',
                     ),
                 ]
                 // Visiteur non connecté : le contact exige d'être connecté.
                 else if (!AuthService.isLoggedIn) ...[
                   const SizedBox(height: AppSpacing.md),
-                  FilledButton.icon(
+                  AppButton.primary(
                     onPressed: () =>
                         Navigator.of(context).pushNamed('/login'),
-                    icon: const Icon(Icons.contact_mail_outlined),
-                    label: const Text('Entrer en contact'),
+                    icon: Icons.contact_mail_outlined,
+                    label: 'Entrer en contact',
                   ),
                 ],
                 const SizedBox(height: AppSpacing.xl),
@@ -414,6 +432,21 @@ class _DetailContent extends StatelessWidget {
             ),
           );
         },
+      ),
+    );
+  }
+
+  /// Ouvre le fil : dans le cadre si l'écran hôte sait le faire (espace
+  /// locataire), sinon dans une page dédiée (accueil public, route /chambre).
+  void _ouvrirDiscussion(BuildContext context, int demandeId) {
+    final handler = onOuvrirDiscussion;
+    if (handler != null) {
+      handler(demandeId);
+      return;
+    }
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => DiscussionPage(demandeId: demandeId),
       ),
     );
   }

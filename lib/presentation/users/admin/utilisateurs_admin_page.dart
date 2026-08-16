@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:form_builder_validators/form_builder_validators.dart';
 import 'package:habitafrance/data/datasources/auth_service.dart';
@@ -11,7 +12,6 @@ import 'package:habitafrance/theme/app_radius.dart';
 import 'package:habitafrance/presentation/widgets/app_top_bar.dart';
 import 'package:habitafrance/theme/app_spacing.dart';
 import 'package:habitafrance/theme/app_typography.dart';
-import 'package:habitafrance/theme/app_theme.dart';
 import 'package:habitafrance/theme/app_button_sizes.dart';
 import 'package:habitafrance/theme/app_tab_bar.dart';
 import 'package:habitafrance/presentation/widgets/app_button.dart';
@@ -45,10 +45,18 @@ class _AdminData {
   const _AdminData(this.users, this.permissions, this.groups);
 }
 
+/// Date d'inscription affichée dans la liste et utilisée pour le tri.
+final DateFormat _dateInscription = DateFormat('dd/MM/yyyy');
+
 class UtilisateursAdminPage extends StatefulWidget {
   /// Sous-onglet actif (0 = Utilisateurs, 1 = Groupes) quand piloté par les
   /// sous-menus de la sidebar (`showTabBar = false`).
   final int initialTab;
+
+  /// Ouvre la page **centrée sur un compte** : la liste est réduite à celui-ci.
+  /// Utilisé par la notification « nouvelle demande de compte propriétaire » du
+  /// tableau de bord — un avis qui n'aide que s'il mène au geste (activer).
+  final String? focusUserId;
 
   /// `true` = affiche les onglets internes (mode hérité) ; `false` = navigation
   /// par sous-menus (pas d'onglets ni de balayage du contenu).
@@ -57,6 +65,7 @@ class UtilisateursAdminPage extends StatefulWidget {
   const UtilisateursAdminPage({
     super.key,
     this.initialTab = 0,
+    this.focusUserId,
     this.showTabBar = true,
   });
 
@@ -73,7 +82,10 @@ class _UtilisateursAdminPageState extends State<UtilisateursAdminPage>
   void initState() {
     super.initState();
     _tab = TabController(
-        length: 2, vsync: this, initialIndex: widget.initialTab);
+      length: 2,
+      vsync: this,
+      initialIndex: widget.initialTab,
+    );
     _reload();
   }
 
@@ -159,8 +171,7 @@ class _UtilisateursAdminPageState extends State<UtilisateursAdminPage>
                     future: _future,
                     builder: (context, snap) {
                       if (snap.connectionState != ConnectionState.done) {
-                        return const Center(
-                            child: CircularProgressIndicator());
+                        return const Center(child: CircularProgressIndicator());
                       }
                       if (snap.hasError) {
                         return Center(child: Text('Erreur : ${snap.error}'));
@@ -170,13 +181,21 @@ class _UtilisateursAdminPageState extends State<UtilisateursAdminPage>
                         // Rendu direct du sous-onglet actif : aucun TabBarView
                         // → le contenu ne peut pas être balayé.
                         return activeIndex == 0
-                            ? _UsersTab(data: data, onChanged: _reload)
+                            ? _UsersTab(
+                                data: data,
+                                onChanged: _reload,
+                                focusUserId: widget.focusUserId,
+                              )
                             : _GroupsTab(data: data, onChanged: _reload);
                       }
                       return TabBarView(
                         controller: _tab,
                         children: [
-                          _UsersTab(data: data, onChanged: _reload),
+                          _UsersTab(
+                            data: data,
+                            onChanged: _reload,
+                            focusUserId: widget.focusUserId,
+                          ),
                           _GroupsTab(data: data, onChanged: _reload),
                         ],
                       );
@@ -197,23 +216,31 @@ class _UtilisateursAdminPageState extends State<UtilisateursAdminPage>
 class _UsersTab extends StatefulWidget {
   final _AdminData data;
   final VoidCallback onChanged;
-  const _UsersTab({required this.data, required this.onChanged});
+  final String? focusUserId;
+
+  const _UsersTab({
+    required this.data,
+    required this.onChanged,
+    this.focusUserId,
+  });
 
   @override
   State<_UsersTab> createState() => _UsersTabState();
 }
 
 /// Filtros disponíveis abaixo da busca.
-enum _UserFilter { actifs, inactifs, proprietaires, locataires, superAdmins }
+enum _UserFilter { actifs, inactifs, proprietaires, locataires, superAdmins,
+  adminsSysteme }
 
 extension on _UserFilter {
   String get label => switch (this) {
-        _UserFilter.actifs => 'Actifs',
-        _UserFilter.inactifs => 'Inactifs',
-        _UserFilter.proprietaires => 'Propriétaires',
-        _UserFilter.locataires => 'Locataires',
-        _UserFilter.superAdmins => 'Super Admin',
-      };
+    _UserFilter.actifs => 'Actifs',
+    _UserFilter.inactifs => 'Inactifs',
+    _UserFilter.proprietaires => 'Propriétaires',
+    _UserFilter.locataires => 'Locataires',
+    _UserFilter.superAdmins => 'Super Admin',
+    _UserFilter.adminsSysteme => 'Admin Sys.',
+  };
 }
 
 /// Chip de filtre compact (même style que l'Inventaire/EDL/Lots) : pill,
@@ -295,52 +322,81 @@ class _UsersTabState extends State<_UsersTab> {
 
   Future<void> _toggleActive(UsersClient user) async {
     try {
-      await UserManagementDatasource.toggleActive(user.id,
-          active: !user.active);
+      await UserManagementDatasource.toggleActive(
+        user.id,
+        active: !user.active,
+      );
       widget.onChanged();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Erreur : $e')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
       }
     }
   }
 
   bool _inCategory(UsersClient u, _UserFilter f) => switch (f) {
-        _UserFilter.actifs => u.active,
-        _UserFilter.inactifs => !u.active,
-        _UserFilter.proprietaires => u.resolvedType == UserType.proprietaire,
-        _UserFilter.locataires => u.resolvedType == UserType.locataire,
-        _UserFilter.superAdmins => u.resolvedType == UserType.superAdmin,
-      };
+    _UserFilter.actifs => u.active,
+    _UserFilter.inactifs => !u.active,
+    _UserFilter.proprietaires => u.resolvedType == UserType.proprietaire,
+    _UserFilter.locataires => u.resolvedType == UserType.locataire,
+    _UserFilter.superAdmins => u.resolvedType == UserType.superAdmin,
+    _UserFilter.adminsSysteme => u.resolvedType == UserType.adminSysteme,
+  };
+
+  /// Compte sur lequel la page est centrée, tant que l'utilisateur n'a pas
+  /// cliqué « Voir tous » (le focus vient d'une notification, il ne doit pas
+  /// coincer la page).
+  String? _focus;
+
+  /// Ordre de la liste. Par défaut les inscriptions récentes en tête.
+  bool _plusRecentsDabord = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _focus = widget.focusUserId;
+  }
 
   bool _matches(UsersClient u) {
+    // Le focus court-circuite recherche et filtres : on vient traiter CE compte.
+    if (_focus != null) return u.id == _focus;
     if (_search.isNotEmpty) {
-      final hit = (u.fullName ?? '').toLowerCase().contains(_search) ||
+      final hit =
+          (u.fullName ?? '').toLowerCase().contains(_search) ||
           u.email.toLowerCase().contains(_search);
       if (!hit) return false;
     }
     // Status (OR dentro da dimensão)
-    final statusFilters =
-        _filters.where((f) => f == _UserFilter.actifs || f == _UserFilter.inactifs);
+    final statusFilters = _filters.where(
+      (f) => f == _UserFilter.actifs || f == _UserFilter.inactifs,
+    );
     if (statusFilters.isNotEmpty) {
-      final ok = (u.active && statusFilters.contains(_UserFilter.actifs)) ||
+      final ok =
+          (u.active && statusFilters.contains(_UserFilter.actifs)) ||
           (!u.active && statusFilters.contains(_UserFilter.inactifs));
       if (!ok) return false;
     }
     // Tipo (OR dentro da dimensão)
-    final typeFilters = _filters.where((f) =>
-        f == _UserFilter.proprietaires ||
-        f == _UserFilter.locataires ||
-        f == _UserFilter.superAdmins);
+    final typeFilters = _filters.where(
+      (f) =>
+          f == _UserFilter.proprietaires ||
+          f == _UserFilter.locataires ||
+          f == _UserFilter.superAdmins ||
+          f == _UserFilter.adminsSysteme,
+    );
     if (typeFilters.isNotEmpty) {
       final t = u.resolvedType;
-      final ok = (t == UserType.proprietaire &&
+      final ok =
+          (t == UserType.proprietaire &&
               typeFilters.contains(_UserFilter.proprietaires)) ||
           (t == UserType.locataire &&
               typeFilters.contains(_UserFilter.locataires)) ||
           (t == UserType.superAdmin &&
-              typeFilters.contains(_UserFilter.superAdmins));
+              typeFilters.contains(_UserFilter.superAdmins)) ||
+          (t == UserType.adminSysteme &&
+              typeFilters.contains(_UserFilter.adminsSysteme));
       if (!ok) return false;
     }
     return true;
@@ -348,11 +404,50 @@ class _UsersTabState extends State<_UsersTab> {
 
   @override
   Widget build(BuildContext context) {
-    final users = widget.data.users.where(_matches).toList();
+    final users = widget.data.users.where(_matches).toList()
+      // Les plus récents d'abord : sur cet écran on vient traiter les
+      // inscriptions du jour (activer un propriétaire), pas relire les
+      // anciennes.
+      ..sort((a, b) => _plusRecentsDabord
+          ? b.createdAt.compareTo(a.createdAt)
+          : a.createdAt.compareTo(b.createdAt));
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Sans ce bandeau, un admin arrivant depuis une notification verrait
+        // « un seul utilisateur » sans comprendre pourquoi.
+        if (_focus != null)
+          Container(
+            margin: const EdgeInsets.only(bottom: AppSpacing.md),
+            padding: const EdgeInsets.all(AppSpacing.md),
+            decoration: BoxDecoration(
+              color: AppColors.primaryFixed,
+              borderRadius: AppRadius.borderMd,
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.filter_alt_outlined,
+                  size: 18,
+                  color: AppColors.onPrimaryFixedVariant,
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Text(
+                    'Affichage centré sur le compte à activer.',
+                    style: AppTypography.bodyMd.copyWith(
+                      color: AppColors.onPrimaryFixedVariant,
+                    ),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () => setState(() => _focus = null),
+                  child: const Text('Voir tous les utilisateurs'),
+                ),
+              ],
+            ),
+          ),
         // Recherche + bouton « Filtres » (le panneau de chips s'ouvre au clic,
         // au lieu d'occuper l'écran en permanence).
         Row(
@@ -362,6 +457,26 @@ class _UsersTabState extends State<_UsersTab> {
                 hint: 'Rechercher par nom ou e-mail…',
                 onChanged: (q) => setState(() => _search = q),
                 padding: EdgeInsets.zero,
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Tooltip(
+              message: _plusRecentsDabord
+                  ? 'Plus récents d\'abord'
+                  : 'Plus anciens d\'abord',
+              child: IconButton.outlined(
+                onPressed: () =>
+                    setState(() => _plusRecentsDabord = !_plusRecentsDabord),
+                icon: Icon(
+                  _plusRecentsDabord
+                      ? Icons.arrow_downward
+                      : Icons.arrow_upward,
+                  size: 18,
+                ),
+                style: IconButton.styleFrom(
+                  foregroundColor: AppColors.onSurfaceVariant,
+                  side: BorderSide(color: AppColors.outlineVariant),
+                ),
               ),
             ),
             const SizedBox(width: AppSpacing.md),
@@ -388,8 +503,9 @@ class _UsersTabState extends State<_UsersTab> {
               runSpacing: AppSpacing.xs,
               children: _UserFilter.values.map((f) {
                 final selected = _filters.contains(f);
-                final count =
-                    widget.data.users.where((u) => _inCategory(u, f)).length;
+                final count = widget.data.users
+                    .where((u) => _inCategory(u, f))
+                    .length;
                 return _AdminFilterChip(
                   label: f.label,
                   count: count,
@@ -410,9 +526,12 @@ class _UsersTabState extends State<_UsersTab> {
         Expanded(
           child: users.isEmpty
               ? Center(
-                  child: Text('Aucun utilisateur trouvé.',
-                      style: AppTypography.bodyMd
-                          .copyWith(color: AppColors.onSurfaceVariant)),
+                  child: Text(
+                    'Aucun utilisateur trouvé.',
+                    style: AppTypography.bodyMd.copyWith(
+                      color: AppColors.onSurfaceVariant,
+                    ),
+                  ),
                 )
               : ListView.separated(
                   itemCount: users.length,
@@ -461,6 +580,31 @@ class _UserCardState extends State<_UserCard> {
   bool _saving = false;
   bool _loaded = false;
 
+  bool _envoiActivation = false;
+
+  /// Prévient l'utilisateur que son compte est ouvert, avec le lien vers son
+  /// espace, le manuel et l'adresse de support. Tout le contenu est construit
+  /// côté serveur (`notify-activation`) : ici on ne transmet qu'un id.
+  Future<void> _envoyerActivation() async {
+    setState(() => _envoiActivation = true);
+    try {
+      await UserManagementDatasource.sendActivationEmail(widget.user.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('E-mail d\'activation envoyé à ${widget.user.email}'),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
+    } finally {
+      if (mounted) setState(() => _envoiActivation = false);
+    }
+  }
+
   void _showPasswordDialog() {
     showDialog(
       context: context,
@@ -488,8 +632,9 @@ class _UserCardState extends State<_UserCard> {
     if (_loaded) return;
     setState(() => _loading = true);
     try {
-      final individual =
-          await UserManagementDatasource.getUserPermissions(widget.user.id);
+      final individual = await UserManagementDatasource.getUserPermissions(
+        widget.user.id,
+      );
       final group = _groupById(widget.user.groupId);
       final effective = <int>{
         ...?group?.permissionIds,
@@ -506,8 +651,9 @@ class _UserCardState extends State<_UserCard> {
     } catch (e) {
       setState(() => _loading = false);
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Erreur : $e')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
       }
     }
   }
@@ -553,12 +699,18 @@ class _UserCardState extends State<_UserCard> {
         // Membro do grupo: limpa individuais, herda do grupo
         await UserManagementDatasource.setUserGroup(widget.user.id, g.id);
         await UserManagementDatasource.setPermissions(
-            widget.user.id, [], adminId);
+          widget.user.id,
+          [],
+          adminId,
+        );
       } else {
         // Personnalisé: destaca do grupo e grava individuais
         await UserManagementDatasource.setUserGroup(widget.user.id, null);
         await UserManagementDatasource.setPermissions(
-            widget.user.id, _checked.toList(), adminId);
+          widget.user.id,
+          _checked.toList(),
+          adminId,
+        );
       }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -570,8 +722,9 @@ class _UserCardState extends State<_UserCard> {
     } catch (e) {
       setState(() => _saving = false);
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Erreur : $e')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
       }
     }
   }
@@ -597,73 +750,141 @@ class _UserCardState extends State<_UserCard> {
               horizontal: AppSpacing.md,
               vertical: AppSpacing.sm,
             ),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  backgroundColor: isAdmin
-                      ? AppColors.error.withValues(alpha: 0.12)
-                      : AppColors.primaryFixed,
-                  child: Text(
-                    (user.fullName ?? user.email).substring(0, 1).toUpperCase(),
-                    style: AppTypography.labelMd.copyWith(
-                      color: isAdmin ? AppColors.error : AppColors.primary,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.md),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        user.fullName ?? user.email,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTypography.bodyMd
-                            .copyWith(fontWeight: FontWeight.w600),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final identity = Row(
+                  children: [
+                    CircleAvatar(
+                      backgroundColor: isAdmin
+                          ? AppColors.error.withValues(alpha: 0.12)
+                          : AppColors.primaryFixed,
+                      child: Text(
+                        (user.fullName ?? user.email)
+                            .substring(0, 1)
+                            .toUpperCase(),
+                        style: AppTypography.labelMd.copyWith(
+                          color: isAdmin ? AppColors.error : AppColors.primary,
+                        ),
                       ),
-                      Text(
-                        '${user.email}  ·  $typeLabel'
-                        '${groupName != null ? '  ·  $groupName' : ''}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTypography.labelSm
-                            .copyWith(color: AppColors.onSurfaceVariant),
+                    ),
+                    const SizedBox(width: AppSpacing.md),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            user.fullName ?? user.email,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTypography.bodyMd.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          Text(
+                            '${user.email}  ·  $typeLabel'
+                            '${groupName != null ? '  ·  $groupName' : ''}'
+                            '  ·  Inscrit le '
+                            '${_dateInscription.format(user.createdAt.toLocal())}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTypography.labelSm.copyWith(
+                              color: AppColors.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    _StatusChip(active: user.active),
+                  ],
+                );
+
+                final actions = Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Botão Permissions (compacto, ao lado de Actif)
+                    AppButton.edit(
+                      size: AppButtonSize.compact,
+                      icon: _expanded
+                          ? Icons.expand_less
+                          : Icons.shield_outlined,
+                      label: 'Permissions',
+                      onPressed: _toggleExpand,
+                    ),
+                    const SizedBox(width: AppSpacing.xs),
+                    Tooltip(
+                      message: 'Mot de passe',
+                      child: IconButton.outlined(
+                        onPressed: _showPasswordDialog,
+                        icon: const Icon(Icons.key_outlined, size: 18),
+                        style: IconButton.styleFrom(
+                          foregroundColor: AppColors.onSurfaceVariant,
+                          side: BorderSide(color: AppColors.outlineVariant),
+                        ),
+                      ),
+                    ),
+                    // Prévenir l'intéressé n'a de sens qu'une fois le compte
+                    // réellement actif — sinon on annoncerait une activation
+                    // qui n'a pas eu lieu (l'edge function le refuse aussi).
+                    if (user.active) ...[
+                      const SizedBox(width: AppSpacing.xs),
+                      Tooltip(
+                        message: 'Envoyer l\'e-mail d\'activation',
+                        child: IconButton.outlined(
+                          onPressed: _envoiActivation
+                              ? null
+                              : _envoyerActivation,
+                          icon: _envoiActivation
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(
+                                  Icons.mark_email_read_outlined,
+                                  size: 18,
+                                ),
+                          style: IconButton.styleFrom(
+                            foregroundColor: AppColors.onSurfaceVariant,
+                            side: BorderSide(color: AppColors.outlineVariant),
+                          ),
+                        ),
                       ),
                     ],
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.sm),
-                _StatusChip(active: user.active),
-                const SizedBox(width: AppSpacing.sm),
-                // Botão Permissions (compacto, ao lado de Actif)
-                AppButton.edit(
-                  size: AppButtonSize.compact,
-                  icon: _expanded ? Icons.expand_less : Icons.shield_outlined,
-                  label: 'Permissions',
-                  onPressed: _toggleExpand,
-                ),
-                const SizedBox(width: AppSpacing.xs),
-                Tooltip(
-                  message: 'Mot de passe',
-                  child: IconButton.outlined(
-                    onPressed: _showPasswordDialog,
-                    icon: const Icon(Icons.key_outlined, size: 18),
-                    style: IconButton.styleFrom(
-                      foregroundColor: AppColors.onSurfaceVariant,
-                      side: BorderSide(color: AppColors.outlineVariant),
+                    const SizedBox(width: AppSpacing.sm),
+                    Tooltip(
+                      message: user.active ? 'Désactiver' : 'Activer',
+                      child: Switch(
+                        value: user.active,
+                        onChanged: (_) => widget.onToggleActive(),
+                      ),
                     ),
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.sm),
-                Tooltip(
-                  message: user.active ? 'Désactiver' : 'Activer',
-                  child: Switch(
-                    value: user.active,
-                    onChanged: (_) => widget.onToggleActive(),
-                  ),
-                ),
-              ],
+                  ],
+                );
+
+                // En dessous d'~560px, les actions (Permissions/clé/switch)
+                // passent sous l'identité pour éviter d'écraser le nom/email.
+                if (constraints.maxWidth < 560) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      identity,
+                      const SizedBox(height: AppSpacing.sm),
+                      Align(alignment: Alignment.centerRight, child: actions),
+                    ],
+                  );
+                }
+
+                return Row(
+                  children: [
+                    Expanded(child: identity),
+                    const SizedBox(width: AppSpacing.sm),
+                    actions,
+                  ],
+                );
+              },
             ),
           ),
           // Accordéon
@@ -707,15 +928,15 @@ class _UserCardState extends State<_UserCard> {
               ),
               child: Row(
                 children: [
-                  Icon(Icons.info_outline,
-                      size: 16, color: AppColors.error),
+                  Icon(Icons.info_outline, size: 16, color: AppColors.error),
                   const SizedBox(width: AppSpacing.sm),
                   Expanded(
                     child: Text(
                       'Utilisateur inactif — toutes les permissions sont '
                       'suspendues tant que le compte est désactivé.',
-                      style: AppTypography.labelSm
-                          .copyWith(color: AppColors.error),
+                      style: AppTypography.labelSm.copyWith(
+                        color: AppColors.error,
+                      ),
                     ),
                   ),
                 ],
@@ -724,8 +945,7 @@ class _UserCardState extends State<_UserCard> {
           // Seletor de grupo
           Row(
             children: [
-              Icon(Icons.groups_outlined,
-                  size: 18, color: AppColors.primary),
+              Icon(Icons.groups_outlined, size: 18, color: AppColors.primary),
               const SizedBox(width: AppSpacing.sm),
               Text('Groupe', style: AppTypography.labelMd),
               const SizedBox(width: AppSpacing.md),
@@ -737,7 +957,9 @@ class _UserCardState extends State<_UserCard> {
                     isDense: true,
                     border: OutlineInputBorder(),
                     contentPadding: EdgeInsets.symmetric(
-                        horizontal: AppSpacing.sm, vertical: AppSpacing.sm),
+                      horizontal: AppSpacing.sm,
+                      vertical: AppSpacing.sm,
+                    ),
                   ),
                   items: [
                     const DropdownMenuItem<int?>(
@@ -770,16 +992,10 @@ class _UserCardState extends State<_UserCard> {
           const SizedBox(height: AppSpacing.sm),
           Align(
             alignment: Alignment.centerRight,
-            child: FilledButton.icon(
+            child: AppButton.save(
+              label: 'Enregistrer',
+              isBusy: _saving,
               onPressed: _saving ? null : _save,
-              style: AppTheme.saveButtonStyle,
-              icon: _saving
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Icon(Icons.save_outlined, size: 18),
-              label: const Text('Enregistrer'),
             ),
           ),
         ],
@@ -817,8 +1033,9 @@ class _GroupsTab extends StatelessWidget {
                   'Modifier les permissions d\'un groupe les applique '
                   'automatiquement à tous ses membres (sauf utilisateurs '
                   'personnalisés).',
-                  style: AppTypography.labelSm
-                      .copyWith(color: AppColors.onSurfaceVariant),
+                  style: AppTypography.labelSm.copyWith(
+                    color: AppColors.onSurfaceVariant,
+                  ),
                 ),
               ),
             ],
@@ -871,7 +1088,9 @@ class _GroupCardState extends State<_GroupCard> {
     setState(() => _saving = true);
     try {
       await UserManagementDatasource.setGroupPermissions(
-          widget.group.id, _checked.toList());
+        widget.group.id,
+        _checked.toList(),
+      );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -887,8 +1106,9 @@ class _GroupCardState extends State<_GroupCard> {
     } catch (e) {
       setState(() => _saving = false);
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Erreur : $e')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
       }
     }
   }
@@ -905,14 +1125,16 @@ class _GroupCardState extends State<_GroupCard> {
         children: [
           ListTile(
             leading: Icon(Icons.groups, color: AppColors.primary),
-            title: Text(widget.group.name,
-                style:
-                    AppTypography.bodyMd.copyWith(fontWeight: FontWeight.w600)),
+            title: Text(
+              widget.group.name,
+              style: AppTypography.bodyMd.copyWith(fontWeight: FontWeight.w600),
+            ),
             subtitle: Text(
               '${widget.memberCount} membre(s)  ·  '
               '${_checked.length} permission(s)',
-              style: AppTypography.labelSm
-                  .copyWith(color: AppColors.onSurfaceVariant),
+              style: AppTypography.labelSm.copyWith(
+                color: AppColors.onSurfaceVariant,
+              ),
             ),
             trailing: Icon(_expanded ? Icons.expand_less : Icons.expand_more),
             onTap: () => setState(() => _expanded = !_expanded),
@@ -921,8 +1143,9 @@ class _GroupCardState extends State<_GroupCard> {
             Container(
               width: double.infinity,
               decoration: BoxDecoration(
-                border:
-                    Border(top: BorderSide(color: AppColors.outlineVariant)),
+                border: Border(
+                  top: BorderSide(color: AppColors.outlineVariant),
+                ),
               ),
               padding: const EdgeInsets.all(AppSpacing.md),
               child: Column(
@@ -942,15 +1165,10 @@ class _GroupCardState extends State<_GroupCard> {
                   const SizedBox(height: AppSpacing.sm),
                   Align(
                     alignment: Alignment.centerRight,
-                    child: FilledButton.icon(
+                    child: AppButton.save(
+                      label: 'Enregistrer le groupe',
+                      isBusy: _saving,
                       onPressed: _saving ? null : _save,
-                      icon: _saving
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2))
-                          : const Icon(Icons.save_outlined, size: 18),
-                      label: const Text('Enregistrer le groupe'),
                     ),
                   ),
                 ],
@@ -1026,13 +1244,18 @@ class _PermissionGrid extends StatelessWidget {
               (p) => CheckboxListTile(
                 dense: true,
                 controlAffinity: ListTileControlAffinity.leading,
-                contentPadding:
-                    const EdgeInsets.only(left: AppSpacing.lg, right: 0),
+                contentPadding: const EdgeInsets.only(
+                  left: AppSpacing.lg,
+                  right: 0,
+                ),
                 title: Text(p.label, style: AppTypography.bodyMd),
                 subtitle: p.description != null
-                    ? Text(p.description!,
-                        style: AppTypography.labelSm
-                            .copyWith(color: AppColors.onSurfaceVariant))
+                    ? Text(
+                        p.description!,
+                        style: AppTypography.labelSm.copyWith(
+                          color: AppColors.onSurfaceVariant,
+                        ),
+                      )
                     : null,
                 value: checked.contains(p.id),
                 onChanged: (v) => onToggle(p.id, v ?? false),
@@ -1102,8 +1325,9 @@ class _CreateUserDialogState extends State<_CreateUserDialog> {
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Erreur : $e')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -1156,20 +1380,14 @@ class _CreateUserDialogState extends State<_CreateUserDialog> {
         ),
       ),
       actions: [
-        OutlinedButton(
+        AppButton.cancel(
+          label: 'Annuler',
           onPressed: _loading ? null : () => Navigator.pop(context),
-          child: const Text('Annuler'),
         ),
-        FilledButton(
-          style: AppTheme.saveButtonStyle,
+        AppButton.save(
+          label: 'Créer',
+          isBusy: _loading,
           onPressed: _loading ? null : _submit,
-          child: _loading
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Text('Créer'),
         ),
       ],
     );
@@ -1207,9 +1425,19 @@ class _PasswordDialogState extends State<_PasswordDialog> {
         email: widget.user.email,
         fullName: widget.user.fullName,
       );
-      if (mounted) setState(() { _sendingLink = false; _linkSent = true; });
+      if (mounted) {
+        setState(() {
+          _sendingLink = false;
+          _linkSent = true;
+        });
+      }
     } catch (e) {
-      if (mounted) setState(() { _sendingLink = false; _errorLink = '$e'; });
+      if (mounted) {
+        setState(() {
+          _sendingLink = false;
+          _errorLink = '$e';
+        });
+      }
     }
   }
 
@@ -1223,7 +1451,10 @@ class _PasswordDialogState extends State<_PasswordDialog> {
       setState(() => _errorPw = 'Les mots de passe ne correspondent pas.');
       return;
     }
-    setState(() { _settingPw = true; _errorPw = null; });
+    setState(() {
+      _settingPw = true;
+      _errorPw = null;
+    });
     try {
       await UserManagementDatasource.setUserPassword(
         userId: widget.user.id,
@@ -1236,7 +1467,12 @@ class _PasswordDialogState extends State<_PasswordDialog> {
         );
       }
     } catch (e) {
-      if (mounted) setState(() { _settingPw = false; _errorPw = '$e'; });
+      if (mounted) {
+        setState(() {
+          _settingPw = false;
+          _errorPw = '$e';
+        });
+      }
     }
   }
 
@@ -1251,13 +1487,18 @@ class _PasswordDialogState extends State<_PasswordDialog> {
           const Text('Mot de passe'),
           Text(
             name,
-            style: AppTypography.labelSm
-                .copyWith(color: AppColors.onSurfaceVariant),
+            style: AppTypography.labelSm.copyWith(
+              color: AppColors.onSurfaceVariant,
+            ),
           ),
         ],
       ),
-      contentPadding:
-          const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.md, AppSpacing.lg, 0),
+      contentPadding: const EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        AppSpacing.md,
+        AppSpacing.lg,
+        0,
+      ),
       content: SizedBox(
         width: 440,
         child: Column(
@@ -1277,13 +1518,17 @@ class _PasswordDialogState extends State<_PasswordDialog> {
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.mail_outline,
-                          size: 18, color: AppColors.primary),
+                      Icon(
+                        Icons.mail_outline,
+                        size: 18,
+                        color: AppColors.primary,
+                      ),
                       const SizedBox(width: AppSpacing.sm),
                       Text(
                         'Envoyer un lien de réinitialisation',
-                        style: AppTypography.bodyMd
-                            .copyWith(fontWeight: FontWeight.w600),
+                        style: AppTypography.bodyMd.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ],
                   ),
@@ -1291,45 +1536,43 @@ class _PasswordDialogState extends State<_PasswordDialog> {
                   Text(
                     'Un e-mail avec un lien d\'activation sera envoyé à '
                     '${widget.user.email}.',
-                    style: AppTypography.labelSm
-                        .copyWith(color: AppColors.onSurfaceVariant),
+                    style: AppTypography.labelSm.copyWith(
+                      color: AppColors.onSurfaceVariant,
+                    ),
                   ),
                   if (_errorLink != null) ...[
                     const SizedBox(height: AppSpacing.xs),
-                    Text(_errorLink!,
-                        style: AppTypography.labelSm
-                            .copyWith(color: AppColors.error)),
+                    Text(
+                      _errorLink!,
+                      style: AppTypography.labelSm.copyWith(
+                        color: AppColors.error,
+                      ),
+                    ),
                   ],
                   if (_linkSent) ...[
                     const SizedBox(height: AppSpacing.xs),
                     Row(
                       children: [
-                        const Icon(Icons.check_circle_outline,
-                            size: 15, color: _green),
+                        const Icon(
+                          Icons.check_circle_outline,
+                          size: 15,
+                          color: _green,
+                        ),
                         const SizedBox(width: 4),
-                        Text('Lien envoyé !',
-                            style: AppTypography.labelSm
-                                .copyWith(color: _green)),
+                        Text(
+                          'Lien envoyé !',
+                          style: AppTypography.labelSm.copyWith(color: _green),
+                        ),
                       ],
                     ),
                   ],
                   const SizedBox(height: AppSpacing.sm),
-                  FilledButton.icon(
+                  AppButton.primary(
+                    size: AppButtonSize.compact,
+                    icon: _linkSent ? Icons.check : Icons.send_outlined,
+                    label: _linkSent ? 'Envoyé' : 'Envoyer le lien',
+                    isBusy: _sendingLink,
                     onPressed: _sendingLink || _linkSent ? null : _sendLink,
-                    icon: _sendingLink
-                        ? const SizedBox(
-                            width: 14,
-                            height: 14,
-                            child: CircularProgressIndicator(
-                                strokeWidth: 2, color: Colors.white))
-                        : Icon(
-                            _linkSent
-                                ? Icons.check
-                                : Icons.send_outlined,
-                            size: 16),
-                    label: Text(_linkSent ? 'Envoyé' : 'Envoyer le lien'),
-                    style: FilledButton.styleFrom(
-                        visualDensity: VisualDensity.compact),
                   ),
                 ],
               ),
@@ -1337,17 +1580,20 @@ class _PasswordDialogState extends State<_PasswordDialog> {
 
             // ── Séparateur "ou" ───────────────────────────────────────────────
             Padding(
-              padding:
-                  const EdgeInsets.symmetric(vertical: AppSpacing.md),
+              padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
               child: Row(
                 children: [
                   const Expanded(child: Divider()),
                   Padding(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.sm),
-                    child: Text('ou',
-                        style: AppTypography.labelSm
-                            .copyWith(color: AppColors.onSurfaceVariant)),
+                      horizontal: AppSpacing.sm,
+                    ),
+                    child: Text(
+                      'ou',
+                      style: AppTypography.labelSm.copyWith(
+                        color: AppColors.onSurfaceVariant,
+                      ),
+                    ),
                   ),
                   const Expanded(child: Divider()),
                 ],
@@ -1357,13 +1603,17 @@ class _PasswordDialogState extends State<_PasswordDialog> {
             // ── Option 2 : définir directement ───────────────────────────────
             Row(
               children: [
-                Icon(Icons.lock_outline,
-                    size: 18, color: AppColors.onSurfaceVariant),
+                Icon(
+                  Icons.lock_outline,
+                  size: 18,
+                  color: AppColors.onSurfaceVariant,
+                ),
                 const SizedBox(width: AppSpacing.sm),
                 Text(
                   'Définir un nouveau mot de passe',
-                  style: AppTypography.bodyMd
-                      .copyWith(fontWeight: FontWeight.w600),
+                  style: AppTypography.bodyMd.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ],
             ),
@@ -1382,8 +1632,10 @@ class _PasswordDialogState extends State<_PasswordDialog> {
                     ),
                     validator: FormBuilderValidators.compose([
                       FormBuilderValidators.required(),
-                      FormBuilderValidators.minLength(6,
-                          errorText: '6 caractères minimum'),
+                      FormBuilderValidators.minLength(
+                        6,
+                        errorText: '6 caractères minimum',
+                      ),
                     ]),
                   ),
                   const SizedBox(height: AppSpacing.sm),
@@ -1396,8 +1648,12 @@ class _PasswordDialogState extends State<_PasswordDialog> {
                       border: OutlineInputBorder(),
                     ),
                     validator: (val) {
-                      final pw = _formKey.currentState
-                          ?.fields['password']?.transformedValue as String?;
+                      final pw =
+                          _formKey
+                                  .currentState
+                                  ?.fields['password']
+                                  ?.transformedValue
+                              as String?;
                       if (val == null || val.isEmpty) {
                         return 'Champ requis';
                       }
@@ -1412,23 +1668,17 @@ class _PasswordDialogState extends State<_PasswordDialog> {
             ),
             if (_errorPw != null) ...[
               const SizedBox(height: AppSpacing.xs),
-              Text(_errorPw!,
-                  style:
-                      AppTypography.labelSm.copyWith(color: AppColors.error)),
+              Text(
+                _errorPw!,
+                style: AppTypography.labelSm.copyWith(color: AppColors.error),
+              ),
             ],
             const SizedBox(height: AppSpacing.sm),
-            FilledButton.icon(
+            AppButton.save(
+              size: AppButtonSize.compact,
+              label: 'Enregistrer le mot de passe',
+              isBusy: _settingPw,
               onPressed: _settingPw ? null : _setPassword,
-              icon: _settingPw
-                  ? const SizedBox(
-                      width: 14,
-                      height: 14,
-                      child: CircularProgressIndicator(
-                          strokeWidth: 2, color: Colors.white))
-                  : const Icon(Icons.save_outlined, size: 16),
-              label: const Text('Enregistrer le mot de passe'),
-              style: FilledButton.styleFrom(
-                  visualDensity: VisualDensity.compact),
             ),
             const SizedBox(height: AppSpacing.sm),
           ],

@@ -121,12 +121,24 @@ class _ColorInputFieldState extends State<ColorInputField> {
           builder: (context, constraints) {
             final formatField = DropdownButtonFormField<ColorFormat>(
               initialValue: _format,
+              // Sans `isExpanded`, le bouton se dimensionne sur l'item le plus
+              // large (« iOS / macOS ») et débordait de la largeur imposée —
+              // d'où le bandeau « RIGHT OVERFLOWED BY 29 PIXELS ». Avec, le
+              // libellé s'adapte à la place disponible.
+              isExpanded: true,
               decoration: const InputDecoration(
                 labelText: 'Format',
                 isDense: true,
               ),
               items: ColorFormat.values
-                  .map((f) => DropdownMenuItem(value: f, child: Text(f.label)))
+                  .map((f) => DropdownMenuItem(
+                        value: f,
+                        child: Text(
+                          f.label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ))
                   .toList(),
               onChanged: (f) => _onFormatChanged(f ?? _format),
             );
@@ -160,7 +172,8 @@ class _ColorInputFieldState extends State<ColorInputField> {
             return Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                SizedBox(width: 132, child: formatField),
+                // 150 : « iOS / macOS » tient en entier à côté de la flèche.
+                SizedBox(width: 150, child: formatField),
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(child: codeField),
               ],
