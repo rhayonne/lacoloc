@@ -3,6 +3,7 @@ import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:form_builder_validators/form_builder_validators.dart';
 import 'package:habitafrance/data/datasources/auth_service.dart';
 import 'package:habitafrance/data/models/users_client.dart';
+import 'package:habitafrance/presentation/widgets/app_button.dart';
 import 'package:habitafrance/utils/email_field.dart';
 import 'package:habitafrance/utils/phone_field.dart';
 import 'package:habitafrance/theme/app_colors.dart';
@@ -10,6 +11,7 @@ import 'package:habitafrance/theme/app_radius.dart';
 import 'package:habitafrance/theme/app_spacing.dart';
 import 'package:habitafrance/theme/app_typography.dart';
 import 'package:habitafrance/utils/auth_error.dart';
+import 'package:habitafrance/utils/responsive_form_wrapper.dart';
 
 class CrierCompteProprietairePage extends StatefulWidget {
   const CrierCompteProprietairePage({super.key});
@@ -47,12 +49,7 @@ class _CrierCompteProprietairePageState
       );
 
       // Notificação ao admin — best-effort, não bloqueia
-      AuthService.notifyProprietaireRegistration(
-        fullName: fullName,
-        email: email,
-        phone: phone,
-        note: note,
-      );
+      AuthService.notifyProprietaireRegistration(email: email, note: note);
 
       if (!mounted) return;
       _showSuccessDialog();
@@ -65,8 +62,9 @@ class _CrierCompteProprietairePageState
 
   void _showError(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   void _showSuccessDialog() {
@@ -81,12 +79,12 @@ class _CrierCompteProprietairePageState
           'puis attendez l\'activation de votre compte par un administrateur.',
         ),
         actions: [
-          FilledButton(
+          AppButton.primary(
+            label: 'Se connecter',
             onPressed: () {
               Navigator.of(context).pop();
               Navigator.of(context).pushReplacementNamed('/');
             },
-            child: const Text('Se connecter'),
           ),
         ],
       ),
@@ -105,144 +103,148 @@ class _CrierCompteProprietairePageState
         body: Center(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(AppSpacing.lg),
-            child: Container(
-              constraints: const BoxConstraints(maxWidth: 500),
-              padding: const EdgeInsets.all(AppSpacing.xl),
-              decoration: BoxDecoration(
-                color: AppColors.surfaceContainerLowest,
-                borderRadius: AppRadius.borderXl,
-                border: Border.all(color: AppColors.outlineVariant),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.shadowTint.withValues(alpha: 0.08),
-                    blurRadius: 24,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
-              ),
-              child: FormBuilder(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text(
-                      'Créez votre compte',
-                      style: AppTypography.headlineMd,
-                    ),
-                    const SizedBox(height: AppSpacing.xs),
-                    Text(
-                      'Remplissez le formulaire ci-dessous. '
-                      'Un administrateur examinera votre demande et activera votre compte.',
-                      style: AppTypography.bodyMd.copyWith(
-                        color: AppColors.onSurfaceVariant,
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.xl),
-
-                    _label('NOM COMPLET'),
-                    FormBuilderTextField(
-                      name: 'full_name',
-                      decoration:
-                          const InputDecoration(hintText: 'Jean Dupont'),
-                      textCapitalization: TextCapitalization.words,
-                      validator: FormBuilderValidators.required(
-                        errorText: 'Champ obligatoire',
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-
-                    _label('E-MAIL'),
-                    EmailField(name: 'email', required: true),
-                    const SizedBox(height: AppSpacing.md),
-
-                    _label('TÉLÉPHONE'),
-                    PhoneField(name: 'phone'),
-                    const SizedBox(height: AppSpacing.md),
-
-                    _label('MOT DE PASSE'),
-                    FormBuilderTextField(
-                      name: 'password',
-                      obscureText: _obscurePwd,
-                      decoration: InputDecoration(
-                        hintText: '••••••••',
-                        suffixIcon: IconButton(
-                          icon: Icon(_obscurePwd
-                              ? Icons.visibility_outlined
-                              : Icons.visibility_off_outlined),
-                          tooltip: _obscurePwd
-                              ? 'Afficher le mot de passe'
-                              : 'Masquer le mot de passe',
-                          onPressed: () =>
-                              setState(() => _obscurePwd = !_obscurePwd),
-                        ),
-                      ),
-                      validator: FormBuilderValidators.compose([
-                        FormBuilderValidators.required(),
-                        FormBuilderValidators.minLength(
-                          6,
-                          errorText: '6 caractères minimum',
-                        ),
-                      ]),
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-
-                    _label('CONFIRMER LE MOT DE PASSE'),
-                    FormBuilderTextField(
-                      name: 'password_confirm',
-                      obscureText: _obscureConfirm,
-                      decoration: InputDecoration(
-                        hintText: '••••••••',
-                        suffixIcon: IconButton(
-                          icon: Icon(_obscureConfirm
-                              ? Icons.visibility_outlined
-                              : Icons.visibility_off_outlined),
-                          tooltip: _obscureConfirm
-                              ? 'Afficher le mot de passe'
-                              : 'Masquer le mot de passe',
-                          onPressed: () => setState(
-                              () => _obscureConfirm = !_obscureConfirm),
-                        ),
-                      ),
-                      validator: (val) {
-                        final pwd = _formKey
-                            .currentState?.fields['password']?.value as String?;
-                        if (val == null || val.isEmpty) {
-                          return 'Champ obligatoire';
-                        }
-                        if (val != pwd) return 'Les mots de passe ne correspondent pas';
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-
-                    _label('MESSAGE (facultatif)'),
-                    FormBuilderTextField(
-                      name: 'note',
-                      maxLines: 3,
-                      decoration: const InputDecoration(
-                        hintText:
-                            'Présentez-vous ou ajoutez une note pour l\'administrateur…',
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.xl),
-
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: _isLoading ? null : _submit,
-                        child: _isLoading
-                            ? SizedBox(
-                                height: 22,
-                                width: 22,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2.5,
-                                  color: AppColors.onPrimary,
-                                ),
-                              )
-                            : const Text("Envoyer ma demande"),
-                      ),
+            child: ResponsiveFormWrapper(
+              maxWidth: 500,
+              child: Container(
+                padding: const EdgeInsets.all(AppSpacing.xl),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceContainerLowest,
+                  borderRadius: AppRadius.borderXl,
+                  border: Border.all(color: AppColors.outlineVariant),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.shadowTint.withValues(alpha: 0.08),
+                      blurRadius: 24,
+                      offset: const Offset(0, 8),
                     ),
                   ],
+                ),
+                child: FormBuilder(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        'Créez votre compte',
+                        style: AppTypography.headlineMd,
+                      ),
+                      const SizedBox(height: AppSpacing.xs),
+                      Text(
+                        'Remplissez le formulaire ci-dessous. Votre demande '
+                        'est transmise à un administrateur de la plateforme, '
+                        'qui activera votre compte. Vous recevrez alors un '
+                        'e-mail avec les détails de l\'activation et le lien '
+                        'pour accéder à votre espace.',
+                        style: AppTypography.bodyMd.copyWith(
+                          color: AppColors.onSurfaceVariant,
+                        ),
+                      ),
+                      const SizedBox(height: AppSpacing.xl),
+
+                      _label('NOM COMPLET'),
+                      FormBuilderTextField(
+                        name: 'full_name',
+                        decoration: const InputDecoration(
+                          hintText: 'Jean Dupont',
+                        ),
+                        textCapitalization: TextCapitalization.words,
+                        validator: FormBuilderValidators.required(
+                          errorText: 'Champ obligatoire',
+                        ),
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+
+                      _label('E-MAIL'),
+                      EmailField(name: 'email', required: true),
+                      const SizedBox(height: AppSpacing.md),
+
+                      _label('TÉLÉPHONE'),
+                      PhoneField(name: 'phone'),
+                      const SizedBox(height: AppSpacing.md),
+
+                      _label('MOT DE PASSE'),
+                      FormBuilderTextField(
+                        name: 'password',
+                        obscureText: _obscurePwd,
+                        decoration: InputDecoration(
+                          hintText: '••••••••',
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _obscurePwd
+                                  ? Icons.visibility_outlined
+                                  : Icons.visibility_off_outlined,
+                            ),
+                            tooltip: _obscurePwd
+                                ? 'Afficher le mot de passe'
+                                : 'Masquer le mot de passe',
+                            onPressed: () =>
+                                setState(() => _obscurePwd = !_obscurePwd),
+                          ),
+                        ),
+                        validator: FormBuilderValidators.compose([
+                          FormBuilderValidators.required(),
+                          FormBuilderValidators.minLength(
+                            6,
+                            errorText: '6 caractères minimum',
+                          ),
+                        ]),
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+
+                      _label('CONFIRMER LE MOT DE PASSE'),
+                      FormBuilderTextField(
+                        name: 'password_confirm',
+                        obscureText: _obscureConfirm,
+                        decoration: InputDecoration(
+                          hintText: '••••••••',
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _obscureConfirm
+                                  ? Icons.visibility_outlined
+                                  : Icons.visibility_off_outlined,
+                            ),
+                            tooltip: _obscureConfirm
+                                ? 'Afficher le mot de passe'
+                                : 'Masquer le mot de passe',
+                            onPressed: () => setState(
+                              () => _obscureConfirm = !_obscureConfirm,
+                            ),
+                          ),
+                        ),
+                        validator: (val) {
+                          final pwd =
+                              _formKey.currentState?.fields['password']?.value
+                                  as String?;
+                          if (val == null || val.isEmpty) {
+                            return 'Champ obligatoire';
+                          }
+                          if (val != pwd) {
+                            return 'Les mots de passe ne correspondent pas';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+
+                      _label('MESSAGE (facultatif)'),
+                      FormBuilderTextField(
+                        name: 'note',
+                        maxLines: 3,
+                        decoration: const InputDecoration(
+                          hintText:
+                              'Présentez-vous ou ajoutez une note pour l\'administrateur…',
+                        ),
+                      ),
+                      const SizedBox(height: AppSpacing.xl),
+
+                      AppButton.primary(
+                        label: 'Envoyer ma demande',
+                        isBusy: _isLoading,
+                        fullWidth: true,
+                        onPressed: _isLoading ? null : _submit,
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -253,13 +255,13 @@ class _CrierCompteProprietairePageState
   }
 
   Widget _label(String text) => Padding(
-        padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-        child: Text(
-          text,
-          style: AppTypography.labelSm.copyWith(
-            color: AppColors.onSurfaceVariant,
-            letterSpacing: 1.2,
-          ),
-        ),
-      );
+    padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+    child: Text(
+      text,
+      style: AppTypography.labelSm.copyWith(
+        color: AppColors.onSurfaceVariant,
+        letterSpacing: 1.2,
+      ),
+    ),
+  );
 }

@@ -6,10 +6,10 @@ import 'package:habitafrance/data/datasources/edl_details.dart';
 import 'package:habitafrance/data/datasources/observations_edl.dart';
 import 'package:habitafrance/data/models/edl_details.dart';
 import 'package:habitafrance/data/models/observation_edl.dart';
+import 'package:habitafrance/presentation/widgets/app_button.dart';
 import 'package:habitafrance/theme/app_colors.dart';
 import 'package:habitafrance/theme/app_radius.dart';
 import 'package:habitafrance/theme/app_spacing.dart';
-import 'package:habitafrance/theme/app_theme.dart';
 import 'package:habitafrance/theme/app_typography.dart';
 
 // ╔══════════════════════════════════════════════════════════════════════════╗
@@ -112,7 +112,7 @@ class _EdlPreneursSectionState extends State<EdlPreneursSection> {
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Annuler')),
-          FilledButton(style: AppTheme.saveButtonStyle, onPressed: () => Navigator.pop(ctx, true), child: const Text('Enregistrer')),
+          AppButton.save(label: 'Enregistrer', onPressed: () => Navigator.pop(ctx, true)),
         ],
       ),
     );
@@ -238,7 +238,7 @@ class _EdlRelevesSectionState extends State<EdlRelevesSection> {
           ),
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Annuler')),
-            FilledButton(style: AppTheme.saveButtonStyle, onPressed: () => Navigator.pop(ctx, true), child: const Text('Enregistrer')),
+            AppButton.save(label: 'Enregistrer', onPressed: () => Navigator.pop(ctx, true)),
           ],
         ),
       ),
@@ -396,7 +396,7 @@ class _EdlClesSectionState extends State<EdlClesSection> {
           ),
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Annuler')),
-            FilledButton(style: AppTheme.saveButtonStyle, onPressed: () => Navigator.pop(ctx, true), child: const Text('Enregistrer')),
+            AppButton.save(label: 'Enregistrer', onPressed: () => Navigator.pop(ctx, true)),
           ],
         ),
       ),
@@ -526,10 +526,9 @@ class _EdlDiversSectionState extends State<EdlDiversSection> {
             onPressed: () => Navigator.pop(ctx, false),
             child: const Text('Annuler'),
           ),
-          FilledButton(
+          AppButton.save(
+            label: 'Enregistrer',
             onPressed: () => Navigator.pop(ctx, true),
-            style: AppTheme.saveButtonStyle,
-            child: const Text('Enregistrer'),
           ),
         ],
       ),
@@ -649,7 +648,7 @@ class _EdlCompositionSectionState extends State<EdlCompositionSection> {
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Annuler')),
-          FilledButton(style: AppTheme.saveButtonStyle, onPressed: () => Navigator.pop(ctx, true), child: const Text('Créer')),
+          AppButton.save(label: 'Créer', onPressed: () => Navigator.pop(ctx, true)),
         ],
       ),
     );
@@ -678,7 +677,7 @@ class _EdlCompositionSectionState extends State<EdlCompositionSection> {
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Annuler')),
-          FilledButton(style: AppTheme.saveButtonStyle, onPressed: () => Navigator.pop(ctx, true), child: const Text('Enregistrer')),
+          AppButton.save(label: 'Enregistrer', onPressed: () => Navigator.pop(ctx, true)),
         ],
       ),
     );
@@ -704,10 +703,9 @@ class _EdlCompositionSectionState extends State<EdlCompositionSection> {
         content: const Text('Toutes les lignes de cette pièce seront supprimées.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Annuler')),
-          FilledButton(
-            style: AppTheme.deleteButtonStyle,
+          AppButton.delete(
+            label: 'Supprimer',
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Supprimer'),
           ),
         ],
       ),
@@ -744,7 +742,7 @@ class _EdlCompositionSectionState extends State<EdlCompositionSection> {
           ),
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Annuler')),
-            FilledButton(style: AppTheme.saveButtonStyle, onPressed: () => Navigator.pop(ctx, true), child: const Text('Enregistrer')),
+            AppButton.save(label: 'Enregistrer', onPressed: () => Navigator.pop(ctx, true)),
           ],
         ),
       ),
@@ -914,14 +912,13 @@ class _EdlCompositionTableState extends State<EdlCompositionTable> {
         title: const Text('Nouvelle pièce'),
         content: _dlgField(ctrl, 'Nom de la pièce'),
         actions: [
-          OutlinedButton(
+          AppButton.cancel(
+            label: 'Annuler',
             onPressed: () => Navigator.pop(context),
-            style: AppTheme.cancelButtonStyle,
-            child: const Text('Annuler'),
           ),
-          FilledButton(
+          AppButton.primary(
+            label: 'Ajouter',
             onPressed: () => Navigator.pop(context, ctrl.text.trim()),
-            child: const Text('Ajouter'),
           ),
         ],
       ),
@@ -986,10 +983,10 @@ class _EdlCompositionTableState extends State<EdlCompositionTable> {
               if (!widget.readOnly)
                 Align(
                   alignment: Alignment.centerLeft,
-                  child: OutlinedButton.icon(
+                  child: AppButton.primary(
+                    icon: Icons.add,
+                    label: 'Ajouter une pièce',
                     onPressed: _addSection,
-                    icon: const Icon(Icons.add, size: 16),
-                    label: const Text('Ajouter une pièce'),
                   ),
                 ),
             ],
@@ -1012,10 +1009,10 @@ class _EdlCompositionTableState extends State<EdlCompositionTable> {
               const SizedBox(height: AppSpacing.sm),
               Align(
                 alignment: Alignment.centerLeft,
-                child: OutlinedButton.icon(
+                child: AppButton.primary(
+                  icon: Icons.add,
+                  label: 'Ajouter une pièce',
                   onPressed: _addSection,
-                  icon: const Icon(Icons.add, size: 16),
-                  label: const Text('Ajouter une pièce'),
                 ),
               ),
             ],

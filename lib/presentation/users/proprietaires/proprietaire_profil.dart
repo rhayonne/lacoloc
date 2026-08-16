@@ -28,9 +28,9 @@ import 'package:habitafrance/presentation/users/proprietaires/mes_chambres_page.
 import 'package:habitafrance/presentation/users/proprietaires/mes_immeubles_page.dart';
 import 'package:habitafrance/presentation/users/proprietaires/nouveau_immeuble_page.dart';
 import 'package:habitafrance/presentation/tour/guided_tours.dart';
+import 'package:habitafrance/presentation/widgets/app_button.dart';
 import 'package:habitafrance/presentation/widgets/unsaved_changes_dialog.dart';
 import 'package:habitafrance/theme/app_colors.dart';
-import 'package:habitafrance/theme/app_theme.dart';
 import 'package:habitafrance/theme/app_typography.dart';
 
 enum _Section {
@@ -263,7 +263,7 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage>
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Non merci')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Oui, me guider')),
+          AppButton.primary(label: 'Oui, me guider', onPressed: () => Navigator.pop(ctx, true)),
         ],
       ),
     );
@@ -325,14 +325,13 @@ class _ProprietaireProfilPageState extends State<ProprietaireProfilPage>
           '(avec son inventaire). Cette action est irréversible.',
         ),
         actions: [
-          OutlinedButton(
+          AppButton.cancel(
+            label: 'Annuler',
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Annuler'),
           ),
-          FilledButton(
+          AppButton.delete(
+            label: 'Supprimer',
             onPressed: () => Navigator.pop(context, true),
-            style: AppTheme.deleteButtonStyle,
-            child: const Text('Supprimer'),
           ),
         ],
       ),

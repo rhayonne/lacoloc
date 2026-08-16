@@ -17,6 +17,7 @@ import 'package:habitafrance/data/permissions/permissions_service.dart';
 import 'package:habitafrance/presentation/users/proprietaires/creer_piece_page.dart';
 import 'package:habitafrance/presentation/widgets/permission_gate.dart';
 import 'package:habitafrance/presentation/users/proprietaires/inventaire_page.dart';
+import 'package:habitafrance/theme/app_breakpoints.dart';
 import 'package:habitafrance/theme/app_colors.dart';
 import 'package:habitafrance/theme/app_spacing.dart';
 import 'package:habitafrance/theme/app_theme.dart';
@@ -553,6 +554,17 @@ class _PiecesTable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // En dessous du seuil tableau → cartes, le Table (4 colonnes) devient
+    // illisible en mobile ; on bascule sur une liste de cartes.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isNarrow = constraints.maxWidth < AppBreakpoints.tableToCards;
+        return isNarrow ? _buildCardList() : _buildDataTable();
+      },
+    );
+  }
+
+  Widget _buildDataTable() {
     return ClipRRect(
       borderRadius: BorderRadius.circular(12),
       child: Table(
@@ -584,6 +596,92 @@ class _PiecesTable extends StatelessWidget {
     );
   }
 
+  Widget _buildCardList() {
+    return ListView.separated(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: pieces.length,
+      separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.sm),
+      itemBuilder: (context, i) {
+        final p = pieces[i];
+        final superficie =
+            p.m2 != null ? '${p.m2!.toStringAsFixed(0)} m²' : '—';
+        final totalPhotos = p.photos.length;
+        final annonce = p.photosAnnonce;
+        final photosLabel = totalPhotos == 0
+            ? '—'
+            : '$totalPhotos photo${totalPhotos > 1 ? 's' : ''}'
+                '${annonce > 0 ? ' ($annonce ★)' : ''}';
+
+        return Card(
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  p.nom,
+                  style: AppTypography.titleLg,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if (p.description != null && p.description!.isNotEmpty) ...[
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(
+                    p.description!,
+                    style: AppTypography.bodyMd
+                        .copyWith(color: AppColors.onSurfaceVariant),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  'Superficie : $superficie',
+                  style: AppTypography.bodyMd
+                      .copyWith(color: AppColors.onSurfaceVariant),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  'Photos (annonce) : $photosLabel',
+                  style: AppTypography.bodyMd
+                      .copyWith(color: AppColors.onSurfaceVariant),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    PermissionGate(
+                      permission: Perm.piecesEdit,
+                      child: IconButton(
+                        icon: const Icon(Icons.edit_outlined, size: 18),
+                        tooltip: 'Modifier',
+                        onPressed: () => onModifier(p),
+                      ),
+                    ),
+                    PermissionGate(
+                      permission: Perm.piecesDelete,
+                      child: IconButton(
+                        icon: const Icon(Icons.delete_outline, size: 18),
+                        tooltip: 'Supprimer',
+                        color: AppColors.error,
+                        onPressed: () => onSupprimer(p),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   TableRow _buildRow(PieceModel p) {
     final superficie = p.m2 != null
         ? '${p.m2!.toStringAsFixed(0)} m²'
@@ -607,7 +705,12 @@ class _PiecesTable extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(p.nom, style: AppTypography.labelMd),
+              Text(
+                p.nom,
+                style: AppTypography.labelMd,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
               if (p.description != null && p.description!.isNotEmpty)
                 Text(
                   p.description!,
@@ -674,6 +777,17 @@ class _ChambresTable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // En dessous du seuil tableau → cartes, le Table (4 colonnes) devient
+    // illisible en mobile ; on bascule sur une liste de cartes.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isNarrow = constraints.maxWidth < AppBreakpoints.tableToCards;
+        return isNarrow ? _buildCardList() : _buildDataTable();
+      },
+    );
+  }
+
+  Widget _buildDataTable() {
     return ClipRRect(
       borderRadius: BorderRadius.circular(12),
       child: Table(
@@ -705,6 +819,87 @@ class _ChambresTable extends StatelessWidget {
     );
   }
 
+  Widget _buildCardList() {
+    return ListView.separated(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: chambres.length,
+      separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.sm),
+      itemBuilder: (context, i) {
+        final c = chambres[i];
+        final loyer = c.prixLoyer != null ? formatEuros(c.prixLoyer!) : '—';
+        final statut = statutOf(c);
+
+        return Card(
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        c.roomName,
+                        style: AppTypography.titleLg,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    _StatutBadge(statut: statut),
+                  ],
+                ),
+                if (c.m2 != null) ...[
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(
+                    '${c.m2!.toStringAsFixed(0)} m²',
+                    style: AppTypography.bodyMd
+                        .copyWith(color: AppColors.onSurfaceVariant),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  'Loyer / mois : $loyer',
+                  style: AppTypography.bodyMd
+                      .copyWith(color: AppColors.onSurfaceVariant),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    PermissionGate(
+                      permission: Perm.chambresEdit,
+                      child: IconButton(
+                        icon: const Icon(Icons.edit_outlined, size: 18),
+                        tooltip: 'Modifier',
+                        onPressed: () => onModifier(c),
+                      ),
+                    ),
+                    if (onSupprimer != null)
+                      PermissionGate(
+                        permission: Perm.chambresDelete,
+                        child: IconButton(
+                          icon: const Icon(Icons.delete_outline, size: 18),
+                          tooltip: 'Supprimer',
+                          color: AppColors.error,
+                          onPressed: () => onSupprimer!(c),
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   TableRow _buildChambreRow(ChambreModel c) {
     final loyer =
         c.prixLoyer != null ? formatEuros(c.prixLoyer!) : '—';
@@ -721,7 +916,12 @@ class _ChambresTable extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(c.roomName, style: AppTypography.labelMd),
+              Text(
+                c.roomName,
+                style: AppTypography.labelMd,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
               if (c.m2 != null)
                 Text(
                   '${c.m2!.toStringAsFixed(0)} m²',
@@ -779,6 +979,17 @@ class _FacturesTable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // En dessous du seuil tableau → cartes, le Table (4 colonnes) devient
+    // illisible en mobile ; on bascule sur une liste de cartes.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isNarrow = constraints.maxWidth < AppBreakpoints.tableToCards;
+        return isNarrow ? _buildCardList() : _buildDataTable();
+      },
+    );
+  }
+
+  Widget _buildDataTable() {
     return ClipRRect(
       borderRadius: BorderRadius.circular(12),
       child: Table(
@@ -810,6 +1021,74 @@ class _FacturesTable extends StatelessWidget {
     );
   }
 
+  Widget _buildCardList() {
+    return ListView.separated(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: factures.length,
+      separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.sm),
+      itemBuilder: (context, i) {
+        final f = factures[i];
+        final montant =
+            f.montantTtc != null ? formatEuros(f.montantTtc!) : '—';
+        final date = f.dateEcheance != null
+            ? DateFormat('dd/MM/yyyy').format(f.dateEcheance!)
+            : null;
+
+        return Card(
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        f.typeFacture,
+                        style: AppTypography.titleLg,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    _FactureStatutBadge(statut: f.statut),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  f.fournisseur,
+                  style: AppTypography.bodyMd
+                      .copyWith(color: AppColors.onSurfaceVariant),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if (date != null) ...[
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(
+                    'Éch. $date',
+                    style: AppTypography.bodyMd
+                        .copyWith(color: AppColors.onSurfaceVariant),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  'Montant TTC : $montant',
+                  style: AppTypography.bodyMd
+                      .copyWith(color: AppColors.onSurfaceVariant),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   TableRow _buildFactureRow(FactureModel f) {
     final montant = f.montantTtc != null
         ? formatEuros(f.montantTtc!)
@@ -830,7 +1109,12 @@ class _FacturesTable extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(f.typeFacture, style: AppTypography.labelMd),
+              Text(
+                f.typeFacture,
+                style: AppTypography.labelMd,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
               if (date != null)
                 Text(
                   'Éch. $date',
@@ -845,7 +1129,12 @@ class _FacturesTable extends StatelessWidget {
             horizontal: AppSpacing.md,
             vertical: AppSpacing.sm,
           ),
-          child: Text(f.fournisseur, style: AppTypography.bodyMd),
+          child: Text(
+            f.fournisseur,
+            style: AppTypography.bodyMd,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
         ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),

@@ -1538,23 +1538,24 @@ class EtatDesLieuxDatasource {
     return (res as List).isNotEmpty;
   }
 
+  /// L'adresse est-elle déjà rattachée à un compte ?
+  ///
+  /// Passe par la RPC `email_exists` (`SECURITY DEFINER`, réservée aux rôles
+  /// qui créent des locataires). En lecture directe, la RLS ne montrait que les
+  /// lignes déjà visibles : la vérification répondait « libre » à tort pour un
+  /// compte existant, et l'invitation échouait plus tard avec un message
+  /// obscur. La RPC ne renvoie qu'un booléen — jamais la moindre donnée.
   static Future<bool> emailExists(String email) async {
-    // Insensible à la casse (cohérent avec l'index unique users_client_email_unique_ci).
-    final rows = await _db
-        .from('Users_Client')
-        .select('id')
-        .ilike('email', email.trim())
-        .limit(1);
-    return (rows as List).isNotEmpty;
+    final res = await _db.rpc('email_exists', params: {'p_email': email.trim()});
+    return res == true;
   }
 
+  /// Le numéro est-il déjà rattaché à un compte ? Comparaison **normalisée**
+  /// (espaces et tirets ignorés), cohérente avec l'index unique
+  /// `users_client_phone_unique` qui fait foi à l'écriture.
   static Future<bool> phoneExists(String phone) async {
-    final row = await _db
-        .from('Users_Client')
-        .select('id')
-        .eq('phone', phone)
-        .maybeSingle();
-    return row != null;
+    final res = await _db.rpc('phone_exists', params: {'p_phone': phone.trim()});
+    return res == true;
   }
 
   static Future<UsersClient?> getLocataireById(String id) async {

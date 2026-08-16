@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:habitafrance/data/datasources/themes.dart';
 import 'package:habitafrance/data/models/theme_ref.dart';
 import 'package:habitafrance/presentation/users/admin/theme_dialog.dart';
+import 'package:habitafrance/presentation/widgets/app_button.dart';
 import 'package:habitafrance/presentation/widgets/app_top_bar.dart';
 import 'package:habitafrance/presentation/widgets/theme_preview.dart';
 import 'package:habitafrance/theme/app_colors.dart';
 import 'package:habitafrance/theme/app_palette.dart';
 import 'package:habitafrance/theme/app_radius.dart';
 import 'package:habitafrance/theme/app_spacing.dart';
-import 'package:habitafrance/theme/app_theme.dart';
 import 'package:habitafrance/theme/app_typography.dart';
 import 'package:habitafrance/theme/theme_controller.dart';
 
@@ -39,7 +39,9 @@ class _ThemesAdminPageState extends State<ThemesAdminPage> {
 
   void _reload() {
     final f = ThemesDatasource.listAll(refresh: true);
-    setState(() { _future = f; });
+    setState(() {
+      _future = f;
+    });
   }
 
   /// Après toute écriture : la liste ET le thème courant peuvent avoir changé
@@ -90,10 +92,9 @@ class _ThemesAdminPageState extends State<ThemesAdminPage> {
             onPressed: () => Navigator.pop(context, false),
             child: const Text('Annuler'),
           ),
-          FilledButton(
+          AppButton.delete(
+            label: 'Supprimer',
             onPressed: () => Navigator.pop(context, true),
-            style: AppTheme.deleteButtonStyle,
-            child: const Text('Supprimer'),
           ),
         ],
       ),
@@ -112,10 +113,10 @@ class _ThemesAdminPageState extends State<ThemesAdminPage> {
           trailing: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              FilledButton.icon(
+              AppButton.primary(
+                icon: Icons.add,
+                label: 'Ajouter un thème',
                 onPressed: _busy ? null : _nouveau,
-                icon: const Icon(Icons.add, size: 18),
-                label: const Text('Ajouter un thème'),
               ),
               const SizedBox(width: AppSpacing.sm),
               IconButton.outlined(
@@ -319,9 +320,7 @@ class _ThemeAccordion extends StatelessWidget {
         // Thème principal.
         CheckboxListTile(
           value: theme.isDefault,
-          onChanged: busy || theme.isDefault
-              ? null
-              : (_) => onMakeDefault(),
+          onChanged: busy || theme.isDefault ? null : (_) => onMakeDefault(),
           contentPadding: EdgeInsets.zero,
           controlAffinity: ListTileControlAffinity.leading,
           title: Text('Thème principal', style: AppTypography.labelMd),
@@ -350,21 +349,15 @@ class _ThemeAccordion extends StatelessWidget {
                 ),
               )
             else ...[
-              OutlinedButton.icon(
+              AppButton.edit(
+                label: 'Modifier',
                 onPressed: busy ? null : onEdit,
-                style: AppTheme.editButtonStyle,
-                icon: const Icon(Icons.edit_outlined, size: 16),
-                label: const Text('Modifier'),
               ),
-              FilledButton.icon(
+              AppButton.delete(
+                label: theme.isDefault
+                    ? 'Principal : non supprimable'
+                    : 'Supprimer',
                 onPressed: busy || theme.isDefault ? null : onDelete,
-                style: AppTheme.deleteButtonStyle,
-                icon: const Icon(Icons.delete_outline, size: 16),
-                label: Text(
-                  theme.isDefault
-                      ? 'Principal : non supprimable'
-                      : 'Supprimer',
-                ),
               ),
             ],
           ],
@@ -383,11 +376,7 @@ class _ColorDots extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Les 3 couleurs sources d'un thème, dans l'ordre où on les saisit.
-    final colors = <Color>[
-      palette.surface,
-      palette.onSurface,
-      palette.primary,
-    ];
+    final colors = <Color>[palette.surface, palette.onSurface, palette.primary];
     return SizedBox(
       width: 46,
       height: 26,

@@ -188,6 +188,29 @@ class UserManagementDatasource {
     );
   }
 
+  /// Prévient l'utilisateur que son compte vient d'être activé (lien vers son
+  /// espace, manuel utilisateur, adresse de support).
+  ///
+  /// Le contenu est **entièrement construit côté serveur** (`notify-activation`)
+  /// à partir de l'id : le client ne fournit ni texte ni destinataire, donc
+  /// rien d'injectable dans la boîte de l'utilisateur. La fonction refuse
+  /// l'envoi si l'appelant n'est pas administrateur, ou si le compte n'est pas
+  /// réellement actif.
+  static Future<void> sendActivationEmail(String userId) async {
+    final res = await Supabase.instance.client.functions.invoke(
+      'notify-activation',
+      body: {'targetUserId': userId},
+    );
+    final data = res.data;
+    if (data is Map) {
+      if (data['error'] != null) throw Exception(data['error'].toString());
+      if (data['sent'] == false) {
+        throw Exception(data['smtpError']?.toString() ??
+            'L\'e-mail n\'a pas pu être envoyé.');
+      }
+    }
+  }
+
   /// Définit directement un nouveau mot de passe via l'edge function
   /// `manage-user-auth` (action `set_password`). Réservé aux super_admin.
   static Future<void> setUserPassword({

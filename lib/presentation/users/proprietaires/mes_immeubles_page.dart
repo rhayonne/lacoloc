@@ -7,7 +7,9 @@ import 'package:habitafrance/data/datasources/immeubles.dart';
 import 'package:habitafrance/data/models/chambre.dart';
 import 'package:habitafrance/data/models/immeubles.dart';
 import 'package:habitafrance/data/permissions/permissions_service.dart';
+import 'package:habitafrance/presentation/widgets/app_button.dart';
 import 'package:habitafrance/presentation/widgets/permission_gate.dart';
+import 'package:habitafrance/theme/app_button_sizes.dart';
 import 'package:habitafrance/theme/app_colors.dart';
 import 'package:habitafrance/theme/app_radius.dart';
 import 'package:habitafrance/presentation/widgets/app_top_bar.dart';
@@ -91,10 +93,10 @@ class _MesImmeublesPageState extends State<MesImmeublesPage>
                   ],
                   PermissionGate(
                     permission: Perm.immeublesCreate,
-                    child: FilledButton.icon(
+                    child: AppButton.primary(
+                      icon: Icons.add,
+                      label: 'Ajouter',
                       onPressed: widget.onAjouter,
-                      icon: const Icon(Icons.add, size: 18),
-                      label: const Text('Ajouter'),
                     ),
                   ),
                 ],
@@ -349,16 +351,11 @@ class _ImmeubleCard extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: FilledButton.tonal(
+                child: AppButton.primary(
+                  size: AppButtonSize.compact,
+                  fullWidth: true,
+                  label: 'Voir détails',
                   onPressed: onVoirDetail,
-                  style: FilledButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 0),
-                  ),
-                  child: const Text(
-                    'Voir détails',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
                 ),
               ),
               const SizedBox(width: AppSpacing.sm),
@@ -366,16 +363,10 @@ class _ImmeubleCard extends StatelessWidget {
                 permission: Perm.immeublesEdit,
                 child: Tooltip(
                   message: "Modifier l'immeuble",
-                  child: OutlinedButton.icon(
+                  child: AppButton.edit(
+                    size: AppButtonSize.compact,
+                    label: 'Édition',
                     onPressed: onModifier,
-                    icon: const Icon(Icons.edit_outlined, size: 18),
-                    label: const Text('Édition'),
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.md,
-                        vertical: 0,
-                      ),
-                    ),
                   ),
                 ),
               ),
@@ -466,10 +457,10 @@ class _EmptyState extends StatelessWidget {
             const SizedBox(height: AppSpacing.xl),
             PermissionGate(
               permission: Perm.immeublesCreate,
-              child: FilledButton.icon(
+              child: AppButton.primary(
+                icon: Icons.add,
+                label: 'Ajouter un immeuble',
                 onPressed: onAjouter,
-                icon: const Icon(Icons.add),
-                label: const Text('Ajouter un immeuble'),
               ),
             ),
           ],

@@ -59,6 +59,10 @@ class _AgendaPageState extends State<AgendaPage> {
 
   AgendaView _view = AgendaView.semaine;
 
+  // Décidé via LayoutBuilder (largeur réelle du widget, pas MediaQuery — la
+  // sidebar consomme une partie de l'écran). Mis à jour à chaque build().
+  bool _isMobile = false;
+
   // Position globale du dernier appui — capturée dans `onTapDown` puis utilisée
   // dans `onTap` pour ancrer le popover. On agit sur `onTap` (et non `onTapUp`)
   // car c'est le callback de tap canonique, fiable au **toucher** (mobile) ;
@@ -110,6 +114,14 @@ class _AgendaPageState extends State<AgendaPage> {
 
   void _shift(int dir) {
     setState(() {
+      // En mobile, Journée ET Semaine sont affichées comme une vue « un jour
+      // à la fois » (grille en colonnes fixes inutilisable <450px) : on avance
+      // donc jour par jour dans les deux cas.
+      if (_isMobile &&
+          (_view == AgendaView.semaine || _view == AgendaView.journee)) {
+        _anchor = _anchor.add(Duration(days: dir));
+        return;
+      }
       _anchor = switch (_view) {
         AgendaView.semaine => _anchor.add(Duration(days: 7 * dir)),
         AgendaView.journee => _anchor.add(Duration(days: dir)),
@@ -125,13 +137,14 @@ class _AgendaPageState extends State<AgendaPage> {
   String _periodLabel() {
     switch (_view) {
       case AgendaView.journee:
-        return '${_joursNoms[_anchor.weekday - 1]} ${_anchor.day} '
-            '${_moisNoms[_anchor.month - 1]} ${_anchor.year}';
+        return _fmtDate(_anchor);
       case AgendaView.mois:
         return '${_moisNoms[_anchor.month - 1]} ${_anchor.year}';
       case AgendaView.liste:
         return 'Tous les rendez-vous';
       case AgendaView.semaine:
+        // Mobile : la « Semaine » est affichée jour par jour (voir _shift).
+        if (_isMobile) return _fmtDate(_anchor);
         final s = _weekStart(_anchor);
         final e = s.add(const Duration(days: 6));
         if (s.month == e.month) {
@@ -145,35 +158,44 @@ class _AgendaPageState extends State<AgendaPage> {
   // ── Build ──────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _buildHeader(),
-        const Divider(height: 1),
-        if (_loading)
-          const Expanded(child: Center(child: CircularProgressIndicator()))
-        else if (_error != null)
-          Expanded(
-            child: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text('Erreur : $_error',
-                      style: AppTypography.bodyMd
-                          .copyWith(color: AppColors.error)),
-                  const SizedBox(height: AppSpacing.md),
-                  FilledButton.icon(
-                    onPressed: _load,
-                    icon: const Icon(Icons.refresh),
-                    label: const Text('Réessayer'),
+    // Décision responsive via LayoutBuilder (largeur réelle du widget) —
+    // jamais MediaQuery, qui compterait aussi la largeur consommée par la
+    // sidebar. Breakpoint MOBILE < 450px (voir CLAUDE.md).
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        _isMobile = constraints.maxWidth < 450;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _buildHeader(),
+            const Divider(height: 1),
+            if (_loading)
+              const Expanded(
+                  child: Center(child: CircularProgressIndicator()))
+            else if (_error != null)
+              Expanded(
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text('Erreur : $_error',
+                          style: AppTypography.bodyMd
+                              .copyWith(color: AppColors.error)),
+                      const SizedBox(height: AppSpacing.md),
+                      FilledButton.icon(
+                        onPressed: _load,
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Réessayer'),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            ),
-          )
-        else
-          Expanded(child: _buildBody()),
-      ],
+                ),
+              )
+            else
+              Expanded(child: _buildBody()),
+          ],
+        );
+      },
     );
   }
 
@@ -230,21 +252,44 @@ class _AgendaPageState extends State<AgendaPage> {
             ],
           ),
           // Bouton plages (peut passer à la ligne indépendamment).
+          // En mobile : icône seule (avec tooltip) pour économiser la place.
           PermissionGate(
             permission: Perm.visitesEdit,
-            child: OutlinedButton.icon(
-              onPressed: _openPlagesDialog,
-              icon: const Icon(Icons.tune, size: 18),
-              label: const Text("Modifier les plages d'ouverture"),
-            ),
+            child: _isMobile
+                ? IconButton(
+                    onPressed: _openPlagesDialog,
+                    icon: const Icon(Icons.tune),
+                    tooltip: "Modifier les plages d'ouverture",
+                  )
+                : OutlinedButton.icon(
+                    onPressed: _openPlagesDialog,
+                    icon: const Icon(Icons.tune, size: 18),
+                    label: const Text("Modifier les plages d'ouverture"),
+                  ),
           ),
-          // Sélecteur de vue.
+          // Sélecteur de vue (icônes seules en mobile pour éviter le débord).
           SegmentedButton<AgendaView>(
-            segments: const [
-              ButtonSegment(value: AgendaView.liste, label: Text('Liste')),
-              ButtonSegment(value: AgendaView.journee, label: Text('Journée')),
-              ButtonSegment(value: AgendaView.semaine, label: Text('Semaine')),
-              ButtonSegment(value: AgendaView.mois, label: Text('Mois')),
+            segments: [
+              ButtonSegment(
+                value: AgendaView.liste,
+                icon: const Icon(Icons.list, size: 18),
+                label: _isMobile ? null : const Text('Liste'),
+              ),
+              ButtonSegment(
+                value: AgendaView.journee,
+                icon: const Icon(Icons.view_day_outlined, size: 18),
+                label: _isMobile ? null : const Text('Journée'),
+              ),
+              ButtonSegment(
+                value: AgendaView.semaine,
+                icon: const Icon(Icons.view_week_outlined, size: 18),
+                label: _isMobile ? null : const Text('Semaine'),
+              ),
+              ButtonSegment(
+                value: AgendaView.mois,
+                icon: const Icon(Icons.calendar_month_outlined, size: 18),
+                label: _isMobile ? null : const Text('Mois'),
+              ),
             ],
             selected: {_view},
             showSelectedIcon: false,
@@ -273,12 +318,95 @@ class _AgendaPageState extends State<AgendaPage> {
           }),
         );
       case AgendaView.journee:
-        return _buildDaysView([_anchor]);
+        return _isMobile
+            ? _buildMobileDayView(_anchor)
+            : _buildDaysView([_anchor]);
       case AgendaView.semaine:
+        // La grille en colonnes fixes est inutilisable <450px : on retombe
+        // sur la même vue « un jour à la fois » qu'en Journée (navigation
+        // jour par jour via _shift, cf. plus haut).
+        if (_isMobile) return _buildMobileDayView(_anchor);
         final s = _weekStart(_anchor);
         return _buildDaysView(
             List.generate(7, (i) => s.add(Duration(days: i))));
     }
+  }
+
+  // ── Vue mobile (< 450px) : un jour à la fois, en cards verticales ────────
+  // Remplace la grille semaine/journée (colonnes fixes) par la liste des
+  // rendez-vous du jour affiché, réutilisant _ListeView/_ListeRow (mêmes
+  // cards, même popover de création/édition) — pas de logique dupliquée.
+  Widget _buildMobileDayView(DateTime day) {
+    final dayVisites = _visites.where((v) => _sameDay(v.debut, day)).toList();
+    final isToday = _sameDay(day, DateTime.now());
+    final tomorrow = DateTime.now().add(const Duration(days: 1));
+    final tomorrowDate = DateTime(tomorrow.year, tomorrow.month, tomorrow.day);
+    final isTomorrow = _sameDay(day, tomorrowDate);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+              AppSpacing.lg, AppSpacing.sm, AppSpacing.lg, AppSpacing.sm),
+          child: Row(
+            children: [
+              Expanded(
+                child: Wrap(
+                  spacing: AppSpacing.xs,
+                  runSpacing: AppSpacing.xs,
+                  children: [
+                    OutlinedButton(
+                      onPressed: isToday ? null : _today,
+                      child: const Text("Aujourd'hui"),
+                    ),
+                    OutlinedButton(
+                      onPressed: isTomorrow
+                          ? null
+                          : () => setState(() => _anchor = tomorrowDate),
+                      child: const Text('Demain'),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              PermissionGate(
+                permission: Perm.visitesCreate,
+                child: FilledButton.tonalIcon(
+                  onPressed: () => _openRdvPopover(Offset.zero,
+                      start: _defaultNewStart(day)),
+                  icon: const Icon(Icons.add, size: 18),
+                  label: const Text('Ajouter'),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const Divider(height: 1),
+        Expanded(
+          child: _ListeView(
+            visites: dayVisites,
+            immeubles: _immeubles,
+            onOpen: (v, pos) => _openRdvPopover(pos, existing: v),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Heure de départ par défaut pour un nouveau rendez-vous créé depuis la
+  /// vue mobile (pas de grille à taper) : demi-heure suivante si c'est
+  /// aujourd'hui et dans la plage horaire affichée, sinon un horaire médian.
+  DateTime _defaultNewStart(DateTime day) {
+    final now = DateTime.now();
+    if (_sameDay(day, now)) {
+      var hour = now.hour;
+      var minute = now.minute < 30 ? 30 : 0;
+      if (minute == 0) hour += 1;
+      if (hour < _startHour || hour >= _endHour) hour = _startHour + 2;
+      return DateTime(day.year, day.month, day.day, hour, minute);
+    }
+    return DateTime(day.year, day.month, day.day, _startHour + 2, 0);
   }
 
   // ── Vue jours (semaine / journée) ────────────────────────────────────────
@@ -564,10 +692,18 @@ class _AgendaPageState extends State<AgendaPage> {
     if (existing == null && !canCreate) return;
 
     final size = MediaQuery.sizeOf(context);
-    const w = 380.0;
-    const h = 520.0;
-    final left = globalPos.dx.clamp(8.0, size.width - w - 8).toDouble();
-    final top = globalPos.dy.clamp(8.0, size.height - h - 8).toDouble();
+    // En mobile, la boîte est centrée à l'écran (largeur/hauteur adaptées) —
+    // la position du tap (souvent un bouton "Ajouter" ou une card, pas une
+    // cellule de grille) n'a plus de sens comme point d'ancrage, et un ancrage
+    // fixe à 380px pourrait dépasser l'écran (clamp invalide → crash).
+    final w = _isMobile ? (size.width - 24).clamp(240.0, 380.0).toDouble() : 380.0;
+    final h = _isMobile ? (size.height - 48).clamp(320.0, 520.0).toDouble() : 520.0;
+    final left = _isMobile
+        ? (size.width - w) / 2
+        : globalPos.dx.clamp(8.0, size.width - w - 8).toDouble();
+    final top = _isMobile
+        ? (size.height - h) / 2
+        : globalPos.dy.clamp(8.0, size.height - h - 8).toDouble();
 
     final changed = await showGeneralDialog<bool>(
       context: context,
@@ -587,7 +723,7 @@ class _AgendaPageState extends State<AgendaPage> {
                 borderRadius: AppRadius.borderLg,
                 clipBehavior: Clip.antiAlias,
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxHeight: h),
+                  constraints: BoxConstraints(maxHeight: h),
                   child: _RdvForm(
                     existing: existing,
                     initialStart: start,
@@ -614,10 +750,17 @@ class _AgendaPageState extends State<AgendaPage> {
   // ── Sélecteur de période (menu suspendu ancré au libellé) ────────────────
   Future<void> _openPeriodPicker(Offset globalPos) async {
     final size = MediaQuery.sizeOf(context);
-    const w = 340.0;
-    const h = 420.0;
-    final left = globalPos.dx.clamp(8.0, size.width - w - 8).toDouble();
-    final top = (globalPos.dy + 8).clamp(8.0, size.height - h - 8).toDouble();
+    // Même logique défensive que _openRdvPopover : centré en mobile pour
+    // éviter un débord d'écran (et un clamp invalide sur les très petits
+    // écrans).
+    final w = _isMobile ? (size.width - 24).clamp(240.0, 340.0).toDouble() : 340.0;
+    final h = _isMobile ? (size.height - 48).clamp(280.0, 420.0).toDouble() : 420.0;
+    final left = _isMobile
+        ? (size.width - w) / 2
+        : globalPos.dx.clamp(8.0, size.width - w - 8).toDouble();
+    final top = _isMobile
+        ? (size.height - h) / 2
+        : (globalPos.dy + 8).clamp(8.0, size.height - h - 8).toDouble();
 
     final picked = await showGeneralDialog<DateTime>(
       context: context,

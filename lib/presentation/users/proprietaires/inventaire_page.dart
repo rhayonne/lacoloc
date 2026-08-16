@@ -24,7 +24,6 @@ import 'package:habitafrance/presentation/widgets/app_top_bar.dart';
 import 'package:habitafrance/theme/app_breakpoints.dart';
 import 'package:habitafrance/theme/app_spacing.dart';
 import 'package:habitafrance/theme/app_table_theme.dart';
-import 'package:habitafrance/theme/app_theme.dart';
 import 'package:habitafrance/theme/app_button_sizes.dart';
 import 'package:habitafrance/presentation/widgets/app_button.dart';
 import 'package:habitafrance/theme/app_typography.dart';
@@ -136,13 +135,13 @@ class _InventairePageState extends State<InventairePage> {
                 children: [
                   PermissionGate(
                     permission: Perm.inventaireCreate,
-                    child: FilledButton.icon(
+                    child: AppButton.primary(
+                      icon: Icons.add,
+                      label: 'Ajouter',
                       onPressed: () => setState(() {
                         _editing = null;
                         _showForm = true;
                       }),
-                      icon: const Icon(Icons.add, size: 18),
-                      label: const Text('Ajouter'),
                     ),
                   ),
                   const SizedBox(width: AppSpacing.sm),
@@ -194,10 +193,9 @@ class _InventairePageState extends State<InventairePage> {
             onPressed: () => Navigator.pop(context, false),
             child: const Text('Annuler'),
           ),
-          FilledButton(
+          AppButton.delete(
+            label: 'Supprimer',
             onPressed: () => Navigator.pop(context, true),
-            style: AppTheme.deleteButtonStyle,
-            child: const Text('Supprimer'),
           ),
         ],
       ),
@@ -1127,9 +1125,9 @@ class _InventaireFormState extends State<_InventaireForm> {
               onPressed: () => Navigator.pop(ctx, false),
               child: const Text('Annuler'),
             ),
-            FilledButton(
+            AppButton.primary(
+              label: 'Ajouter quand même',
               onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Ajouter quand même'),
             ),
           ],
         ),
@@ -1763,25 +1761,13 @@ class _InventaireFormState extends State<_InventaireForm> {
                         ),
                         const SizedBox(height: AppSpacing.xl),
 
-                        SizedBox(
-                          width: double.infinity,
-                          child: FilledButton(
-                            onPressed: _isSaving ? null : _save,
-                            child: _isSaving
-                                ? SizedBox(
-                                    width: 20,
-                                    height: 20,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: AppColors.onPrimary,
-                                    ),
-                                  )
-                                : Text(
-                                    widget.isEditing
-                                        ? 'Enregistrer les modifications'
-                                        : 'Ajouter à l\'inventaire',
-                                  ),
-                          ),
+                        AppButton.save(
+                          label: widget.isEditing
+                              ? 'Enregistrer les modifications'
+                              : 'Ajouter à l\'inventaire',
+                          isBusy: _isSaving,
+                          fullWidth: true,
+                          onPressed: _isSaving ? null : _save,
                         ),
                       ],
                     ),

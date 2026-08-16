@@ -4,11 +4,11 @@ import 'package:form_builder_validators/form_builder_validators.dart';
 import 'package:habitafrance/data/datasources/entreprises.dart';
 import 'package:habitafrance/data/models/entreprise.dart';
 import 'package:habitafrance/data/models/users_client.dart';
+import 'package:habitafrance/presentation/widgets/app_button.dart';
 import 'package:habitafrance/presentation/widgets/app_top_bar.dart';
 import 'package:habitafrance/theme/app_colors.dart';
 import 'package:habitafrance/theme/app_spacing.dart';
 import 'package:habitafrance/theme/app_typography.dart';
-import 'package:habitafrance/theme/app_theme.dart';
 import 'package:habitafrance/utils/phone_field.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -115,10 +115,10 @@ class _ComptesTabState extends State<_ComptesTab> {
                 child: Text('Comptes de l\'entreprise',
                     style: AppTypography.headlineMd),
               ),
-              FilledButton.icon(
+              AppButton.primary(
+                icon: Icons.person_add_outlined,
+                label: 'Créer un compte',
                 onPressed: domain == null || domain.isEmpty ? null : _createCompte,
-                icon: const Icon(Icons.person_add_outlined, size: 18),
-                label: const Text('Créer un compte'),
               ),
             ],
           ),
@@ -307,19 +307,14 @@ class _CreateCompteDialogState extends State<_CreateCompteDialog> {
         ),
       ),
       actions: [
-        OutlinedButton(
+        AppButton.cancel(
+          label: 'Annuler',
           onPressed: _loading ? null : () => Navigator.pop(context),
-          child: const Text('Annuler'),
         ),
-        FilledButton(
-          style: AppTheme.saveButtonStyle,
+        AppButton.save(
+          label: 'Créer',
+          isBusy: _loading,
           onPressed: _loading ? null : _submit,
-          child: _loading
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2))
-              : const Text('Créer'),
         ),
       ],
     );

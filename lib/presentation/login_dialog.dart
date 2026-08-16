@@ -9,6 +9,7 @@ import 'package:habitafrance/theme/app_colors.dart';
 import 'package:habitafrance/theme/app_radius.dart';
 import 'package:habitafrance/theme/app_spacing.dart';
 import 'package:habitafrance/theme/app_typography.dart';
+import 'package:habitafrance/utils/email_field.dart';
 
 /// **Unique** point d'entrée de connexion de l'application : un pop-up centré
 /// avec fond flouté. Affiché aussi bien depuis l'accueil (clic « Se connecter »)
@@ -295,14 +296,19 @@ class _LoginCardState extends State<LoginCard> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _label('IDENTIFIANT OU E-MAIL'),
-                FormBuilderTextField(
+                // Le libellé disait « IDENTIFIANT OU E-MAIL » et le champ
+                // n'exigeait qu'un texte non vide — alors que la connexion
+                // passe par `signInWithPassword(email:)` : un identifiant sans
+                // « @ » partait au serveur pour revenir en « identifiants
+                // invalides », sans jamais dire que le format était en cause.
+                _label('E-MAIL'),
+                EmailField(
                   name: 'email',
-                  keyboardType: TextInputType.emailAddress,
+                  labelText: null,
+                  required: true,
+                  hintText: 'nom@exemple.fr',
                   autofillHints: const [AutofillHints.email],
                   textInputAction: TextInputAction.next,
-                  decoration: const InputDecoration(hintText: 'nom@exemple.fr'),
-                  validator: FormBuilderValidators.required(),
                 ),
                 const SizedBox(height: AppSpacing.md),
                 _label('MOT DE PASSE'),

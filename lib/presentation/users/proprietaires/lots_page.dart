@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:habitafrance/data/datasources/auth_service.dart';
 import 'package:habitafrance/data/datasources/immeuble_lots.dart';
 import 'package:habitafrance/data/models/immeuble_lot.dart';
+import 'package:habitafrance/presentation/widgets/app_button.dart';
 import 'package:habitafrance/presentation/widgets/app_list_search_field.dart';
 import 'package:habitafrance/presentation/widgets/app_top_bar.dart';
 import 'package:habitafrance/presentation/widgets/lot_dialog.dart';
@@ -10,7 +11,6 @@ import 'package:habitafrance/theme/app_colors.dart';
 import 'package:habitafrance/theme/app_radius.dart';
 import 'package:habitafrance/theme/app_spacing.dart';
 import 'package:habitafrance/theme/app_table_theme.dart';
-import 'package:habitafrance/theme/app_theme.dart';
 import 'package:habitafrance/theme/app_typography.dart';
 import 'package:habitafrance/theme/card_delete_button.dart';
 
@@ -76,10 +76,9 @@ class _LotsPageState extends State<LotsPage> {
             onPressed: () => Navigator.pop(context, false),
             child: const Text('Annuler'),
           ),
-          FilledButton(
+          AppButton.delete(
+            label: 'Supprimer',
             onPressed: () => Navigator.pop(context, true),
-            style: AppTheme.deleteButtonStyle,
-            child: const Text('Supprimer'),
           ),
         ],
       ),
@@ -119,10 +118,10 @@ class _LotsPageState extends State<LotsPage> {
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  FilledButton.icon(
+                  AppButton.primary(
+                    icon: Icons.add,
+                    label: 'Nouveau lot',
                     onPressed: _nouveauLot,
-                    icon: const Icon(Icons.add, size: 18),
-                    label: const Text('Nouveau lot'),
                   ),
                   const SizedBox(width: AppSpacing.sm),
                   IconButton.outlined(

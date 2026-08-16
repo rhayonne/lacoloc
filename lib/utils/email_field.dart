@@ -31,6 +31,18 @@ class EmailField extends StatelessWidget {
   final String? errorText;
   final void Function(String?)? onChanged;
 
+  /// Texte d'exemple dans le champ (ex. « nom@exemple.fr »).
+  final String? hintText;
+
+  /// Remplissage automatique (mot de passe enregistré du navigateur).
+  final Iterable<String>? autofillHints;
+
+  /// Touche « suivant » / « valider » du clavier.
+  final TextInputAction? textInputAction;
+
+  /// Soumission depuis le clavier (touche Entrée).
+  final void Function(String?)? onSubmitted;
+
   const EmailField({
     super.key,
     required this.name,
@@ -40,6 +52,10 @@ class EmailField extends StatelessWidget {
     this.initialValue,
     this.errorText,
     this.onChanged,
+    this.hintText,
+    this.autofillHints,
+    this.textInputAction,
+    this.onSubmitted,
   });
 
   @override
@@ -48,9 +64,16 @@ class EmailField extends StatelessWidget {
       name: name,
       initialValue: initialValue,
       enabled: enabled,
-      decoration: InputDecoration(labelText: labelText, errorText: errorText),
+      decoration: InputDecoration(
+        labelText: labelText,
+        hintText: hintText,
+        errorText: errorText,
+      ),
       keyboardType: TextInputType.emailAddress,
       inputFormatters: [_EmailInputFormatter()],
+      autofillHints: autofillHints,
+      textInputAction: textInputAction,
+      onSubmitted: onSubmitted,
       onChanged: onChanged,
       validator: FormBuilderValidators.compose([
         if (required) FormBuilderValidators.required(),

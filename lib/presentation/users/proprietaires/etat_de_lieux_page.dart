@@ -2370,6 +2370,7 @@ class _EdlActionButtonState extends State<_EdlActionButton> {
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => BailPdfPreviewPage(edl: _edl, readOnly: true),
+        fullscreenDialog: true,
       ),
     );
   }
@@ -2419,6 +2420,7 @@ class _EdlActionButtonState extends State<_EdlActionButton> {
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => BailPdfPreviewPage(edl: signed, role: 'proprietaire'),
+        fullscreenDialog: true,
       ),
     );
     // Au retour : la signature a pu être posée dans l'aperçu → rafraîchir pour
@@ -4424,6 +4426,7 @@ class _EdlFormOverlayState extends State<_EdlFormOverlay> {
                             role: 'proprietaire',
                             readOnly: widget.existingEdl!.bailFullySigned,
                           ),
+                          fullscreenDialog: true,
                         ),
                       ),
                       icon: Icon(
@@ -7570,6 +7573,7 @@ class _EdlCollectifNonMeubleePageState
                   role: _myRole,
                   readOnly: _bailFullySigned,
                 ),
+                fullscreenDialog: true,
               ),
             )
           : null,
@@ -9856,6 +9860,7 @@ class _EdlIndividuelMeubleePageState extends State<EdlIndividuelMeubleePage>
                   role: _myRole,
                   readOnly: _bailFullySigned,
                 ),
+                fullscreenDialog: true,
               ),
             )
           : null,
@@ -10833,6 +10838,7 @@ class _EdlIndividuelMeubleePageState extends State<EdlIndividuelMeubleePage>
       Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => ResiliationPdfPreviewPage(data: data),
+          fullscreenDialog: true,
         ),
       );
     } catch (e) {

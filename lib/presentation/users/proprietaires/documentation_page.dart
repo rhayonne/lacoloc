@@ -4,6 +4,7 @@ import 'package:habitafrance/data/datasources/auth_service.dart';
 import 'package:habitafrance/data/datasources/etat_de_lieux.dart';
 import 'package:habitafrance/data/models/etat_de_lieux.dart';
 import 'package:habitafrance/presentation/users/proprietaires/bail_pdf_preview_page.dart';
+import 'package:habitafrance/presentation/widgets/app_button.dart';
 import 'package:habitafrance/presentation/widgets/app_list_search_field.dart';
 import 'package:habitafrance/presentation/widgets/app_top_bar.dart';
 import 'package:habitafrance/presentation/widgets/bail_signature_flow.dart';
@@ -331,6 +332,7 @@ class _BauxPageState extends State<_BauxPage> {
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => BailPdfPreviewPage(edl: signed),
+        fullscreenDialog: true,
       ),
     );
     if (mounted) _reload();
@@ -511,10 +513,10 @@ class _BailRow extends StatelessWidget {
                 ],
               ),
             ),
-            OutlinedButton.icon(
+            AppButton.document(
+              icon: Icons.open_in_new,
+              label: 'Bail',
               onPressed: onViewPdf,
-              icon: const Icon(Icons.open_in_new, size: 14),
-              label: const Text('Bail'),
             ),
           ],
         ),
@@ -576,10 +578,10 @@ class _BailRow extends StatelessWidget {
           ),
           const SizedBox(width: AppSpacing.md),
           // Bouton Bail
-          OutlinedButton.icon(
+          AppButton.document(
+            icon: Icons.open_in_new,
+            label: 'Bail',
             onPressed: onViewPdf,
-            icon: const Icon(Icons.open_in_new, size: 14),
-            label: const Text('Bail'),
           ),
         ],
       ),

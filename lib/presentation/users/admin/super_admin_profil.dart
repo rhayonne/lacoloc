@@ -10,7 +10,11 @@ import 'package:habitafrance/presentation/admin/meuble_types_page.dart';
 import 'package:habitafrance/presentation/admin/payment_types_page.dart';
 import 'package:habitafrance/presentation/nav/app_nav_sidebar.dart';
 import 'package:habitafrance/presentation/nav/app_sidebar.dart';
+import 'package:habitafrance/presentation/users/admin/emails_admin_page.dart';
 import 'package:habitafrance/presentation/widgets/app_top_bar.dart';
+import 'package:habitafrance/data/datasources/notifications.dart';
+import 'package:habitafrance/data/models/notification_model.dart';
+import 'package:habitafrance/presentation/widgets/notification_card.dart';
 import 'package:habitafrance/presentation/users/admin/communication_page.dart';
 import 'package:habitafrance/presentation/users/admin/admin_edl_page.dart';
 import 'package:habitafrance/presentation/users/admin/comptes_entreprises_page.dart';
@@ -22,7 +26,17 @@ import 'package:habitafrance/theme/app_spacing.dart';
 import 'package:habitafrance/theme/app_typography.dart';
 import 'package:habitafrance/theme/app_tab_bar.dart';
 
-enum _Section { dashboard, utilisateurs, edls, communication, entreprises, paymentTypes, configImmeuble, configuration, maintenance }
+enum _Section {
+  dashboard,
+  utilisateurs,
+  edls,
+  communication,
+  entreprises,
+  paymentTypes,
+  configImmeuble,
+  configuration,
+  maintenance,
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -35,15 +49,18 @@ class SuperAdminProfilPage extends StatefulWidget {
 
 class _SuperAdminProfilPageState extends State<SuperAdminProfilPage> {
   final _scaffoldKey = GlobalKey<ScaffoldState>();
-  final _contentKey  = GlobalKey();
+  final _contentKey = GlobalKey();
   late final SidebarXController _navCtrl;
 
-  _Section _section  = _Section.dashboard;
+  _Section _section = _Section.dashboard;
   // Sous-onglet courant des sections à sous-menus.
-  int _usersSub  = 0; // 0 = Utilisateurs, 1 = Groupes
-  int _commSub   = 0; // 0 = Composer, 1 = Historique
+  int _usersSub = 0; // 0 = Utilisateurs, 1 = Groupes
+  int _commSub = 0; // 0 = Composer, 1 = Historique
   int _configSub = 0;
-  int _maintSub  = 0;
+
+  /// Compte que « Utilisateurs » doit isoler (venu d'une notification).
+  String? _focusUserId;
+  int _maintSub = 0;
 
   /// Nombre de sous-menus de la section courante (pour le swipe sur la barre).
   int get _subCount => switch (_section) {
@@ -117,38 +134,49 @@ class _SuperAdminProfilPageState extends State<SuperAdminProfilPage> {
 
   Widget _buildContent() {
     return switch (_section) {
-      _Section.dashboard       => const _SuperAdminDashboard(),
-      _Section.utilisateurs    => UtilisateursAdminPage(
-          key: ValueKey('usr$_usersSub'),
-          initialTab: _usersSub,
-          showTabBar: false,
-        ),
-      _Section.edls            => const AdminEdlPage(),
-      _Section.communication   => CommunicationPage(
-          key: ValueKey('comm$_commSub'),
-          initialTab: _commSub,
-          showTabBar: false,
-        ),
-      _Section.entreprises     => const ComptesEntreprisesPage(),
-      _Section.paymentTypes    => const PaymentTypesPage(),
-      _Section.configImmeuble  => _ConfigImmeublePage(
-          key: ValueKey('cfg$_configSub'),
-          initialTab: _configSub,
-          showTabBar: false,
-        ),
-      // Configuration → un seul sous-menu pour l'instant (Thèmes).
-      _Section.configuration   => const ThemesAdminPage(),
-      _Section.maintenance     => MaintenancePage(
-          key: ValueKey('mnt$_maintSub'),
-          initialTab: _maintSub,
-          showTabBar: false,
-        ),
+      _Section.dashboard => _SuperAdminDashboard(
+        onVoirUtilisateurs: (userId) => _openSub(_Section.utilisateurs, () {
+          _usersSub = 0;
+          _focusUserId = userId;
+        }),
+      ),
+      _Section.utilisateurs => UtilisateursAdminPage(
+        // La clé inclut le focus : arriver depuis une notification doit
+        // reconstruire la page, sinon l'ancien filtre resterait affiché.
+        key: ValueKey('usr$_usersSub-${_focusUserId ?? ''}'),
+        initialTab: _usersSub,
+        showTabBar: false,
+        focusUserId: _focusUserId,
+      ),
+      _Section.edls => const AdminEdlPage(),
+      _Section.communication => CommunicationPage(
+        key: ValueKey('comm$_commSub'),
+        initialTab: _commSub,
+        showTabBar: false,
+      ),
+      _Section.entreprises => const ComptesEntreprisesPage(),
+      _Section.paymentTypes => const PaymentTypesPage(),
+      _Section.configImmeuble => _ConfigImmeublePage(
+        key: ValueKey('cfg$_configSub'),
+        initialTab: _configSub,
+        showTabBar: false,
+      ),
+      // Configuration → Thèmes / Emails administration.
+      _Section.configuration =>
+        _configSub == 1 ? const EmailsAdminPage() : const ThemesAdminPage(),
+      _Section.maintenance => MaintenancePage(
+        key: ValueKey('mnt$_maintSub'),
+        initialTab: _maintSub,
+        showTabBar: false,
+      ),
     };
   }
 
   Widget _buildSidebar({required bool isNarrow}) {
     void go(_Section s) {
       if (isNarrow) Navigator.of(context).pop();
+      // Navigation manuelle : on sort du focus « un seul compte ».
+      _focusUserId = null;
       _changeSection(s);
     }
 
@@ -254,8 +282,13 @@ class _SuperAdminProfilPageState extends State<SuperAdminProfilPage> {
           children: [
             NavChild(
               label: 'Thèmes',
-              selected: _section == _Section.configuration,
-              onTap: () => go(_Section.configuration),
+              selected: _section == _Section.configuration && _configSub == 0,
+              onTap: () => goSub(_Section.configuration, () => _configSub = 0),
+            ),
+            NavChild(
+              label: 'Emails administration',
+              selected: _section == _Section.configuration && _configSub == 1,
+              onTap: () => goSub(_Section.configuration, () => _configSub = 1),
             ),
           ],
         ),
@@ -296,8 +329,9 @@ class _SuperAdminProfilPageState extends State<SuperAdminProfilPage> {
             extended: extended,
             icon: Icons.home_outlined,
             label: 'Accueil',
-            onTap: () => Navigator.of(context)
-                .pushNamedAndRemoveUntil('/', (r) => false),
+            onTap: () => Navigator.of(
+              context,
+            ).pushNamedAndRemoveUntil('/', (r) => false),
           ),
           SidebarActionButton(
             extended: extended,
@@ -335,10 +369,7 @@ class _SuperAdminProfilPageState extends State<SuperAdminProfilPage> {
       menuButton: menuButton,
       onSwipeLeft: isNarrow && _subCount > 1 ? () => _swipeSub(1) : null,
       onSwipeRight: isNarrow && _subCount > 1 ? () => _swipeSub(-1) : null,
-      child: KeyedSubtree(
-        key: _contentKey,
-        child: _buildContent(),
-      ),
+      child: KeyedSubtree(key: _contentKey, child: _buildContent()),
     );
 
     return Scaffold(
@@ -358,7 +389,12 @@ class _SuperAdminProfilPageState extends State<SuperAdminProfilPage> {
 // Dashboard
 
 class _SuperAdminDashboard extends StatefulWidget {
-  const _SuperAdminDashboard();
+  /// Ouvre la section « Utilisateurs » — cible des notifications
+  /// « nouveau propriétaire », qui n'ont d'intérêt que si l'on peut activer
+  /// le compte dans la foulée.
+  final void Function(String? userId) onVoirUtilisateurs;
+
+  const _SuperAdminDashboard({required this.onVoirUtilisateurs});
 
   @override
   State<_SuperAdminDashboard> createState() => _SuperAdminDashboardState();
@@ -373,6 +409,9 @@ class _SuperAdminDashboardState extends State<_SuperAdminDashboard> {
     _future = _load();
   }
 
+  /// `refresh: true` : le tableau de bord se recharge à l'ouverture (pas de
+  /// bouton « Actualiser » — c'est la page qu'on ouvre pour savoir où on en
+  /// est).
   Future<_DashStats> _load() async {
     final results = await Future.wait([
       UserManagementDatasource.listAll().then((l) => l.length),
@@ -380,12 +419,48 @@ class _SuperAdminDashboardState extends State<_SuperAdminDashboard> {
       ChargesReferenceDatasource.listAll().then((l) => l.length),
       PaymentTypesDatasource.listAll().then((l) => l.length),
     ]);
+
+    // `listForRecipient` et non `listByOwner` : la policy `notifications_select`
+    // contient `OR is_super_admin()`, donc une lecture nue renverrait ici les
+    // notifications de tous les utilisateurs.
+    var notifs = const <NotificationModel>[];
+    try {
+      final all = await NotificationsDatasource.listForRecipient(refresh: true);
+      notifs = all.where((n) => !n.isRead).toList();
+    } catch (_) {}
+
     return _DashStats(
-      users:        results[0],
-      meubleTypes:  results[1],
-      chargeTypes:  results[2],
+      users: results[0],
+      meubleTypes: results[1],
+      chargeTypes: results[2],
       paymentTypes: results[3],
+      notifications: notifs,
     );
+  }
+
+  void _reload() {
+    final f = _load();
+    setState(() {
+      _future = f;
+    });
+  }
+
+  Future<void> _onTapNotif(NotificationModel n) async {
+    if (!n.isRead) await NotificationsDatasource.markRead(n.id);
+    if (!mounted) return;
+    // Une demande de compte ne sert à rien sans le geste qui va avec.
+    if (n.type == 'nouveau_proprietaire') {
+      // `proprietaire_id` porte le compte concerné (cf. le trigger
+      // `notify_super_admins_nouveau_proprietaire`).
+      widget.onVoirUtilisateurs(n.proprietaireId);
+      return;
+    }
+    _reload();
+  }
+
+  Future<void> _markAllRead() async {
+    await NotificationsDatasource.markAllRead();
+    if (mounted) _reload();
   }
 
   @override
@@ -395,96 +470,148 @@ class _SuperAdminDashboardState extends State<_SuperAdminDashboard> {
     return LayoutBuilder(
       builder: (ctx, constraints) {
         final w = constraints.maxWidth;
-        final cols = w >= 900 ? 4 : w >= 600 ? 2 : 1;
+        final cols = w >= 900
+            ? 4
+            : w >= 600
+            ? 2
+            : 1;
         const gap = AppSpacing.md;
         final cardW = (w - AppSpacing.xl * 2 - gap * (cols - 1)) / cols;
 
-        return SingleChildScrollView(
-          padding: const EdgeInsets.all(AppSpacing.xl),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // En-tête
-              Row(
-                children: [
-                  // Bouton menu (mobile) injecté par la coquille.
-                  if (TopBarMenuScope.of(context)?.menuButton != null) ...[
-                    TopBarMenuScope.of(context)!.menuButton!,
-                    const SizedBox(width: AppSpacing.sm),
-                  ],
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Tableau de bord',
-                            style: AppTypography.headlineLg),
-                        const SizedBox(height: AppSpacing.xs),
-                        Text(
-                          email,
-                          style: AppTypography.bodyMd
-                              .copyWith(color: AppColors.onSurfaceVariant),
-                        ),
-                      ],
-                    ),
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Barre standard du système (le bouton menu mobile y est injecté
+            // automatiquement par la TopBarMenuScope de la coquille).
+            AppTopBar(
+              title: 'Tableau de bord',
+              subtitle: email,
+              trailing: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.error.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  'SUPER ADMIN',
+                  style: AppTypography.labelSm.copyWith(
+                    color: AppColors.error,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.8,
                   ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: AppColors.error.withValues(alpha: 0.10),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      'SUPER ADMIN',
-                      style: AppTypography.labelSm.copyWith(
-                          color: AppColors.error,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.8),
-                    ),
-                  ),
-                ],
+                ),
               ),
-              const SizedBox(height: AppSpacing.xl),
-              const Divider(height: 1),
-              const SizedBox(height: AppSpacing.xl),
+            ),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(AppSpacing.xl),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Grille de statistiques
+                    FutureBuilder<_DashStats>(
+                      future: _future,
+                      builder: (_, snap) {
+                        if (snap.connectionState == ConnectionState.waiting) {
+                          return const SizedBox(
+                            height: 120,
+                            child: Center(child: CircularProgressIndicator()),
+                          );
+                        }
+                        if (snap.hasError || snap.data == null) {
+                          return const SizedBox.shrink();
+                        }
+                        final s = snap.data!;
+                        final cards = [
+                          _StatCardData(
+                            Icons.people_outlined,
+                            'Utilisateurs',
+                            s.users,
+                            AppColors.primary,
+                          ),
+                          _StatCardData(
+                            Icons.chair_outlined,
+                            'Types de meuble',
+                            s.meubleTypes,
+                            AppColors.tertiary,
+                          ),
+                          _StatCardData(
+                            Icons.receipt_long_outlined,
+                            'Charges locatives',
+                            s.chargeTypes,
+                            AppColors.secondary,
+                          ),
+                          _StatCardData(
+                            Icons.payment_outlined,
+                            'Types de paiement',
+                            s.paymentTypes,
+                            AppColors.error,
+                          ),
+                        ];
+                        return Wrap(
+                          spacing: gap,
+                          runSpacing: gap,
+                          children: cards
+                              .map(
+                                (d) =>
+                                    SizedBox(width: cardW, child: _StatCard(d)),
+                              )
+                              .toList(),
+                        );
+                      },
+                    ),
 
-              // Grille de statistiques
-              FutureBuilder<_DashStats>(
-                future: _future,
-                builder: (_, snap) {
-                  if (snap.connectionState == ConnectionState.waiting) {
-                    return const SizedBox(
-                        height: 120,
-                        child: Center(child: CircularProgressIndicator()));
-                  }
-                  if (snap.hasError || snap.data == null) {
-                    return const SizedBox.shrink();
-                  }
-                  final s = snap.data!;
-                  final cards = [
-                    _StatCardData(Icons.people_outlined, 'Utilisateurs',
-                        s.users, AppColors.primary),
-                    _StatCardData(Icons.chair_outlined, 'Types de meuble',
-                        s.meubleTypes, AppColors.tertiary),
-                    _StatCardData(Icons.receipt_long_outlined,
-                        'Charges locatives', s.chargeTypes, AppColors.secondary),
-                    _StatCardData(Icons.payment_outlined, 'Types de paiement',
-                        s.paymentTypes, AppColors.error),
-                  ];
-                  return Wrap(
-                    spacing: gap,
-                    runSpacing: gap,
-                    children: cards
-                        .map((d) => SizedBox(
-                              width: cardW,
-                              child: _StatCard(d),
-                            ))
-                        .toList(),
-                  );
-                },
+                    // ── Notifications ────────────────────────────────────────────
+                    // C'est ici qu'atterrissent les demandes de compte propriétaire
+                    // (trigger `trg_notify_super_admins_nouveau_proprietaire`) :
+                    // sans cette section, un candidat pouvait attendre indéfiniment
+                    // sur l'écran « votre compte sera activé » sans que personne ne
+                    // le sache.
+                    FutureBuilder<_DashStats>(
+                      future: _future,
+                      builder: (_, snap) {
+                        final notifs = snap.data?.notifications ?? const [];
+                        if (notifs.isEmpty) return const SizedBox.shrink();
+                        return Padding(
+                          padding: const EdgeInsets.only(top: AppSpacing.xl),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      'Notifications',
+                                      style: AppTypography.titleLg,
+                                    ),
+                                  ),
+                                  TextButton(
+                                    onPressed: _markAllRead,
+                                    child: const Text('Tout marquer comme lu'),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: AppSpacing.md),
+                              for (final n in notifs) ...[
+                                NotificationCard(
+                                  notification: n,
+                                  onTap: () => _onTapNotif(n),
+                                ),
+                                const SizedBox(height: AppSpacing.sm),
+                              ],
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
               ),
-            ],
-          ),
+            ),
+          ],
         );
       },
     );
@@ -496,12 +623,14 @@ class _DashStats {
   final int meubleTypes;
   final int chargeTypes;
   final int paymentTypes;
+  final List<NotificationModel> notifications;
 
   const _DashStats({
     required this.users,
     required this.meubleTypes,
     required this.chargeTypes,
     required this.paymentTypes,
+    this.notifications = const [],
   });
 }
 
@@ -533,13 +662,20 @@ class _StatCard extends StatelessWidget {
         children: [
           Icon(data.icon, color: color, size: 28),
           const SizedBox(height: AppSpacing.sm),
-          Text(data.count.toString(),
-              style: AppTypography.headlineLg
-                  .copyWith(color: color, fontWeight: FontWeight.w700)),
+          Text(
+            data.count.toString(),
+            style: AppTypography.headlineLg.copyWith(
+              color: color,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
           const SizedBox(height: 2),
-          Text(data.label,
-              style: AppTypography.labelMd
-                  .copyWith(color: AppColors.onSurfaceVariant)),
+          Text(
+            data.label,
+            style: AppTypography.labelMd.copyWith(
+              color: AppColors.onSurfaceVariant,
+            ),
+          ),
         ],
       ),
     );
@@ -552,7 +688,11 @@ class _StatCard extends StatelessWidget {
 class _ConfigImmeublePage extends StatefulWidget {
   final int initialTab;
   final bool showTabBar;
-  const _ConfigImmeublePage({super.key, this.initialTab = 0, this.showTabBar = true});
+  const _ConfigImmeublePage({
+    super.key,
+    this.initialTab = 0,
+    this.showTabBar = true,
+  });
 
   @override
   State<_ConfigImmeublePage> createState() => _ConfigImmeublePageState();
@@ -567,7 +707,10 @@ class _ConfigImmeublePageState extends State<_ConfigImmeublePage>
   void initState() {
     super.initState();
     _tabCtrl = TabController(
-        length: 3, vsync: this, initialIndex: widget.initialTab);
+      length: 3,
+      vsync: this,
+      initialIndex: widget.initialTab,
+    );
   }
 
   @override

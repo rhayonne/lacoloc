@@ -4,6 +4,7 @@ import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:intl/intl.dart';
 import 'package:habitafrance/data/cache/realtime_refresh_mixin.dart';
 import 'package:habitafrance/data/datasources/auth_service.dart';
+import 'package:habitafrance/utils/auth_error.dart';
 import 'package:habitafrance/data/datasources/chambres.dart';
 import 'package:habitafrance/data/datasources/inventaire.dart';
 import 'package:habitafrance/data/datasources/etat_de_lieux.dart';
@@ -31,12 +32,13 @@ import 'package:habitafrance/presentation/widgets/bail_requirements_dialog.dart'
 import 'package:habitafrance/presentation/widgets/edl_parcours_badge.dart';
 import 'package:habitafrance/presentation/widgets/edl_signature_flow.dart';
 import 'package:habitafrance/presentation/users/proprietaires/etat_de_lieux_page.dart';
-import 'package:habitafrance/presentation/users/proprietaires/interactions_page.dart'
-    show NotificationCard, DiscussionButton;
-import 'package:habitafrance/data/datasources/demandes_contact.dart';
+import 'package:habitafrance/presentation/messagerie/messagerie_model.dart';
+import 'package:habitafrance/presentation/messagerie/messagerie_view.dart';
+import 'package:habitafrance/presentation/widgets/notification_card.dart';
+import 'package:habitafrance/presentation/widgets/payment_methods_section.dart';
+import 'package:habitafrance/presentation/widgets/profile_section_card.dart';
+import 'package:habitafrance/presentation/widgets/profile_visibility_section.dart';
 import 'package:habitafrance/data/datasources/messages.dart';
-import 'package:habitafrance/data/models/demande_contact.dart';
-import 'package:habitafrance/presentation/widgets/conversation_view.dart';
 import 'package:habitafrance/presentation/chambres/chambre_detail_page.dart';
 import 'package:habitafrance/presentation/nav/app_nav_sidebar.dart';
 import 'package:habitafrance/presentation/nav/app_sidebar.dart';
@@ -94,6 +96,10 @@ class _LocataireProfilPageState extends State<LocataireProfilPage>
   /// pour ouvrir directement les Garants depuis le raccourci du tableau de bord.
 
   int? _selectedChambreId;
+
+  /// Fil à ouvrir d'emblée dans « Mes discussions » (arrivée depuis une
+  /// annonce déjà contactée). Remis à null une fois consommé.
+  int? _openDemandeId;
 
   /// Dernier index de menu sélectionné (pour ne rafraîchir que sur un vrai
   /// changement de section, pas au collapse/expand de la sidebar).
@@ -168,10 +174,12 @@ class _LocataireProfilPageState extends State<LocataireProfilPage>
       // Baux à signer : l'EDL est signé des DEUX parties (annexe complète) mais
       // le locataire n'a pas encore signé le bail (document distinct).
       final pendingBails = edls
-          .where((e) =>
-              e.typeEdl == 'entree' &&
-              e.edlFullySigned &&
-              !e.bailSignedBy('locataire'))
+          .where(
+            (e) =>
+                e.typeEdl == 'entree' &&
+                e.edlFullySigned &&
+                !e.bailSignedBy('locataire'),
+          )
           .toList();
       final unread = notifs.where((n) => !n.isRead).toList();
       // Un bail exige un garant mais le locataire n'en a aucun → alerte.
@@ -412,11 +420,22 @@ class _LocataireProfilPageState extends State<LocataireProfilPage>
   void _openChambre(int id) => setState(() => _selectedChambreId = id);
   void _closeChambre() => setState(() => _selectedChambreId = null);
 
+  /// Depuis une annonce déjà contactée : ferme la fiche, bascule sur
+  /// « Mes discussions » et ouvre le fil demandé (avec tout son historique).
+  void _openDiscussion(int demandeId) {
+    setState(() {
+      _selectedChambreId = null;
+      _navIndex = _idxMessages;
+      _openDemandeId = demandeId;
+    });
+  }
+
   Widget _buildBody() {
     if (_selectedChambreId != null) {
       return ChambreDetailView(
         chambreId: _selectedChambreId!,
         onBack: _closeChambre,
+        onOuvrirDiscussion: _openDiscussion,
       );
     }
 
@@ -450,11 +469,15 @@ class _LocataireProfilPageState extends State<LocataireProfilPage>
       ),
       _idxProfil => _ProfilSection(profile: bundle.profile),
       _idxEdl => _InteractionsSection(
-          key: ValueKey('edl$_edlSub'),
-          initialTab: _edlSub,
-          showTabBar: false,
-        ),
-      _idxMessages => const _MesDiscussionsTab(),
+        key: ValueKey('edl$_edlSub'),
+        initialTab: _edlSub,
+        showTabBar: false,
+      ),
+      _idxMessages => _MesDiscussionsTab(
+        initialDemandeId: _openDemandeId,
+        onInitialDemandeConsumed: () => _openDemandeId = null,
+        onVoirAnnonce: _openChambre,
+      ),
       _idxDocuments => _DocumentsSection(
         key: ValueKey('doc$_docSub'),
         initialTab: _docSub,
@@ -614,7 +637,8 @@ class _DashboardSection extends StatelessWidget {
     final greeting = firstName.isNotEmpty
         ? 'Bonjour, $firstName !'
         : 'Bienvenue !';
-    final nbActions = pendingEdls.length +
+    final nbActions =
+        pendingEdls.length +
         pendingBails.length +
         unreadNotifs.length +
         (needsGarant ? 1 : 0);
@@ -644,32 +668,39 @@ class _DashboardSection extends StatelessWidget {
                           color: AppColors.primary.withValues(alpha: 0.20),
                         ),
                       ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  greeting,
-                                  style: AppTypography.headlineMd.copyWith(
-                                    color: AppColors.onPrimaryFixedVariant,
-                                  ),
+                      child: LayoutBuilder(
+                        builder: (context, cardCns) {
+                          // En dessous de ~400px de large (mobile portrait),
+                          // le texte + bouton + icône de 72px sur une même
+                          // ligne débordaient (le bouton « Rechercher une
+                          // location » n'a pas la place de tenir à côté de
+                          // l'icône) : on empile icône puis texte/bouton.
+                          final narrow = cardCns.maxWidth < 400;
+                          final greetingCol = Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                greeting,
+                                style: AppTypography.headlineMd.copyWith(
+                                  color: AppColors.onPrimaryFixedVariant,
                                 ),
-                                const SizedBox(height: AppSpacing.xs),
-                                Text(
-                                  aJour
-                                      ? "Vous êtes à jour, rien en attente."
-                                      : '$nbActions élément${nbActions > 1 ? 's' : ''} '
-                                            'en attente de votre part.',
-                                  style: AppTypography.bodyMd.copyWith(
-                                    color: AppColors.onPrimaryFixedVariant
-                                        .withValues(alpha: 0.75),
-                                  ),
+                              ),
+                              const SizedBox(height: AppSpacing.xs),
+                              Text(
+                                aJour
+                                    ? "Vous êtes à jour, rien en attente."
+                                    : '$nbActions élément${nbActions > 1 ? 's' : ''} '
+                                          'en attente de votre part.',
+                                style: AppTypography.bodyMd.copyWith(
+                                  color: AppColors.onPrimaryFixedVariant
+                                      .withValues(alpha: 0.75),
                                 ),
-                                const SizedBox(height: AppSpacing.lg),
-                                FilledButton.icon(
+                              ),
+                              const SizedBox(height: AppSpacing.lg),
+                              SizedBox(
+                                width: narrow ? double.infinity : null,
+                                child: FilledButton.icon(
                                   onPressed: onVoirChambres,
                                   icon: const Icon(Icons.search, size: 16),
                                   label: const Text('Rechercher une location'),
@@ -678,18 +709,35 @@ class _DashboardSection extends StatelessWidget {
                                     foregroundColor: Colors.white,
                                   ),
                                 ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: AppSpacing.lg),
-                          Icon(
+                              ),
+                            ],
+                          );
+                          final icon = Icon(
                             aJour
                                 ? Icons.check_circle_outline
                                 : Icons.notifications_active_outlined,
-                            size: 72,
+                            size: narrow ? 36 : 72,
                             color: AppColors.primary,
-                          ),
-                        ],
+                          );
+                          if (narrow) {
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                icon,
+                                const SizedBox(height: AppSpacing.sm),
+                                greetingCol,
+                              ],
+                            );
+                          }
+                          return Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(child: greetingCol),
+                              const SizedBox(width: AppSpacing.lg),
+                              icon,
+                            ],
+                          );
+                        },
                       ),
                     ),
 
@@ -823,11 +871,7 @@ class _DashboardSection extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.xl),
       child: Column(
         children: [
-          Icon(
-            Icons.check_circle_outline,
-            size: 56,
-            color: AppColors.success,
-          ),
+          Icon(Icons.check_circle_outline, size: 56, color: AppColors.success),
           const SizedBox(height: AppSpacing.md),
           Text(
             'Vous êtes à jour ✓',
@@ -919,331 +963,35 @@ class _DashboardEdlTile extends StatelessWidget {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Les demandes de contact envoyées par le locataire, et le fil de discussion
-/// de chacune (ouvert dès que le propriétaire a accepté la demande).
-class _MesDiscussionsTab extends StatefulWidget {
-  const _MesDiscussionsTab();
+/// « Mes discussions » du locataire — **exactement le même écran que
+/// « Messages » du propriétaire** ([MessagerieView]), monté avec la
+/// configuration de rôle locataire : liste + fiche de profil + fil, barre de
+/// titre permanente, recherche seulement à la racine.
+///
+/// Toute la logique de messagerie est mutualisée : ce widget ne fait que
+/// brancher le rôle et les entrées propres à l'espace locataire (ouverture
+/// directe d'un fil depuis une annonce, affichage de l'annonce dans le cadre).
+class _MesDiscussionsTab extends StatelessWidget {
+  /// Fil à ouvrir d'emblée (clic « Discuter avec le propriétaire » sur une
+  /// annonce déjà contactée).
+  final int? initialDemandeId;
+  final VoidCallback? onInitialDemandeConsumed;
+  final void Function(int chambreId)? onVoirAnnonce;
 
-  @override
-  State<_MesDiscussionsTab> createState() => _MesDiscussionsTabState();
-}
-
-class _MesDiscussionsTabState extends State<_MesDiscussionsTab>
-    with RealtimeRefreshMixin {
-  bool _loading = true;
-  String? _error;
-  List<DemandeContactModel> _demandes = [];
-  Map<int, int> _unread = const {};
-
-  /// Texte concaténé de chaque fil, pour la recherche (voir
-  /// [MessagesDatasource.searchableTextByDemande] — scope garanti par la RLS).
-  Map<int, String> _searchText = const {};
-
-  final _searchCtrl = TextEditingController();
-  String _query = '';
-
-  /// Fil ouvert : rendu dans le cadre, à la place de la liste.
-  DemandeContactModel? _conversation;
-
-  @override
-  Set<String> get watchedEntities => {'demandes', 'messages'};
-
-  @override
-  void onRealtimeChange() => _load();
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  @override
-  void dispose() {
-    _searchCtrl.dispose();
-    super.dispose();
-  }
-
-  Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-    try {
-      final data = await DemandesContactDatasource.listByLocataire(
-        refresh: true,
-      );
-      final ids = data.map((d) => d.id).toList();
-      final results = await Future.wait([
-        MessagesDatasource.unreadCountByDemande(refresh: true),
-        MessagesDatasource.searchableTextByDemande(ids, refresh: true),
-      ]);
-      if (!mounted) return;
-      setState(() {
-        _demandes = data;
-        _unread = results[0] as Map<int, int>;
-        _searchText = results[1] as Map<int, String>;
-        // Garder le fil ouvert à jour (ex. le proprio vient d'accepter).
-        final open = _conversation;
-        if (open != null) {
-          final idx = _demandes.indexWhere((d) => d.id == open.id);
-          _conversation = idx >= 0 ? _demandes[idx] : null;
-        }
-      });
-    } catch (e) {
-      if (mounted) setState(() => _error = e.toString());
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  /// Filtre par nom du propriétaire **ou** contenu des messages du fil —
-  /// jamais au-delà de ce que la RLS autoriserait déjà à lire.
-  List<DemandeContactModel> get _filtered {
-    if (_query.isEmpty) return _demandes;
-    final q = _query.toLowerCase();
-    return _demandes.where((d) {
-      final nom = (d.proprietaireFullName ?? '').toLowerCase();
-      final texte = (_searchText[d.id] ?? '').toLowerCase();
-      return nom.contains(q) || texte.contains(q);
-    }).toList();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final conv = _conversation;
-    if (conv != null) {
-      return Padding(
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        child: ConversationView(
-          demande: conv,
-          onClose: () {
-            setState(() => _conversation = null);
-            _load();
-          },
-        ),
-      );
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const _LocataireSectionBar(title: 'Mes discussions'),
-        Expanded(
-          child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.lg),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                TextField(
-                  controller: _searchCtrl,
-                  onChanged: (v) => setState(() => _query = v.trim()),
-                  decoration: InputDecoration(
-                    hintText:
-                        'Rechercher un propriétaire ou dans les messages…',
-                    prefixIcon: const Icon(Icons.search, size: 20),
-                    isDense: true,
-                    suffixIcon: _query.isNotEmpty
-                        ? IconButton(
-                            icon: const Icon(Icons.close, size: 18),
-                            tooltip: 'Effacer la recherche',
-                            onPressed: () {
-                              _searchCtrl.clear();
-                              setState(() => _query = '');
-                            },
-                          )
-                        : null,
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                Expanded(child: _buildBody()),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildBody() {
-    if (_loading) return const Center(child: CircularProgressIndicator());
-    if (_error != null) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('Erreur : $_error'),
-            const SizedBox(height: AppSpacing.md),
-            FilledButton.icon(
-              onPressed: _load,
-              icon: const Icon(Icons.refresh),
-              label: const Text('Réessayer'),
-            ),
-          ],
-        ),
-      );
-    }
-    if (_demandes.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.xl),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.forum_outlined,
-                size: 48,
-                color: AppColors.onSurfaceVariant,
-              ),
-              const SizedBox(height: AppSpacing.md),
-              Text(
-                'Aucune demande de contact.',
-                style: AppTypography.bodyMd.copyWith(
-                  color: AppColors.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(height: AppSpacing.xs),
-              Text(
-                'Depuis une annonce, cliquez sur « Entrer en contact » '
-                'pour écrire au propriétaire.',
-                textAlign: TextAlign.center,
-                style: AppTypography.labelSm.copyWith(
-                  color: AppColors.onSurfaceVariant,
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    final filtered = _filtered;
-    if (filtered.isEmpty) {
-      return Center(
-        child: Text(
-          'Aucun résultat pour « $_query ».',
-          style: AppTypography.bodyMd.copyWith(
-            color: AppColors.onSurfaceVariant,
-          ),
-        ),
-      );
-    }
-
-    return RefreshIndicator(
-      onRefresh: _load,
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 800),
-          child: ListView.separated(
-            padding: const EdgeInsets.only(bottom: AppSpacing.lg),
-            itemCount: filtered.length,
-            separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.sm),
-            itemBuilder: (_, i) {
-              final d = filtered[i];
-              return _DemandeLocataireCard(
-                demande: d,
-                unread: _unread[d.id] ?? 0,
-                onDiscussion: () => setState(() => _conversation = d),
-              );
-            },
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Carte d'une demande côté locataire : le bien, l'état de la demande
-/// (en attente / acceptée) et l'accès au fil.
-class _DemandeLocataireCard extends StatelessWidget {
-  final DemandeContactModel demande;
-  final int unread;
-  final VoidCallback onDiscussion;
-
-  const _DemandeLocataireCard({
-    required this.demande,
-    required this.unread,
-    required this.onDiscussion,
+  const _MesDiscussionsTab({
+    this.initialDemandeId,
+    this.onInitialDemandeConsumed,
+    this.onVoirAnnonce,
   });
 
   @override
-  Widget build(BuildContext context) {
-    final d = demande;
-    final bien = [
-      d.chambreName,
-      d.immeubleName,
-    ].where((s) => s != null && s.isNotEmpty).join(' — ');
-    // Côté locataire, seul « a répondu » est pertinent (le statut détaillé
-    // — non répondu / ignoré — reste côté propriétaire).
-    final aRepondu = d.statut == StatutDemande.repondu;
-
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceContainerLowest,
-        borderRadius: AppRadius.borderLg,
-        border: Border.all(color: AppColors.outlineVariant),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  bien.isEmpty ? 'Demande de contact' : bien,
-                  style: AppTypography.titleLg,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              _EtatDemandeChip(aRepondu: aRepondu),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          Text(
-            'Propriétaire : ${d.proprietaireFullName ?? '—'}',
-            style: AppTypography.bodyMd.copyWith(
-              color: AppColors.onSurfaceVariant,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: DiscussionButton(
-              demande: d,
-              unread: unread,
-              onPressed: onDiscussion,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _EtatDemandeChip extends StatelessWidget {
-  final bool aRepondu;
-  const _EtatDemandeChip({required this.aRepondu});
-
-  @override
-  Widget build(BuildContext context) {
-    final couleur = aRepondu ? AppColors.success : AppColors.onSurfaceVariant;
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.sm,
-        vertical: 2,
-      ),
-      decoration: BoxDecoration(
-        color: couleur.withValues(alpha: .12),
-        borderRadius: BorderRadius.circular(AppRadius.full),
-      ),
-      child: Text(
-        aRepondu ? 'Répondu' : 'En attente',
-        style: AppTypography.labelSm.copyWith(color: couleur),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => MessagerieView(
+    role: MessagerieRole.locataire,
+    title: 'Mes discussions',
+    initialDemandeId: initialDemandeId,
+    onInitialDemandeConsumed: onInitialDemandeConsumed,
+    onVoirAnnonce: onVoirAnnonce,
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1664,9 +1412,11 @@ class _ProfilSectionState extends State<_ProfilSection> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _isSaving = false);
+      // Un doublon de téléphone remonte en 23505 : le traduire plutôt que
+      // d'afficher « duplicate key value violates unique constraint… ».
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
+      ).showSnackBar(SnackBar(content: Text(authErrorMessage(e))));
     }
   }
 
@@ -1719,209 +1469,235 @@ class _ProfilSectionState extends State<_ProfilSection> {
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 560),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Avatar
-                    Center(
-                      child: Stack(
-                        alignment: Alignment.bottomRight,
-                        children: [
-                          CircleAvatar(
-                            radius: 44,
-                            backgroundColor: AppColors.primaryFixed,
-                            child: Text(
-                              initial,
-                              style: AppTypography.headlineMd.copyWith(
-                                color: AppColors.onPrimaryFixedVariant,
-                              ),
-                            ),
-                          ),
-                          if (_isEditing)
-                            Container(
-                              width: 28,
-                              height: 28,
-                              decoration: BoxDecoration(
-                                color: AppColors.primary,
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: AppColors.surfaceContainerLowest,
-                                  width: 2,
-                                ),
-                              ),
-                              child: const Icon(
-                                Icons.edit,
-                                size: 14,
-                                color: Colors.white,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.xl),
-
-                    // ── Nom complet ──────────────────────────────────────
-                    _fieldLabel('NOM COMPLET'),
-                    TextField(
-                      controller: _nameCtrl,
-                      enabled: _isEditing,
-                      textCapitalization: TextCapitalization.words,
-                      decoration: const InputDecoration(
-                        hintText: 'Jean Dupont',
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.lg),
-
-                    // ── E-mail ───────────────────────────────────────────
-                    _fieldLabel('E-MAIL'),
-                    _staticField(email),
-                    const SizedBox(height: AppSpacing.lg),
-
-                    // ── Téléphone ────────────────────────────────────────
-                    _fieldLabel('TÉLÉPHONE'),
-                    if (_isEditing)
-                      FormBuilder(
-                        key: _phoneFormKey,
-                        child: PhoneField(
-                          name: 'phone',
-                          initialValue: _displayPhone,
-                        ),
-                      )
-                    else
-                      _staticField(_displayPhone.isEmpty ? '—' : _displayPhone),
-                    const SizedBox(height: AppSpacing.lg),
-
-                    // ── Date de naissance ────────────────────────────────
-                    _fieldLabel('DATE DE NAISSANCE'),
-                    InkWell(
-                      onTap: _isEditing ? _pickDate : null,
-                      borderRadius: AppRadius.borderSm,
-                      child: Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppSpacing.md,
-                          vertical: 14,
-                        ),
-                        decoration: BoxDecoration(
-                          color: _isEditing
-                              ? AppColors.surfaceContainerLowest
-                              : AppColors.surfaceContainerLow,
-                          borderRadius: AppRadius.borderSm,
-                          border: Border.all(
-                            color: _isEditing
-                                ? AppColors.primary
-                                : AppColors.outlineVariant,
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                currentDob != null
-                                    ? _dateFmt.format(currentDob)
-                                    : _isEditing
-                                    ? 'Sélectionner une date'
-                                    : 'Non renseignée',
-                                style: AppTypography.bodyMd.copyWith(
-                                  color: currentDob == null
-                                      ? AppColors.onSurfaceVariant.withValues(
-                                          alpha: 0.5,
-                                        )
-                                      : null,
-                                ),
-                              ),
-                            ),
-                            if (_isEditing)
-                              Icon(
-                                Icons.calendar_today_outlined,
-                                size: 18,
-                                color: AppColors.primary,
-                              ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    if (currentDob != null) ...[
-                      const SizedBox(height: AppSpacing.xs),
-                      Padding(
-                        padding: const EdgeInsets.only(left: 4),
-                        child: Text(
-                          'Âge : ${_computeAge(currentDob)} ans',
-                          style: AppTypography.bodyMd.copyWith(
-                            color: AppColors.onSurfaceVariant,
-                          ),
-                        ),
-                      ),
-                    ],
-                    const SizedBox(height: AppSpacing.lg),
-
-                    // ── Type de compte ───────────────────────────────────
-                    _fieldLabel('TYPE DE COMPTE'),
-                    _staticField('Locataire'),
-
-                    // ── Membre depuis ────────────────────────────────────
-                    if (createdAt != null) ...[
-                      const SizedBox(height: AppSpacing.lg),
-                      _fieldLabel('MEMBRE DEPUIS'),
-                      _staticField(_dateFmt.format(createdAt)),
-                    ],
-
-                    const SizedBox(height: AppSpacing.xl),
-                    const Divider(),
-                    const SizedBox(height: AppSpacing.lg),
-
-                    // ── Apparence (choix du thème) ───────────────────────
-                    const ThemePickerSection(),
-
-                    const SizedBox(height: AppSpacing.xl),
-                    const Divider(),
-                    const SizedBox(height: AppSpacing.lg),
-
-                    // ── Info ─────────────────────────────────────────────
-                    Container(
-                      padding: const EdgeInsets.all(AppSpacing.md),
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceContainerLow,
-                        borderRadius: AppRadius.borderMd,
-                        border: Border.all(color: AppColors.outlineVariant),
-                      ),
-                      child: Row(
+                    // ── Mes informations ──────────────────────────────────
+                    ProfileSectionCard(
+                      child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(
-                            Icons.info_outline,
-                            size: 18,
-                            color: AppColors.onSurfaceVariant,
+                          Text(
+                            'Mes informations',
+                            style: AppTypography.titleLg,
                           ),
-                          const SizedBox(width: AppSpacing.sm),
-                          Expanded(
-                            child: Text(
-                              "Pour modifier votre adresse e-mail ou votre "
-                              "mot de passe, contactez l'administrateur de "
-                              "la plateforme.",
-                              style: AppTypography.bodyMd.copyWith(
-                                color: AppColors.onSurfaceVariant,
+                          const SizedBox(height: AppSpacing.lg),
+                          // Avatar
+                          Center(
+                            child: Stack(
+                              alignment: Alignment.bottomRight,
+                              children: [
+                                CircleAvatar(
+                                  radius: 44,
+                                  backgroundColor: AppColors.primaryFixed,
+                                  child: Text(
+                                    initial,
+                                    style: AppTypography.headlineMd.copyWith(
+                                      color: AppColors.onPrimaryFixedVariant,
+                                    ),
+                                  ),
+                                ),
+                                if (_isEditing)
+                                  Container(
+                                    width: 28,
+                                    height: 28,
+                                    decoration: BoxDecoration(
+                                      color: AppColors.primary,
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: AppColors.surfaceContainerLowest,
+                                        width: 2,
+                                      ),
+                                    ),
+                                    child: const Icon(
+                                      Icons.edit,
+                                      size: 14,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: AppSpacing.xl),
+
+                          // ── Nom complet ──────────────────────────────────────
+                          _fieldLabel('NOM COMPLET'),
+                          TextField(
+                            controller: _nameCtrl,
+                            enabled: _isEditing,
+                            textCapitalization: TextCapitalization.words,
+                            decoration: const InputDecoration(
+                              hintText: 'Jean Dupont',
+                            ),
+                          ),
+                          const SizedBox(height: AppSpacing.lg),
+
+                          // ── E-mail ───────────────────────────────────────────
+                          _fieldLabel('E-MAIL'),
+                          _staticField(email),
+                          const SizedBox(height: AppSpacing.lg),
+
+                          // ── Téléphone ────────────────────────────────────────
+                          _fieldLabel('TÉLÉPHONE'),
+                          if (_isEditing)
+                            FormBuilder(
+                              key: _phoneFormKey,
+                              child: PhoneField(
+                                name: 'phone',
+                                initialValue: _displayPhone,
                               ),
+                            )
+                          else
+                            _staticField(
+                              _displayPhone.isEmpty ? '—' : _displayPhone,
+                            ),
+                          const SizedBox(height: AppSpacing.lg),
+
+                          // ── Date de naissance ────────────────────────────────
+                          _fieldLabel('DATE DE NAISSANCE'),
+                          InkWell(
+                            onTap: _isEditing ? _pickDate : null,
+                            borderRadius: AppRadius.borderSm,
+                            child: Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: AppSpacing.md,
+                                vertical: 14,
+                              ),
+                              decoration: BoxDecoration(
+                                color: _isEditing
+                                    ? AppColors.surfaceContainerLowest
+                                    : AppColors.surfaceContainerLow,
+                                borderRadius: AppRadius.borderSm,
+                                border: Border.all(
+                                  color: _isEditing
+                                      ? AppColors.primary
+                                      : AppColors.outlineVariant,
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      currentDob != null
+                                          ? _dateFmt.format(currentDob)
+                                          : _isEditing
+                                          ? 'Sélectionner une date'
+                                          : 'Non renseignée',
+                                      style: AppTypography.bodyMd.copyWith(
+                                        color: currentDob == null
+                                            ? AppColors.onSurfaceVariant
+                                                  .withValues(alpha: 0.5)
+                                            : null,
+                                      ),
+                                    ),
+                                  ),
+                                  if (_isEditing)
+                                    Icon(
+                                      Icons.calendar_today_outlined,
+                                      size: 18,
+                                      color: AppColors.primary,
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          if (currentDob != null) ...[
+                            const SizedBox(height: AppSpacing.xs),
+                            Padding(
+                              padding: const EdgeInsets.only(left: 4),
+                              child: Text(
+                                'Âge : ${_computeAge(currentDob)} ans',
+                                style: AppTypography.bodyMd.copyWith(
+                                  color: AppColors.onSurfaceVariant,
+                                ),
+                              ),
+                            ),
+                          ],
+                          const SizedBox(height: AppSpacing.lg),
+
+                          // ── Type de compte ───────────────────────────────────
+                          _fieldLabel('TYPE DE COMPTE'),
+                          _staticField('Locataire'),
+
+                          // ── Membre depuis ────────────────────────────────────
+                          if (createdAt != null) ...[
+                            const SizedBox(height: AppSpacing.lg),
+                            _fieldLabel('MEMBRE DEPUIS'),
+                            _staticField(_dateFmt.format(createdAt)),
+                          ],
+
+                          const SizedBox(height: AppSpacing.lg),
+                          // ── Info ─────────────────────────────────────────────
+                          Container(
+                            padding: const EdgeInsets.all(AppSpacing.md),
+                            decoration: BoxDecoration(
+                              color: AppColors.surfaceContainerLow,
+                              borderRadius: AppRadius.borderMd,
+                              border: Border.all(
+                                color: AppColors.outlineVariant,
+                              ),
+                            ),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Icon(
+                                  Icons.info_outline,
+                                  size: 18,
+                                  color: AppColors.onSurfaceVariant,
+                                ),
+                                const SizedBox(width: AppSpacing.sm),
+                                Expanded(
+                                  child: Text(
+                                    "Pour modifier votre adresse e-mail ou votre "
+                                    "mot de passe, contactez l'administrateur de "
+                                    "la plateforme.",
+                                    style: AppTypography.bodyMd.copyWith(
+                                      color: AppColors.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ],
                       ),
                     ),
+                    const SizedBox(height: AppSpacing.lg),
+
+                    // ── Ma fiche de profil (vue par les propriétaires) ───
+                    ProfileSectionCard(
+                      child: ProfileVisibilitySection(
+                        profile: widget.profile,
+                        audience: 'aux propriétaires que vous contactez',
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
+
+                    // ── Mes moyens de paiement (comment je règle) ────────
+                    const ProfileSectionCard(
+                      child: PaymentMethodsSection(isLocataire: true),
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
 
                     // ── Ma signature ──────────────────────────────────────
-                    const SizedBox(height: AppSpacing.xl),
-                    const Divider(),
+                    const ProfileSectionCard(
+                      child: _LocataireSignatureSection(),
+                    ),
                     const SizedBox(height: AppSpacing.lg),
-                    const _LocataireSignatureSection(),
+
+                    // ── Apparence ─────────────────────────────────────────
+                    const ProfileSectionCard(child: ThemePickerSection()),
+                    const SizedBox(height: AppSpacing.lg),
 
                     // ── Zone dangereuse ───────────────────────────────────
-                    const SizedBox(height: AppSpacing.xl),
-                    const Divider(),
-                    const SizedBox(height: AppSpacing.lg),
-                    _DangerZoneSection(
-                      hasContratsFuture: _hasContratsFuture,
-                      isDeleting: _isDeleting,
-                      onDelete: _confirmDelete,
+                    ProfileSectionCard(
+                      child: _DangerZoneSection(
+                        hasContratsFuture: _hasContratsFuture,
+                        isDeleting: _isDeleting,
+                        onDelete: _confirmDelete,
+                      ),
                     ),
+                    const SizedBox(height: AppSpacing.xl),
                   ],
                 ),
               ),
@@ -1964,8 +1740,11 @@ class _ProfilSectionState extends State<_ProfilSection> {
 class _InteractionsSection extends StatefulWidget {
   final int initialTab;
   final bool showTabBar;
-  const _InteractionsSection(
-      {super.key, this.initialTab = 0, this.showTabBar = true});
+  const _InteractionsSection({
+    super.key,
+    this.initialTab = 0,
+    this.showTabBar = true,
+  });
 
   @override
   State<_InteractionsSection> createState() => _InteractionsSectionState();
@@ -2008,12 +1787,16 @@ class _InteractionsSectionState extends State<_InteractionsSection>
     // faire » en silence.
     void fail(Object? e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(e == null
-            ? 'Impossible d\'ouvrir cet état des lieux — données introuvables. '
-                'Réessayez.'
-            : 'Erreur d\'ouverture : $e'),
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            e == null
+                ? 'Impossible d\'ouvrir cet état des lieux — données introuvables. '
+                      'Réessayez.'
+                : 'Erreur d\'ouverture : $e',
+          ),
+        ),
+      );
     }
 
     if (edl.partie == PartieEdl.commune) {
@@ -2089,7 +1872,9 @@ class _InteractionsSectionState extends State<_InteractionsSection>
   @override
   void onRealtimeChange() {
     final f = _load();
-    setState(() { _future = f; });
+    setState(() {
+      _future = f;
+    });
   }
 
   @override
@@ -2150,16 +1935,18 @@ class _InteractionsSectionState extends State<_InteractionsSection>
       );
       if (signed == null || !mounted) return;
       if (signed.bailSignedBy('locataire')) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('Bail signé ✓')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Bail signé ✓')));
         setState(() {
           _future = _load();
         });
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Erreur : $e')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
       }
     }
   }
@@ -2187,16 +1974,21 @@ class _InteractionsSectionState extends State<_InteractionsSection>
     } catch (e) {
       // Un clic ne doit jamais échouer en silence.
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Erreur d\'ouverture : $e')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Erreur d\'ouverture : $e')));
       }
       return;
     }
     if (!mounted) return;
     if (imm == null || chambre == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
           content: Text(
-              'Impossible d\'ouvrir cet état des lieux — données introuvables.')));
+            'Impossible d\'ouvrir cet état des lieux — données introuvables.',
+          ),
+        ),
+      );
       return;
     }
     await Navigator.of(context).push(
@@ -2948,11 +2740,14 @@ class _EdlLocataireRow extends StatelessWidget {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Icon(Icons.visibility_outlined, size: 15),
-                          Text('EDL',
-                              style: TextStyle(
-                                  fontSize: 8,
-                                  height: 1,
-                                  fontWeight: FontWeight.w700)),
+                          Text(
+                            'EDL',
+                            style: TextStyle(
+                              fontSize: 8,
+                              height: 1,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -4180,12 +3975,12 @@ class _FinancesSectionState extends State<_FinancesSection> {
   }
 
   bool _matchesChip(RecetteModel r, String chip) => switch (chip) {
-        'a_payer' => r.statut == 'a_recevoir' && !r.isRemboursement,
-        'a_recevoir' => r.statut == 'a_recevoir' && r.isRemboursement,
-        'recu' => r.statut == 'recu',
-        'en_retard' => r.statut == 'en_retard',
-        _ => true,
-      };
+    'a_payer' => r.statut == 'a_recevoir' && !r.isRemboursement,
+    'a_recevoir' => r.statut == 'a_recevoir' && r.isRemboursement,
+    'recu' => r.statut == 'recu',
+    'en_retard' => r.statut == 'en_retard',
+    _ => true,
+  };
 
   List<RecetteModel> _filter(List<RecetteModel> all) {
     var result = all;
@@ -4206,10 +4001,13 @@ class _FinancesSectionState extends State<_FinancesSection> {
   // remboursements (ex. caution, sens='payer') sont « à recevoir » côté
   // locataire — ne pas les mélanger dans le même total (sinon un
   // remboursement de caution gonflerait le montant « à payer »).
-  double _total(List<RecetteModel> all, String statut, {bool remboursement = false}) =>
-      all
-          .where((r) => r.statut == statut && r.isRemboursement == remboursement)
-          .fold(0.0, (s, r) => s + r.montant);
+  double _total(
+    List<RecetteModel> all,
+    String statut, {
+    bool remboursement = false,
+  }) => all
+      .where((r) => r.statut == statut && r.isRemboursement == remboursement)
+      .fold(0.0, (s, r) => s + r.montant);
 
   @override
   Widget build(BuildContext context) {
@@ -4296,13 +4094,18 @@ class _FinancesSectionState extends State<_FinancesSection> {
                           color: AppColors.primary,
                           selected: _filtreChip == 'a_payer',
                           onTap: () => setState(
-                            () => _filtreChip =
-                                _filtreChip == 'a_payer' ? null : 'a_payer',
+                            () => _filtreChip = _filtreChip == 'a_payer'
+                                ? null
+                                : 'a_payer',
                           ),
                         ),
                         _LocFinanceChip(
                           label: 'À recevoir',
-                          amount: _total(all, 'a_recevoir', remboursement: true),
+                          amount: _total(
+                            all,
+                            'a_recevoir',
+                            remboursement: true,
+                          ),
                           color: AppColors.secondary,
                           selected: _filtreChip == 'a_recevoir',
                           onTap: () => setState(
@@ -4317,8 +4120,9 @@ class _FinancesSectionState extends State<_FinancesSection> {
                           color: AppColors.tertiary,
                           selected: _filtreChip == 'recu',
                           onTap: () => setState(
-                            () => _filtreChip =
-                                _filtreChip == 'recu' ? null : 'recu',
+                            () => _filtreChip = _filtreChip == 'recu'
+                                ? null
+                                : 'recu',
                           ),
                         ),
                         _LocFinanceChip(

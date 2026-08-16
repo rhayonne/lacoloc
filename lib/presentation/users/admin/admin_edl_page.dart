@@ -4,7 +4,9 @@ import 'package:habitafrance/data/datasources/etat_de_lieux.dart';
 import 'package:habitafrance/data/datasources/immeubles.dart';
 import 'package:habitafrance/data/models/etat_de_lieux.dart';
 import 'package:habitafrance/presentation/users/proprietaires/etat_de_lieux_page.dart';
+import 'package:habitafrance/presentation/widgets/app_button.dart';
 import 'package:habitafrance/presentation/widgets/app_top_bar.dart';
+import 'package:habitafrance/theme/app_button_sizes.dart';
 import 'package:habitafrance/theme/app_colors.dart';
 import 'package:habitafrance/theme/app_radius.dart';
 import 'package:habitafrance/theme/app_spacing.dart';
@@ -106,13 +108,13 @@ class _AdminEdlPageState extends State<AdminEdlPage> {
         titre: 'Désactiver cet état des lieux ?',
         message: e.isCollectifInterne
             ? 'Le contrat collectif et TOUS ses EDL individuels (+ sorties) '
-                'seront désactivés. Ils disparaîtront pour les parties mais '
-                'resteront réactivables ici.'
+                  'seront désactivés. Ils disparaîtront pour les parties mais '
+                  'resteront réactivables ici.'
             : e.partie == PartieEdl.privative
-                ? 'Cet EDL individuel (+ sa sortie) sera désactivé. Le contrat '
-                    'collectif reste lié aux autres locataires actifs.'
-                : 'Cet EDL (+ sa sortie) sera désactivé en cascade. Il '
-                    'disparaîtra pour les parties mais restera réactivable ici.',
+            ? 'Cet EDL individuel (+ sa sortie) sera désactivé. Le contrat '
+                  'collectif reste lié aux autres locataires actifs.'
+            : 'Cet EDL (+ sa sortie) sera désactivé en cascade. Il '
+                  'disparaîtra pour les parties mais restera réactivable ici.',
         confirmLabel: 'Désactiver',
         danger: true,
       );
@@ -124,7 +126,8 @@ class _AdminEdlPageState extends State<AdminEdlPage> {
   Future<void> _deleteHard(EtatDesLieuxModel e) async {
     final ok = await _confirm(
       titre: 'Supprimer définitivement ?',
-      message: 'Suppression IRRÉVERSIBLE de l\'EDL ${e.code ?? e.id} et de '
+      message:
+          'Suppression IRRÉVERSIBLE de l\'EDL ${e.code ?? e.id} et de '
           'tous ses éléments (observations, preneurs, relevés, sections…). '
           'Un collectif supprime aussi ses EDL individuels. À utiliser en '
           'dernier recours — préférez « Désactiver ».',
@@ -168,13 +171,17 @@ class _AdminEdlPageState extends State<AdminEdlPage> {
             onPressed: () => Navigator.pop(ctx, false),
             child: const Text('Annuler'),
           ),
-          FilledButton(
-            style: danger
-                ? FilledButton.styleFrom(backgroundColor: AppColors.error)
-                : null,
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text(confirmLabel),
-          ),
+          danger
+              ? AppButton.delete(
+                  size: AppButtonSize.compact,
+                  label: confirmLabel,
+                  onPressed: () => Navigator.pop(ctx, true),
+                )
+              : AppButton.primary(
+                  size: AppButtonSize.compact,
+                  label: confirmLabel,
+                  onPressed: () => Navigator.pop(ctx, true),
+                ),
         ],
       ),
     );
@@ -197,8 +204,7 @@ class _AdminEdlPageState extends State<AdminEdlPage> {
             // a déjà été téléchargée ; refetch seulement après une action).
             onChanged: (_) => setState(() {}),
             decoration: InputDecoration(
-              hintText:
-                  'Rechercher (code, locataire, propriétaire, immeuble…)',
+              hintText: 'Rechercher (code, locataire, propriétaire, immeuble…)',
               prefixIcon: const Icon(Icons.search),
               suffixIcon: _searchCtrl.text.isEmpty
                   ? null
@@ -226,8 +232,12 @@ class _AdminEdlPageState extends State<AdminEdlPage> {
                 return Center(child: Text('Erreur : ${snap.error}'));
               }
               final edls = (snap.data ?? const <EtatDesLieuxModel>[])
-                  .where((e) => EtatDesLieuxDatasource.adminQueryMatches(
-                      e, _searchCtrl.text))
+                  .where(
+                    (e) => EtatDesLieuxDatasource.adminQueryMatches(
+                      e,
+                      _searchCtrl.text,
+                    ),
+                  )
                   .toList();
               if (edls.isEmpty) {
                 return const Center(child: Text('Aucun état des lieux.'));
@@ -321,8 +331,9 @@ class _EdlAdminRow extends StatelessWidget {
                 Text(
                   '${edl.displayLocataire} · ${edl.proprietaireNom ?? '—'} · '
                   '${edl.lieuLabel} · ${edl.dateEdlFormatted}',
-                  style: AppTypography.labelMd
-                      .copyWith(color: AppColors.onSurfaceVariant),
+                  style: AppTypography.labelMd.copyWith(
+                    color: AppColors.onSurfaceVariant,
+                  ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -337,7 +348,9 @@ class _EdlAdminRow extends StatelessWidget {
           ),
           IconButton(
             tooltip: inactif ? 'Réactiver' : 'Désactiver',
-            icon: Icon(inactif ? Icons.restart_alt : Icons.visibility_off_outlined),
+            icon: Icon(
+              inactif ? Icons.restart_alt : Icons.visibility_off_outlined,
+            ),
             color: inactif ? AppColors.success : AppColors.onSurfaceVariant,
             onPressed: onToggle,
           ),
@@ -366,13 +379,18 @@ class _Chip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 2),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: 2,
+      ),
       decoration: BoxDecoration(
         color: color,
         borderRadius: AppRadius.borderFull,
       ),
-      child: Text(label,
-          style: AppTypography.labelSm.copyWith(color: textColor)),
+      child: Text(
+        label,
+        style: AppTypography.labelSm.copyWith(color: textColor),
+      ),
     );
   }
 }

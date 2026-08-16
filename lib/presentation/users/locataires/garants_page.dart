@@ -17,6 +17,7 @@ import 'package:habitafrance/theme/app_radius.dart';
 import 'package:habitafrance/theme/app_spacing.dart';
 import 'package:habitafrance/theme/app_theme.dart';
 import 'package:habitafrance/theme/app_typography.dart';
+import 'package:habitafrance/utils/email_field.dart';
 import 'package:habitafrance/utils/phone_field.dart';
 
 class GarantsPage extends StatefulWidget {
@@ -948,23 +949,12 @@ class _GarantFormWithBackState extends State<_GarantFormWithBack> {
                         ),
                       ], flexes: const [1, 2]),
                       const SizedBox(height: AppSpacing.md),
-                      FormBuilderTextField(
+                      // Widget partagé plutôt qu'un regex maison : celui d'ici
+                      // (`^[^@]+@[^@]+\.[^@]+$`) acceptait « a b@c .fr ».
+                      EmailField(
                         name: 'email',
                         initialValue: g?.email,
-                        decoration: const InputDecoration(
-                            labelText: 'E-mail',
-                            hintText: 'contact@exemple.fr'),
-                        keyboardType: TextInputType.emailAddress,
-                        validator: FormBuilderValidators.compose([
-                          (v) {
-                            if (v != null &&
-                                v.isNotEmpty &&
-                                !RegExp(r'^[^@]+@[^@]+\.[^@]+$').hasMatch(v)) {
-                              return 'Adresse e-mail invalide';
-                            }
-                            return null;
-                          }
-                        ]),
+                        hintText: 'contact@exemple.fr',
                       ),
                       const SizedBox(height: AppSpacing.md),
                       PhoneField(

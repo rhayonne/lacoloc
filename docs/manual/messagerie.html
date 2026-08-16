@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Manuel — Messagerie et fiche de profil · HabitaFrance</title>
+  <style>
+    :root {
+      --primary: #006685;
+      --primary-light: #e0f2f7;
+      --primary-dark: #004d63;
+      --surface: #ffffff;
+      --surface-low: #f5f5f5;
+      --surface-var: #ecf4f7;
+      --border: #cfe0e7;
+      --text: #1a1a2e;
+      --text-muted: #5f6368;
+      --success: #2e7d32;
+      --success-light: #e8f5e9;
+      --warn: #b26a00;
+      --warn-light: #fff3e0;
+      --radius-md: 10px;
+      --radius-lg: 16px;
+      --shadow: 0 2px 8px rgba(0, 0, 0, .10);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: var(--text);
+      background: var(--surface-low);
+      line-height: 1.55;
+    }
+
+    .hero {
+      background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+      color: #fff;
+      padding: 40px 24px;
+      text-align: center;
+    }
+
+    .hero h1 { font-size: 1.8rem; margin-bottom: 8px; }
+    .hero p { opacity: .9; max-width: 640px; margin: 0 auto; }
+
+    .container { max-width: 860px; margin: 0 auto; padding: 24px; }
+
+    .back-link {
+      display: inline-block;
+      margin-bottom: 20px;
+      color: var(--primary);
+      text-decoration: none;
+      font-weight: 600;
+    }
+    .back-link:hover { text-decoration: underline; }
+
+    h2 { color: var(--primary-dark); font-size: 1.3rem; margin: 28px 0 12px; }
+    h3 { font-size: 1.05rem; margin: 18px 0 8px; }
+    p { margin-bottom: 10px; }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow);
+      padding: 20px;
+      margin-bottom: 18px;
+    }
+
+    ul, ol { margin: 0 0 10px 20px; }
+    li { margin-bottom: 6px; }
+
+    .note {
+      border-left: 4px solid var(--primary);
+      background: var(--primary-light);
+      padding: 12px 14px;
+      border-radius: 0 var(--radius-md) var(--radius-md) 0;
+      margin: 14px 0;
+      font-size: .95rem;
+    }
+
+    .note.warn { border-left-color: var(--warn); background: var(--warn-light); }
+    .note.ok { border-left-color: var(--success); background: var(--success-light); }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .93rem;
+      margin: 10px 0;
+      display: block;
+      overflow-x: auto;
+    }
+
+    th, td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; vertical-align: top; }
+    th { background: var(--surface-var); font-weight: 700; }
+
+    .btn-demo {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--primary);
+      color: #fff;
+      border-radius: 8px;
+      padding: 7px 12px;
+      font-size: .9rem;
+      font-weight: 600;
+    }
+
+    .btn-demo.ghost {
+      background: var(--surface);
+      color: var(--primary);
+      border: 1px solid var(--border);
+    }
+
+    /* Maquette de l'écran */
+    .mock {
+      display: flex;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      background: var(--surface);
+      min-height: 190px;
+    }
+
+    .mock .pane { padding: 10px; font-size: .82rem; }
+    .mock .pane + .pane { border-left: 1px solid var(--border); }
+    .mock .list { flex: 1.4; }
+    .mock .detail { flex: 1; background: var(--surface-var); }
+    .mock .pane-title { font-weight: 700; font-size: .74rem; text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px; }
+
+    .mock-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 6px;
+      background: var(--surface);
+    }
+
+    .mock-row .avatar {
+      width: 30px; height: 30px; border-radius: 50%;
+      background: var(--primary-light); color: var(--primary);
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; flex: 0 0 auto; font-size: .75rem;
+    }
+
+    .mock-row .grow { flex: 1; min-width: 0; }
+    .mock-row .name { font-weight: 600; }
+    .mock-row .bien { color: var(--primary); font-size: .74rem; }
+    .mono { font-family: 'SF Mono', Menlo, Consolas, monospace; font-size: .9em; }
+    .cap { font-size: .82rem; color: var(--text-muted); margin-top: 6px; text-align: center; }
+
+    .switch-row {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 0; border-bottom: 1px solid var(--border);
+    }
+    .switch-row:last-child { border-bottom: 0; }
+    .switch-row .grow { flex: 1; }
+    .switch-row .hint { font-size: .82rem; color: var(--text-muted); }
+
+    .sw {
+      width: 42px; height: 24px; border-radius: 999px;
+      background: var(--border); position: relative; flex: 0 0 auto;
+    }
+    .sw.on { background: var(--primary); }
+    .sw::after {
+      content: ''; position: absolute; top: 3px; left: 3px;
+      width: 18px; height: 18px; border-radius: 50%; background: #fff;
+    }
+    .sw.on::after { left: auto; right: 3px; }
+    .sw.lock { background: #b9c7cd; }
+
+    @media (max-width: 640px) {
+      .mock { flex-direction: column; }
+      .mock .pane + .pane { border-left: 0; border-top: 1px solid var(--border); }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="hero">
+    <h1>💬 Messagerie et fiche de profil</h1>
+    <p>Écrire à l'autre partie, retrouver une conversation, et choisir ce que votre profil montre de vous.</p>
+  </div>
+
+  <div class="container">
+    <a class="back-link" href="index.html">← Retour au manuel</a>
+
+    <div class="card">
+      <h2>1. Prendre contact depuis une annonce</h2>
+      <p>
+        En tant que <strong>locataire</strong>, ouvrez une annonce (une chambre ou un immeuble)
+        et cliquez sur <span class="btn-demo">✉️ Entrer en contact</span>.
+      </p>
+      <p>
+        Une fenêtre s'ouvre : elle rappelle les informations qui seront transmises au
+        propriétaire et vous laisse écrire votre premier message. À l'envoi, la discussion
+        est <strong>immédiatement ouverte</strong> — le propriétaire n'a rien à accepter au préalable.
+      </p>
+
+      <div class="note ok">
+        <strong>Vous avez déjà écrit à ce propriétaire ?</strong>
+        Le bouton devient <span class="btn-demo">💬 Discuter avec le propriétaire</span>
+        et vous emmène directement dans la conversation, avec tout l'historique.
+        Vous n'êtes plus bloqué par un bouton grisé.
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>2. L'écran des discussions</h2>
+      <p>
+        Propriétaire : menu <strong>Interactions → Messages</strong>.<br />
+        Locataire : menu <strong>Interactions → Mes discussions</strong>.
+      </p>
+      <p>C'est <strong>le même écran</strong> des deux côtés ; seul l'interlocuteur affiché change.</p>
+
+      <div class="mock">
+        <div class="pane list">
+          <div class="pane-title">Liste des discussions</div>
+          <div class="mock-row">
+            <div class="avatar">NL</div>
+            <div class="grow">
+              <div class="name">Novo Locataire</div>
+              <div class="bien">Chambre 1 — APT test coloc</div>
+            </div>
+            <span class="btn-demo">💬 Discuter</span>
+          </div>
+          <div class="mock-row">
+            <div class="avatar">AM</div>
+            <div class="grow">
+              <div class="name">Alice Martin</div>
+              <div class="bien">Chambre 2 — APT test coloc</div>
+            </div>
+            <span class="btn-demo">💬 Discuter</span>
+          </div>
+        </div>
+        <div class="pane detail">
+          <div class="pane-title">Fiche de profil ✕</div>
+          <p><strong>Novo Locataire</strong><br /><span class="bien">Chambre 1 — APT test coloc</span></p>
+          <p style="margin-top:8px">🎂 25 ans<br />📞 +33 6 …<br />✉️ locataire@…</p>
+        </div>
+      </div>
+      <p class="cap">Sur grand écran : la liste à gauche, la fiche de profil à droite.</p>
+
+      <h3>Deux gestes différents</h3>
+      <ul>
+        <li><strong>Cliquer la ligne</strong> → ouvre la <em>fiche de profil</em> de la personne (à droite,
+          ou en plein écran sur mobile). La croix <strong>✕</strong> en haut à droite la referme.</li>
+        <li><strong>Cliquer le bouton 💬 Discuter</strong> → ouvre directement la <em>conversation</em>.
+          Sur petit écran, le bouton devient une pastille ronde avec l'icône de chat.</li>
+      </ul>
+
+      <h3>Rechercher</h3>
+      <p>
+        Le champ de recherche filtre par <strong>nom de l'interlocuteur</strong>, par
+        <strong>bien concerné</strong> ou par <strong>contenu des messages</strong>. Les onglets
+        au-dessus de la liste filtrent par état.
+      </p>
+      <div class="note">
+        La recherche et les filtres ne s'affichent <strong>que sur la liste</strong>. Dès que vous
+        entrez dans une conversation, ils disparaissent — le titre de la page, lui, reste
+        toujours visible.
+      </div>
+
+      <h3>Les états d'une discussion</h3>
+      <table>
+        <tr><th>Vu par</th><th>États affichés</th></tr>
+        <tr>
+          <td>Propriétaire</td>
+          <td><strong>Nouveau</strong> (jamais ouvert) · <strong>Non répondu</strong> (lu, sans réponse) ·
+            <strong>Répondu</strong> · <strong>Ignoré</strong></td>
+        </tr>
+        <tr>
+          <td>Locataire</td>
+          <td><strong>En attente</strong> · <strong>Répondu</strong></td>
+        </tr>
+      </table>
+
+      <h3>Dans la conversation</h3>
+      <p>
+        L'en-tête rappelle toujours <strong>avec qui</strong> vous parlez et <strong>à quel sujet</strong> :
+        nom, chambre · immeuble, et la date de la prise de contact. La flèche ← revient à la liste.
+        Sur mobile, le bouton 🪪 ouvre la fiche de profil de l'interlocuteur.
+      </p>
+    </div>
+
+    <div class="card">
+      <h2>3. Ma fiche de profil — choisir ce qui est montré</h2>
+      <p>
+        Dans <strong>Mon Profil</strong>, la section <strong>« Ma fiche de profil »</strong> décide de
+        ce que l'autre partie voit de vous : un propriétaire y règle ce que voient les locataires
+        qui le contactent, un locataire ce que voient les propriétaires qu'il contacte.
+      </p>
+      <p>Chaque champ a un <strong>interrupteur</strong> : activé = affiché dans votre fiche,
+        désactivé = retiré de votre fiche. L'enregistrement est <strong>immédiat</strong>, il n'y a
+        pas de bouton à ne pas oublier.</p>
+
+      <div class="note">
+        <strong>Ce qui est affiché au départ n'est pas le même des deux côtés — c'est voulu.</strong>
+        <ul style="margin-top:8px">
+          <li><strong>Locataire</strong> : âge, téléphone et e-mail sont affichés par défaut. Vous les
+            avez explicitement acceptés en envoyant votre message (la fenêtre « Entrer en contact »
+            les énumère). Vous pouvez les retirer ici à tout moment.</li>
+          <li><strong>Propriétaire</strong> : rien n'est affiché par défaut — ni âge, ni téléphone,
+            ni e-mail. Personne ne vous a demandé votre accord pour diffuser vos coordonnées, donc
+            rien ne sort tant que vous ne l'activez pas. Le locataire vous voit par votre nom et
+            vous écrit dans la messagerie.</li>
+        </ul>
+      </div>
+
+      <div style="border:1px solid var(--border);border-radius:var(--radius-md);padding:0 14px;background:var(--surface)">
+        <div class="switch-row">
+          <div class="grow">
+            <div><strong>Nom complet</strong></div>
+            <div class="hint">Toujours affiché : votre interlocuteur doit savoir à qui il s'adresse.</div>
+          </div>
+          <div class="sw lock on"></div>
+        </div>
+        <div class="switch-row">
+          <div class="grow">
+            <div><strong>Âge</strong></div>
+            <div class="hint">Votre âge, calculé à partir de votre date de naissance.</div>
+          </div>
+          <div class="sw on"></div>
+        </div>
+        <div class="switch-row">
+          <div class="grow">
+            <div><strong>Téléphone</strong></div>
+            <div class="hint">Votre numéro, pour être joint directement.</div>
+          </div>
+          <div class="sw"></div><!-- désactivé -->
+        </div>
+        <div class="switch-row">
+          <div class="grow">
+            <div><strong>Adresse e-mail</strong></div>
+            <div class="hint">Pour être contacté hors de la messagerie.</div>
+          </div>
+          <div class="sw on"></div>
+        </div>
+      </div>
+      <p class="cap">Ici, le téléphone est masqué : il n'apparaîtra pas dans la fiche vue par l'autre partie.</p>
+
+      <p style="margin-top:14px">
+        Juste en dessous, un <strong>aperçu</strong> montre la fiche telle que votre interlocuteur
+        la verra. Si vous masquez tout, il verra votre nom et un message l'invitant à passer par
+        la messagerie.
+      </p>
+
+      <div class="note ok">
+        <strong>Un champ masqué n'est pas seulement caché : il n'est pas envoyé.</strong>
+        Quand vous désactivez un interrupteur, l'information ne quitte pas nos serveurs —
+        elle n'est pas transmise à votre interlocuteur, même techniquement. Créer un compte
+        pour « aller voir » les coordonnées des autres ne donne donc rien.
+      </div>
+
+      <div class="note warn">
+        <strong>Bon à savoir.</strong> Ces réglages contrôlent <em>l'affichage</em> de votre fiche
+        dans l'application. Ils ne suppriment pas ce que vous auriez déjà écrit vous-même dans un
+        message (un numéro de téléphone tapé dans la conversation y reste).
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>4. Votre numéro de téléphone</h2>
+      <p>
+        Le formatage n'a pas d'importance : <span class="mono">+33 6 12 34 56 78</span> et
+        <span class="mono">+33612345678</span> sont reconnus comme le <strong>même</strong> numéro.
+      </p>
+
+      <table>
+        <tr><th>Vous êtes…</th><th>Pouvez-vous partager un numéro ?</th></tr>
+        <tr>
+          <td><strong>Locataire</strong></td>
+          <td><strong>Non.</strong> Un numéro ne peut appartenir qu'à un seul compte locataire
+            actif — cela évite qu'une même personne se présente plusieurs fois sur une annonce.</td>
+        </tr>
+        <tr>
+          <td><strong>Propriétaire, admin d'entreprise</strong></td>
+          <td><strong>Oui.</strong> Une agence peut mettre le numéro du standard sur tous ses
+            propriétaires : c'est le cas normal d'un bureau.</td>
+        </tr>
+      </table>
+
+      <div class="note">
+        <strong>Couple ou colocataires avec un seul mobile ?</strong> Un seul des deux comptes
+        locataires pourra enregistrer le numéro. L'autre peut laisser le champ vide — il reste
+        parfaitement joignable par la messagerie, et pourra l'ajouter plus tard.
+      </div>
+
+      <div class="note">
+        <strong>Un compte désactivé libère son numéro.</strong> Si un ancien compte locataire est
+        désactivé, son numéro redevient disponible pour un nouveau compte.
+      </div>
+    </div>
+
+    <div style="text-align:center;color:var(--text-muted);font-size:12px;margin-top:32px;padding-top:20px;border-top:1px solid var(--border)">
+      HabitaFrance · Manuel utilisateur
+    </div>
+  </div>
+</body>
+
+</html>

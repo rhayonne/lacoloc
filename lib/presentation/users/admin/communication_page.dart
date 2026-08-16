@@ -7,11 +7,12 @@ import 'package:habitafrance/data/datasources/user_management.dart';
 import 'package:habitafrance/data/models/admin_message.dart';
 import 'package:habitafrance/data/models/user_group.dart';
 import 'package:habitafrance/data/models/users_client.dart';
+import 'package:habitafrance/presentation/widgets/app_button.dart';
+import 'package:habitafrance/theme/app_button_sizes.dart';
 import 'package:habitafrance/theme/app_colors.dart';
 import 'package:habitafrance/theme/app_radius.dart';
 import 'package:habitafrance/presentation/widgets/app_top_bar.dart';
 import 'package:habitafrance/theme/app_spacing.dart';
-import 'package:habitafrance/theme/app_theme.dart';
 import 'package:habitafrance/theme/app_typography.dart';
 import 'package:habitafrance/theme/app_tab_bar.dart';
 import 'package:habitafrance/utils/media_embed.dart';
@@ -21,18 +22,18 @@ enum _Audience { tous, type, groupe, specifiques }
 
 extension _AudienceLabel on _Audience {
   String get label => switch (this) {
-        _Audience.tous => 'Tous les utilisateurs',
-        _Audience.type => "Par type d'utilisateur",
-        _Audience.groupe => 'Par groupe / entreprise',
-        _Audience.specifiques => 'Utilisateurs spécifiques',
-      };
+    _Audience.tous => 'Tous les utilisateurs',
+    _Audience.type => "Par type d'utilisateur",
+    _Audience.groupe => 'Par groupe / entreprise',
+    _Audience.specifiques => 'Utilisateurs spécifiques',
+  };
 
   IconData get icon => switch (this) {
-        _Audience.tous => Icons.groups_outlined,
-        _Audience.type => Icons.badge_outlined,
-        _Audience.groupe => Icons.business_outlined,
-        _Audience.specifiques => Icons.person_search_outlined,
-      };
+    _Audience.tous => Icons.groups_outlined,
+    _Audience.type => Icons.badge_outlined,
+    _Audience.groupe => Icons.business_outlined,
+    _Audience.specifiques => Icons.person_search_outlined,
+  };
 }
 
 enum _MediaKind { aucun, image, youtube }
@@ -91,12 +92,16 @@ class _CommunicationPageState extends State<CommunicationPage>
   void initState() {
     super.initState();
     _tab = TabController(
-        length: 2, vsync: this, initialIndex: widget.initialTab);
+      length: 2,
+      vsync: this,
+      initialIndex: widget.initialTab,
+    );
     _loadFuture = _load();
     _titleCtrl.addListener(_onChanged);
     _mediaCtrl.addListener(_onChanged);
     _searchCtrl.addListener(
-        () => setState(() => _search = _searchCtrl.text.trim().toLowerCase()));
+      () => setState(() => _search = _searchCtrl.text.trim().toLowerCase()),
+    );
   }
 
   @override
@@ -132,10 +137,13 @@ class _CommunicationPageState extends State<CommunicationPage>
     return switch (_audience) {
       _Audience.tous => base.toList(),
       _Audience.type =>
-        base.where((u) => _selectedTypes.contains(u.typeUserRef?.code)).toList(),
-      _Audience.groupe => _selectedGroupId == null
-          ? const []
-          : base.where((u) => u.groupId == _selectedGroupId).toList(),
+        base
+            .where((u) => _selectedTypes.contains(u.typeUserRef?.code))
+            .toList(),
+      _Audience.groupe =>
+        _selectedGroupId == null
+            ? const []
+            : base.where((u) => u.groupId == _selectedGroupId).toList(),
       _Audience.specifiques =>
         base.where((u) => _selectedUserIds.contains(u.id)).toList(),
     };
@@ -146,8 +154,7 @@ class _CommunicationPageState extends State<CommunicationPage>
       case _Audience.tous:
         return 'Tous les utilisateurs';
       case _Audience.type:
-        final names =
-            _selectedTypes.map((c) => _typeLabels[c] ?? c).join(', ');
+        final names = _selectedTypes.map((c) => _typeLabels[c] ?? c).join(', ');
         return 'Types : $names';
       case _Audience.groupe:
         final g = _groups.where((x) => x.id == _selectedGroupId).firstOrNull;
@@ -170,10 +177,10 @@ class _CommunicationPageState extends State<CommunicationPage>
   bool get _mediaOk => _mediaKind == _MediaKind.aucun || _mediaValue != null;
 
   String? get _mediaTypeStr => switch (_mediaKind) {
-        _MediaKind.image => kMediaImage,
-        _MediaKind.youtube => kMediaYoutube,
-        _MediaKind.aucun => null,
-      };
+    _MediaKind.image => kMediaImage,
+    _MediaKind.youtube => kMediaYoutube,
+    _MediaKind.aucun => null,
+  };
 
   bool get _canSend =>
       _titleCtrl.text.trim().isNotEmpty &&
@@ -194,12 +201,13 @@ class _CommunicationPageState extends State<CommunicationPage>
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Annuler')),
-          FilledButton(
-            style: AppTheme.saveButtonStyle,
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Annuler'),
+          ),
+          AppButton.primary(
+            size: AppButtonSize.compact,
+            label: 'Envoyer',
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Envoyer'),
           ),
         ],
       ),
@@ -228,8 +236,10 @@ class _CommunicationPageState extends State<CommunicationPage>
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Message envoyé à ${recipients.length} '
-              'utilisateur${recipients.length > 1 ? 's' : ''}.'),
+          content: Text(
+            'Message envoyé à ${recipients.length} '
+            'utilisateur${recipients.length > 1 ? 's' : ''}.',
+          ),
           backgroundColor: AppColors.success,
         ),
       );
@@ -238,7 +248,10 @@ class _CommunicationPageState extends State<CommunicationPage>
       if (!mounted) return;
       setState(() => _sending = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erreur : $e'), backgroundColor: AppColors.error),
+        SnackBar(
+          content: Text('Erreur : $e'),
+          backgroundColor: AppColors.error,
+        ),
       );
     }
   }
@@ -267,8 +280,9 @@ class _CommunicationPageState extends State<CommunicationPage>
                   Text(
                     'Envoyez un message (texte Markdown + média) qui apparaîtra dans le '
                     'tableau de bord et les messages des utilisateurs choisis.',
-                    style: AppTypography.bodyMd
-                        .copyWith(color: AppColors.onSurfaceVariant),
+                    style: AppTypography.bodyMd.copyWith(
+                      color: AppColors.onSurfaceVariant,
+                    ),
                   ),
                   const SizedBox(height: AppSpacing.md),
                 ],
@@ -288,13 +302,10 @@ class _CommunicationPageState extends State<CommunicationPage>
                     future: _loadFuture,
                     builder: (context, snap) {
                       if (snap.connectionState == ConnectionState.waiting) {
-                        return const Center(
-                            child: CircularProgressIndicator());
+                        return const Center(child: CircularProgressIndicator());
                       }
                       if (submenuMode) {
-                        return activeIndex == 0
-                            ? _composeTab()
-                            : _historyTab();
+                        return activeIndex == 0 ? _composeTab() : _historyTab();
                       }
                       return TabBarView(
                         controller: _tab,
@@ -364,9 +375,11 @@ class _CommunicationPageState extends State<CommunicationPage>
           children: _Audience.values.map((a) {
             final sel = _audience == a;
             return ChoiceChip(
-              avatar: Icon(a.icon,
-                  size: 18,
-                  color: sel ? AppColors.onPrimary : AppColors.onSurfaceVariant),
+              avatar: Icon(
+                a.icon,
+                size: 18,
+                color: sel ? AppColors.onPrimary : AppColors.onSurfaceVariant,
+              ),
               label: Text(a.label),
               selected: sel,
               onSelected: (_) => setState(() => _audience = a),
@@ -378,11 +391,12 @@ class _CommunicationPageState extends State<CommunicationPage>
         const SizedBox(height: AppSpacing.sm),
         Row(
           children: [
-            Icon(Icons.people_alt_outlined,
-                size: 16, color: AppColors.primary),
+            Icon(Icons.people_alt_outlined, size: 16, color: AppColors.primary),
             const SizedBox(width: AppSpacing.xs),
-            Text('${_recipients.length} destinataire(s)',
-                style: AppTypography.labelMd.copyWith(color: AppColors.primary)),
+            Text(
+              '${_recipients.length} destinataire(s)',
+              style: AppTypography.labelMd.copyWith(color: AppColors.primary),
+            ),
           ],
         ),
       ],
@@ -392,9 +406,12 @@ class _CommunicationPageState extends State<CommunicationPage>
   Widget _audienceDetail() {
     switch (_audience) {
       case _Audience.tous:
-        return Text('Le message sera envoyé à tous les utilisateurs actifs.',
-            style: AppTypography.bodyMd
-                .copyWith(color: AppColors.onSurfaceVariant));
+        return Text(
+          'Le message sera envoyé à tous les utilisateurs actifs.',
+          style: AppTypography.bodyMd.copyWith(
+            color: AppColors.onSurfaceVariant,
+          ),
+        );
       case _Audience.type:
         return Wrap(
           spacing: AppSpacing.sm,
@@ -416,15 +433,20 @@ class _CommunicationPageState extends State<CommunicationPage>
         );
       case _Audience.groupe:
         if (_groups.isEmpty) {
-          return Text('Aucun groupe disponible.',
-              style: AppTypography.bodyMd
-                  .copyWith(color: AppColors.onSurfaceVariant));
+          return Text(
+            'Aucun groupe disponible.',
+            style: AppTypography.bodyMd.copyWith(
+              color: AppColors.onSurfaceVariant,
+            ),
+          );
         }
         return DropdownButtonFormField<int>(
           initialValue: _selectedGroupId,
           isExpanded: true,
           decoration: const InputDecoration(
-              labelText: 'Groupe', border: OutlineInputBorder()),
+            labelText: 'Groupe',
+            border: OutlineInputBorder(),
+          ),
           items: _groups
               .map((g) => DropdownMenuItem(value: g.id, child: Text(g.name)))
               .toList(),
@@ -439,9 +461,13 @@ class _CommunicationPageState extends State<CommunicationPage>
     final selfId = AuthService.currentUser?.id;
     final filtered = _users
         .where((u) => u.active && u.id != selfId)
-        .where((u) => _search.isEmpty
-            ? true
-            : '${u.fullName ?? ''} ${u.email}'.toLowerCase().contains(_search))
+        .where(
+          (u) => _search.isEmpty
+              ? true
+              : '${u.fullName ?? ''} ${u.email}'.toLowerCase().contains(
+                  _search,
+                ),
+        )
         .take(50)
         .toList();
     return Column(
@@ -462,9 +488,12 @@ class _CommunicationPageState extends State<CommunicationPage>
           child: filtered.isEmpty
               ? Padding(
                   padding: const EdgeInsets.all(AppSpacing.md),
-                  child: Text('Aucun utilisateur.',
-                      style: AppTypography.bodyMd
-                          .copyWith(color: AppColors.onSurfaceVariant)),
+                  child: Text(
+                    'Aucun utilisateur.',
+                    style: AppTypography.bodyMd.copyWith(
+                      color: AppColors.onSurfaceVariant,
+                    ),
+                  ),
                 )
               : ListView.builder(
                   shrinkWrap: true,
@@ -474,9 +503,9 @@ class _CommunicationPageState extends State<CommunicationPage>
                     return CheckboxListTile(
                       dense: true,
                       value: _selectedUserIds.contains(u.id),
-                      title: Text(u.fullName?.isNotEmpty == true
-                          ? u.fullName!
-                          : u.email),
+                      title: Text(
+                        u.fullName?.isNotEmpty == true ? u.fullName! : u.email,
+                      ),
                       subtitle: Text(
                         '${u.email} · ${_typeLabels[u.typeUserRef?.code] ?? '—'}',
                         maxLines: 1,
@@ -496,9 +525,12 @@ class _CommunicationPageState extends State<CommunicationPage>
         if (_selectedUserIds.isNotEmpty)
           Padding(
             padding: const EdgeInsets.only(top: AppSpacing.xs),
-            child: Text('${_selectedUserIds.length} sélectionné(s)',
-                style: AppTypography.labelSm
-                    .copyWith(color: AppColors.onSurfaceVariant)),
+            child: Text(
+              '${_selectedUserIds.length} sélectionné(s)',
+              style: AppTypography.labelSm.copyWith(
+                color: AppColors.onSurfaceVariant,
+              ),
+            ),
           ),
       ],
     );
@@ -513,7 +545,9 @@ class _CommunicationPageState extends State<CommunicationPage>
         TextField(
           controller: _titleCtrl,
           decoration: const InputDecoration(
-              labelText: 'Titre *', border: OutlineInputBorder()),
+            labelText: 'Titre *',
+            border: OutlineInputBorder(),
+          ),
           maxLength: 120,
         ),
         const SizedBox(height: AppSpacing.sm),
@@ -521,7 +555,8 @@ class _CommunicationPageState extends State<CommunicationPage>
           controller: _bodyCtrl,
           decoration: const InputDecoration(
             labelText: 'Message (Markdown)',
-            helperText: 'Markdown supporté : **gras**, *italique*, listes, [liens](url)…',
+            helperText:
+                'Markdown supporté : **gras**, *italique*, listes, [liens](url)…',
             border: OutlineInputBorder(),
             alignLabelWithHint: true,
           ),
@@ -537,12 +572,23 @@ class _CommunicationPageState extends State<CommunicationPage>
               child: DropdownButtonFormField<_MediaKind>(
                 initialValue: _mediaKind,
                 decoration: const InputDecoration(
-                    labelText: 'Média', border: OutlineInputBorder(), isDense: true),
+                  labelText: 'Média',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                ),
                 items: const [
-                  DropdownMenuItem(value: _MediaKind.aucun, child: Text('Aucun')),
-                  DropdownMenuItem(value: _MediaKind.image, child: Text('Image (URL)')),
                   DropdownMenuItem(
-                      value: _MediaKind.youtube, child: Text('Vidéo YouTube')),
+                    value: _MediaKind.aucun,
+                    child: Text('Aucun'),
+                  ),
+                  DropdownMenuItem(
+                    value: _MediaKind.image,
+                    child: Text('Image (URL)'),
+                  ),
+                  DropdownMenuItem(
+                    value: _MediaKind.youtube,
+                    child: Text('Vidéo YouTube'),
+                  ),
                 ],
                 onChanged: (v) =>
                     setState(() => _mediaKind = v ?? _MediaKind.aucun),
@@ -562,8 +608,8 @@ class _CommunicationPageState extends State<CommunicationPage>
               isDense: true,
               errorText: _mediaCtrl.text.trim().isNotEmpty && !_mediaOk
                   ? (_mediaKind == _MediaKind.image
-                      ? 'URL http(s) invalide'
-                      : 'Lien/ID YouTube invalide')
+                        ? 'URL http(s) invalide'
+                        : 'Lien/ID YouTube invalide')
                   : null,
               suffixIcon: _mediaValue != null
                   ? Icon(Icons.check_circle, color: AppColors.success)
@@ -577,9 +623,11 @@ class _CommunicationPageState extends State<CommunicationPage>
           children: [
             TextButton.icon(
               onPressed: () => setState(() => _showPreview = !_showPreview),
-              icon: Icon(_showPreview
-                  ? Icons.visibility_off_outlined
-                  : Icons.visibility_outlined),
+              icon: Icon(
+                _showPreview
+                    ? Icons.visibility_off_outlined
+                    : Icons.visibility_outlined,
+              ),
               label: Text(_showPreview ? "Masquer l'aperçu" : 'Aperçu'),
             ),
           ],
@@ -621,16 +669,11 @@ class _CommunicationPageState extends State<CommunicationPage>
     return Row(
       mainAxisAlignment: MainAxisAlignment.end,
       children: [
-        FilledButton.icon(
-          style: AppTheme.saveButtonStyle,
+        AppButton.primary(
+          icon: Icons.send_outlined,
+          label: 'Envoyer le message',
+          isBusy: _sending,
           onPressed: _canSend ? _send : null,
-          icon: _sending
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2))
-              : const Icon(Icons.send_outlined, size: 18),
-          label: const Text('Envoyer le message'),
         ),
       ],
     );
@@ -651,9 +694,12 @@ class _CommunicationPageState extends State<CommunicationPage>
         final msgs = snap.data ?? [];
         if (msgs.isEmpty) {
           return Center(
-            child: Text('Aucun message envoyé.',
-                style: AppTypography.bodyMd
-                    .copyWith(color: AppColors.onSurfaceVariant)),
+            child: Text(
+              'Aucun message envoyé.',
+              style: AppTypography.bodyMd.copyWith(
+                color: AppColors.onSurfaceVariant,
+              ),
+            ),
           );
         }
         final fmt = DateFormat('dd/MM/yyyy HH:mm');
@@ -675,8 +721,8 @@ class _CommunicationPageState extends State<CommunicationPage>
                   Row(
                     children: [
                       Expanded(
-                          child:
-                              Text(m.title, style: AppTypography.titleLg)),
+                        child: Text(m.title, style: AppTypography.titleLg),
+                      ),
                       if (m.mediaType != null)
                         Icon(
                           m.mediaType == kMediaYoutube
@@ -694,7 +740,10 @@ class _CommunicationPageState extends State<CommunicationPage>
                   if (m.mediaType != null && m.mediaUrl != null) ...[
                     const SizedBox(height: AppSpacing.sm),
                     MessageMediaView(
-                        mediaType: m.mediaType, mediaUrl: m.mediaUrl, height: 180),
+                      mediaType: m.mediaType,
+                      mediaUrl: m.mediaUrl,
+                      height: 180,
+                    ),
                   ],
                   const SizedBox(height: AppSpacing.sm),
                   Wrap(
@@ -703,8 +752,10 @@ class _CommunicationPageState extends State<CommunicationPage>
                     crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       _meta(Icons.group_outlined, m.audience ?? '—'),
-                      _meta(Icons.send_outlined,
-                          '${m.recipientsCount} destinataire(s)'),
+                      _meta(
+                        Icons.send_outlined,
+                        '${m.recipientsCount} destinataire(s)',
+                      ),
                       _meta(Icons.schedule, fmt.format(m.createdAt)),
                     ],
                   ),
@@ -723,9 +774,12 @@ class _CommunicationPageState extends State<CommunicationPage>
       children: [
         Icon(icon, size: 14, color: AppColors.onSurfaceVariant),
         const SizedBox(width: 4),
-        Text(text,
-            style: AppTypography.labelSm
-                .copyWith(color: AppColors.onSurfaceVariant)),
+        Text(
+          text,
+          style: AppTypography.labelSm.copyWith(
+            color: AppColors.onSurfaceVariant,
+          ),
+        ),
       ],
     );
   }

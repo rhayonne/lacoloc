@@ -11,6 +11,7 @@ import 'package:habitafrance/presentation/widgets/form_page_header.dart';
 import 'package:habitafrance/presentation/widgets/permission_gate.dart';
 import 'package:habitafrance/utils/email_field.dart';
 import 'package:habitafrance/utils/phone_field.dart';
+import 'package:habitafrance/theme/app_breakpoints.dart';
 import 'package:habitafrance/theme/app_colors.dart';
 import 'package:habitafrance/theme/app_spacing.dart';
 import 'package:habitafrance/theme/app_theme.dart';
@@ -220,56 +221,159 @@ class _FournisseursTable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // En dessous du seuil tableau → cartes, la DataTable (6 colonnes) déborde
+    // horizontalement en mobile ; on bascule sur une liste de cartes.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isNarrow = constraints.maxWidth < AppBreakpoints.tableToCards;
+        return isNarrow ? _buildCardList() : _buildDataTable();
+      },
+    );
+  }
+
+  Widget _buildDataTable() {
     return Card(
-      child: DataTable(
-      columnSpacing: 24,
-      columns: const [
-        DataColumn(label: Text('Nom')),
-        DataColumn(label: Text('Catégorie')),
-        DataColumn(label: Text('Téléphone')),
-        DataColumn(label: Text('E-mail')),
-        DataColumn(label: Text('Statut')),
-        DataColumn(label: Text('Actions')),
-      ],
-      rows: fournisseurs.map((f) {
-        return DataRow(cells: [
-          DataCell(Text(f.nom, style: AppTypography.bodyMd)),
-          DataCell(Text(f.categorie ?? '—',
-              style: AppTypography.bodyMd
-                  .copyWith(color: AppColors.onSurfaceVariant))),
-          DataCell(Text(f.telephone ?? '—',
-              style: AppTypography.bodyMd
-                  .copyWith(color: AppColors.onSurfaceVariant))),
-          DataCell(Text(f.email ?? '—',
-              style: AppTypography.bodyMd
-                  .copyWith(color: AppColors.onSurfaceVariant))),
-          DataCell(_StatutBadge(isActive: f.isActive)),
-          DataCell(Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              PermissionGate(
-                permission: Perm.fournisseursEdit,
-                child: IconButton(
-                  icon: const Icon(Icons.edit_outlined, size: 18),
-                  tooltip: 'Modifier',
-                  onPressed: () => onEdit(f),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: DataTable(
+          columnSpacing: 24,
+          columns: const [
+            DataColumn(label: Text('Nom')),
+            DataColumn(label: Text('Catégorie')),
+            DataColumn(label: Text('Téléphone')),
+            DataColumn(label: Text('E-mail')),
+            DataColumn(label: Text('Statut')),
+            DataColumn(label: Text('Actions')),
+          ],
+          rows: fournisseurs.map((f) {
+            return DataRow(cells: [
+              DataCell(Text(f.nom, style: AppTypography.bodyMd)),
+              DataCell(Text(f.categorie ?? '—',
+                  style: AppTypography.bodyMd
+                      .copyWith(color: AppColors.onSurfaceVariant))),
+              DataCell(Text(f.telephone ?? '—',
+                  style: AppTypography.bodyMd
+                      .copyWith(color: AppColors.onSurfaceVariant))),
+              DataCell(Text(f.email ?? '—',
+                  style: AppTypography.bodyMd
+                      .copyWith(color: AppColors.onSurfaceVariant))),
+              DataCell(_StatutBadge(isActive: f.isActive)),
+              DataCell(Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  PermissionGate(
+                    permission: Perm.fournisseursEdit,
+                    child: IconButton(
+                      icon: const Icon(Icons.edit_outlined, size: 18),
+                      tooltip: 'Modifier',
+                      onPressed: () => onEdit(f),
+                    ),
+                  ),
+                  PermissionGate(
+                    permission: Perm.fournisseursDelete,
+                    child: IconButton(
+                      icon: Icon(Icons.delete_outline,
+                          size: 18, color: AppColors.error),
+                      tooltip: 'Supprimer',
+                      onPressed: () => onDelete(f),
+                    ),
+                  ),
+                ],
+              )),
+            ]);
+          }).toList(),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCardList() {
+    return ListView.separated(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: fournisseurs.length,
+      separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.sm),
+      itemBuilder: (context, i) {
+        final f = fournisseurs[i];
+        return Card(
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        f.nom,
+                        style: AppTypography.titleLg,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    _StatutBadge(isActive: f.isActive),
+                  ],
                 ),
-              ),
-              PermissionGate(
-                permission: Perm.fournisseursDelete,
-                child: IconButton(
-                  icon: Icon(Icons.delete_outline,
-                      size: 18, color: AppColors.error),
-                  tooltip: 'Supprimer',
-                  onPressed: () => onDelete(f),
+                if (f.categorie != null) ...[
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(
+                    f.categorie!,
+                    style: AppTypography.bodyMd
+                        .copyWith(color: AppColors.onSurfaceVariant),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+                if (f.telephone != null) ...[
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(
+                    f.telephone!,
+                    style: AppTypography.bodyMd
+                        .copyWith(color: AppColors.onSurfaceVariant),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+                if (f.email != null) ...[
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(
+                    f.email!,
+                    style: AppTypography.bodyMd
+                        .copyWith(color: AppColors.onSurfaceVariant),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+                const SizedBox(height: AppSpacing.sm),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    PermissionGate(
+                      permission: Perm.fournisseursEdit,
+                      child: IconButton(
+                        icon: const Icon(Icons.edit_outlined, size: 18),
+                        tooltip: 'Modifier',
+                        onPressed: () => onEdit(f),
+                      ),
+                    ),
+                    PermissionGate(
+                      permission: Perm.fournisseursDelete,
+                      child: IconButton(
+                        icon: Icon(Icons.delete_outline,
+                            size: 18, color: AppColors.error),
+                        tooltip: 'Supprimer',
+                        onPressed: () => onDelete(f),
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-            ],
-          )),
-        ]);
-      }).toList(),
-    ),   // DataTable
-    );   // Card
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 }
 

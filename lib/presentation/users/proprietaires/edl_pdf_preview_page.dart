@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:printing/printing.dart';
+import 'package:habitafrance/presentation/widgets/app_button.dart';
 import 'package:habitafrance/theme/app_colors.dart';
 import 'package:habitafrance/theme/app_spacing.dart';
 import 'edl_pdf_data.dart';
@@ -198,15 +199,12 @@ class _EdlPdfPreviewPageState extends State<EdlPdfPreviewPage> {
                 padding: const EdgeInsets.all(AppSpacing.md),
                 child: FutureBuilder<EdlPdfData>(
                   future: _futurePdfData,
-                  builder: (_, snap) => SizedBox(
-                    height: 48,
-                    child: FilledButton.icon(
-                      onPressed: snap.hasData
-                          ? () => Navigator.of(context).pop(true)
-                          : null,
-                      icon: const Icon(Icons.draw_outlined),
-                      label: const Text('Signer et accepter'),
-                    ),
+                  builder: (_, snap) => AppButton.save(
+                    icon: Icons.draw_outlined,
+                    label: 'Signer et accepter',
+                    onPressed: snap.hasData
+                        ? () => Navigator.of(context).pop(true)
+                        : null,
                   ),
                 ),
               ),
@@ -257,15 +255,15 @@ class _EdlActionBar extends StatelessWidget {
         runSpacing: AppSpacing.xs,
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
-          OutlinedButton.icon(
+          AppButton.document(
+            icon: Icons.print_outlined,
+            label: 'Imprimer',
             onPressed: onPrint,
-            icon: const Icon(Icons.print_outlined, size: 18),
-            label: const Text('Imprimer'),
           ),
-          OutlinedButton.icon(
+          AppButton.document(
+            icon: Icons.download_outlined,
+            label: 'Télécharger',
             onPressed: onDownload,
-            icon: const Icon(Icons.download_outlined, size: 18),
-            label: const Text('Télécharger'),
           ),
           if (hasToggles) ...[
             Container(width: 1, height: 28, color: AppColors.outlineVariant),
