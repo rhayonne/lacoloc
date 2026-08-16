@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:form_builder_validators/form_builder_validators.dart';
 import 'package:habitafrance/data/datasources/auth_service.dart';
@@ -43,6 +44,9 @@ class _AdminData {
   final List<UserGroup> groups;
   const _AdminData(this.users, this.permissions, this.groups);
 }
+
+/// Date d'inscription affichée dans la liste et utilisée pour le tri.
+final DateFormat _dateInscription = DateFormat('dd/MM/yyyy');
 
 class UtilisateursAdminPage extends StatefulWidget {
   /// Sous-onglet actif (0 = Utilisateurs, 1 = Groupes) quand piloté par les
@@ -225,7 +229,8 @@ class _UsersTab extends StatefulWidget {
 }
 
 /// Filtros disponíveis abaixo da busca.
-enum _UserFilter { actifs, inactifs, proprietaires, locataires, superAdmins }
+enum _UserFilter { actifs, inactifs, proprietaires, locataires, superAdmins,
+  adminsSysteme }
 
 extension on _UserFilter {
   String get label => switch (this) {
@@ -234,6 +239,7 @@ extension on _UserFilter {
     _UserFilter.proprietaires => 'Propriétaires',
     _UserFilter.locataires => 'Locataires',
     _UserFilter.superAdmins => 'Super Admin',
+    _UserFilter.adminsSysteme => 'Admin Sys.',
   };
 }
 
@@ -336,12 +342,16 @@ class _UsersTabState extends State<_UsersTab> {
     _UserFilter.proprietaires => u.resolvedType == UserType.proprietaire,
     _UserFilter.locataires => u.resolvedType == UserType.locataire,
     _UserFilter.superAdmins => u.resolvedType == UserType.superAdmin,
+    _UserFilter.adminsSysteme => u.resolvedType == UserType.adminSysteme,
   };
 
   /// Compte sur lequel la page est centrée, tant que l'utilisateur n'a pas
   /// cliqué « Voir tous » (le focus vient d'une notification, il ne doit pas
   /// coincer la page).
   String? _focus;
+
+  /// Ordre de la liste. Par défaut les inscriptions récentes en tête.
+  bool _plusRecentsDabord = true;
 
   @override
   void initState() {
@@ -373,7 +383,8 @@ class _UsersTabState extends State<_UsersTab> {
       (f) =>
           f == _UserFilter.proprietaires ||
           f == _UserFilter.locataires ||
-          f == _UserFilter.superAdmins,
+          f == _UserFilter.superAdmins ||
+          f == _UserFilter.adminsSysteme,
     );
     if (typeFilters.isNotEmpty) {
       final t = u.resolvedType;
@@ -383,7 +394,9 @@ class _UsersTabState extends State<_UsersTab> {
           (t == UserType.locataire &&
               typeFilters.contains(_UserFilter.locataires)) ||
           (t == UserType.superAdmin &&
-              typeFilters.contains(_UserFilter.superAdmins));
+              typeFilters.contains(_UserFilter.superAdmins)) ||
+          (t == UserType.adminSysteme &&
+              typeFilters.contains(_UserFilter.adminsSysteme));
       if (!ok) return false;
     }
     return true;
@@ -391,7 +404,13 @@ class _UsersTabState extends State<_UsersTab> {
 
   @override
   Widget build(BuildContext context) {
-    final users = widget.data.users.where(_matches).toList();
+    final users = widget.data.users.where(_matches).toList()
+      // Les plus récents d'abord : sur cet écran on vient traiter les
+      // inscriptions du jour (activer un propriétaire), pas relire les
+      // anciennes.
+      ..sort((a, b) => _plusRecentsDabord
+          ? b.createdAt.compareTo(a.createdAt)
+          : a.createdAt.compareTo(b.createdAt));
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -438,6 +457,26 @@ class _UsersTabState extends State<_UsersTab> {
                 hint: 'Rechercher par nom ou e-mail…',
                 onChanged: (q) => setState(() => _search = q),
                 padding: EdgeInsets.zero,
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Tooltip(
+              message: _plusRecentsDabord
+                  ? 'Plus récents d\'abord'
+                  : 'Plus anciens d\'abord',
+              child: IconButton.outlined(
+                onPressed: () =>
+                    setState(() => _plusRecentsDabord = !_plusRecentsDabord),
+                icon: Icon(
+                  _plusRecentsDabord
+                      ? Icons.arrow_downward
+                      : Icons.arrow_upward,
+                  size: 18,
+                ),
+                style: IconButton.styleFrom(
+                  foregroundColor: AppColors.onSurfaceVariant,
+                  side: BorderSide(color: AppColors.outlineVariant),
+                ),
               ),
             ),
             const SizedBox(width: AppSpacing.md),
@@ -558,8 +597,9 @@ class _UserCardState extends State<_UserCard> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Erreur : $e')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
     } finally {
       if (mounted) setState(() => _envoiActivation = false);
     }
@@ -742,7 +782,9 @@ class _UserCardState extends State<_UserCard> {
                           ),
                           Text(
                             '${user.email}  ·  $typeLabel'
-                            '${groupName != null ? '  ·  $groupName' : ''}',
+                            '${groupName != null ? '  ·  $groupName' : ''}'
+                            '  ·  Inscrit le '
+                            '${_dateInscription.format(user.createdAt.toLocal())}',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: AppTypography.labelSm.copyWith(
@@ -789,16 +831,21 @@ class _UserCardState extends State<_UserCard> {
                       Tooltip(
                         message: 'Envoyer l\'e-mail d\'activation',
                         child: IconButton.outlined(
-                          onPressed: _envoiActivation ? null : _envoyerActivation,
+                          onPressed: _envoiActivation
+                              ? null
+                              : _envoyerActivation,
                           icon: _envoiActivation
                               ? const SizedBox(
                                   width: 18,
                                   height: 18,
                                   child: CircularProgressIndicator(
-                                      strokeWidth: 2),
+                                    strokeWidth: 2,
+                                  ),
                                 )
-                              : const Icon(Icons.mark_email_read_outlined,
-                                  size: 18),
+                              : const Icon(
+                                  Icons.mark_email_read_outlined,
+                                  size: 18,
+                                ),
                           style: IconButton.styleFrom(
                             foregroundColor: AppColors.onSurfaceVariant,
                             side: BorderSide(color: AppColors.outlineVariant),
@@ -1378,17 +1425,19 @@ class _PasswordDialogState extends State<_PasswordDialog> {
         email: widget.user.email,
         fullName: widget.user.fullName,
       );
-      if (mounted)
+      if (mounted) {
         setState(() {
           _sendingLink = false;
           _linkSent = true;
         });
+      }
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _sendingLink = false;
           _errorLink = '$e';
         });
+      }
     }
   }
 
@@ -1418,11 +1467,12 @@ class _PasswordDialogState extends State<_PasswordDialog> {
         );
       }
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _settingPw = false;
           _errorPw = '$e';
         });
+      }
     }
   }
 

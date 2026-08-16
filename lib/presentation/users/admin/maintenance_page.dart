@@ -148,10 +148,11 @@ class _EmailTestServiceState extends State<_EmailTestService> {
         to: to,
         emailType: _emailType,
       );
-      if (mounted)
+      if (mounted) {
         setState(() {
           _result = r;
         });
+      }
     } catch (e) {
       if (mounted) {
         setState(() {

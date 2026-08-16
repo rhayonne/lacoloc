@@ -6,13 +6,19 @@ enum UserType {
   locataire,
   proprietaire,
   adminGroupe,
-  superAdmin;
+  superAdmin,
+
+  /// Équipe HabitaFrance : administre et fait du support, sans pouvoir
+  /// supprimer un compte ni créer un autre administrateur (règles tenues par
+  /// des triggers en base, pas seulement par l'interface).
+  adminSysteme;
 
   String get raw => switch (this) {
         UserType.locataire => 'locataire',
         UserType.proprietaire => 'proprietaire',
         UserType.adminGroupe => 'admin_groupe',
         UserType.superAdmin => 'super_admin',
+        UserType.adminSysteme => 'admin_systeme',
       };
 
   static UserType? tryParse(String? raw) {
@@ -22,6 +28,7 @@ enum UserType {
       'proprietaire' => UserType.proprietaire,
       'admin_groupe' => UserType.adminGroupe,
       'super_admin' => UserType.superAdmin,
+      'admin_systeme' => UserType.adminSysteme,
       _ => null,
     };
   }
@@ -110,6 +117,7 @@ class UsersClient {
           entrepriseId != null ? 'Propriétaire entreprise' : 'Propriétaire',
         UserType.adminGroupe => 'Admin entreprise',
         UserType.superAdmin => 'Super Admin',
+        UserType.adminSysteme => 'Admin Système',
         null => typeUserRef?.label ?? 'Utilisateur',
       };
 

@@ -10,6 +10,7 @@ import 'package:habitafrance/presentation/admin/meuble_types_page.dart';
 import 'package:habitafrance/presentation/admin/payment_types_page.dart';
 import 'package:habitafrance/presentation/nav/app_nav_sidebar.dart';
 import 'package:habitafrance/presentation/nav/app_sidebar.dart';
+import 'package:habitafrance/data/datasources/platform_settings.dart';
 import 'package:habitafrance/presentation/users/admin/emails_admin_page.dart';
 import 'package:habitafrance/presentation/widgets/app_top_bar.dart';
 import 'package:habitafrance/data/datasources/notifications.dart';
@@ -139,6 +140,8 @@ class _SuperAdminProfilPageState extends State<SuperAdminProfilPage> {
           _usersSub = 0;
           _focusUserId = userId;
         }),
+        onVoirEmails: () =>
+            _openSub(_Section.configuration, () => _configSub = 1),
       ),
       _Section.utilisateurs => UtilisateursAdminPage(
         // La clé inclut le focus : arriver depuis une notification doit
@@ -394,7 +397,13 @@ class _SuperAdminDashboard extends StatefulWidget {
   /// le compte dans la foulée.
   final void Function(String? userId) onVoirUtilisateurs;
 
-  const _SuperAdminDashboard({required this.onVoirUtilisateurs});
+  /// Ouvre « Configuration → Emails administration ».
+  final VoidCallback onVoirEmails;
+
+  const _SuperAdminDashboard({
+    required this.onVoirUtilisateurs,
+    required this.onVoirEmails,
+  });
 
   @override
   State<_SuperAdminDashboard> createState() => _SuperAdminDashboardState();
@@ -423,6 +432,14 @@ class _SuperAdminDashboardState extends State<_SuperAdminDashboard> {
     // `listForRecipient` et non `listByOwner` : la policy `notifications_select`
     // contient `OR is_super_admin()`, donc une lecture nue renverrait ici les
     // notifications de tous les utilisateurs.
+    // Sans adresse configurée, aucun e-mail ne part : ni l'avis de demande,
+    // ni l'activation. Le savoir en permanence vaut mieux que le découvrir
+    // au moment où un candidat attend.
+    var reglages = PlatformSettings.vide;
+    try {
+      reglages = await PlatformSettingsDatasource.get();
+    } catch (_) {}
+
     var notifs = const <NotificationModel>[];
     try {
       final all = await NotificationsDatasource.listForRecipient(refresh: true);
@@ -435,6 +452,7 @@ class _SuperAdminDashboardState extends State<_SuperAdminDashboard> {
       chargeTypes: results[2],
       paymentTypes: results[3],
       notifications: notifs,
+      reglages: reglages,
     );
   }
 
@@ -511,6 +529,67 @@ class _SuperAdminDashboardState extends State<_SuperAdminDashboard> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    // ── Adresses manquantes ────────────────────────────
+                    FutureBuilder<_DashStats>(
+                      future: _future,
+                      builder: (_, snap) {
+                        final r = snap.data?.reglages;
+                        if (r == null) return const SizedBox.shrink();
+                        final manques = <String>[
+                          if (r.emailNouveauxComptes == null)
+                            'réception des demandes',
+                          if (r.emailSupport == null) 'support',
+                        ];
+                        if (manques.isEmpty) return const SizedBox.shrink();
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: AppSpacing.xl),
+                          padding: const EdgeInsets.all(AppSpacing.md),
+                          decoration: BoxDecoration(
+                            color: AppColors.error.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                                color: AppColors.error.withValues(alpha: 0.3)),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(Icons.mark_email_unread_outlined,
+                                  size: 20, color: AppColors.error),
+                              const SizedBox(width: AppSpacing.sm),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Aucun e-mail ne part vers les '
+                                      'utilisateurs',
+                                      style: AppTypography.labelMd
+                                          .copyWith(color: AppColors.error),
+                                    ),
+                                    const SizedBox(height: AppSpacing.xs),
+                                    Text(
+                                      'Adresse manquante : '
+                                      '${manques.join(', ')}. Les inscriptions '
+                                      'continuent d\'arriver ici, mais '
+                                      'personne n\'est prévenu par e-mail.',
+                                      style: AppTypography.bodyMd.copyWith(
+                                          color: AppColors.onSurfaceVariant),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: AppSpacing.sm),
+                              TextButton(
+                                onPressed: widget.onVoirEmails,
+                                child: const Text('Configurer'),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+
                     // Grille de statistiques
                     FutureBuilder<_DashStats>(
                       future: _future,
@@ -624,6 +703,7 @@ class _DashStats {
   final int chargeTypes;
   final int paymentTypes;
   final List<NotificationModel> notifications;
+  final PlatformSettings reglages;
 
   const _DashStats({
     required this.users,
@@ -631,6 +711,7 @@ class _DashStats {
     required this.chargeTypes,
     required this.paymentTypes,
     this.notifications = const [],
+    this.reglages = PlatformSettings.vide,
   });
 }
 
