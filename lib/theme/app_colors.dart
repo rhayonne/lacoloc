@@ -152,8 +152,14 @@ class AppColors {
 
   /// [ColorScheme] dérivé de la palette courante. Material 3 distribue
   /// automatiquement ces couleurs dans les composants qui utilisent le thème.
-  static ColorScheme get lightScheme => ColorScheme(
-    brightness: Brightness.light,
+  ///
+  /// La [Brightness] suit la palette (voir `AppPalette.isDark`) : c'est elle
+  /// qui gouverne tout ce que Material décide **sans nous** — curseur de
+  /// saisie, poignées de sélection, icônes système, teinte des overlays. Une
+  /// palette sombre annoncée « claire » garde ces réglages-là en clair et
+  /// laisse traîner du gris pâle sur gris pâle.
+  static ColorScheme get scheme => ColorScheme(
+    brightness: _p.isDark ? Brightness.dark : Brightness.light,
     primary: primary,
     onPrimary: onPrimary,
     primaryContainer: primaryContainer,

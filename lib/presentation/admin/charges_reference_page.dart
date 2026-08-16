@@ -473,11 +473,11 @@ class _ChargeFormContentState extends State<_ChargeFormContent> {
                       onPressed: _saving ? null : _submit,
                       style: AppTheme.saveButtonStyle,
                       icon: _saving
-                          ? const SizedBox(
+                          ? SizedBox(
                               width: 16,
                               height: 16,
                               child: CircularProgressIndicator(
-                                  strokeWidth: 2, color: Colors.white))
+                                  strokeWidth: 2, color: AppColors.onTertiaryFixed))
                           : const Icon(Icons.save_outlined),
                       label: Text(_isEditing ? 'Enregistrer' : 'Créer'),
                     ),

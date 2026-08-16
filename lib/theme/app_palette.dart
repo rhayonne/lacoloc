@@ -57,7 +57,10 @@ enum AppPaletteId {
 
   /// Encre — quasi monochrome : gris chauds, l'ocre comme seule couleur.
   /// Pensé pour les longues journées dans le tableau de bord.
-  encre('encre', 'Encre', 'Gris chauds, une seule couleur d\'accent. Sobre.');
+  encre('encre', 'Encre', 'Gris chauds, une seule couleur d\'accent. Sobre.'),
+
+  /// Sombre — le pendant nocturne d'Ardoise. Voir [AppPalettes.sombre].
+  sombre('sombre', 'Sombre', 'Ardoise de nuit. Pour les pièces peu éclairées.');
 
   const AppPaletteId(this.code, this.label, this.description);
 
@@ -190,11 +193,24 @@ class AppPalette {
     required this.onErrorContainer,
     required this.shadowTint,
   });
+
+  /// Ce thème est-il **sombre** ? Déduit du fond de page plutôt que déclaré :
+  /// un thème dont le papier est noir *est* sombre, qu'on ait pensé ou non à
+  /// cocher une case. Un thème personnalisé créé par le super admin à partir
+  /// d'un fond foncé bascule donc tout seul, sans champ supplémentaire à
+  /// remplir (ni oublier).
+  ///
+  /// Ce que ça change concrètement : la [Brightness] du `ColorScheme` (voir
+  /// `AppColors.scheme`). Material s'en sert pour tout ce qu'il décide seul —
+  /// curseur de saisie, sélection de texte, icônes système, barre de statut.
+  /// Sans ce drapeau, un thème sombre garde des réglages système clairs et
+  /// laisse apparaître, ici et là, du gris clair sur gris clair.
+  bool get isDark => surface.computeLuminance() < 0.5;
 }
 
-/// Les thèmes disponibles. Tous **clairs** : l'app est un outil de travail
-/// consulté en journée, et un thème sombre demanderait de revalider chaque
-/// couple de contraste (à faire séparément si le besoin apparaît).
+/// Les thèmes intégrés. Trois clairs (Ocre, Ardoise, Encre) et un **sombre**
+/// ([sombre]), dont chaque couple texte/fond a été revalidé pour la nuit — un
+/// thème sombre n'est pas un thème clair inversé (voir sa documentation).
 class AppPalettes {
   AppPalettes._();
 
@@ -203,6 +219,7 @@ class AppPalettes {
     AppPaletteId.ocre => ocre,
     AppPaletteId.ardoise => ardoise,
     AppPaletteId.encre => encre,
+    AppPaletteId.sombre => sombre,
   };
 
   /// Palette **intégrée** portant ce code, ou `null` si le code correspond à un
@@ -212,8 +229,13 @@ class AppPalettes {
     'ocre' => ocre,
     'ardoise' => ardoise,
     'encre' => encre,
+    'sombre' => sombre,
     _ => null,
   };
+
+  /// Le thème sombre **intégré**, cible du bouton clair/sombre.
+  /// Le code est celui persisté en base ; il ne doit pas changer.
+  static const String sombreCode = 'sombre';
 
   // ═══════════════════════════════════════════════════════════════════════════
   // OCRE — identité par défaut
@@ -400,5 +422,114 @@ class AppPalettes {
     onErrorContainer: Color(0xFF6B1A29),
 
     shadowTint: Color(0xFF2A2721),
+  );
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // SOMBRE — le pendant nocturne d'Ardoise (même famille bleu-pétrole froide).
+  //
+  // ## Un thème sombre n'est pas un thème clair inversé
+  //
+  // Quatre règles gouvernent les valeurs ci-dessous. Elles ne sont pas
+  // décoratives : chacune corrige un défaut concret qu'on obtient en se
+  // contentant d'inverser les couleurs.
+  //
+  // 1. **L'élévation monte vers le clair.** En thème clair, une carte est plus
+  //    claire que la page (blanc sur plâtre). En thème sombre, c'est
+  //    l'inverse : une carte plus SOMBRE que la page se lit comme un trou.
+  //    Ici, `surface` (la page) est la couleur la plus foncée et chaque
+  //    `surfaceContainer*` monte d'un cran vers le clair. Comme les écrans
+  //    utilisent `surfaceContainerLowest` pour les cartes, les barres de titre
+  //    et le menu, ces éléments se détachent automatiquement du fond.
+  //
+  // 2. **Ni noir pur, ni blanc pur.** Le fond n'est pas #000 (les ombres et
+  //    les paliers d'élévation n'auraient plus de place en dessous) et le texte
+  //    n'est pas #FFF : sur un fond très foncé, le blanc pur « vibre »
+  //    (halation) et fatigue en lecture longue. On plafonne le texte principal
+  //    à ~14:1 au lieu de 19:1, ce qui reste très au-dessus du AA exigé.
+  //
+  // 3. **Les couleurs d'accent s'éclaircissent.** Le pétrole #006685 d'Ardoise
+  //    est illisible sur fond foncé (≈ 1.5:1) : il devient ici un bleu ciel
+  //    #6DD2FE. Conséquence obligatoire : le texte POSÉ SUR cette couleur
+  //    (`onPrimary`, `onError`, `onTertiary`…) devient **foncé**. Un bouton
+  //    « Supprimer » est donc rose clair à texte sombre — c'est voulu, et c'est
+  //    pourquoi aucun écran ne doit écrire `Colors.white` en dur sur un fond
+  //    de couleur : il faut le token `on*` correspondant.
+  //
+  // 4. **Saturation contenue.** Une couleur très saturée sur fond foncé crée un
+  //    halo (aberration chromatique). Les accents sont donc éclaircis *et*
+  //    légèrement désaturés par rapport à leur équivalent clair.
+  //
+  // Les pastilles (`*Fixed`) suivent la même logique renversée : fond teinté
+  // FONCÉ + texte clair, là où le thème clair a un fond pâle + texte foncé.
+  // Tous les couples sont vérifiés par `test/theme/dark_palette_test.dart`.
+  // ═══════════════════════════════════════════════════════════════════════════
+  static const AppPalette sombre = AppPalette(
+    // Le papier de nuit : bleu-gris très foncé, jamais noir (règle 2).
+    surface: Color(0xFF0F1418),
+    surfaceDim: Color(0xFF0A0E11),
+    surfaceBright: Color(0xFF2C343B),
+    // Les cartes/barres/menu montent d'un cran vers le clair (règle 1).
+    surfaceContainerLowest: Color(0xFF171E23),
+    surfaceContainerLow: Color(0xFF1C242A),
+    surfaceContainer: Color(0xFF222B31),
+    surfaceContainerHigh: Color(0xFF29333A),
+    surfaceContainerHighest: Color(0xFF313C43),
+    // Blanc cassé légèrement froid : ~14:1 sur la page, sans halation.
+    onSurface: Color(0xFFE2E8EC),
+    // Texte secondaire : encore du texte (libellés, légendes) → ≥ 4.5:1 même
+    // sur le fond le plus clair de la famille (`surfaceContainerHighest`).
+    onSurfaceVariant: Color(0xFFAFBBC3),
+    // Snackbar & co : en thème sombre, l'« inverse » est une boîte CLAIRE.
+    inverseSurface: Color(0xFFE2E8EC),
+    inverseOnSurface: Color(0xFF1C242A),
+    outline: Color(0xFF7B888F), // ≥ 3:1 sur la page (élément d'interface)
+    outlineVariant: Color(0xFF3B454C), // bordure discrète des cartes
+    surfaceTint: Color(0xFF6DD2FE),
+    surfaceVariant: Color(0xFF313C43),
+
+    // Bleu ciel : l'action, et aussi la couleur des liens et des libellés
+    // d'onglet actif → vérifiée comme du TEXTE sur la page (≈ 10:1).
+    primary: Color(0xFF6DD2FE),
+    onPrimary: Color(0xFF00344A), // texte foncé sur bouton plein (règle 3)
+    primaryContainer: Color(0xFF00587A),
+    onPrimaryContainer: Color(0xFFC7EAFF),
+    inversePrimary: Color(0xFF005671),
+    // Pastille = fond teinté FONCÉ + texte clair. Sert aussi de fond aux items
+    // de menu sélectionnés (`AppColors.navItemSelected`, composé en alpha).
+    primaryFixed: Color(0xFF0E3D52),
+    primaryFixedDim: Color(0xFF11506C),
+    onPrimaryFixed: Color(0xFFD5F0FF),
+    onPrimaryFixedVariant: Color(0xFFA6DCF6),
+
+    // Ambre — l'information, l'état. Éclairci depuis le #795900 d'Ardoise.
+    secondary: Color(0xFFF0C662),
+    onSecondary: Color(0xFF3D2E00),
+    secondaryContainer: Color(0xFF5C4400),
+    onSecondaryContainer: Color(0xFFFFE0A3),
+    secondaryFixed: Color(0xFF453413),
+    secondaryFixedDim: Color(0xFF5C4712),
+    onSecondaryFixed: Color(0xFFFFE3AE),
+    onSecondaryFixedVariant: Color(0xFFEBC77C),
+
+    // Vert — validé / signé / payé. `tertiaryFixed` est le fond du bouton
+    // « Enregistrer » : foncé, avec `onTertiaryFixed` clair par-dessus.
+    tertiary: Color(0xFFA2DC66),
+    onTertiary: Color(0xFF1D3600),
+    tertiaryContainer: Color(0xFF2F5300),
+    onTertiaryContainer: Color(0xFFC1F58A),
+    tertiaryFixed: Color(0xFF1F3D12),
+    tertiaryFixedDim: Color(0xFF2C5019),
+    onTertiaryFixed: Color(0xFFC6EFA1),
+    onTertiaryFixedVariant: Color(0xFFA2DC66),
+
+    // Rouge — danger. Clair sur fond sombre, donc texte foncé par-dessus.
+    error: Color(0xFFFFB3AC),
+    onError: Color(0xFF5F1310),
+    errorContainer: Color(0xFF8C1A17),
+    onErrorContainer: Color(0xFFFFDAD6),
+
+    // L'ombre ne « pose » plus rien en thème sombre (c'est l'élévation vers le
+    // clair qui joue ce rôle) : on la garde très discrète.
+    shadowTint: Color(0xFF000508),
   );
 }

@@ -1909,9 +1909,10 @@ class _SegmentedAvatarPainter extends CustomPainter {
       canvas.drawArc(rect, start + i * sweep, sweep, true, paint);
     }
 
-    // Séparateurs radiaux blancs.
+    // Séparateurs radiaux : couleur de la carte porteuse (pas du blanc en
+    // dur, qui balafrerait le camembert en thème sombre).
     final divider = Paint()
-      ..color = Colors.white
+      ..color = AppColors.surfaceContainerLowest
       ..strokeWidth = 1.5
       ..style = PaintingStyle.stroke;
     for (var i = 0; i < n; i++) {
@@ -2439,12 +2440,12 @@ class _EdlActionButtonState extends State<_EdlActionButton> {
       child: FilledButton.icon(
         onPressed: onPressed,
         icon: _busy
-            ? const SizedBox(
+            ? SizedBox(
                 width: 14,
                 height: 14,
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
-                  color: Colors.white,
+                  color: AppColors.onPrimary,
                 ),
               )
             : Icon(icon, size: widget.compact ? 14 : 16),
@@ -6141,7 +6142,10 @@ class _InnerZone extends StatelessWidget {
     final overlay = hasContent
         ? AppColors.primary.withValues(alpha: 0.85)
         : Colors.black.withValues(alpha: 0.6);
-    final fgColor = Colors.white;
+    // Le libellé suit son fond : sur la pastille colorée c'est `onPrimary`
+    // (foncé en thème sombre, où la primaire est claire) ; sur le voile noir,
+    // du blanc — ce voile-là est noir dans tous les thèmes.
+    final fgColor = hasContent ? AppColors.onPrimary : Colors.white;
 
     final pill = Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -6166,9 +6170,9 @@ class _InnerZone extends StatelessWidget {
             const SizedBox(width: 6),
             Text(
               '$obsCount',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 11,
-                color: Colors.white,
+                color: fgColor,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -8465,8 +8469,8 @@ class _EdlCollectifNonMeubleePageState
         child: ExpansionTile(
           key: tileKey,
           // Header ligeiramente colorido; body branco abaixo via Container filho.
-          collapsedBackgroundColor: const Color(0xFFF0F6FA),
-          backgroundColor: const Color(0xFFF0F6FA),
+          collapsedBackgroundColor: AppColors.surfaceContainerLow,
+          backgroundColor: AppColors.surfaceContainerLow,
           shape: const Border(),
           collapsedShape: const Border(),
           leading: Icon(icon, color: AppColors.primary),
@@ -8698,9 +8702,9 @@ class _TenantCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surfaceContainerLowest,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFCFE0E7)),
+        border: Border.all(color: AppColors.outlineVariant),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -8734,9 +8738,9 @@ class _TenantCard extends StatelessWidget {
                 if (preneur.email != null && preneur.email!.isNotEmpty)
                   Text(
                     preneur.email!,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 11,
-                      color: Color(0xFF5B6772),
+                      color: AppColors.onSurfaceVariant,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -8790,9 +8794,9 @@ class _GarantCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surfaceContainerLowest,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFCFE0E7)),
+        border: Border.all(color: AppColors.outlineVariant),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -8824,9 +8828,9 @@ class _GarantCard extends StatelessWidget {
                   garant.typeGarant == 'morale'
                       ? 'Personne morale'
                       : 'Personne physique',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 11,
-                    color: Color(0xFF5B6772),
+                    color: AppColors.onSurfaceVariant,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -11064,6 +11068,10 @@ class _EdlIndividuelMeubleePageState extends State<EdlIndividuelMeubleePage>
             const SizedBox(height: AppSpacing.sm),
             if (hasSig) ...[
               // Signature du profil reprise automatiquement (aperçu).
+              // Fond blanc VOLONTAIRE, même en thème sombre : une signature est
+              // un tracé noir sur fond transparent. Posée sur une surface
+              // foncée, elle disparaîtrait. Ce cadre est du papier, pas une
+              // surface de l'interface — d'où la couleur en dur.
               Container(
                 width: 320,
                 height: 90,
@@ -11425,8 +11433,8 @@ class _EdlIndividuelMeubleePageState extends State<EdlIndividuelMeubleePage>
           // SingleChildScrollView interne (inventaire) lise l'état booléen de
           // l'ExpansionTile comme un offset (double) → crash restoreScrollOffset.
           key: ValueKey(tileId),
-          collapsedBackgroundColor: const Color(0xFFF0F6FA),
-          backgroundColor: const Color(0xFFF0F6FA),
+          collapsedBackgroundColor: AppColors.surfaceContainerLow,
+          backgroundColor: AppColors.surfaceContainerLow,
           shape: const Border(),
           collapsedShape: const Border(),
           leading: Icon(

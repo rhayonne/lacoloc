@@ -14,7 +14,13 @@ import 'app_typography.dart';
 /// **raios** em `AppRadius`; **tipografia** em `AppTypography`. Aqui só montamos
 /// o [ThemeData] e alguns *styles* de botão nomeados.
 ///
-/// `AppTheme.light` (usado no `MaterialApp`) define os defaults herdados:
+/// `AppTheme.current` (usado no `MaterialApp`) define os defaults herdados.
+/// ⚠️ Ele monta o tema a partir da **paleta corrente** — que pode ser clara
+/// **ou escura** (tema « Sombre »). Por isso não existe um `AppTheme.dark`
+/// separado: a paleta é a única fonte, e `AppColors.scheme` já ajusta o
+/// `Brightness`. Ao editar este arquivo, nunca escreva uma cor em dur
+/// (`Colors.white`, `Colors.black`) sobre um fundo colorido — use o token
+/// `on*` correspondente, senão o texto some no tema escuro. Os defaults:
 ///   • `elevatedButtonTheme` / `filledButtonTheme` → botões primários (azul
 ///     `AppColors.primary`) — ação principal padrão.
 ///   • `outlinedButtonTheme` → botões secundários bordés (contorno cinza).
@@ -37,8 +43,11 @@ import 'app_typography.dart';
 class AppTheme {
   AppTheme._();
 
-  static ThemeData get light {
-    final scheme = AppColors.lightScheme;
+  /// Le thème Material construit à partir de la palette courante (claire ou
+  /// sombre). Ancien nom : `light` — il mentait depuis l'arrivée du thème
+  /// Sombre.
+  static ThemeData get current {
+    final scheme = AppColors.scheme;
     final textTheme = AppTypography.textTheme;
 
     return ThemeData(
@@ -297,9 +306,11 @@ class AppTheme {
   );
 
   /// Style rouge pour tous les boutons "Supprimer" de l'app.
+  /// Le libellé utilise [AppColors.onError] et non du blanc en dur : en thème
+  /// sombre, le rouge devient CLAIR et un libellé blanc y disparaîtrait.
   static ButtonStyle get deleteButtonStyle => FilledButton.styleFrom(
     backgroundColor: AppColors.error,
-    foregroundColor: Colors.white,
+    foregroundColor: AppColors.onError,
     textStyle: AppTypography.labelMd,
     // Dimensions issues de la source unique [AppButtonSizes.standard].
     padding: AppButtonSizes.standard.padding,

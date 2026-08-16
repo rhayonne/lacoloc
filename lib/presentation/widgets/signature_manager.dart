@@ -422,6 +422,9 @@ class _SignatureSlotState extends State<_SignatureSlot> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        // Fond blanc VOLONTAIRE, même en thème sombre : une signature est un
+        // tracé noir sur fond transparent — sur une surface foncée elle
+        // disparaîtrait. Ce cadre est du papier, pas une surface d'interface.
         Container(
           height: 140,
           decoration: BoxDecoration(

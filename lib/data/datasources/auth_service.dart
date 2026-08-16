@@ -249,9 +249,29 @@ class AuthService {
   /// choisi (ou si son thème a été désactivé depuis), il voit le principal.
   /// Best-effort : si la lecture échoue, on garde le thème courant plutôt que
   /// de bloquer l'ouverture de session.
+  ///
+  /// **Cas du thème choisi juste avant de se connecter** (typiquement : le
+  /// bouton clair/sombre depuis l'accueil public). Ce choix-là a été fait
+  /// sciemment, il y a quelques secondes ; il doit devenir la préférence du
+  /// compte, et non être écrasé par ce que le compte contenait avant. C'est ce
+  /// qui fait qu'on ne « perd » pas le thème sombre en se connectant.
   static Future<void> loadThemePreference() async {
     final user = currentUser;
     if (user == null) return;
+    final pending = ThemeController.instance.takePendingAccountWrite();
+    if (pending != null) {
+      // Déjà appliqué à l'écran : il ne reste qu'à l'attacher au compte.
+      try {
+        await _client
+            .from(_profileTable)
+            .update({'theme_preference': pending})
+            .eq('id', user.id);
+      } catch (_) {
+        // Le thème reste bon sur cet appareil ; il ne suivra simplement pas
+        // sur un autre. Pas de quoi interrompre l'ouverture de session.
+      }
+      return;
+    }
     try {
       final row = await _client
           .from(_profileTable)
@@ -270,9 +290,13 @@ class AuthService {
   /// Lève si l'écriture échoue, pour que l'écran puisse le dire à
   /// l'utilisateur (sinon son choix serait perdu au prochain démarrage sans
   /// qu'il le sache).
+  ///
+  /// Le choix est aussi retenu **sur l'appareil** : sans compte, c'est la seule
+  /// mémoire disponible ; avec un compte, ça évite un clignotement de thème au
+  /// démarrage suivant, avant que la préférence du compte soit lue.
   static Future<void> saveThemePreference(ThemeRef theme) async {
-    ThemeController.instance.set(theme);
     final user = currentUser;
+    await ThemeController.instance.choose(theme, signedIn: user != null);
     if (user == null) return;
     await _client
         .from(_profileTable)

@@ -1677,7 +1677,14 @@ class _DpeChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Ces couleurs sont celles de l'échelle DPE officielle : elles ne suivent
+    // pas le thème (on ne « décore » pas un repère réglementaire). En revanche
+    // la LETTRE doit rester lisible dessus : en blanc fixe, le « D » sur jaune
+    // #F9C74F tombait à ~1.6:1. On choisit donc noir ou blanc selon la
+    // luminance de la pastille.
     final color = _colors[classe] ?? Colors.grey;
+    final onColor =
+        color.computeLuminance() > 0.45 ? Colors.black : Colors.white;
     return Container(
       width: 22,
       height: 22,
@@ -1688,8 +1695,8 @@ class _DpeChip extends StatelessWidget {
       ),
       child: Text(
         classe,
-        style: const TextStyle(
-          color: Colors.white,
+        style: TextStyle(
+          color: onColor,
           fontSize: 11,
           fontWeight: FontWeight.bold,
         ),

@@ -198,12 +198,12 @@ class _LoginCardState extends State<LoginCard> {
           backgroundColor: AppColors.error,
           content: Row(
             children: [
-              const Icon(Icons.error_outline, color: Colors.white, size: 20),
+              Icon(Icons.error_outline, color: AppColors.onError, size: 20),
               const SizedBox(width: AppSpacing.sm),
               Expanded(
                 child: Text(
                   message,
-                  style: const TextStyle(color: Colors.white),
+                  style: TextStyle(color: AppColors.onError),
                 ),
               ),
             ],

@@ -214,7 +214,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       navigatorKey: _navigatorKey,
       title: 'HabitaFrance',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.light,
+      theme: AppTheme.current,
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,

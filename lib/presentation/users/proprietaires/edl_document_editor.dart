@@ -1058,8 +1058,8 @@ class _SectionTable extends StatelessWidget {
               horizontal: AppSpacing.md,
               vertical: AppSpacing.sm,
             ),
-            decoration: const BoxDecoration(
-              color: Color(0xFFF0F6FA),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceContainerLow,
               borderRadius: BorderRadius.vertical(top: Radius.circular(8)),
             ),
             child: Row(
@@ -1279,7 +1279,7 @@ class _LigneHeaderRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: Color(0xFFF0F6FA),
+        color: AppColors.surfaceContainerLow,
         border: Border(
           bottom: BorderSide(color: AppColors.outlineVariant),
         ),

@@ -47,12 +47,18 @@ class _ThemePickerSectionState extends State<ThemePickerSection> {
       await AuthService.saveThemePreference(theme);
     } catch (e) {
       // Revient à l'état d'avant : mieux vaut le thème qu'on avait qu'un thème
-      // qui disparaîtra au prochain démarrage.
+      // qui disparaîtra au prochain démarrage. On repasse par `choose` (et non
+      // `set`) pour que la mémoire de l'appareil revienne elle aussi en
+      // arrière — sinon l'écran afficherait l'ancien thème et le rechargement
+      // suivant ressortirait le nouveau.
       final back = ThemeController.instance.available
           .where((t) => t.code == previousCode)
           .firstOrNull;
       if (back != null) {
-        ThemeController.instance.set(back);
+        await ThemeController.instance.choose(
+          back,
+          signedIn: AuthService.isLoggedIn,
+        );
       } else {
         ThemeController.instance.value = previous;
       }
